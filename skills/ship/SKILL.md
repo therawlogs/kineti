@@ -26,19 +26,20 @@ Enter `/ship` in the active workspace.
   2. Verify `last_completed_gate` equals `"design"`.
   3. Load cumulative causality graph from `.northstar/graphs/cumulative_causality.md`.
 
-  ### Step 2: Execute Stage 6 - Cost Architecture & Financial Guardrails (Meta AI Pattern)
-  Prompt the user with Stage 6 plain questions:
-  * **Q1. Unit Cost Ceiling**: What is the maximum allowed cost per user action to maintain >80% Gross Margin?
-  * **Q2. Auto Spend Circuit Breaker**: What API cost cap triggers an immediate auto-stop to prevent runaway bills?
-  * **Q3. Outage Cost per Hour**: $0 / Under $100 / $100–$10k / Over $10k
+  ### Step 2: Infrastructure & Deployment Target Synthesis
+  1. **Audit Causality Map & Live Research**: Read `.northstar/graphs/cumulative_causality.md` and perform live research to fetch optimal hosting infrastructure options.
+  2. **Synthesize 3 Infrastructure Options**:
+     * **Option A: Multi-Cloud Vercel / Cloudflare Edge**: Zero-config edge deployment, global CDN, automated SSL, serverless function scaling.
+     * **Option B: Dedicated GPU Server (RunPod / Lambda / Modal)**: Custom container runtime for local LLM / VRAM inference and heavy compute tasks under 50ms SLA.
+     * **Option C: Self-Hosted / Local Gateway**: Complete data privacy, local network deployment, zero third-party egress cost.
+  3. **Tailor Financial Spend Caps**: Configure unit cost ceilings, spend circuit breakers ($50.00 USD default), and Saga LIFO rollback triggers based on chosen hosting target.
 
-  *Dynamic Questions*: Generate 2–3 plain cost probes tagged `[DOMAIN-SPECIFIC]`.
-
-  ### Step 3: Present Release Options & HARD PAUSE
-  Present Stage 6 (Cost Architecture) and Stage 7 (Deployment Ops) parameters, financial spend caps, and Saga LIFO rollback plans to the user, then **STOP EXECUTION IMMEDIATELY**:
+  ### Step 3: Present Deployment Options & HARD PAUSE
+  Present the synthesized infrastructure options, spend caps, and Saga LIFO rollback plans to the user, then **STOP EXECUTION IMMEDIATELY**:
 
   > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the release parameters, spend caps, and deployment options, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from triggering GitOps deployment, running test suites, or marking the sprint complete before the user explicitly reviews and approves release.
+  > **HARD PAUSE DIRECTIVE**: You MUST present the infrastructure options, spend caps, and deployment plans to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from triggering GitOps deployment, running test suites, or marking the sprint complete before the user explicitly selects a hosting target.
+
 
   ### Step 4: Execute Release Sub-Skills & Verification (After User Approves)
   Once approved by the user, execute:
