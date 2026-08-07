@@ -18,7 +18,7 @@ Enter `/design-review` targeting active client views.
 ## Protocol & Actions
 - **Mode**: `LAYOUT_STRUCTURAL_AUDIT` (Critical Choice Mode)
 - **Instructions**:
-  When this skill is invigorated, check if it is running as a background sub-routine of a compounded orchestrator (e.g. `/ship`). If so, execute silently without prompting, inheriting choices from the parent brief. Otherwise, you **MUST NOT** make style edits immediately. Halt and prompt the user:
+  When this skill is invigorated, check if it is running as a background sub-routine of a compounded orchestrator (e.g. `/ship`). If so, execute silently without prompting, inheriting choices from the parent brief. Otherwise, you should output your findings and proceed.
 
   1. **Select the target view for visual inspection:**
      * *Option A*: Main Feature Dashboard (Check alignment of headers, sidebars, and flex layouts).

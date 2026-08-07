@@ -27,12 +27,7 @@ def main():
 
     # 1. Sync Root Master Documents
     master_files = [
-        "ETHOS.md",
-        "guide_to_kinetios.md",
-        "master_fde_founder_specification.md",
-        "founder_sprint_framework.md",
-        "sdlc_hybrid_guide.md",
-        "README.md"
+        "ETHOS.md"
     ]
     for f_name in master_files:
         src = kineti_dir / f_name

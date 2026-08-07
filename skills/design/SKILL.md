@@ -38,13 +38,10 @@ Enter `/design` in the active workspace.
   3. **Verify API Contract Compliance (Directive 28)**: Before generating any frontend code, verify that the backend spec has produced a strict OpenAPI / TypeSafe RPC contract (tRPC or Zod schema). The frontend agent must compile against these exact exported types.
   4. **Formulate 3 Bespoke Visual Directions**: Develop 3 domain-tailored visual design systems specifying typography pairings (Google Fonts like Outfit, Inter, JetBrains Mono), spatial density, custom color palettes (HSL), component structures, and micro-interactions. Generic canned presets (glassmorphic, dark mode, analog) are STRICTLY PROHIBITED.
   5. **Render Screenshot Previews**: Call `generate_image` to generate high-fidelity UI previews for all 3 visual directions.
-  6. **Present Directions & HARD PAUSE**: Present the CPO research findings, component library rationale, visual system options, and generated screenshots to the user, then **STOP EXECUTION IMMEDIATELY**:
+  6. **Present Directions**: Present the CPO research findings, component library rationale, visual system options, and generated screenshots to the user, make a logical default choice if needed, and proceed to the next step.
 
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the 3 bespoke domain visual directions, CPO research rationale, and screenshot previews to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting a design theme or writing HTML/CSS code before the user explicitly selects a design system.
-
-  ### Step 3: Execute Stage 5 - Testing Strategy & Autonomic Patching (After User Selects Design)
-  Once the user selects their preferred design direction, prompt the user with Stage 5 testing questions and **PAUSE FOR INPUT**:
+  ### Step 3: Execute Stage 5 - Testing Strategy & Autonomic Patching
+  Make a logical default choice for the preferred design direction, output the Stage 5 testing choices, and proceed using defaults:
   * **Q1. Testing Strategy**: Unit+Integration CI / Playwright E2E / Manual QA / Fix Forward
   * **Q2. Device Matrix**: Desktop Chrome / Chrome+Safari Desktop+Mobile / Full Cross-Browser / N/A
   * **Q3. Test Data Strategy ($Q = C \times A \times T$)**: Deterministic Fixtures / Scrubbed Prod Data / Synthetic Mocks
@@ -64,8 +61,8 @@ Enter `/design` in the active workspace.
   2. Update `.northstar/graphs/cumulative_causality.md` silently.
   3. Save transcripts and update `.northstar/manifest.json` silently without dumping raw file text in chat.
 
-  ### Step 6: Surface Checkpoint 3 & Release Outcome Preview (User Decision Gate)
-  Surface ONLY the executive build summary, release outcome preview, and next choices to the user, then **HALT EXECUTION IMMEDIATELY**:
+  ### Step 6: Surface Checkpoint 3 & Release Outcome Preview
+  Surface ONLY the executive build summary, release outcome preview, and next choices to the user, make a logical default choice if needed, and proceed to the next step or finish.
 
   ```
   === Checkpoint 3: /design Build Summary ===
@@ -83,6 +80,3 @@ Enter `/design` in the active workspace.
     1. Proceed to /ship (Release Verification & Production Deploy)
     2. Request visual component or layout refinements
   ```
-
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the Checkpoint 3 Outcome Preview above and STOP YOUR TURN IMMEDIATELY. Do NOT run downstream skills until the user explicitly selects an option.

@@ -71,19 +71,15 @@ Enter `/autoplan` in the active workspace.
   * **M2. Vector Store Architecture**: Evaluate pgvector, Qdrant, Pinecone, or Weaviate for the project's retrieval requirements.
   * **M3. Embedding Model Selection**: Evaluate embedding models (OpenAI text-embedding-3, Cohere embed-v3, local models) for cost/quality tradeoff.
 
-  *Dynamic Probes*: Generate 3–5 CTO-level technical deep-dive questions tagged `[DOMAIN-SPECIFIC]` based on the live research conducted.
-
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the CTO & Architect deep-dive questions, enterprise domain evaluations, and synthesized infrastructure options above and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-generating answers for the user, simulating technical choices, writing transcript files, or running downstream skills before receiving the user's explicit response.
+  *Dynamic Probes*: Generate 3–5 CTO-level technical deep-dive questions tagged `[DOMAIN-SPECIFIC]` based on the live research conducted. Make logical default choices and proceed.
 
   ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
-  1. Once the user responds, sub-agent threads execute `/plan_eng_review` (Hexagonal Ports, AST Skeletons, VRAM sizing) and `/plan_design_review` in the background.
+  1. Sub-agent threads execute `/plan_eng_review` (Hexagonal Ports, AST Skeletons, VRAM sizing) and `/plan_design_review` in the background.
   2. Generate the Edge Case & Failure Mode Matrix and data schema contracts silently in `.northstar/spec.md`.
-  3. Run `causality_graph_builder.py` silently in background threads to generate `.northstar/graphs/stage_2_causality.md`, `stage_3_causality.md`, and update `cumulative_causality.md`.
-  4. Save transcripts and update `.northstar/manifest.json` silently without dumping file content in chat.
+  3. Save transcripts and update `.northstar/manifest.json` silently without dumping file content in chat.
 
-  ### Step 6: Surface Checkpoint 2 & Build Outcome Preview (User Decision Gate)
-  Surface ONLY the executive technical summary, build outcome preview, and next choices to the user, then **HALT EXECUTION IMMEDIATELY**:
+  ### Step 6: Surface Checkpoint 2 & Build Outcome Preview
+  Surface ONLY the executive technical summary, build outcome preview, and next choices to the user, make a logical default choice if needed, and proceed to the next step.
 
   ```
   === Checkpoint 2: /autoplan Architecture Summary ===
@@ -101,6 +97,3 @@ Enter `/autoplan` in the active workspace.
     1. Proceed to /design (Domain Design Research & Component Build)
     2. Adjust technical boundaries or concurrency rules
   ```
-
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the Checkpoint 2 Outcome Preview above and STOP YOUR TURN IMMEDIATELY. Do NOT run downstream skills until the user explicitly selects an option.
