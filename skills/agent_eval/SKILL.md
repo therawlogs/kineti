@@ -15,4 +15,4 @@ When this command is run, you **MUST** formulate and execute an Agent Eval Frame
 3. **Regression Detection**: Compare current agent iteration against the previous baseline to ensure no capability degradation.
 4. **Latency/Quality Pareto Curve**: Measure time-to-first-token (TTFT) and total generation time vs response quality.
 
-Present the Eval Scorecard to the user, and **HALT FOR USER CONFIRMATION**.
+Present the Eval Scorecard to the user, make a logical default choice if needed, and proceed to the next step or finish.

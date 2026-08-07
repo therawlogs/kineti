@@ -34,11 +34,8 @@ Enter `/agent-orchestration` in the active workspace.
   5. **Fault Isolation & Circuit Breakers**: Design failure boundaries so one agent's crash doesn't cascade to the entire orchestration. Evaluate retry policies, Dead Letter Queues for failed agent tasks, and graceful degradation (if specialist agent fails, supervisor handles directly).
   6. **Cost Routing & Model Selection Per Agent**: Different agents in the orchestration may use different models. Route simple classification agents to cheap/fast models, route complex reasoning agents to expensive/capable models.
 
-  ### Step 3: Present Orchestration Architecture & HARD PAUSE
-  Present the orchestration pattern recommendation, framework options, fault isolation strategy, and cost routing plan to the user, then **STOP EXECUTION IMMEDIATELY**:
+  ### Step 3: Present Orchestration Architecture
+  Present the orchestration pattern recommendation, framework options, fault isolation strategy, and cost routing plan to the user, make a logical default choice if needed, and proceed to the next step.
 
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the orchestration architecture, framework options, and fault isolation strategy to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from implementing orchestration code before the user explicitly approves.
-
-  ### Step 4: Implement Approved Orchestration Architecture (After User Approves)
-  Once approved, generate orchestration scaffolding, agent routing logic, handoff schemas, and circuit breaker middleware. Log decisions to `.northstar/decisions/agent_orchestration.md`.
+  ### Step 4: Implement Orchestration Architecture
+  Generate orchestration scaffolding, agent routing logic, handoff schemas, and circuit breaker middleware based on the default or chosen architecture. Log decisions to `.northstar/decisions/agent_orchestration.md`.

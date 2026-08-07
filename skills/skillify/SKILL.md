@@ -18,7 +18,7 @@ Enter `/skillify` referencing recent execution logs or shell sessions.
 ## Protocol & Actions
 - **Mode**: `AUTOMATION_CODIFIER` (Critical Choice Mode)
 - **Instructions**:
-  When this skill is invigorated, check if it is running as a background sub-routine of a compounded orchestrator (e.g. `/ship`). If so, execute silently without prompting, inheriting choices from the parent brief. Otherwise, you **MUST NOT** auto-generate scripts immediately. Halt and prompt the user:
+  When this skill is invigorated, check if it is running as a background sub-routine of a compounded orchestrator (e.g. `/ship`). If so, execute silently without prompting, inheriting choices from the parent brief. Otherwise, you should output your findings and proceed.
 
   1. **What is the primary log source for codification?**
      * *Option A*: Local Terminal History (Analyze shell executions, compile scripts, and test runs).

@@ -15,4 +15,4 @@ When this command is run, you **MUST** evaluate and present configuration option
 3. **Hallucination Detection & Human Escalation**: Setting confidence thresholds where the agent halts and routes to a human operator.
 4. **Content Filtering**: Output sanitization and PII egress prevention (in addition to `/cso`).
 
-Present a comprehensive Agent Safety Strategy to the user, and **HALT FOR USER CONFIRMATION**.
+Present a comprehensive Agent Safety Strategy to the user, make a logical default choice if needed, and proceed to the next step or finish.

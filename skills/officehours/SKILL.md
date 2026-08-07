@@ -66,7 +66,7 @@ Enter `/officehours` followed by a plain description of what you want to build o
      * **Persona E (FDE)**: Rapid Client Solutions. Propose streamlined stacks with C-Suite persona focus.
      *(Note: If the project exhibits traits of multiple personas, e.g. a SaaS that serves AI agents, classify as a Crossover, e.g., Persona A + B).*
   3. **Synthesize 3 Production Tech Stack Options**: For each classification, research and present 3 production-grade tech stack options (databases, ORMs, auth providers, component libraries, hosting targets) tailored for Human + Agent workflows. Include rationale for each.
-  4. **Present Research-Backed Recommendations & Dynamic Probes**: Present the synthesized app classification, 3 recommended tech stacks, and 3–5 dynamic, context-aware domain probes. Then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
+  4. **Present Research-Backed Recommendations & Dynamic Probes**: Present the synthesized app classification, 3 recommended tech stacks, and 3–5 dynamic, context-aware domain probes, make a logical default choice if needed, and proceed to the next step:
   5. **Generate `kineti.config.json` (If not present)**: Generate a `kineti.config.json` file in the project root defining the `persona` (e.g. `crossover_a_b`), `active_skills`, `active_tiers`, and `settings` (e.g. spend limits, isolation).
   ```json
   {
@@ -76,11 +76,8 @@ Enter `/officehours` followed by a plain description of what you want to build o
   }
   ```
 
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the CBO research findings, domain probes, application classification, 12 enterprise domain evaluation, and synthesized stack choices to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting choices, simulating user answers, writing transcript files, or running downstream skills before receiving explicit user input.
-
-  ### Step 4: Stage 1 - Problem & Value Validation (CBO Persona Continued)
-  Once the user responds to Stage 0, continue the **CBO & Strategic Consultant** persona. Present Stage 1 value probes tailored to the user's answers:
+  ### Step 4: Stage 1 - Problem & Value Validation
+  Continue the **CBO & Strategic Consultant** persona. Present Stage 1 value probes tailored to the chosen parameters:
   * **Q1. The 5-Whys Root Cause**: Ask "why" 5 times to find the real physical cause. Why fix it right now?
   * **Q2. Single Main Value Action**: What is the single main action the user performs to get value?
   * **Q3. Status Quo Annual Cost**: What does the current broken process cost per year?
@@ -88,7 +85,7 @@ Enter `/officehours` followed by a plain description of what you want to build o
   * **Q5. Project Veto Holder**: Who can stop this project? What is their exact concern?
   * **Q6. Counter-Argument Refutation**: What is the strongest reason this project might fail, and how do we prove it wrong?
 
-  **HALT AGAIN FOR USER INPUT.**
+
 
 
   ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
@@ -96,8 +93,8 @@ Enter `/officehours` followed by a plain description of what you want to build o
   2. Run `causality_graph_builder.py` silently in the background to update `.northstar/graphs/` property graphs.
   3. Update `.northstar/manifest.json` and `.northstar/sprint_state.json` silently without dumping file text in chat.
 
-  ### Step 6: Surface Checkpoint & Next-Stage Outcome Preview (User Decision Gate)
-  Surface ONLY the executive summary, outcome preview, and next choices to the user, then **HALT EXECUTION IMMEDIATELY**:
+  ### Step 6: Surface Checkpoint & Next-Stage Outcome Preview
+  Surface ONLY the executive summary, outcome preview, and next choices to the user, make a logical default choice if needed, and proceed to the next step or finish.
 
   ```
   === Checkpoint 1: /officehours Discovery Summary ===
@@ -116,6 +113,3 @@ Enter `/officehours` followed by a plain description of what you want to build o
     2. Proceed to /spec (Data-Routing Map & Contract Specification)
     3. Refine or adjust current strategy decisions
   ```
-
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the Checkpoint Outcome Preview above and STOP YOUR TURN IMMEDIATELY. Do NOT run downstream skills until the user explicitly selects an option.

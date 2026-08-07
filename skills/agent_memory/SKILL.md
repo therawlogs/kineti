@@ -15,4 +15,4 @@ When this command is run, you **MUST** evaluate and design the agent's memory sy
 3. **Working Memory (Context Window Management)**: Summarization triggers, token pruning, and KV-cache optimization to keep context windows under the maximum limits.
 4. **Memory Privacy Boundaries**: Hard schema constraints to ensure User A's memory vectors cannot be retrieved during User B's session.
 
-Present the Memory Architecture blueprint to the user, and **HALT FOR USER CONFIRMATION**.
+Present the Memory Architecture blueprint to the user, make a logical default choice if needed, and proceed to the next step or finish.
