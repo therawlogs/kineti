@@ -1,0 +1,14 @@
+{
+  "project_name": "The Kineti OS",
+  "version": "1.0",
+  "last_updated": "2026-08-07T19:50:00Z",
+  "files": [
+    "dialogue/stage_0_domain_classification.md",
+    "dialogue/stage_1_problem_validation.md",
+    "graphs/agent_causality.md",
+    "graphs/loop_causality.md",
+    "graphs/graph_causality.md",
+    "graphs/project_causality.md",
+    "graphs/cumulative_causality.md"
+  ]
+}
