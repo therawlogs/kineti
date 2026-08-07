@@ -3,7 +3,7 @@ name: /autoplan
 description: Compounded Technical Planning & Design Gate. Runs Stage 2 (System Boundaries & Workflow Mechanics) and Stage 3 (Interaction Surface & Experience Mechanics), applies AST Context Shrinking, PageRank File Scoring, and Boil the Ocean completeness inside the Shippable Wedge.
 ---
 
-# Skill: /autoplan (Checkpoint 2 - Stage 2 & Stage 3 Planning Gate)
+# Skill: /autoplan (Checkpoint 2 — CTO & Principal Architect Persona)
 
 ## When to Use
 Use immediately after Stage 1 strategy validation completes.
@@ -36,15 +36,20 @@ Enter `/autoplan` in the active workspace.
   * Full feature implementation with zero skipped shortcuts.
   * Complete error handling paths and edge case checks.
 
-  ### Step 4: Execute Stage 2 & Stage 3 - Production Architectural Deep Dive (User Selection Gate)
-  Present Stage 2 (Boundaries) and Stage 3 (Interaction Mechanics) questions along with plain recommendations to the user, then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
+  ### Step 4: Execute Stage 2 & Stage 3 - CTO & Architect Deep Dive (User Selection Gate)
+  Adopt the **Chief Technology Officer (CTO) & Principal Architect** persona. Conduct live research into architecture patterns, database strategies, and infrastructure options specific to the project's domain before presenting choices.
 
-  **Stage 2 Boundaries & Edge Case Matrix**:
-  * **Q1. Latency Target & SLA**: Under 500ms (interactive) / Under 5s (quick) / Under 60s (async) / Batch
-  * **Q2. Peak Concurrency & Volume**: Under 100/day / 100–10k/day / 10k–1M/day / High Concurrency
-  * **Q3. Sensitive Data & Security Perimeter**: What data must NEVER egress (PII, credentials, financial records)?
-  * **Q4. Failover & Recovery Plan**: What happens when a dependency drops (fail-safe LIFO undo, circuit breaker, retry loop)?
-  * **Q5. Production Schema & API Contracts**: What data models, state machines, and relational schemas are required?
+  **Stage 2 Boundaries, Enterprise Domains & Edge Case Matrix**:
+  * **Q1. Database & Persistence Strategy**: Based on domain research, present 3 database architecture options evaluating relational (PostgreSQL + Prisma/Drizzle), document (MongoDB/DynamoDB), vector (pgvector/Qdrant), and caching (Redis/Upstash) layers. Include connection pooling, read replicas, and automated migration strategies.
+  * **Q2. Multi-Tenancy & Data Scoping**: Evaluate tenant isolation models (PostgreSQL Row-Level Security, schema-per-tenant, DB-per-tenant) with automatic middleware `tenant_id` injection. Mandate AST Tenant Leak Analyzer integration in CI/CD.
+  * **Q3. Authentication & Access Control Architecture**: Evaluate enterprise SSO/SAML (WorkOS/Keycloak/Auth0), consumer OAuth, session security (Argon2id hashing, JWT rotation, refresh token revocation), and RBAC/ABAC/ReBAC access control systems.
+  * **Q4. Data Pipeline & Async Processing Strategy**: Evaluate job queues (BullMQ/Temporal/Kafka), ETL pipelines (Airbyte/dbt/Debezium CDC), and reliability patterns (exponential backoff, Dead Letter Queues, idempotent handlers).
+  * **Q5. Data Integrity & Transactional Warranties**: Define Saga Pattern ACID transactions with LIFO undo handlers, idempotency keys (`root_goal_id + step_hash`) for external side-effects, strict foreign keys, soft-delete flags, and immutable audit event ledgers.
+  * **Q6. Secret Management & Environment Configuration**: Evaluate secret vaults (Infisical/HashiCorp Vault/AWS Secrets Manager), Zod boot validation preventing startup on missing env vars, and GitLeaks/TruffleHog CI secret leak prevention.
+  * **Q7. Latency Target & SLA**: Under 500ms (interactive) / Under 5s (quick) / Under 60s (async) / Batch
+  * **Q8. Peak Concurrency & Volume**: Under 100/day / 100–10k/day / 10k–1M/day / High Concurrency
+  * **Q9. Failover & Recovery Plan**: What happens when a dependency drops (fail-safe LIFO undo, circuit breaker, retry loop)?
+  * **Q10. API Contract Strategy**: Define strict OpenAPI / TypeSafe RPC contracts (tRPC or Zod schema) that frontend agents must compile against. Consumer-driven contract testing (Pact / OpenAPI Spec Guard) is mandatory.
 
   **Stage 3 Experience & Design System Requirements**:
   * **Q1. Primary Interaction Surface**: Web browser / Phone app / CLI / API-only / Desktop
@@ -52,10 +57,10 @@ Enter `/autoplan` in the active workspace.
   * **Q3. Information Density**: Micro-density dashboard / Medium / Low / Minimal
   * **Q4. Non-Text Content Requirements**: Charts / Maps / Real-time feeds / Documents
 
-  *Dynamic Probes*: Generate 3–5 plain technical deep-dive questions tagged `[DOMAIN-SPECIFIC]`.
+  *Dynamic Probes*: Generate 3–5 CTO-level technical deep-dive questions tagged `[DOMAIN-SPECIFIC]` based on the live research conducted.
 
   > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST output the architectural deep-dive questions above and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-generating answers for the user, simulating technical choices, writing transcript files, or running downstream skills before receiving the user's explicit response.
+  > **HARD PAUSE DIRECTIVE**: You MUST present the CTO & Architect deep-dive questions, enterprise domain evaluations, and synthesized infrastructure options above and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-generating answers for the user, simulating technical choices, writing transcript files, or running downstream skills before receiving the user's explicit response.
 
   ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
   1. Once the user responds, sub-agent threads execute `/plan_eng_review` (Hexagonal Ports, AST Skeletons, VRAM sizing) and `/plan_design_review` in the background.
