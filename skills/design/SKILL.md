@@ -51,20 +51,30 @@ Enter `/design` in the active workspace.
   5. **Run `/qa` (Grok-Build Autonomic Patching)**: Run tests. If a test fails, catch the error trace, write an autonomic fix patch, apply it, and re-run tests until the build passes cleanly.
   6. **Run `/cso`**: Apply Governance Interception Middleware (PII Egress Redaction) and Financial Spending Circuit Breakers.
 
-  ### Step 5: Causality Graphs, Gap Protocols, & Local Persistence
-  1. Build Stage 4 & 5 causality graphs in SQL/PGQ format → `.northstar/graphs/stage_4_causality.md` and `.northstar/graphs/stage_5_causality.md`.
-  2. Update `.northstar/graphs/cumulative_causality.md`.
-  3. Run Context Gap Detection → `.northstar/gaps/stage_4_gaps.md` and `stage_5_gaps.md`.
-  4. Save transcripts → `.northstar/dialogue/stage_4_design_presentation.md` and `stage_5_testing_strategy.md`.
-  5. Update `.northstar/manifest.json` and `.northstar/sprint_state.json`.
+  ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
+  1. Sub-agent background threads generate `.northstar/graphs/stage_4_causality.md` and `stage_5_causality.md`.
+  2. Update `.northstar/graphs/cumulative_causality.md` silently.
+  3. Save transcripts and update `.northstar/manifest.json` silently without dumping raw file text in chat.
 
-  Upon completion, print this summary:
+  ### Step 6: Surface Checkpoint 3 & Release Outcome Preview (User Decision Gate)
+  Surface ONLY the executive build summary, release outcome preview, and next choices to the user, then **HALT EXECUTION IMMEDIATELY**:
+
   ```
-  === Checkpoint 3: /design Complete ===
-  - User Sovereignty confirmed via visual screenshot previews (generate_image).
-  - Smolagents Code-First Actions executed (zero JSON tool-call drag).
-  - Grok-Build Autonomic Patching verified (automated error trace fix-loops active).
-  - Stage 4 & Stage 5 complete (Visual Validation & Testing Strategy locked).
-  - Cumulative Relational System Map updated (.northstar/graphs/cumulative_causality.md).
-  - Next Recommended: Run /ship to verify, deploy, and close sprint loop.
+  === Checkpoint 3: /design Build Summary ===
+  • Understood & Built Components:
+    - Selected Visual System: [Bespoke domain design system]
+    - Code Components: Production HTML/CSS and Smolagents actions compiled.
+    - Autonomic Test Validation: Grok-Build error patch loops verified (0 open failures).
+
+  • Outcome Preview if Proceeding to /ship (Stage 6 & 7 Release):
+    - Financial Spend Cap: Meta AI spend circuit breaker ($50.00 USD cap) will be locked.
+    - GitOps Deployment: Automated deploy script will run with registered Saga LIFO Rollback stack.
+    - Production Telemetry: Canary OpenTelemetry monitoring & MCP tools.json will be exported.
+
+  • Next Action Options:
+    1. Proceed to /ship (Release Verification & Production Deploy)
+    2. Request visual component or layout refinements
   ```
+
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST present the Checkpoint 3 Outcome Preview above and STOP YOUR TURN IMMEDIATELY. Do NOT run downstream skills until the user explicitly selects an option.

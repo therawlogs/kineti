@@ -57,31 +57,31 @@ Enter `/autoplan` in the active workspace.
   > [!IMPORTANT]
   > **HARD PAUSE DIRECTIVE**: You MUST output the architectural deep-dive questions above and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-generating answers for the user, simulating technical choices, writing transcript files, or running downstream skills before receiving the user's explicit response.
 
-  ### Step 5: Execute Planning Sub-Skills & Lock Memory (After User Responds)
-  1. Once the user responds, execute `/plan_eng_review` (Hexagonal Ports, AST Skeletons, VRAM sizing) and `/plan_design_review`.
-  2. Perform a production-grade deep-dive: generate the explicit Edge Case & Failure Mode Matrix and data schema contracts.
-  3. Build Stage 2 & 3 causality graphs in SQL/PGQ format → `.northstar/graphs/stage_2_causality.md` and `stage_3_causality.md`.
-  4. Save transcripts → `.northstar/dialogue/stage_2_system_boundaries.md` and `stage_3_design_choices.md`.
-  5. Update `.northstar/manifest.json` and `.northstar/sprint_state.json`.
+  ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
+  1. Once the user responds, sub-agent threads execute `/plan_eng_review` (Hexagonal Ports, AST Skeletons, VRAM sizing) and `/plan_design_review` in the background.
+  2. Generate the Edge Case & Failure Mode Matrix and data schema contracts silently in `.northstar/spec.md`.
+  3. Run `causality_graph_builder.py` silently in background threads to generate `.northstar/graphs/stage_2_causality.md`, `stage_3_causality.md`, and update `cumulative_causality.md`.
+  4. Save transcripts and update `.northstar/manifest.json` silently without dumping file content in chat.
 
-  ### Step 6: Present Checkpoint & Request Approval for Build
-  Print the checkpoint summary and **WAIT FOR USER APPROVAL** before proceeding to `/design`:
+  ### Step 6: Surface Checkpoint 2 & Build Outcome Preview (User Decision Gate)
+  Surface ONLY the executive technical summary, build outcome preview, and next choices to the user, then **HALT EXECUTION IMMEDIATELY**:
 
-
-  ### Step 7: Causality Graphs, Gap Protocols, & Local Persistence
-  1. Build Stage 2 & 3 causality graphs in SQL/PGQ format → `.northstar/graphs/stage_2_causality.md` and `.northstar/graphs/stage_3_causality.md`.
-  2. Update `.northstar/graphs/cumulative_causality.md`.
-  3. Run Context Gap Detection → `.northstar/gaps/stage_2_gaps.md` and `stage_3_gaps.md`.
-  4. Save transcripts → `.northstar/dialogue/stage_2_system_boundaries.md` and `stage_3_design_choices.md`.
-  5. Update `.northstar/manifest.json` and `.northstar/sprint_state.json`.
-
-  Upon completion, print this summary:
   ```
-  === Checkpoint 2: /autoplan Complete ===
-  - AST Context Shrinking applied (85-90% token reduction achieved).
-  - PageRank Criticality Score computed (#1 Keystone File identified).
-  - "Boil the Ocean" completeness enforced inside the Shippable Wedge (100% test & edge-case coverage).
-  - Stage 2 & Stage 3 complete (Boundaries & Experience Mechanics locked).
-  - Cumulative Relational System Map updated (.northstar/graphs/cumulative_causality.md).
-  - Next Recommended: Run /design to compile layouts & execute code build.
+  === Checkpoint 2: /autoplan Architecture Summary ===
+  • Understood & Locked Technical Parameters:
+    - Latency SLA & Concurrency: [Target SLA & concurrency limits]
+    - Data Security & Egress Rules: [Scrubbed data perimeter]
+    - Keystone Code File (PageRank): [#1 critical file identified]
+
+  • Outcome Preview if Proceeding to /design (Stage 4 & 5 Build):
+    - Domain Visual Research: 3 bespoke visual design systems & screenshot previews (`generate_image`) will be compiled.
+    - Code-First Execution: Smolagents Python code blocks will construct components with zero JSON tool drag.
+    - Autonomic Patching: Grok-Build automated error-fixing loops will run on test failures.
+
+  • Next Action Options:
+    1. Proceed to /design (Domain Design Research & Component Build)
+    2. Adjust technical boundaries or concurrency rules
   ```
+
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST present the Checkpoint 2 Outcome Preview above and STOP YOUR TURN IMMEDIATELY. Do NOT run downstream skills until the user explicitly selects an option.

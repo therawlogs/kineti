@@ -58,19 +58,31 @@ Enter `/officehours` followed by a plain description of what you want to build o
   * **Q5. Project Veto Holder**: Who has the authority to stop or reject this project (security chief, finance head, end user)? What is their exact concern?
   * **Q6. Strongest Counter-Argument Test**: What is the strongest reason why this project might fail, and how do we prove that reason wrong?
 
-  ### Step 5: Execute Causality Engine & Lock Decision Memory
-  1. Once the user provides answers, write transcripts to `.northstar/dialogue/stage_0_domain_classification.md` and `.northstar/dialogue/stage_1_problem_validation.md`.
-  2. Run `python3 ~/.gemini/config/scripts/causality_graph_builder.py [project_root]` via `run_command`.
-  3. Update `.northstar/manifest.json` and `.northstar/sprint_state.json`.
+  ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
+  1. Once the user provides answers, invoke background sub-agent threads to write transcripts silently to `.northstar/dialogue/stage_0_domain_classification.md` and `.northstar/dialogue/stage_1_problem_validation.md`.
+  2. Run `causality_graph_builder.py` silently in the background to update `.northstar/graphs/` property graphs.
+  3. Update `.northstar/manifest.json` and `.northstar/sprint_state.json` silently without dumping file text in chat.
 
-  ### Step 6: Present Checkpoint & Request Approval for Next Skill
-  Print the checkpoint summary and **WAIT FOR USER APPROVAL** before suggesting or initiating downstream skills (`/spec` or `/autoplan`):
+  ### Step 6: Surface Checkpoint & Next-Stage Outcome Preview (User Decision Gate)
+  Surface ONLY the executive summary, outcome preview, and next choices to the user, then **HALT EXECUTION IMMEDIATELY**:
 
   ```
-  === Checkpoint 1: /officehours Complete (The Kineti OS v10) ===
-  - Local .northstar/ decision memory initialized (.gitignore protected).
-  - Socratic Memory Calibrated & 3-Layer Knowledge Search executed.
-  - Stage 0 & Stage 1 complete (Domain, Problem, and Business goals locked).
-  - 4-Level SQL/PGQ Causality Graphs updated (.northstar/graphs/cumulative_causality.md).
-  - Next Step: Would you like to proceed to /autoplan or /spec?
+  === Checkpoint 1: /officehours Discovery Summary ===
+  • Understood & Locked Decisions:
+    - Domain & Model: [Domain summary]
+    - Root Cause (5-Whys): [Validated physical root cause]
+    - Primary Target Metric: [Financial/operational metric target]
+
+  • Outcome Preview if Proceeding to /autoplan (Stage 2 & 3):
+    - System Boundaries: Latency SLA & Peak Concurrency bounds will be established.
+    - Security Perimeter: PII and secret egress rules will be locked.
+    - Design System Research: 3 bespoke domain visual directions & screenshot previews will be generated.
+
+  • Next Action Options:
+    1. Proceed to /autoplan (Technical & Visual Planning Gate)
+    2. Proceed to /spec (Data-Routing Map & Contract Specification)
+    3. Refine or adjust current strategy decisions
   ```
+
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST present the Checkpoint Outcome Preview above and STOP YOUR TURN IMMEDIATELY. Do NOT run downstream skills until the user explicitly selects an option.
