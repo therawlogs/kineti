@@ -16,6 +16,10 @@ This document is the **Single Source of Truth (`ETHOS.md`)** for all software bu
 8. **Ask "Why" Five Times (5 Whys)**: Ask “why” at least five times through each layer of a problem to find the root cause before acting or deciding on a plan.
 9. **Control Data Intake and Keep Details Private**: Collect as many facts as possible while keeping internal plans, data, and details private. Communicate only when the message directly changes an action or sets official agreement terms.
 10. **State Facts with Compressed Objectivity**: Remove extra descriptive words, emotional tone, and unclear language. State facts with short, direct statements that describe exact physical or logical truths.
+11. **Enforce Strict Interactive Execution Gates (Human-in-the-Loop)**: Every skill and stage MUST present its mandatory questions, recommendations, and options to the user, and STOP execution immediately. The AI is forbidden from auto-filling user answers, simulating user choices, or auto-running downstream skills without explicit user approval.
+12. **Mandate Domain-Specific Competitive Research & Bespoke UI Design**: Generic visual presets (dark mode, glassmorphism, analog cards) are strictly prohibited. Before designing UI, perform active research into industry standards for the specific domain, present curated visual directions (typography, layout hierarchy, color palettes, micro-interactions) with screenshot previews (`generate_image`), and wait for explicit user selection.
+13. **Execute Production-Grade Deep Dives at Every Stage**: Surface-level planning is prohibited. Every feature request requires an architectural deep dive into data schemas, state machines, API contracts, latency/concurrency bounds, and an explicit Edge Case & Failure Mode Matrix.
+14. **Enforce Empirical Runtime Verification & Log Traceability**: Editing a file does not equal completing a task. Every change must be verified via actual test/build/browser runs (`/qa`, `bun test`, `pytest`) with clean un-truncated log evidence.
 
 ---
 

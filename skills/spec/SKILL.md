@@ -24,7 +24,11 @@ Use immediately after Stage 1 validation in `/officehours`.
   User Input -> Validation Schema -> Business Logic Handler -> Storage DB -> API Response -> User Interface
   ```
 
-  ### Step 3: Smolagents Code-First Specification Output
-  Generate clean, high-density specification text describing exact data fields, type constraints, and endpoint signatures without verbose filler.
+  ### Step 3: Present Data Contract & HARD PAUSE
+  Present the atomic sub-queries, data-routing map, data validation rules ($Q = C \times A \times T$), and input/output contracts to the user, then **STOP EXECUTION IMMEDIATELY**:
 
-  Save to `.northstar/spec.md` and print summary.
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST present the data-routing map, field schemas, and failure handling rules, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from saving `.northstar/spec.md` or triggering downstream planning until the user explicitly reviews and approves the specification.
+
+  ### Step 4: Save Specification (After User Approves)
+  Once approved by the user, save the complete functional specification to `.northstar/spec.md`, update `.northstar/manifest.json`, and present the spec completion checkpoint.

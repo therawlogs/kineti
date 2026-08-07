@@ -10,26 +10,18 @@ Use before frontend layout building.
 
 ## Protocol & Actions
 - **Instructions**:
-  When this skill is run, you **MUST** prompt the user using pure Plain English:
+  When this skill is run, you **MUST** follow this sequence using pure Plain English:
 
-  ### 1. Spacing Ratio System
-  *   **Option A: 8-Pixel Spacing Grid (8px / 16px / 24px / 32px)** (RECOMMENDED)
-      ├─ Info: All padding, margins, gaps, and component heights align strictly to multiples of 8 pixels.
-      ├─ Why: Prevents visual misalignment and ensures clean layout symmetry across all screen sizes.
-      └─ If Fails: Random pixel spacing causes visual clutter and uneven alignment.
-  *   **Option B: 4-Pixel Micro Grid (High-Density Data Views)**
-      ├─ Info: Align spacing to 4-pixel steps for compact data tables and code tools.
-      ├─ Why: Fits maximum data on dense screens.
-      └─ If Fails: Tight spacing can feel cramped if used on simple consumer screens.
+  ### Step 1: Industry & Domain Visual Research
+  1. **Domain Competitive Audit**: Conduct research into top-tier production applications for the user's specific industry domain (e.g., Stripe, Linear, Vercel, Apple, Bloomberg, Epic). Generic canned presets (dark mode, glassmorphism, analog cards) are STRICTLY PROHIBITED.
+  2. **Bespoke Design Token Systems**: Formulate 3 domain-tailored visual design systems detailing typography pairings (e.g., Inter + JetBrains Mono, Outfit + Roboto), grid spacing (8px rhythm vs 4px micro-density), color palettes (tailored HSL tokens), and component border/shadow rules.
+  3. **Render Screenshot Mockups**: Use `generate_image` to generate high-fidelity UI layout previews for each token system.
 
-  ### 2. Typography Pairings
-  *   **Option A: System Font Stack (Native Fast Load)** (RECOMMENDED)
-      ├─ Info: Use native operating system fonts (`Inter`, system UI fonts).
-      ├─ Why: Zero font file download delay; instant page rendering speed.
-      └─ If Fails: Relies on OS default typography rendering.
-  *   **Option B: Brand Web Font (`Outfit` / `Roboto`)**
-      ├─ Info: Load curated Google Fonts for distinctive brand presentation.
-      ├─ Why: Consistent visual typography across every device and browser.
-      └─ If Fails: Requires loading small external font files.
+  ### Step 2: Present Options & HARD PAUSE
+  Present the 3 bespoke design systems, rationale, and screenshot previews to the user, then **STOP EXECUTION IMMEDIATELY**:
 
-  Obtain choices and write token values to `index.css`.
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST present the 3 domain design token systems and screenshot previews, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting design choices or writing `index.css` before the user explicitly selects a design system.
+
+  ### Step 3: Write Tokens to CSS (After User Selects System)
+  Once the user selects their preferred design system, write the chosen design tokens directly to `index.css` and log the decision in `.northstar/decisions/design_tokens.md`.

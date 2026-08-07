@@ -36,32 +36,37 @@ Enter `/autoplan` in the active workspace.
   * Full feature implementation with zero skipped shortcuts.
   * Complete error handling paths and edge case checks.
 
-  ### Step 4: Execute Stage 2 - System Boundaries & Workflow Mechanics
-  Prompt the user with Stage 2 plain questions:
-  * **Q1. Latency Target**: Under 500ms (interactive) / Under 5s (quick) / Under 60s (async) / Minutes to hours (batch)
-  * **Q2. Peak Volume (6 months)**: Under 100/day / 100–10k/day / 10k–1M/day / Unknown
-  * **Q3. Output Consuming System**: Human only / Internal API / Third-party API / Agentic loop
-  * **Q4. Sensitive Data Rules**: What data must NEVER leave the system (names, cards, health data, trade secrets)?
-  * **Q5. Execution Environment**: Cloud managed / Self-hosted GPU / Edge-local / Hybrid
-  * **Q6. Error Handling Plan**: What happens when a step fails mid-way (fail loud, fail safe, fail forward, human escalation)?
-  * **Q7. Integration Dependencies**: What upstream/downstream systems must connect on day one?
+  ### Step 4: Execute Stage 2 & Stage 3 - Production Architectural Deep Dive (User Selection Gate)
+  Present Stage 2 (Boundaries) and Stage 3 (Interaction Mechanics) questions along with plain recommendations to the user, then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
 
-  *Dynamic Questions*: Generate 3–5 plain technical boundary questions tagged `[DOMAIN-SPECIFIC]`.
+  **Stage 2 Boundaries & Edge Case Matrix**:
+  * **Q1. Latency Target & SLA**: Under 500ms (interactive) / Under 5s (quick) / Under 60s (async) / Batch
+  * **Q2. Peak Concurrency & Volume**: Under 100/day / 100–10k/day / 10k–1M/day / High Concurrency
+  * **Q3. Sensitive Data & Security Perimeter**: What data must NEVER egress (PII, credentials, financial records)?
+  * **Q4. Failover & Recovery Plan**: What happens when a dependency drops (fail-safe LIFO undo, circuit breaker, retry loop)?
+  * **Q5. Production Schema & API Contracts**: What data models, state machines, and relational schemas are required?
 
-  ### Step 5: Execute Stage 3 - Interaction Surface & Experience Mechanics
-  Prompt the user with Stage 3 plain questions:
-  * **Q1. Primary Interaction Surface**: Web browser / Phone app / Command line CLI / API-only / Desktop app / Voice
-  * **Q2. User Habit Benchmark**: What existing tool's interaction pattern is the user already trained on (Workspace, Chat, Linear-Notion, IDE, None)?
-  * **Q3. Information Density**: High (dashboards) / Medium / Low / Minimal
-  * **Q4. Output Accuracy Requirement**: Are outputs advisory (human reviews) or zero-tolerance exact (financial/legal)?
-  * **Q5. Non-Text Content Requirements**: None / Charts / Maps / Media / Rich documents
+  **Stage 3 Experience & Design System Requirements**:
+  * **Q1. Primary Interaction Surface**: Web browser / Phone app / CLI / API-only / Desktop
+  * **Q2. User Habit Benchmark**: What existing tool pattern should this match (Stripe, Linear, Notion, Vercel)?
+  * **Q3. Information Density**: Micro-density dashboard / Medium / Low / Minimal
+  * **Q4. Non-Text Content Requirements**: Charts / Maps / Real-time feeds / Documents
 
-  *Dynamic Questions*: Generate 3–5 plain design probes tagged `[DOMAIN-SPECIFIC]`.
+  *Dynamic Probes*: Generate 3–5 plain technical deep-dive questions tagged `[DOMAIN-SPECIFIC]`.
 
-  ### Step 6: Execute Planning Sub-Skills
-  1.  **Run `/plan_eng_review`**: VRAM Sizing Math ($VRAM = Weights + KV_{cache}$), Hexagonal Ports/Adapters, In-memory Shadow DB assertions.
-  2.  **Run `/plan_design_review`**: User Muscle Memory Benchmarks, Density Constraints.
-  3.  **Run `/design_consultation`**: Typography stacks & 8px spacing scales.
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST output the architectural deep-dive questions above and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-generating answers for the user, simulating technical choices, writing transcript files, or running downstream skills before receiving the user's explicit response.
+
+  ### Step 5: Execute Planning Sub-Skills & Lock Memory (After User Responds)
+  1. Once the user responds, execute `/plan_eng_review` (Hexagonal Ports, AST Skeletons, VRAM sizing) and `/plan_design_review`.
+  2. Perform a production-grade deep-dive: generate the explicit Edge Case & Failure Mode Matrix and data schema contracts.
+  3. Build Stage 2 & 3 causality graphs in SQL/PGQ format → `.northstar/graphs/stage_2_causality.md` and `stage_3_causality.md`.
+  4. Save transcripts → `.northstar/dialogue/stage_2_system_boundaries.md` and `stage_3_design_choices.md`.
+  5. Update `.northstar/manifest.json` and `.northstar/sprint_state.json`.
+
+  ### Step 6: Present Checkpoint & Request Approval for Build
+  Print the checkpoint summary and **WAIT FOR USER APPROVAL** before proceeding to `/design`:
+
 
   ### Step 7: Causality Graphs, Gap Protocols, & Local Persistence
   1. Build Stage 2 & 3 causality graphs in SQL/PGQ format → `.northstar/graphs/stage_2_causality.md` and `.northstar/graphs/stage_3_causality.md`.
