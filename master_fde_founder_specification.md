@@ -7,25 +7,25 @@ This document is the master operational rulebook for building software within **
 ## Part 1: The 37 Core Governing Execution Directives
 
 ### Tier 1: Core Kernel (Always Active — All Personas)
-(Directives 1-10: Plain English, Facts, 5-Whys, Low-Decay, Steel Man...)
+(Directives 1.1-1.10: Plain English, Facts, 5-Whys, Low-Decay, Steel Man...)
 
 ### Tier 2: Agent Governance (Active for Personas A, B, C, E)
-(Directives 11-15: Interactive Gates, Deep Dives, Background Execution...)
+(Directives 2.1-2.5: Interactive Gates, Deep Dives, Background Execution...)
 
 ### Tier 3: SDLC Pipeline (Active for Personas A, C, E)
-(Directives 16-17, 21: Dynamic Discovery, Anti-Prototyping, C-Suite Personas...)
+(Directives 3.1-3.3: Dynamic Discovery, Anti-Prototyping, C-Suite Personas...)
 
 ### Tier 4: Enterprise & Design (Active for Personas A, C, E, and B-selective)
-(Directives 18-20, 22: Design Research, Infrastructure, File Placement, 12 Domains...)
+(Directives 4.1-4.4: Design Research, Infrastructure, File Placement, 12 Domains...)
 
 ### Tier 5: Frontier AI Agent Product (Active for Persona B)
-(Directives 29-34: Agent Safety Guardrails, Token Unit Economics at Scale, Multi-Agent Orchestration Patterns, Agent Evaluation Frameworks, Production Agent Memory Architecture, AI Regulatory Compliance)
+(Directives 5.1-5.6: Agent Safety Guardrails, Token Unit Economics at Scale...)
 
 ### Tier 6: AI/ML Engineering & Optimization (Active for Persona D)
-(Directives 35-37: Context Optimization & Entropy Management, Model Integration & Serving Infrastructure, Continuous Fine-Tuning & Data Flywheels)
+(Directives 6.1-6.3: Context Optimization & Entropy Management...)
 
 ### Tier 7: Durability & Safety (Active for Personas A, B, C, D-selective)
-(Directives 23-28: Vector Drift, Idempotency, Crypto Approvals, OTel, Tenant Leak, Contracts...)
+(Directives 7.1-7.6: Vector Drift, Idempotency, Crypto Approvals...)
 
 ---
 
