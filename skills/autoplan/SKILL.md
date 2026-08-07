@@ -50,12 +50,26 @@ Enter `/autoplan` in the active workspace.
   * **Q8. Peak Concurrency & Volume**: Under 100/day / 100–10k/day / 10k–1M/day / High Concurrency
   * **Q9. Failover & Recovery Plan**: What happens when a dependency drops (fail-safe LIFO undo, circuit breaker, retry loop)?
   * **Q10. API Contract Strategy**: Define strict OpenAPI / TypeSafe RPC contracts (tRPC or Zod schema) that frontend agents must compile against. Consumer-driven contract testing (Pact / OpenAPI Spec Guard) is mandatory.
+  * **Q11. Multi-Agent Orchestration (If Persona B Active)**: Evaluate supervisor → worker hierarchies, peer-to-peer agent collaboration, swarm execution, and agent handoff protocols.
+  * **Q12. Production Agent Memory (If Persona B Active)**: Evaluate episodic memory (past conversations), procedural memory (learned tool patterns), working memory context management, and memory privacy boundaries via `/agent_memory`.
+  * **Q13. Context Optimization & Data Flywheels (If Persona D Active)**: Evaluate RAG pipeline tuning, vector retrieval, and RLHF preference capture.
 
   **Stage 3 Experience & Design System Requirements**:
   * **Q1. Primary Interaction Surface**: Web browser / Phone app / CLI / API-only / Desktop
   * **Q2. User Habit Benchmark**: What existing tool pattern should this match (Stripe, Linear, Notion, Vercel)?
   * **Q3. Information Density**: Micro-density dashboard / Medium / Low / Minimal
   * **Q4. Non-Text Content Requirements**: Charts / Maps / Real-time feeds / Documents
+
+  **Frontier AI Architecture (When Persona B or A+B is active)**:
+  * **F1. Agent Orchestration Pattern**: Based on the multi-agent requirements, evaluate Supervisor → Worker, Peer-to-Peer, or Swarm patterns. Run `/agent-orchestration` as a sub-skill.
+  * **F2. Agent Memory Architecture**: Based on memory requirements, evaluate episodic, procedural, and working memory systems. Run `/agent-memory` as a sub-skill.
+  * **F3. Model Routing Strategy**: Define which models handle which agent tasks (cheap/fast for classification, expensive/capable for reasoning).
+  * **F4. Agent-to-Agent API Contracts**: Define strict typed interfaces between agents in the orchestration graph (Zod schemas for handoff payloads).
+
+  **AI/ML Optimization (When Persona D is active)**:
+  * **M1. Context Window Strategy**: Evaluate AST Shrinking, document chunking, and summarization strategies for the project's data volume.
+  * **M2. Vector Store Architecture**: Evaluate pgvector, Qdrant, Pinecone, or Weaviate for the project's retrieval requirements.
+  * **M3. Embedding Model Selection**: Evaluate embedding models (OpenAI text-embedding-3, Cohere embed-v3, local models) for cost/quality tradeoff.
 
   *Dynamic Probes*: Generate 3–5 CTO-level technical deep-dive questions tagged `[DOMAIN-SPECIFIC]` based on the live research conducted.
 

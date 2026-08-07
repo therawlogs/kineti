@@ -40,6 +40,11 @@ Enter `/ship` in the active workspace.
   6. **Configure OpenTelemetry Agent Observability (Directive 26)**: Ensure all agent runs and LLM calls emit OpenTelemetry traces with `feature_id`, `prompt_tokens`, `completion_tokens`, `cost_usd` metadata.
   7. **Tailor Financial Spend Caps**: Configure unit cost ceilings, spend circuit breakers ($50.00 USD default), and Saga LIFO rollback triggers based on chosen hosting target.
   8. **Verify Cryptographic Approval Token (Directive 25)**: For production deployments and spend cap overrides, verify that a signed `approval_token` exists before unblocking.
+  9. **Evaluate Agent Safety & Guardrails (If Persona B Active)**: Verify content filtering, hallucination bounds, tool-use sandboxing, and adversarial input defense (prompt injection) via `/agent_safety`.
+  10. **Token Unit Economics & Model Routing (If Persona B Active)**: Evaluate model routing (cheap vs expensive models), prompt caching, and cost-per-query margin analysis.
+  11. **Agent Evaluation & Quality Benchmark Gate (If Persona B Active)**: Run systematic agent evaluation (accuracy benchmarks, tool-use correctness, regression detection) via `/agent_eval` before unblocking deployment.
+  12. **AI Regulatory Compliance (If Persona B Active)**: Verify EU AI Act risk classification, SOC 2, and domain-specific regulations.
+  13. **Model Integration & Serving Infrastructure (If Persona D Active)**: Configure vLLM, TensorRT-LLM, continuous batching, and inference latency optimization.
 
   ### Step 3: Present Deployment Options & HARD PAUSE
   Present the CSO/SRE infrastructure research, security audit results, CI/CD pipeline configuration, secret vault options, OpenTelemetry observability setup, spend caps, and Saga LIFO rollback plans to the user, then **STOP EXECUTION IMMEDIATELY**:
