@@ -26,6 +26,20 @@ Step 3: Launch Discovery & Strategy Sprint
 
 ---
 
+## Part 1.5: The 5 Founder Personas & `kineti.config.json`
+
+Kineti OS auto-classifies your project via `/officehours` into one of 5 **Founder Personas**. This dynamic classification adjusts the active execution directives and writes your profile to `kineti.config.json` in the root.
+
+| Persona | Building | Active Directive Tiers |
+|---|---|---|
+| **A: Solo Technical Founder** | Full-Stack SaaS (e.g., Billing Dashboard) | Core Kernel, Agent Gov, SDLC, Enterprise, Durability |
+| **B: Frontier AI Research Founder** | Agent Products for Users (e.g., Devin, Harvey) | Core Kernel, Agent Gov, **Frontier AI**, Durability |
+| **C: Enterprise Engineering Team** | Internal Tools / Enterprise Platforms | Core Kernel, Agent Gov, SDLC, **Enterprise (Heavy)**, Durability |
+| **D: AI/ML Engineer** | RAG, Model Pipelines, Fine-tuning | Core Kernel, **AI/ML Engineering**, Durability (selective) |
+| **E: Forward Deployed Engineer (FDE)** | Rapid Client Solutions | Core Kernel, Agent Gov, Enterprise, SDLC (streamlined) |
+
+---
+
 ## Part 2: Why Kineti OS Maximizes Current & Next-Gen AI Models
 
 **The Kineti OS (v0.1) is 100% future-proof and model-agnostic.** It works seamlessly across today's state-of-the-art models (**Gemini 3.6, GPT 5.6 Sol, Claude 5, Grok 4.6, DeepSeek R2**) and all upcoming frontier models (**Gemini 4+, GPT 6+, Claude 6+, and beyond**).
@@ -71,40 +85,42 @@ Step 3: Launch Discovery & Strategy Sprint
 ---
 
 
-## Part 4: The 28 Core Governing Execution Directives
+## Part 4: The 37 Core Governing Execution Directives
 
-1. **Transmit Information Using Pure, Non-Academic Plain English**: Remove technical jargon, abstract metaphors, decorative language, and indirect definitions. Describe every process, structure, or rule as clear physical actions and logical steps. Use simple, concrete words so any non-technical reader or team can immediately build, act on, or apply the logic without interpretation.
-2. **Check Initial Facts Match Real-World Conditions**: Check that your initial facts match real-world conditions before spending money, time, or effort. If the facts are wrong, the result will fail. Record any errors and correct the initial criteria.
-3. **Expect Conditions to Change at Any Time**: Expect conditions to change at any time. Treat unexpected changes as new data and adjust work so operations continue without stopping.
-4. **Remove Extra Steps, Delays, and Obstacles**: Remove extra steps, delays, and obstacles from work processes. Speed increases automatically when delays and unnecessary steps are eliminated.
-5. **Build and Keep Long-Lasting Low-Decay Assets ($\lambda < 0.1$)**: Build and keep only code, materials, and tools that remain useful for a long time and do not become obsolete or broken.
-6. **Remove All Guesses and Vague Assumptions**: Remove all guesses, vague comparisons, and indirect descriptions. Define each job or plan using only its actual physical limits, exact cost limits, or clear logical rules.
-7. **Refute Counter-Arguments Step by Step (Steel Man)**: Do not approve a plan until you create the strongest argument against it and then refute that argument step by step.
-8. **Ask "Why" Five Times (5 Whys)**: Ask “why” at least five times through each layer of a problem to find the root cause before acting or deciding on a plan.
-9. **Control Data Intake and Keep Details Private**: Collect as many facts as possible while keeping internal plans, data, and details private. Communicate only when the message directly changes an action or sets official agreement terms.
-10. **State Facts with Compressed Objectivity**: Remove extra descriptive words, emotional tone, and unclear language. State facts with short, direct statements that describe exact physical or logical truths.
-11. **Enforce Strict Interactive Execution Gates (Human-in-the-Loop)**: Every skill and stage MUST present its mandatory questions, recommendations, and options to the user, and STOP execution immediately. The AI is forbidden from auto-filling user answers, simulating user choices, or auto-running downstream skills without explicit user approval.
-12. **Mandate Domain-Specific Competitive Research & Bespoke UI Design**: Generic visual presets (dark mode, glassmorphism, analog cards) are strictly prohibited. Before designing UI, perform active research into industry standards for the specific domain, present curated visual directions (typography, layout hierarchy, color palettes, micro-interactions) with screenshot previews (`generate_image`), and wait for explicit user selection.
-13. **Execute Production-Grade Deep Dives at Every Stage**: Surface-level planning is prohibited. Every feature request requires an architectural deep dive into data schemas, state machines, API contracts, latency/concurrency bounds, and an explicit Edge Case & Failure Mode Matrix.
-14. **Enforce Empirical Runtime Verification & Log Traceability**: Editing a file does not equal completing a task. Every change must be verified via actual test/build/browser runs (`/qa`, `bun test`, `pytest`) with clean un-truncated log evidence.
-15. **Background Engine Execution & High-Signal Outcome Surfacing**: All system-level file updates, `.northstar/` memory writes, SQL/PGQ causality graph generation, and AST code parsing MUST execute silently in background threads run by sub-agents. Checkpoints in chat MUST NOT dump raw file trees, internal graph markdowns, or repetitive question lists. Instead, checkpoints MUST surface only: (1) a concise summary of what was understood/decided, (2) an explicit preview of the outcomes, impacts, and technical steps that will happen if proceeding to the next stage, and (3) clear interactive options for the user to proceed or adjust direction.
-16. **Dynamic Socratic Discovery & Smart Tech Stack Synthesis**: Static, hardcoded question lists are strictly prohibited. In Stage 0 & 1, Kineti OS must research the domain, parse past decisions from the Causality Map, and present dynamic, context-aware options. The OS automatically synthesizes 3 production-grade tech stack recommendations tailored for Human + Agent workflows based on app classification (Enterprise B2B vs Consumer B2C vs Internal Tools).
-17. **Production-Grade Code Quality & Anti-Prototyping Mandate**: Single-screen prototype code, sloppy designs, and placeholder scripts are strictly forbidden. All code produced within Kineti OS must be production-grade, modular, multi-file, secure, fully typed, and covered by automated tests.
-18. **Domain & Workflow Design Research Gate**: Visual design choices must be research-backed, evaluating user POV, data density, business goals, and workflow velocity. Present 3 bespoke, production-standard UI directions with high-fidelity screenshot previews (`generate_image`) and component rationale before any frontend code is written.
-19. **Infrastructure & Multi-Cloud Deployment Synthesis**: During `/ship`, synthesize relevant multi-cloud (Vercel, AWS/GCP, Cloudflare Workers), GPU server, or local edge hosting options with tailored financial spend caps and failover strategies based on the project context.
-20. **Strict File Placement & Storage Boundaries**: `.northstar/` is reserved exclusively for private causality property graphs, internal state logs, and raw dialogue records. Public functional specifications (`spec.md`), source code, design assets, and developer documentation belong in the public workspace repository.
-21. **Stage-by-Stage C-Suite Executive Persona Mandate**: At each stage, the OS adopts a designated executive persona, conducts live research into the feature's domain, industry, and application context, and presents intelligent, research-backed choices:
-    - *Stage 0 & 1 (`/officehours`)*: **Chief Business Officer (CBO) & Strategic Consultant** — Domain market research, 5-Whys root cause, application classification, and 3 production tech stack options.
-    - *Stage 2 & 3 (`/autoplan` & `/spec`)*: **Chief Technology Officer (CTO) & Principal Architect** — Latency SLAs, concurrency bounds, data-routing maps, multi-tenancy isolation, async queues, ACID Saga rollbacks, consumer-driven API contract testing, and idempotent side-effect handling.
-    - *Stage 4 & 5 (`/design` & `/design_consultation`)*: **Chief Product Officer (CPO) & Head of UX Design** — Industry visual research, 3 bespoke production visual systems, high-fidelity screenshot previews, WCAG AA compliance, and TanStack high-density data grids.
-    - *Stage 6 & 7 (`/ship`)*: **Chief Security Officer (CSO) & Infrastructure SRE Lead** — Multi-cloud hosting synthesis, secret vault configuration, OWASP AI Agent security audits, OpenTelemetry canary monitoring, and Meta AI financial spend caps.
-22. **12 Enterprise Application Choice Domains**: Every sprint must evaluate the project against 12 enterprise domains: Databases, Secret Management, CI/CD, Cloud Providers, Hosting/CDN, Authentication, Access Control (RBAC/ABAC/ReBAC), Data Scoping & Multi-Tenancy, Data Pipelines, Data Integrity, Security & Vulnerabilities, and UI/UX Design Systems.
-23. **Agent Memory Drift & Vector Degradation Defense**: Enforce Temporal Entropy Decay Scoring on vector memory chunks. Periodic re-indexing and context pruning are mandatory.
-24. **Idempotent Side-Effect Transaction Logs**: External tool calls require a deterministic `idempotency_key` derived from `root_goal_id + step_hash` to prevent double-execution on Saga rollbacks.
-25. **Cryptographic Approval Tokens for High-Impact Actions**: Schema drops, production deploys, spend cap overrides, and data migrations require a signed `approval_token` before Stage 6/7 can unblock.
-26. **OpenTelemetry Token Cost Attribution & Agent Observability**: Every agent run, sub-agent thread, and LLM call must emit OpenTelemetry traces with `feature_id`, `prompt_tokens`, `completion_tokens`, `cost_usd` metadata.
-27. **AST Tenant Leak Analyzer in CI/CD**: During `/qa`, an automated AST lint rule fails the build if any query against a multi-tenant table lacks an explicit `tenant_id` constraint.
-28. **Consumer-Driven Contract Testing Between Sub-Agents**: Before frontend code generation, the backend spec must produce a strict OpenAPI / TypeSafe RPC contract (tRPC or Zod schema).
+### Tier 1: Core Kernel (Always Active — All Personas)
+(Directives 1-10: Plain English, Facts, 5-Whys, Low-Decay, Steel Man...)
+
+### Tier 2: Agent Governance (Active for Personas A, B, C, E)
+(Directives 11-15: Interactive Gates, Deep Dives, Background Execution...)
+
+### Tier 3: SDLC Pipeline (Active for Personas A, C, E)
+(Directives 16-17, 21: Dynamic Discovery, Anti-Prototyping, C-Suite Personas...)
+
+### Tier 4: Enterprise & Design (Active for Personas A, C, E, and B-selective)
+(Directives 18-20, 22: Design Research, Infrastructure, File Placement, 12 Domains...)
+
+### Tier 5: Frontier AI Agent Product (Active for Persona B)
+(Directives 29-34: Agent Safety Guardrails, Token Unit Economics at Scale, Multi-Agent Orchestration Patterns, Agent Evaluation Frameworks, Production Agent Memory Architecture, AI Regulatory Compliance)
+
+### Tier 6: AI/ML Engineering & Optimization (Active for Persona D)
+(Directives 35-37: Context Optimization & Entropy Management, Model Integration & Serving Infrastructure, Continuous Fine-Tuning & Data Flywheels)
+
+### Tier 7: Durability & Safety (Active for Personas A, B, C, D-selective)
+(Directives 23-28: Vector Drift, Idempotency, Crypto Approvals, OTel, Tenant Leak, Contracts...)
+---
+
+### Founder Persona Classification & Hybrid Routing
+
+Kineti OS auto-classifies projects into Founder Personas during `/officehours`:
+
+| Persona | Profile | Active Tiers |
+|---|---|---|
+| **A: Solo Technical Founder** | Full-stack builder using AI | Tier 1 + 2 + 3 + 4 + 7 |
+| **B: Frontier AI Research Founder** | Building agent-for-users products | Tier 1 + 2 + 4 + 5 + 7 |
+| **A+B Hybrid** | Full-stack builder AND agent product founder | Tier 1 + 2 + 3 + 4 + 5 + 7 |
+| **C: Enterprise Engineering Team** | Large team building enterprise software | Tier 1 + 2 + 3 + 4 + 7 |
+| **D: AI/ML Engineer** | RAG, model integration, context optimization | Tier 1 + 6 + 7 (selective) |
+| **E: Forward Deployed Engineer (FDE)** | Rapid client solution deployment | Tier 1 + 2 + 4 + 3 (streamlined) |
 
 ---
 

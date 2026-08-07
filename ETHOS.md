@@ -4,43 +4,60 @@ This document is the **Single Source of Truth (`ETHOS.md`)** for all software bu
 
 ---
 
-## Part 1: Core Governing Execution Directives
+## Part 1: Core Governing Execution Directives & Persona Tiers
 
-1. **Transmit Information Using Pure, Non-Academic Plain English**: Remove technical jargon, abstract metaphors, decorative language, and indirect definitions. Describe every process, structure, or rule as clear physical actions and logical steps. Use simple, concrete words so any non-technical reader or team can immediately build, act on, or apply the logic without interpretation.
-2. **Check Initial Facts Match Real-World Conditions**: Check that your initial facts match real-world conditions before spending money, time, or effort. If the facts are wrong, the result will fail. Record any errors and correct the initial criteria.
+The OS auto-classifies the project into a **Founder Persona** (A: Solo SaaS, B: Frontier AI, C: Enterprise Team, D: AI/ML Engineer, E: FDE) and activates the relevant directive tiers.
+
+### Tier 1: Core Kernel (Always Active — All Personas)
+1. **Transmit Information Using Pure, Non-Academic Plain English**: Remove technical jargon, abstract metaphors, decorative language, and indirect definitions. Describe every process, structure, or rule as clear physical actions and logical steps.
+2. **Check Initial Facts Match Real-World Conditions**: Check that your initial facts match real-world conditions before spending money, time, or effort.
 3. **Expect Conditions to Change at Any Time**: Expect conditions to change at any time. Treat unexpected changes as new data and adjust work so operations continue without stopping.
 4. **Remove Extra Steps, Delays, and Obstacles**: Remove extra steps, delays, and obstacles from work processes. Speed increases automatically when delays and unnecessary steps are eliminated.
 5. **Build and Keep Long-Lasting Low-Decay Assets ($\lambda < 0.1$)**: Build and keep only code, materials, and tools that remain useful for a long time and do not become obsolete or broken.
 6. **Remove All Guesses and Vague Assumptions**: Remove all guesses, vague comparisons, and indirect descriptions. Define each job or plan using only its actual physical limits, exact cost limits, or clear logical rules.
 7. **Refute Counter-Arguments Step by Step (Steel Man)**: Do not approve a plan until you create the strongest argument against it and then refute that argument step by step.
-8. **Ask "Why" Five Times (5 Whys)**: Ask “why” at least five times through each layer of a problem to find the root cause before acting or deciding on a plan.
+8. **Ask "Why" Five Times (5 Whys)**: Ask "why" at least five times through each layer of a problem to find the root cause before acting or deciding on a plan.
 9. **Control Data Intake and Keep Details Private**: Collect as many facts as possible while keeping internal plans, data, and details private. Communicate only when the message directly changes an action or sets official agreement terms.
 10. **State Facts with Compressed Objectivity**: Remove extra descriptive words, emotional tone, and unclear language. State facts with short, direct statements that describe exact physical or logical truths.
-11. **Enforce Strict Interactive Execution Gates (Human-in-the-Loop)**: Every skill and stage MUST present its mandatory questions, recommendations, and options to the user, and STOP execution immediately. The AI is forbidden from auto-filling user answers, simulating user choices, or auto-running downstream skills without explicit user approval.
-12. **Mandate Domain-Specific Competitive Research & Bespoke UI Design**: Generic visual presets (dark mode, glassmorphism, analog cards) are strictly prohibited. Before designing UI, perform active research into industry standards for the specific domain, present curated visual directions (typography, layout hierarchy, color palettes, micro-interactions) with screenshot previews (`generate_image`), and wait for explicit user selection.
+
+### Tier 2: Agent Governance (Active for Personas A, B, C, E)
+11. **Enforce Strict Interactive Execution Gates (Human-in-the-Loop)**: Every skill and stage MUST present its mandatory questions, recommendations, and options to the user, and STOP execution immediately.
+12. **Mandate Domain-Specific Competitive Research & Bespoke UI Design**: Generic visual presets are strictly prohibited. Perform active research into industry standards for the specific domain, present curated visual directions with screenshot previews (`generate_image`), and wait for explicit user selection.
 13. **Execute Production-Grade Deep Dives at Every Stage**: Surface-level planning is prohibited. Every feature request requires an architectural deep dive into data schemas, state machines, API contracts, latency/concurrency bounds, and an explicit Edge Case & Failure Mode Matrix.
-14. **Enforce Empirical Runtime Verification & Log Traceability**: Editing a file does not equal completing a task. Every change must be verified via actual test/build/browser runs (`/qa`, `bun test`, `pytest`) with clean un-truncated log evidence.
-15. **Background Engine Execution & High-Signal Outcome Surfacing**: All system-level file updates, `.northstar/` memory writes, SQL/PGQ causality graph generation, and AST code parsing MUST execute silently in background threads run by sub-agents. Checkpoints in chat MUST NOT dump raw file trees, internal graph markdowns, or repetitive question lists. Instead, checkpoints MUST surface only: (1) a concise summary of what was understood/decided, (2) an explicit preview of the outcomes, impacts, and technical steps that will happen if proceeding to the next stage, and (3) clear interactive options for the user to proceed or adjust direction.
-16. **Dynamic Socratic Discovery & Smart Tech Stack Synthesis**: Static, hardcoded question lists are strictly prohibited. In Stage 0 & 1, Kineti OS must research the domain, parse past decisions from the Causality Map, and present dynamic, context-aware options. The OS automatically synthesizes 3 production-grade tech stack recommendations tailored for Human + Agent workflows based on app classification:
-    - *Enterprise Tools (B2B)*: Bakes in SSO/SAML, RBAC, Audit Logging, PII Redaction, Multi-tenancy, and Relational DBs.
-    - *Consumer Apps (B2C)*: Bakes in OAuth, Fast Onboarding, Customer DBs, Edge Caching, and Responsive UI.
-    - *Internal Tools*: Bakes in API Token Auth, Direct Tool Integrations, High-Density Data Tables, and Automation Tasks.
-17. **Production-Grade Code Quality & Anti-Prototyping Mandate**: Single-screen prototype code, sloppy designs, and placeholder scripts are strictly forbidden. All code produced within Kineti OS must be production-grade, modular, multi-file, secure, fully typed, and covered by automated tests.
-18. **Domain & Workflow Design Research Gate**: Visual design choices must be research-backed, evaluating user POV, data density, business goals, and workflow velocity. Present 3 bespoke, production-standard UI directions with high-fidelity screenshot previews (`generate_image`) and component rationale before any frontend code is written.
-19. **Infrastructure & Multi-Cloud Deployment Synthesis**: During `/ship`, synthesize relevant multi-cloud (Vercel, AWS/GCP, Cloudflare Workers), GPU server, or local edge hosting options with tailored financial spend caps and failover strategies based on the project context.
-20. **Strict File Placement & Storage Boundaries**: `.northstar/` is reserved exclusively for private causality property graphs, internal state logs, and raw dialogue records. Public functional specifications (`spec.md`), source code, design assets, and developer documentation belong in the public workspace repository.
-21. **Stage-by-Stage C-Suite Executive Persona Mandate**: At each stage, the OS adopts a designated executive persona, conducts live research into the feature's domain, industry, and application context, and presents intelligent, research-backed choices:
-    - *Stage 0 & 1 (`/officehours`)*: **Chief Business Officer (CBO) & Strategic Consultant** — Domain market research, 5-Whys root cause, application classification (Enterprise B2B vs Consumer B2C vs Internal Tool), and 3 production tech stack options.
-    - *Stage 2 & 3 (`/autoplan` & `/spec`)*: **Chief Technology Officer (CTO) & Principal Architect** — Latency SLAs, concurrency bounds, data-routing maps, multi-tenancy isolation (PostgreSQL RLS), async queues (BullMQ/Temporal), ACID Saga rollbacks, consumer-driven API contract testing, and idempotent external side-effect handling.
-    - *Stage 4 & 5 (`/design` & `/design_consultation`)*: **Chief Product Officer (CPO) & Head of UX Design** — Industry visual research (user POV, data density, workflow velocity), 3 bespoke production visual systems (Radix/Shadcn/Ant), high-fidelity screenshot previews (`generate_image`), WCAG AA compliance, and TanStack high-density data grids.
-    - *Stage 6 & 7 (`/ship`)*: **Chief Security Officer (CSO) & Infrastructure SRE Lead** — Multi-cloud hosting synthesis (Vercel, AWS/GCP, GPU servers, Edge), secret vault configuration (Infisical/Vault), OWASP AI Agent security audits (ASI-01 to ASI-05), OpenTelemetry canary monitoring, and Meta AI financial spend caps.
-22. **12 Enterprise Application Choice Domains**: Every sprint must evaluate the project against these 12 enterprise domains: (1) Databases & Persistence Engine, (2) Environment Configuration & Secret Management, (3) CI/CD & Quality Automation Pipelines, (4) Cloud Providers & Hybrid Execution, (5) Hosting, CDN & Edge Delivery, (6) Authentication Lifecycle (Login/Logout/Sessions/MFA), (7) Access Control Systems (RBAC/ABAC/ReBAC), (8) Data Scoping & Multi-Tenancy Isolation, (9) Data Pipelines & Async Processing, (10) Data Integrity & Transactional Warranties, (11) Security & Vulnerability Defenses (OWASP Web + AI Agent), (12) Superior UI/UX & Industrial Productivity Design Systems.
-23. **Agent Memory Drift & Vector Degradation Defense**: Enforce Temporal Entropy Decay Scoring on all vector memory chunks. If a vector memory chunk is older than N sprint iterations and has not been traversed via a Causal Link edge, its retrieval weight decays automatically, preventing outdated architectural context from polluting new agent runs. Periodic vector index re-indexing and context pruning are mandatory.
-24. **Idempotent Side-Effect Transaction Logs**: All external tool calls (Translation Layer) require a deterministic `idempotency_key` derived from `root_goal_id + step_hash`. If an agent loop restarts or rolls back via Saga LIFO, the side-effect log prevents double-execution of external mutations (emails, API calls, webhooks, payment charges).
-25. **Cryptographic Approval Tokens for High-Impact Actions**: High-impact actions (schema drops, production deployments, spend cap overrides, data migrations) require a signed `approval_token` — an explicit CLI/Web confirmation payload or cryptographic artifact — before Stage 6/7 can unblock. No autonomous sub-agent may execute destructive operations without this escrow.
-26. **OpenTelemetry Token Cost Attribution & Agent Observability**: Every agent run, sub-agent thread, and LLM call must emit OpenTelemetry traces with attached metadata (`feature_id`, `prompt_tokens`, `completion_tokens`, `cost_usd`). This gives the CBO/CTO exact visibility into token budget burned per feature.
-27. **AST Tenant Leak Analyzer in CI/CD**: During `/qa`, an automated AST lint rule parses all database query calls and fails the build if any query against a multi-tenant table lacks an explicit `tenant_id` constraint or RLS policy binding. Zero tolerance for cross-tenant data leak vectors.
-28. **Consumer-Driven Contract Testing Between Sub-Agents**: Before frontend code generation starts in Stage 4, the backend spec must produce a strict OpenAPI / TypeSafe RPC contract (tRPC or Zod schema). The frontend agent must compile against these exact exported types, preventing runtime property mismatch between parallel sub-agents.
+14. **Enforce Empirical Runtime Verification & Log Traceability**: Editing a file does not equal completing a task. Every change must be verified via actual test/build/browser runs with clean un-truncated log evidence.
+15. **Background Engine Execution & High-Signal Outcome Surfacing**: All system-level file updates, `.northstar/` memory writes, SQL/PGQ causality graph generation, and AST code parsing MUST execute silently in background threads run by sub-agents. Checkpoints MUST surface only concise summaries, outcomes, and clear interactive options.
+
+### Tier 3: SDLC Pipeline (Active for Personas A, C, E)
+16. **Dynamic Socratic Discovery & Smart Tech Stack Synthesis**: Static, hardcoded question lists are strictly prohibited. In Stage 0 & 1, Kineti OS must research the domain and present dynamic options.
+17. **Production-Grade Code Quality & Anti-Prototyping Mandate**: Single-screen prototype code, sloppy designs, and placeholder scripts are strictly forbidden. All code produced must be production-grade, modular, secure, fully typed, and covered by automated tests.
+21. **Stage-by-Stage C-Suite Executive Persona Mandate**: At each stage, the OS adopts a designated executive persona (CBO, CTO, CPO, CSO), conducts live research, and presents intelligent choices.
+
+### Tier 4: Enterprise & Design (Active for Personas A, C, E, and B-selective)
+18. **Domain & Workflow Design Research Gate**: Visual design choices must be research-backed, evaluating user POV, data density, business goals, and workflow velocity. Present 3 bespoke UI directions with `generate_image` previews.
+19. **Infrastructure & Multi-Cloud Deployment Synthesis**: Synthesize relevant multi-cloud (Vercel, AWS/GCP), GPU server, or local edge hosting options with tailored financial spend caps and failover strategies based on the project context.
+20. **Strict File Placement & Storage Boundaries**: `.northstar/` is reserved exclusively for private causality graphs and logs. Public specs (`spec.md`) and code belong in the public workspace repository.
+22. **12 Enterprise Application Choice Domains**: Evaluate the project against: Databases, Secrets, CI/CD, Cloud Providers, Hosting/CDN, Auth, Access Control, Data Scoping, Data Pipelines, Data Integrity, Security, and UI/UX Design Systems.
+
+### Tier 5: Frontier AI Agent Product (Active for Persona B)
+29. **Agent Safety & Guardrail Design**: Enforce content filtering, hallucination detection, tool-use sandboxing, human escalation triggers, and adversarial input defense (prompt injection).
+30. **Token Unit Economics at Scale**: Evaluate production serving economics: model routing (cheap vs expensive models), prompt caching, KV-cache reuse, batched inference, and cost-per-query margin analysis.
+31. **Multi-Agent Orchestration Patterns for Production**: Design supervisor → worker hierarchies, peer-to-peer agent collaboration with shared memory, swarm execution, and agent handoff protocols.
+32. **Agent Evaluation & Quality Benchmarking Framework**: Establish accuracy benchmarks, tool-use correctness verification, hallucination rate tracking, regression detection across model upgrades, and A/B testing infrastructure.
+33. **Production Agent Memory Architecture**: Design episodic memory (past conversations), procedural memory (learned tool patterns), working memory (context window management), retrieval strategies, and memory privacy boundaries.
+34. **AI Regulatory Compliance Gate**: Evaluate EU AI Act risk classification, SOC 2 for AI systems, domain-specific regulations (HIPAA, PCI-DSS), AI transparency requirements, and data residency constraints.
+
+### Tier 6: AI/ML Engineering & Optimization (Active for Persona D)
+35. **Context Optimization & Entropy Management**: Focus on RAG pipeline tuning, context packing, dynamic token pruning, and vector retrieval strategies to maximize signal-to-noise ratio.
+36. **Model Integration & Serving Infrastructure**: Design for vLLM, TensorRT-LLM, continuous batching, and inference latency optimization.
+37. **Continuous Fine-Tuning & Data Flywheels**: Capture user interactions, RLHF preference modeling, and automated dataset generation loops.
+
+### Tier 7: Durability & Safety (Active for Personas A, B, C, D-selective)
+23. **Agent Memory Drift & Vector Degradation Defense**: Enforce Temporal Entropy Decay Scoring on all vector memory chunks. Periodic vector index re-indexing and context pruning are mandatory.
+24. **Idempotent Side-Effect Transaction Logs**: All external tool calls require a deterministic `idempotency_key` (`root_goal_id + step_hash`) to prevent double-execution on Saga LIFO rollbacks.
+25. **Cryptographic Approval Tokens for High-Impact Actions**: High-impact actions (schema drops, production deployments, spend overrides) require a signed `approval_token` before unblocking.
+26. **OpenTelemetry Token Cost Attribution & Agent Observability**: Every agent run and LLM call must emit OpenTelemetry traces with `feature_id`, `prompt_tokens`, `completion_tokens`, and `cost_usd`.
+27. **AST Tenant Leak Analyzer in CI/CD**: An automated AST lint rule fails the build if any query against a multi-tenant table lacks an explicit `tenant_id` constraint.
+28. **Consumer-Driven Contract Testing Between Sub-Agents**: Before frontend code generation, the backend spec must produce a strict OpenAPI / TypeSafe RPC contract (tRPC/Zod) that frontend agents compile against.
 
 ---
 

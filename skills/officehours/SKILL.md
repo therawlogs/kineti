@@ -20,6 +20,10 @@ Enter `/officehours` followed by a plain description of what you want to build o
 - **Instructions**:
   When this command is run, you **MUST** follow these steps using pure Plain English and zero technical jargon:
 
+  ### Step 0: Load or Create `kineti.config.json`
+  1. Check if `kineti.config.json` exists in the project root.
+  2. If it does not exist, you will create it at the end of Stage 0.
+
   ### Step 1: Initialize Local Memory Folder & User Sovereignty Protocol
   1. Create a local folder at `<project_root>/.northstar/` with subfolders: `dialogue/`, `gaps/`, `graphs/`, `decisions/`, `templates/`, `mocks/`.
   2. Create `<project_root>/.northstar/.gitignore` containing `*` to block all memory files from being uploaded to public online repositories (like GitHub).
@@ -37,13 +41,33 @@ Enter `/officehours` followed by a plain description of what you want to build o
   ### Step 3: Stage 0 - Dynamic Domain Research & Application Classification (CBO Persona)
   Adopt the **Chief Business Officer (CBO) & Strategic Consultant** persona. Conduct thorough live research into the feature's domain, industry, and application context before presenting any choices.
 
+  **Persona Auto-Classification**: Based on the user's description and domain research, classify the project into a Founder Persona:
+  * If the core product IS an autonomous agent serving end-users → **Persona B (Frontier AI Research Founder)**
+  * If building full-stack software with AI assistance → **Persona A (Solo Technical Founder)**
+  * If both (SaaS platform with embedded AI agents) → **A+B Hybrid**
+  * If enterprise team building large-scale software → **Persona C (Enterprise Engineering Team)**
+  * If building RAG pipelines, model integration, or context optimization → **Persona D (AI/ML Engineer)**
+  * If deploying rapid client solutions → **Persona E (Forward Deployed Engineer)**
+  Write the detected persona to `kineti.config.json` and `.northstar/sprint_state.json`.
+
+  **Frontier AI Probes (When Persona B or A+B is detected)**: In addition to standard domain probes, present these Frontier AI-specific questions:
+  * **F1. Agent Safety Level**: What is the risk level if the agent gives a wrong answer? (Low = informational, Medium = financial, High = legal/medical liability)
+  * **F2. Target Scale**: How many daily agent requests at steady state? (Under 1K / 1K-100K / 100K-1M / 1M+)
+  * **F3. Agent Memory Requirements**: Does the agent need to remember users across sessions? (No memory / Session-only / Long-term per-user)
+  * **F4. Multi-Agent Architecture**: Single agent or multiple collaborating agents? (Single / Supervisor-Worker / Peer-to-Peer / Swarm)
+  * **F5. Regulatory Domain**: Any regulatory compliance required? (None / SOC 2 / HIPAA / PCI-DSS / EU AI Act / Multiple)
+
   1. **Execute Live Domain & Industry Research**: Search the web for current industry standards, best practices, competitor products, and technology trends relevant to the user's domain. Inspect `.northstar/graphs/cumulative_causality.md` to load past decisions. Static hardcoded questions are STRICTLY PROHIBITED.
-  2. **Classify Application Type & Evaluate 12 Enterprise Choice Domains**: Based on research, classify the application and evaluate relevant enterprise domains:
-     * **Enterprise Tool (B2B)**: Propose PostgreSQL + Prisma/Drizzle, SSO/SAML auth (WorkOS/Keycloak), RBAC/ReBAC access control, audit logging, PII redaction middleware, multi-tenant RLS isolation, Infisical/Vault secret management, BullMQ/Temporal async queues, and CI/CD via GitHub Actions.
-     * **Consumer Application (B2C)**: Propose OAuth (Google/GitHub/Apple), customer databases (Supabase/Neon), responsive Radix/Shadcn UI components, Cloudflare Edge caching, Stripe billing integrations, and Vercel serverless deployment.
-     * **Internal Tool / Single-User Workflow**: Propose API token auth, direct tool integrations, TanStack high-density data tables with AG Grid, automated background execution tasks, and self-hosted local gateway deployment.
+  2. **Classify Founder Persona & Application Type**: Based on research, classify the project into one of 5 Founder Personas and evaluate relevant enterprise domains:
+     * **Persona A (Solo Technical Founder)**: Full-Stack SaaS. Propose PostgreSQL + Prisma/Drizzle, SSO/OAuth, RBAC, multi-tenant RLS, CI/CD, and serverless hosting.
+     * **Persona B (Frontier AI Research Founder)**: Agent Products for Users. Propose agent orchestration frameworks (LangGraph/CrewAI), model routing layers (LiteLLM), token cost optimization, episodic memory stores (Zep/Mem0), and agent safety guardrails.
+     * **Persona C (Enterprise Engineering Team)**: Internal Tools. Propose heavy enterprise domains, CI/CD, RBAC/ReBAC, audit logging, PII redaction.
+     * **Persona D (AI/ML Engineer)**: RAG/Model Pipelines. Propose vector DBs, context packing, vLLM serving, and data flywheels.
+     * **Persona E (FDE)**: Rapid Client Solutions. Propose streamlined stacks with C-Suite persona focus.
+     *(Note: If the project exhibits traits of multiple personas, e.g. a SaaS that serves AI agents, classify as a Crossover, e.g., Persona A + B).*
   3. **Synthesize 3 Production Tech Stack Options**: For each classification, research and present 3 production-grade tech stack options (databases, ORMs, auth providers, component libraries, hosting targets) tailored for Human + Agent workflows. Include rationale for each.
   4. **Present Research-Backed Recommendations & Dynamic Probes**: Present the synthesized app classification, 3 recommended tech stacks, and 3–5 dynamic, context-aware domain probes. Then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
+  5. **Generate `kineti.config.json` (If not present)**: Generate a `kineti.config.json` file in the project root defining the `persona` (e.g. `crossover_a_b`), `active_skills`, `active_tiers`, and `settings` (e.g. spend limits, isolation).
 
   > [!IMPORTANT]
   > **HARD PAUSE DIRECTIVE**: You MUST present the CBO research findings, domain probes, application classification, 12 enterprise domain evaluation, and synthesized stack choices to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting choices, simulating user answers, writing transcript files, or running downstream skills before receiving explicit user input.
