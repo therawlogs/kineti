@@ -34,18 +34,15 @@ Enter `/ship` in the active workspace.
 
   *Dynamic Questions*: Generate 2–3 plain cost probes tagged `[DOMAIN-SPECIFIC]`.
 
-  ### Step 3: Execute Stage 7 - Deployment & Operations (LangGraph Saga Rollbacks)
-  Prompt the user with Stage 7 plain questions:
-  * **Q1. Target Server**: Cloud PaaS / Cloud IaaS / Kubernetes / Static Hosting / Bare Metal / Local
-  * **Q2. Auto Undo Plan (Saga LIFO Stack)**: How do we automatically undo multi-step actions in reverse order if a deploy step fails midway?
-  * **Q3. Outage Detection**: Error rate tracking (>1%) / Metric anomaly / User-reported / None
-  * **Q4. Alert Contact**: Builder directly / On-call team / None / Automated self-healing
-  * **Q5. Secret Keys Storage**: Environment variables at runtime / Secrets Manager / Local .env excluded / Hardcoded prototype
-  * **Q6. Pass/Fail Criteria**: What binary, non-subjective test proves this sprint is 100% complete?
+  ### Step 3: Present Release Options & HARD PAUSE
+  Present Stage 6 (Cost Architecture) and Stage 7 (Deployment Ops) parameters, financial spend caps, and Saga LIFO rollback plans to the user, then **STOP EXECUTION IMMEDIATELY**:
 
-  *Dynamic Questions*: Generate 2–3 plain deployment probes tagged `[DOMAIN-SPECIFIC]`.
+  > [!IMPORTANT]
+  > **HARD PAUSE DIRECTIVE**: You MUST present the release parameters, spend caps, and deployment options, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from triggering GitOps deployment, running test suites, or marking the sprint complete before the user explicitly reviews and approves release.
 
-  ### Step 4: Execute Release Sub-Skills
+  ### Step 4: Execute Release Sub-Skills & Verification (After User Approves)
+  Once approved by the user, execute:
+
   1. **Run `/qa`**: Playwright E2E multi-viewport tests across desktop and mobile screen sizes. Enforce 100% test pass rate ("Boil the Ocean" completeness check).
   2. **Run `/land_and_deploy`**: Trigger GitOps deployment script with registered LangGraph Saga LIFO Rollback stack.
   3. **Run `/canary`**: Setup latency tracking with OpenTelemetry log tracing headers.
