@@ -68,6 +68,13 @@ Enter `/officehours` followed by a plain description of what you want to build o
   3. **Synthesize 3 Production Tech Stack Options**: For each classification, research and present 3 production-grade tech stack options (databases, ORMs, auth providers, component libraries, hosting targets) tailored for Human + Agent workflows. Include rationale for each.
   4. **Present Research-Backed Recommendations & Dynamic Probes**: Present the synthesized app classification, 3 recommended tech stacks, and 3–5 dynamic, context-aware domain probes. Then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
   5. **Generate `kineti.config.json` (If not present)**: Generate a `kineti.config.json` file in the project root defining the `persona` (e.g. `crossover_a_b`), `active_skills`, `active_tiers`, and `settings` (e.g. spend limits, isolation).
+  ```json
+  {
+    "settings": {
+      "default_vector_db": ["pgvector"]
+    }
+  }
+  ```
 
   > [!IMPORTANT]
   > **HARD PAUSE DIRECTIVE**: You MUST present the CBO research findings, domain probes, application classification, 12 enterprise domain evaluation, and synthesized stack choices to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting choices, simulating user answers, writing transcript files, or running downstream skills before receiving explicit user input.

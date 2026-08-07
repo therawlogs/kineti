@@ -28,6 +28,7 @@
     "spend_limit_usd": 500.00,
     "tenant_isolation": "rls",
     "default_db": "postgresql",
-    "default_hosting": "gpu_dedicated"
+    "default_hosting": "gpu_dedicated",
+    "default_vector_db": ["pgvector"]
   }
 }
