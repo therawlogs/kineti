@@ -28,7 +28,7 @@ Use immediately after Stage 1 validation in `/officehours`.
   Present the atomic sub-queries, data-routing map, data validation rules ($Q = C \times A \times T$), and input/output contracts to the user, then **STOP EXECUTION IMMEDIATELY**:
 
   > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the data-routing map, field schemas, and failure handling rules, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from saving `.northstar/spec.md` or triggering downstream planning until the user explicitly reviews and approves the specification.
+  > **HARD PAUSE DIRECTIVE**: You MUST present the data-routing map, field schemas, and failure handling rules, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from saving `spec.md` or triggering downstream planning until the user explicitly reviews and approves the specification.
 
-  ### Step 4: Save Specification (After User Approves)
-  Once approved by the user, save the complete functional specification to `.northstar/spec.md`, update `.northstar/manifest.json`, and present the spec completion checkpoint.
+  ### Step 4: Save Public Functional Specification (After User Approves)
+  Once approved by the user, save the complete production functional specification to `<project_root>/spec.md` as a public repository asset (NOT inside `.northstar/`). Update `.northstar/manifest.json` silently in the background, and present the spec completion checkpoint.

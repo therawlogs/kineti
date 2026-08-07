@@ -34,29 +34,20 @@ Enter `/officehours` followed by a plain description of what you want to build o
      * **Layer 3 (First Principles)**: Original observations derived from reasoning about the specific problem at hand.
      * **The Eureka Moment**: Understand conventional approaches, apply first principles to their assumptions, and discover why conventional wisdom is wrong (zig while others zag).
 
-  ### Step 3: Stage 0 - Domain Space & Project Context
-  Present the following plain questions with clear options or recommendations to the user, then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
-  * **Q1. Business Model**: Is this for consumers (B2C), businesses (B2B), partner platforms (B2B2C), government (B2G), an internal company tool, or a hobby project?
-  * **Q2. Industry Domain**: Finance, healthcare, developer tools, retail/e-commerce, education, legal, media, enterprise operations, or AI/ML?
-  * **Q3. Greenfield vs. Brownfield Execution**:
-    * *Greenfield*: Building from scratch. What language, folder layout, and build tools do you prefer?
-    * *Brownfield*: Adding to existing software. What is the path to the codebase, what does the current code do, and what rules or parts must NOT be changed?
-  * **Q4. Risk Level**: Is this a quick learning test, an internal team tool, a live paid product, a critical infrastructure system, or a safety/legal-critical system?
-  * **Q5. Timeline Pressure**: No deadline, soft target date, hard launch deadline, or already behind schedule?
-
-  *Dynamic Questions*: Generate 3–5 plain, domain-specific questions tagged `[DOMAIN-SPECIFIC]` based on Q1–Q5.
+  ### Step 3: Stage 0 - Dynamic Domain Research & Application Classification
+  1. **Execute Live Research & Causality Audit**: Conduct research into the industry domain and inspect `.northstar/graphs/cumulative_causality.md` to load past decisions. Static hardcoded questions are STRICTLY PROHIBITED.
+  2. **Classify Application Type & Synthesize Production Stack Options**:
+     * **Enterprise Tool (B2B)**: Automatically propose production stack with SSO/SAML auth, RBAC user management, audit logging, PII redaction middleware, multi-tenant database isolation, and security password verification.
+     * **Consumer Application (B2C)**: Automatically propose customer OAuth onboarding, user databases, responsive component UI, edge caching, and lightweight billing integrations.
+     * **Internal Tool / Single-User Workflow**: Automatically propose API token auth, direct tool integrations, high-density data tables, and automated background execution tasks (zero collaboration bloat).
+  3. **Present Research-Backed Recommendations & Dynamic Probes**: Present the synthesized app classification, recommended tech stack choices (3 production-grade options tailored for Human + Agent workflows), and 3–5 dynamic, context-aware domain probes. Then **HALT EXECUTION IMMEDIATELY and WAIT FOR USER RESPONSE**:
 
   > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST output the questions above and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-generating answers for the user, simulating choices, writing transcript files, or running downstream skills before receiving the user's explicit response.
+  > **HARD PAUSE DIRECTIVE**: You MUST present the dynamic domain probes, application classification, and synthesized stack choices to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting choices, simulating user answers, writing transcript files, or running downstream skills before receiving explicit user input.
 
-  ### Step 4: Stage 1 - Problem & Money Validation (After User Responds to Stage 0)
-  Once the user responds to Stage 0, present these Stage 1 questions and **HALT AGAIN**:
-  * **Q1. The 5-Whys Root Cause**: Ask "why" 5 times to find the real physical cause of the problem. Why fix it right now?
-  * **Q2. Single Main Action**: What is the single main action the user performs to get value?
-  * **Q3. Status Quo Cost**: What does the current manual or broken process cost each year in wasted time or money?
-  * **Q4. Target Business Metric**: What exact financial target improves (lower hosting costs, fewer lost customers, or higher sales)?
-  * **Q5. Project Veto Holder**: Who has the authority to stop or reject this project (security chief, finance head, end user)? What is their exact concern?
-  * **Q6. Strongest Counter-Argument Test**: What is the strongest reason why this project might fail, and how do we prove that reason wrong?
+  ### Step 4: Stage 1 - Problem & Value Validation (After User Responds)
+  Once the user responds to Stage 0, present Stage 1 value probes (5-Whys root cause, single main value action, financial target metric, veto holder, and counter-argument refutation) tailored to the user's answers and **HALT AGAIN FOR USER INPUT**.
+
 
   ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
   1. Once the user provides answers, invoke background sub-agent threads to write transcripts silently to `.northstar/dialogue/stage_0_domain_classification.md` and `.northstar/dialogue/stage_1_problem_validation.md`.
