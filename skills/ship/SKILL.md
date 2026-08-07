@@ -3,7 +3,7 @@ name: /ship
 description: Compounded Verification, QA & Release Gate. Runs Stage 6 (Cost Architecture) and Stage 7 (Deployment & Ops), enforces 100% Boil-the-Ocean test completeness, LangGraph Saga LIFO rollbacks, Meta AI spend circuit breakers, and exports MCP tools.json.
 ---
 
-# Skill: /ship (Checkpoint 4 - Plain English Release Gate)
+# Skill: /ship (Checkpoint 4 — CSO & Infrastructure SRE Lead Persona)
 
 ## When to Use
 Use immediately after the Build & Audit Gate (`/design`) completes.
@@ -26,19 +26,26 @@ Enter `/ship` in the active workspace.
   2. Verify `last_completed_gate` equals `"design"`.
   3. Load cumulative causality graph from `.northstar/graphs/cumulative_causality.md`.
 
-  ### Step 2: Infrastructure & Deployment Target Synthesis
-  1. **Audit Causality Map & Live Research**: Read `.northstar/graphs/cumulative_causality.md` and perform live research to fetch optimal hosting infrastructure options.
+  ### Step 2: CSO & SRE Infrastructure, Security & Deployment Target Synthesis
+  Adopt the **Chief Security Officer (CSO) & Infrastructure SRE Lead** persona. Conduct live research into hosting, security, and observability options specific to the project context.
+
+  1. **Audit Causality Map, Live Research & Enterprise Domain Evaluation**: Read `.northstar/graphs/cumulative_causality.md` and perform live web research to evaluate hosting infrastructure, security compliance, and observability options against the 12 Enterprise Choice Domains.
   2. **Synthesize 3 Infrastructure Options**:
-     * **Option A: Multi-Cloud Vercel / Cloudflare Edge**: Zero-config edge deployment, global CDN, automated SSL, serverless function scaling.
-     * **Option B: Dedicated GPU Server (RunPod / Lambda / Modal)**: Custom container runtime for local LLM / VRAM inference and heavy compute tasks under 50ms SLA.
-     * **Option C: Self-Hosted / Local Gateway**: Complete data privacy, local network deployment, zero third-party egress cost.
-  3. **Tailor Financial Spend Caps**: Configure unit cost ceilings, spend circuit breakers ($50.00 USD default), and Saga LIFO rollback triggers based on chosen hosting target.
+     * **Option A: Multi-Cloud Vercel / Cloudflare Edge**: Zero-config edge deployment, global CDN, automated SSL, serverless function scaling. Best for consumer B2C apps and marketing sites.
+     * **Option B: Dedicated GPU Server (RunPod / Lambda / Modal)**: Custom container runtime for local LLM / VRAM inference and heavy compute tasks under 50ms SLA. Best for AI/ML-heavy enterprise tools.
+     * **Option C: Self-Hosted / Local Gateway**: Complete data privacy, local network deployment, zero third-party egress cost. Best for regulated industries (healthcare, finance, government).
+  3. **Evaluate CI/CD Pipeline & Quality Gates**: Configure GitHub Actions / GitLab CI with automated linting, TypeScript type checking, unit/integration tests, Playwright E2E verification, Snyk/SonarQube vulnerability scans, and Blue-Green/Canary deployment patterns.
+  4. **Configure Secret Vault & Environment Security**: Evaluate Infisical, HashiCorp Vault, or AWS Secrets Manager. Enforce Zod boot validation and GitLeaks secret leak prevention.
+  5. **Execute OWASP Security Audit**: Run OWASP Top 10 for Web and OWASP Top 10 for AI Agents (ASI-01 to ASI-05) compliance checks. Verify PII egress redaction middleware and API rate limiting.
+  6. **Configure OpenTelemetry Agent Observability (Directive 26)**: Ensure all agent runs and LLM calls emit OpenTelemetry traces with `feature_id`, `prompt_tokens`, `completion_tokens`, `cost_usd` metadata.
+  7. **Tailor Financial Spend Caps**: Configure unit cost ceilings, spend circuit breakers ($50.00 USD default), and Saga LIFO rollback triggers based on chosen hosting target.
+  8. **Verify Cryptographic Approval Token (Directive 25)**: For production deployments and spend cap overrides, verify that a signed `approval_token` exists before unblocking.
 
   ### Step 3: Present Deployment Options & HARD PAUSE
-  Present the synthesized infrastructure options, spend caps, and Saga LIFO rollback plans to the user, then **STOP EXECUTION IMMEDIATELY**:
+  Present the CSO/SRE infrastructure research, security audit results, CI/CD pipeline configuration, secret vault options, OpenTelemetry observability setup, spend caps, and Saga LIFO rollback plans to the user, then **STOP EXECUTION IMMEDIATELY**:
 
   > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the infrastructure options, spend caps, and deployment plans to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from triggering GitOps deployment, running test suites, or marking the sprint complete before the user explicitly selects a hosting target.
+  > **HARD PAUSE DIRECTIVE**: You MUST present the CSO/SRE infrastructure research, security compliance audit, CI/CD quality gates, secret vault configuration, observability setup, spend caps, and deployment plans to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from triggering GitOps deployment, running test suites, or marking the sprint complete before the user explicitly approves the release configuration.
 
 
   ### Step 4: Execute Release Sub-Skills & Verification (After User Approves)
@@ -61,12 +68,16 @@ Enter `/ship` in the active workspace.
 
   Upon completion, print this plain summary:
   ```
-  === Checkpoint 4: /ship Complete ===
+  === Checkpoint 4: /ship Complete (CSO & SRE Verified) ===
   - Sprint state successfully marked COMPLETED.
   - "Boil the Ocean" 100% test pass rate verified across desktop and mobile viewports.
-  - LangGraph Saga LIFO Rollback stack registered for auto-undo on deploy failures.
+  - LangGraph Saga LIFO Rollback stack registered with idempotency keys for auto-undo on deploy failures.
+  - Cryptographic approval_token verified for production deployment.
+  - OWASP AI Agent Security (ASI-01 to ASI-05) compliance audit passed.
+  - AST Tenant Leak Analyzer: Zero cross-tenant query leak vectors detected.
+  - OpenTelemetry traces emitting feature_id + token cost attribution.
   - Meta AI Financial Spend Circuit Breakers active.
-  - Simple AI Tool List (tools.json) compiled & exported.
+  - MCP Tool Schema (tools.json / OpenAPI) compiled & exported.
   
   === Financial & Performance Return Summary ===
   - Execution Time Spent: [elapsed_time]

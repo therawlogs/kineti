@@ -3,7 +3,7 @@ name: /design
 description: Compounded Build & Audit Gate. Runs Stage 4 (Visual Validation) and Stage 5 (Testing Strategy), triggers image mocks, applies Smolagents Code-First Actions and Grok-Build Autonomic Patching, and executes PII/Spend security checks.
 ---
 
-# Skill: /design (Checkpoint 3 - Stage 4 & Stage 5 Build Gate)
+# Skill: /design (Checkpoint 3 — CPO & Head of UX Design Persona)
 
 ## When to Use
 Use immediately after technical and design planning (`/autoplan`) completes.
@@ -26,14 +26,22 @@ Enter `/design` in the active workspace.
   2. Verify `last_completed_gate` equals `"autoplan"`.
   3. Load cumulative causality graph from `.northstar/graphs/cumulative_causality.md`.
 
-  ### Step 2: Execute Stage 4 - Domain Visual Research & Bespoke Design System Selection (User Sovereignty Gate)
-  1. **Perform Domain Visual Research**: Research top production-grade applications and industry standards for the project's specific domain (e.g., Stripe/Linear/Vercel for Dev Tools & SaaS, Bloomberg for Finance, Apple/Airbnb for Consumer). Generic canned presets (glassmorphic, dark mode, analog) are STRICTLY PROHIBITED.
-  2. **Formulate 3 Bespoke Visual Directions**: Develop 3 domain-tailored visual design systems specifying typography pairings (Google Fonts like Outfit, Inter, JetBrains Mono), spatial density, custom color palettes (HSL), component structures, and micro-interactions.
-  3. **Render Screenshot Previews**: Call `generate_image` to generate high-fidelity UI previews for all 3 visual directions.
-  4. **Present Directions & HARD PAUSE**: Present the research findings, visual system options, and generated screenshots to the user, then **STOP EXECUTION IMMEDIATELY**:
+  ### Step 2: Execute Stage 4 - CPO Domain Visual Research & Bespoke Design System Selection (User Sovereignty Gate)
+  Adopt the **Chief Product Officer (CPO) & Head of UX Design** persona. Conduct thorough live research into industry-leading applications and UI patterns specific to the project's domain.
+
+  1. **Execute Deep Domain Visual Research**: Search the web for production-grade applications and industry UI standards for the project's specific domain (e.g., Stripe/Linear/Vercel for DevTools & SaaS, Bloomberg/Robinhood for Finance, Apple/Airbnb for Consumer, Epic/Cerner for Healthcare). Evaluate from 4 perspectives:
+     * **User POV**: Onboarding friction, click depth, cognitive load, accessibility (WCAG 2.1 AA).
+     * **Data Density POV**: Information density requirements (high-density TanStack Table/AG Grid for enterprise dashboards vs minimal cards for consumer apps).
+     * **Business POV**: Conversion optimization, feature discoverability, premium perceived quality.
+     * **Workflow Velocity POV**: Keyboard shortcuts (Command+K palette), bulk actions, real-time collaboration signals.
+  2. **Evaluate Component Library Fit**: Research and present component library recommendations (Radix Primitives + Tailwind/Shadcn UI, Mantine, Ant Design, or custom) with rationale specific to the project type.
+  3. **Verify API Contract Compliance (Directive 28)**: Before generating any frontend code, verify that the backend spec has produced a strict OpenAPI / TypeSafe RPC contract (tRPC or Zod schema). The frontend agent must compile against these exact exported types.
+  4. **Formulate 3 Bespoke Visual Directions**: Develop 3 domain-tailored visual design systems specifying typography pairings (Google Fonts like Outfit, Inter, JetBrains Mono), spatial density, custom color palettes (HSL), component structures, and micro-interactions. Generic canned presets (glassmorphic, dark mode, analog) are STRICTLY PROHIBITED.
+  5. **Render Screenshot Previews**: Call `generate_image` to generate high-fidelity UI previews for all 3 visual directions.
+  6. **Present Directions & HARD PAUSE**: Present the CPO research findings, component library rationale, visual system options, and generated screenshots to the user, then **STOP EXECUTION IMMEDIATELY**:
 
   > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the 3 bespoke domain visual directions and screenshot previews to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting a design theme or writing HTML/CSS code before the user explicitly selects a design system.
+  > **HARD PAUSE DIRECTIVE**: You MUST present the 3 bespoke domain visual directions, CPO research rationale, and screenshot previews to the user, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from auto-selecting a design theme or writing HTML/CSS code before the user explicitly selects a design system.
 
   ### Step 3: Execute Stage 5 - Testing Strategy & Autonomic Patching (After User Selects Design)
   Once the user selects their preferred design direction, prompt the user with Stage 5 testing questions and **PAUSE FOR INPUT**:

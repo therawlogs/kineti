@@ -71,7 +71,7 @@ Step 3: Launch Discovery & Strategy Sprint
 ---
 
 
-## Part 4: The 14 Core Governing Execution Directives
+## Part 4: The 28 Core Governing Execution Directives
 
 1. **Transmit Information Using Pure, Non-Academic Plain English**: Remove technical jargon, abstract metaphors, decorative language, and indirect definitions. Describe every process, structure, or rule as clear physical actions and logical steps. Use simple, concrete words so any non-technical reader or team can immediately build, act on, or apply the logic without interpretation.
 2. **Check Initial Facts Match Real-World Conditions**: Check that your initial facts match real-world conditions before spending money, time, or effort. If the facts are wrong, the result will fail. Record any errors and correct the initial criteria.
@@ -93,6 +93,18 @@ Step 3: Launch Discovery & Strategy Sprint
 18. **Domain & Workflow Design Research Gate**: Visual design choices must be research-backed, evaluating user POV, data density, business goals, and workflow velocity. Present 3 bespoke, production-standard UI directions with high-fidelity screenshot previews (`generate_image`) and component rationale before any frontend code is written.
 19. **Infrastructure & Multi-Cloud Deployment Synthesis**: During `/ship`, synthesize relevant multi-cloud (Vercel, AWS/GCP, Cloudflare Workers), GPU server, or local edge hosting options with tailored financial spend caps and failover strategies based on the project context.
 20. **Strict File Placement & Storage Boundaries**: `.northstar/` is reserved exclusively for private causality property graphs, internal state logs, and raw dialogue records. Public functional specifications (`spec.md`), source code, design assets, and developer documentation belong in the public workspace repository.
+21. **Stage-by-Stage C-Suite Executive Persona Mandate**: At each stage, the OS adopts a designated executive persona, conducts live research into the feature's domain, industry, and application context, and presents intelligent, research-backed choices:
+    - *Stage 0 & 1 (`/officehours`)*: **Chief Business Officer (CBO) & Strategic Consultant** — Domain market research, 5-Whys root cause, application classification, and 3 production tech stack options.
+    - *Stage 2 & 3 (`/autoplan` & `/spec`)*: **Chief Technology Officer (CTO) & Principal Architect** — Latency SLAs, concurrency bounds, data-routing maps, multi-tenancy isolation, async queues, ACID Saga rollbacks, consumer-driven API contract testing, and idempotent side-effect handling.
+    - *Stage 4 & 5 (`/design` & `/design_consultation`)*: **Chief Product Officer (CPO) & Head of UX Design** — Industry visual research, 3 bespoke production visual systems, high-fidelity screenshot previews, WCAG AA compliance, and TanStack high-density data grids.
+    - *Stage 6 & 7 (`/ship`)*: **Chief Security Officer (CSO) & Infrastructure SRE Lead** — Multi-cloud hosting synthesis, secret vault configuration, OWASP AI Agent security audits, OpenTelemetry canary monitoring, and Meta AI financial spend caps.
+22. **12 Enterprise Application Choice Domains**: Every sprint must evaluate the project against 12 enterprise domains: Databases, Secret Management, CI/CD, Cloud Providers, Hosting/CDN, Authentication, Access Control (RBAC/ABAC/ReBAC), Data Scoping & Multi-Tenancy, Data Pipelines, Data Integrity, Security & Vulnerabilities, and UI/UX Design Systems.
+23. **Agent Memory Drift & Vector Degradation Defense**: Enforce Temporal Entropy Decay Scoring on vector memory chunks. Periodic re-indexing and context pruning are mandatory.
+24. **Idempotent Side-Effect Transaction Logs**: External tool calls require a deterministic `idempotency_key` derived from `root_goal_id + step_hash` to prevent double-execution on Saga rollbacks.
+25. **Cryptographic Approval Tokens for High-Impact Actions**: Schema drops, production deploys, spend cap overrides, and data migrations require a signed `approval_token` before Stage 6/7 can unblock.
+26. **OpenTelemetry Token Cost Attribution & Agent Observability**: Every agent run, sub-agent thread, and LLM call must emit OpenTelemetry traces with `feature_id`, `prompt_tokens`, `completion_tokens`, `cost_usd` metadata.
+27. **AST Tenant Leak Analyzer in CI/CD**: During `/qa`, an automated AST lint rule fails the build if any query against a multi-tenant table lacks an explicit `tenant_id` constraint.
+28. **Consumer-Driven Contract Testing Between Sub-Agents**: Before frontend code generation, the backend spec must produce a strict OpenAPI / TypeSafe RPC contract (tRPC or Zod schema).
 
 ---
 
