@@ -46,10 +46,19 @@ def main():
 
     # 3. Sync Skills
     skills_src = kineti_dir / "skills"
+    target_skills_dir = target_config_dir / "skills"
     if skills_src.exists():
+        valid_skills = {item.name for item in skills_src.iterdir() if item.is_dir()}
+        # Purge orphaned skills from global config
+        if target_skills_dir.exists():
+            for target_item in target_skills_dir.iterdir():
+                if target_item.is_dir() and target_item.name not in valid_skills:
+                    shutil.rmtree(target_item)
+                    print(f"Purged obsolete skill: /{target_item.name} from {target_skills_dir}")
+        # Copy active skills
         for item in skills_src.iterdir():
             if item.is_dir():
-                target_skill_dir = target_config_dir / "skills" / item.name
+                target_skill_dir = target_skills_dir / item.name
                 if target_skill_dir.exists():
                     shutil.rmtree(target_skill_dir)
                 shutil.copytree(item, target_skill_dir)
