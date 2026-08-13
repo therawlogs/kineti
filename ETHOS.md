@@ -32,9 +32,15 @@ This document is the **Single Source of Truth (`ETHOS.md`)** for all software bu
 * **What data it requires:** A unique, single-use `approval_token` explicitly generated and signed by the human operator.
 * **What happens on failure:** The action is blocked at the tooling layer. The agent MUST present the exact blast radius of the action to the user and wait for the signed token.
 
+### 14. Strict Project Repository Asset Boundary
+* **When it fires:** Whenever any design artifact, screen image preview (`generate_image`), visual mockup, wireframe, HTML/CSS asset, UI component preview, or browser test screenshot is created.
+* **What data it requires:** The active project repository root path (`<project_root>/`).
+* **What happens on failure:** All generated visual mockups, screen renders, design artifacts, and code files MUST be stored directly inside the active project repository (e.g. `<project_root>/design/screens/`, `<project_root>/public/`, `<project_root>/src/assets/`). Writing design files, mockups, or screens to temporary system directories (`/tmp`), global application directories (`~/.gemini`), or scratch folders outside the project repository is strictly forbidden.
+
+
 ## Part 3: The Rejection Rule
 
-### 14. Empirical Failure-Prevention Measurement
+### 15. Empirical Failure-Prevention Measurement
 Any new primitive, stage, diagram, or architectural requirement must prove its worth against its own maintenance cost. 
 * **Measurement Protocol:** Before accepting a new architectural requirement, you must measure its "failure-prevention value". This is calculated as: `(Number of critical failures prevented over 3 real sprints) / (Hours spent maintaining and reading the new primitive)`. 
 * If the measured value does not exceed the version-drift probability and maintenance cost (i.e. if it generates more process overhead than shipped features), it is strictly forbidden.

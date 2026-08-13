@@ -31,12 +31,14 @@ For each of the 3 directions, specify the following details:
 - Micro-interaction patterns for hover states, transitions, and loading states.
 
 **Step 5: Render Screenshot Previews**
-Execute the `generate_image` tool to create high-fidelity UI previews for all 3 visual directions. Present these images to the user alongside the research rationale for each.
+Execute the `generate_image` tool to create high-fidelity UI previews for all 3 visual directions (or for all requested application screens).
+- **Strict Asset Boundary Rule:** ALL generated screen images, previews, mockups, and wireframes MUST be saved directly into the project repository under `<project_root>/design/screens/` or `<project_root>/design/mockups/`. Never write design artifacts to temporary system directories (`/tmp`), global application directories (`~/.gemini`), or scratch folders outside the active project workspace.
+Present these image files to the user alongside the research rationale for each.
 
 **Step 6: Build**
 Wait for the user to select a direction. Once selected (or if a logical default choice is made):
-1. Write the selected design tokens directly into `index.css`.
-2. Write code to build production-grade UI components using the selected design system.
+1. Write the selected design tokens directly into `<project_root>/index.css`.
+2. Write code to build production-grade UI components directly inside the project repository (e.g., `<project_root>/src/`, `<project_root>/public/`).
 3. Run `/review` to verify code quality.
 4. Run `/qa` to test the UI across multiple viewports.
 5. Run `/cso` to perform security checks.

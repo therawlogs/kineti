@@ -14,7 +14,7 @@ Use a browser automation tool to perform the following:
 1. Load the application in a desktop viewport (1280px width).
 2. Load the application in a mobile viewport (375px width).
 3. Execute user click paths and check that the DOM state matches expected outcomes.
-4. Capture and save screenshots at each viewport size.
+4. Capture and save screenshots at each viewport size directly inside the project repository under `<project_root>/tests/screenshots/` or `<project_root>/design/screenshots/`. Never output screenshots to external system folders or scratch directories outside the workspace.
 
 **Step 4: Automated Fix Loop**
 If any test fails during Step 2 or Step 3:
