@@ -13,10 +13,11 @@ Present these questions to determine physical system limits and wait for answers
 - **Peak Concurrency**: How many simultaneous users or requests must the system handle at peak?
 - **Failover Plan**: What happens when the primary database or service goes down?
 
-## 2. Stage 3 Experience
+## 2. Stage 3 Experience & Design Foundation
 Present these questions to determine the client interface and wait for answers:
 - **Primary Interaction Surface**: Web, mobile app, CLI, or API-only?
-- **User Habit Benchmark**: Which existing application does the user expect this to feel like?
+- **User Habit Benchmark**: Which existing application does the user expect this to feel like? (Linear, Stripe, Notion, Raycast, Vercel)
+- **UI Stack Alignment**: Confirm alignment with the **Master Design System Standard** (`shadcn/ui` + `Radix UI` + `Lucide Icons` + `Motion` + HSL Tokens) defined in `ETHOS.md` Part 4.
 - **Information Density**: Does the UI require sparse, focused screens or high-density dashboards?
 - **Non-Text Content**: How will images, video, or audio be handled?
 
