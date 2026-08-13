@@ -28,7 +28,8 @@ def main():
     # 1. Sync Root Master Documents
     master_files = [
         "ETHOS.md",
-        "kineti.config.json"
+        "kineti.config.json",
+        "README.md"
     ]
     for f_name in master_files:
         src = kineti_dir / f_name
