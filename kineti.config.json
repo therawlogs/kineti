@@ -4,23 +4,26 @@
   "project_name": "Kineti OS Project",
   "description": "Solo Technical Founder building a Frontier AI Agent Product",
   "tiers": {
-    "core_kernel": true,
-    "agent_governance": false,
-    "sdlc_pipeline": false,
-    "enterprise_design": false,
-    "frontier_ai": false,
-    "durability_safety": false,
-    "aiml_engineering": false
+    "core_kernel": true
   },
   "active_skills": [
-    "officehours", "spec", "ship"
+    "officehours",
+    "spec",
+    "autoplan",
+    "design",
+    "design_consultation",
+    "ship",
+    "qa",
+    "review",
+    "cso",
+    "investigate",
+    "browse"
   ],
-  "frontier_ai": null,
   "settings": {
     "spend_limit_usd": 500.00,
     "tenant_isolation": "rls",
     "default_db": "postgresql",
-    "default_hosting": "gpu_dedicated",
+    "default_hosting": "vercel",
     "default_vector_db": ["pgvector"]
   }
 }

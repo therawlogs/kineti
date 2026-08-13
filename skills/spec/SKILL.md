@@ -1,34 +1,34 @@
 ---
-name: /spec
-description: Translates validated intent into a high-density, zero-ambiguity functional specification using Smolagents Code-First Actions & LlamaIndex Sub-Query Data Breakdown in Plain English.
+name: spec
+description: Data contract and functional specification gate.
 ---
 
-# Skill: /spec (Stage 01 - Scope Elaboration & Data Quality Specification)
+# Functional Specification Skill
 
-## When to Use
-Use immediately after Stage 1 validation in `/officehours`.
+This skill creates the formal functional specification and data contracts for the project. It runs after the initial discovery phase.
 
-## Protocol & Actions
-- **Instructions**:
-  When this skill is run, you **MUST** follow these steps using pure Plain English:
+## 1. Data Quality Audit
+Analyze the project's data requirements using the Q = C × A × T framework:
+- **Completeness**: What data is required vs. optional?
+- **Accuracy**: How is the data validated?
+- **Timeliness**: Does the data need to be real-time, eventual, or batch updated?
 
-  ### Step 1: LlamaIndex Sub-Query Data Breakdown
-  Break down feature requests into explicit, atomic sub-queries. Audit data quality ($Q = C \times A \times T$):
-  *   **Completeness ($C$)**: Are all required inputs and error paths defined?
-  *   **Accuracy ($A$)**: Is data validated against strict schemas before processing?
-  *   **Timeliness ($T$)**: Is data fetched with low latency targets?
+## 2. Data-Routing Map
+Map the physical flow of data through the system:
+- User Input → Validation → Logic → Storage → API → UI.
+Trace exactly how information travels from the client to the database and back.
 
-  ### Step 2: Data-Routing Map Construction
-  Draw an explicit data map connecting every component:
-  ```
-  User Input -> Validation Schema -> Business Logic Handler -> Storage DB -> API Response -> User Interface
-  ```
+## 3. Real Functional Specification Generation
+Generate a comprehensive functional specification covering:
+- **Field Schemas**: Table/model names, field types, required/optional flags, and strict constraints.
+- **API Endpoint Signatures**: HTTP methods, route paths, structured request bodies, structured response bodies, and explicit error codes.
+- **API Contract**: Define typed request/response schemas.
+- **Error Handling**: Document specific fallback paths for service failures.
+- **Edge Cases**: List abnormal usage patterns and how the system must handle them.
 
-  ### Step 3: Present Data Contract & HARD PAUSE
-  Present the atomic sub-queries, data-routing map, data validation rules ($Q = C \times A \times T$), and input/output contracts to the user, then **STOP EXECUTION IMMEDIATELY**:
+## 4. Save Public Specification
+Write the generated specification to `<project_root>/spec.md`. This is a public repository file and must NOT be saved inside `.northstar/`.
 
-  > [!IMPORTANT]
-  > **HARD PAUSE DIRECTIVE**: You MUST present the data-routing map, field schemas, and failure handling rules, and STOP YOUR TURN IMMEDIATELY. You are STRICTLY FORBIDDEN from saving `spec.md` or triggering downstream planning until the user explicitly reviews and approves the specification.
-
-  ### Step 4: Save Public Functional Specification (After User Approves)
-  Once approved by the user, save the complete production functional specification to `<project_root>/spec.md` as a public repository asset (NOT inside `.northstar/`). Update `.northstar/manifest.json` silently in the background, and present the spec completion checkpoint.
+## 5. HARD PAUSE GATE
+Present the generated specification (`spec.md`) to the user.
+**STOP.** Do not take any further action, do not save additional files, and do not proceed to planning until the user explicitly reviews and approves the specification schema.

@@ -1,115 +1,48 @@
 ---
-name: /officehours
-description: Compounded Product & Strategy Gate. Initializes local .northstar/ decision memory, executes Stage 0 (Domain Classification & Greenfield/Brownfield), 3-Layer Knowledge Search, Stage 1 (Problem Validation & 5-Whys), generates dynamic domain questions, builds causality graphs, and logs context gaps locally using pure Plain English.
+name: officehours
+description: Discovery and strategy gate for new projects and features.
 ---
 
-# Skill: /officehours (Stage 0 & Stage 1 Discovery — CBO & Strategic Consultant Persona)
+# Office Hours Skill
 
-## When to Use
-Use this command at the start of any new application, feature, or project within **The Kineti OS**.
+This is the first skill to run when starting a new project or feature. It conducts a foundational discovery process to establish the context, strategy, and business constraints before writing any code.
 
-## How to Use
-Enter `/officehours` followed by a plain description of what you want to build or what problem you want to solve.
+## 1. 3-Layer Knowledge Search
+Research the domain using these perspectives before asking questions:
+- **Tried & True**: Proven industry standards and established patterns.
+- **New & Popular**: Recent trends, modern tools, and contemporary approaches.
+- **First Principles**: Core truths of the problem stripped of current solutions.
+- **Eureka Moment**: Unconventional connections from outside the immediate domain.
 
-## Sequencing
-- **Phase**: `01_product_strategy`
-- **Step**: 1 (Primary entry gate)
-- **Downstream Blockers**: Blocks all technical planning and implementation. Do not start coding before this gate completes.
+## 2. Stage 0 Discovery
+Present these questions to the user and wait for their answers:
+- **Business Model**: Is this B2C, B2B, B2G, internal tool, or personal hobby?
+- **Industry Domain**: What specific industry does this operate within?
+- **Environment**: Is this a greenfield project (new) or brownfield (existing codebase)?
+- **Risk Level**: What is the tolerance for failure or bugs?
+- **Timeline Pressure**: What are the critical deadlines?
 
-## Protocol & Actions
-- **Instructions**:
-  When this command is run, you **MUST** follow these steps using pure Plain English and zero technical jargon:
+Generate follow-up, domain-specific questions based on the answers received.
 
-  ### Step 0: Load or Create `kineti.config.json`
-  1. Check if `kineti.config.json` exists in the project root.
-  2. If it does not exist, you will create it at the end of Stage 0.
+## 3. Stage 1 Strategy
+Present these questions to establish the project's strategic foundation:
+- **5-Whys Root Cause**: What is the actual underlying problem we are solving?
+- **Single Main Value Action**: What is the one core action the user must achieve?
+- **Status Quo Annual Cost**: What does the current inefficient process cost in time or money?
+- **Target Business Metric**: What specific metric determines this project's success?
+- **Project Veto Holder**: Who has the authority to stop or reject this project?
+- **Counter-Argument Refutation**: Why might this project fail, and how do we prevent it?
 
-  ### Step 1: Initialize Local Memory Folder & User Sovereignty Protocol
-  1. Create a local folder at `<project_root>/.northstar/` with subfolders: `dialogue/`, `gaps/`, `graphs/`, `decisions/`, `templates/`, `mocks/`.
-  2. Create `<project_root>/.northstar/.gitignore` containing `*` to block all memory files from being uploaded to public online repositories (like GitHub).
-  3. Enforce **User Sovereignty (Iron Man Suit Philosophy)**: AI models (Gemini 3.6, GPT 5.6 Sol, Claude 5, Grok 4.6) recommend, Users decide. Always present recommendations with missed-context callouts and ask for user approval before locking decisions.
+## 4. Memory Initialization
+Create the private project memory structure.
+1. Create the `.northstar/` directory at the project root.
+2. Create subdirectories: `.northstar/dialogue/`, `.northstar/gaps/`, `.northstar/decisions/`, `.northstar/templates/`, `.northstar/mocks/`.
+3. Create `.northstar/.gitignore` containing exactly `*` to ensure these files are never committed to the public repository.
 
-  ### Step 2: Socratic Memory Calibration & 3-Layer Knowledge Search
-  Before proposing any build design:
-  1. Load past sprint decisions from `.northstar/decisions/` and `.northstar/graphs/cumulative_causality.md` to seed Socratic Calibration memory (eliminates duplicate questions across sprints).
-  2. Audit three layers of knowledge:
-     * **Layer 1 (Tried & True)**: Battle-tested standard patterns deeply in distribution. Check standard solutions first.
-     * **Layer 2 (New & Popular)**: Ecosystem trends — scrutinize blog post manias and hype.
-     * **Layer 3 (First Principles)**: Original observations derived from reasoning about the specific problem at hand.
-     * **The Eureka Moment**: Understand conventional approaches, apply first principles to their assumptions, and discover why conventional wisdom is wrong (zig while others zag).
+## 5. Artifact Generation & Gap Detection
+1. Save the transcript of the discovery conversation to `.northstar/dialogue/`.
+2. Identify missing information or conflicting requirements and document them in `.northstar/gaps/`.
+3. Generate any basic templates or text mockups needed based on the conversation and save them to `.northstar/templates/` and `.northstar/mocks/`.
 
-  ### Step 3: Stage 0 - Dynamic Domain Research & Application Classification (CBO Persona)
-  Adopt the **Chief Business Officer (CBO) & Strategic Consultant** persona. Conduct thorough live research into the feature's domain, industry, and application context before presenting any choices.
-
-  **Persona Auto-Classification**: Based on the user's description and domain research, classify the project into a Founder Persona:
-  * If the core product IS an autonomous agent serving end-users → **Persona B (Frontier AI Research Founder)**
-  * If building full-stack software with AI assistance → **Persona A (Solo Technical Founder)**
-  * If both (SaaS platform with embedded AI agents) → **A+B Hybrid**
-  * If enterprise team building large-scale software → **Persona C (Enterprise Engineering Team)**
-  * If building RAG pipelines, model integration, or context optimization → **Persona D (AI/ML Engineer)**
-  * If deploying rapid client solutions → **Persona E (Forward Deployed Engineer)**
-  Write the detected persona to `kineti.config.json` and `.northstar/sprint_state.json`.
-
-  **Frontier AI Probes (When Persona B or A+B is detected)**: In addition to standard domain probes, present these Frontier AI-specific questions:
-  * **F1. Agent Safety Level**: What is the risk level if the agent gives a wrong answer? (Low = informational, Medium = financial, High = legal/medical liability)
-  * **F2. Target Scale**: How many daily agent requests at steady state? (Under 1K / 1K-100K / 100K-1M / 1M+)
-  * **F3. Agent Memory Requirements**: Does the agent need to remember users across sessions? (No memory / Session-only / Long-term per-user)
-  * **F4. Multi-Agent Architecture**: Single agent or multiple collaborating agents? (Single / Supervisor-Worker / Peer-to-Peer / Swarm)
-  * **F5. Regulatory Domain**: Any regulatory compliance required? (None / SOC 2 / HIPAA / PCI-DSS / EU AI Act / Multiple)
-
-  1. **Execute Live Domain & Industry Research**: Search the web for current industry standards, best practices, competitor products, and technology trends relevant to the user's domain. Inspect `.northstar/graphs/cumulative_causality.md` to load past decisions. Static hardcoded questions are STRICTLY PROHIBITED.
-  2. **Classify Founder Persona & Application Type**: Based on research, classify the project into one of 5 Founder Personas and evaluate relevant enterprise domains:
-     * **Persona A (Solo Technical Founder)**: Full-Stack SaaS. Propose PostgreSQL + Prisma/Drizzle, SSO/OAuth, RBAC, multi-tenant RLS, CI/CD, and serverless hosting.
-     * **Persona B (Frontier AI Research Founder)**: Agent Products for Users. Propose agent orchestration frameworks (LangGraph/CrewAI), model routing layers (LiteLLM), token cost optimization, episodic memory stores (Zep/Mem0), and agent safety guardrails.
-     * **Persona C (Enterprise Engineering Team)**: Internal Tools. Propose heavy enterprise domains, CI/CD, RBAC/ReBAC, audit logging, PII redaction.
-     * **Persona D (AI/ML Engineer)**: RAG/Model Pipelines. Propose vector DBs, context packing, vLLM serving, and data flywheels.
-     * **Persona E (FDE)**: Rapid Client Solutions. Propose streamlined stacks with C-Suite persona focus.
-     *(Note: If the project exhibits traits of multiple personas, e.g. a SaaS that serves AI agents, classify as a Crossover, e.g., Persona A + B).*
-  3. **Synthesize 3 Production Tech Stack Options**: For each classification, research and present 3 production-grade tech stack options (databases, ORMs, auth providers, component libraries, hosting targets) tailored for Human + Agent workflows. Include rationale for each.
-  4. **Present Research-Backed Recommendations & Dynamic Probes**: Present the synthesized app classification, 3 recommended tech stacks, and 3–5 dynamic, context-aware domain probes, make a logical default choice if needed, and proceed to the next step:
-  5. **Generate `kineti.config.json` (If not present)**: Generate a `kineti.config.json` file in the project root defining the `persona` (e.g. `crossover_a_b`), `active_skills`, `active_tiers`, and `settings` (e.g. spend limits, isolation).
-  ```json
-  {
-    "settings": {
-      "default_vector_db": ["pgvector"]
-    }
-  }
-  ```
-
-  ### Step 4: Stage 1 - Problem & Value Validation
-  Continue the **CBO & Strategic Consultant** persona. Present Stage 1 value probes tailored to the chosen parameters:
-  * **Q1. The 5-Whys Root Cause**: Ask "why" 5 times to find the real physical cause. Why fix it right now?
-  * **Q2. Single Main Value Action**: What is the single main action the user performs to get value?
-  * **Q3. Status Quo Annual Cost**: What does the current broken process cost per year?
-  * **Q4. Target Business Metric**: What exact financial target improves (lower hosting costs, fewer lost customers, higher sales)?
-  * **Q5. Project Veto Holder**: Who can stop this project? What is their exact concern?
-  * **Q6. Counter-Argument Refutation**: What is the strongest reason this project might fail, and how do we prove it wrong?
-
-
-
-
-  ### Step 5: Background Engine Execution (Silent Sub-Agent Threads)
-  1. Once the user provides answers, invoke background sub-agent threads to write transcripts silently to `.northstar/dialogue/stage_0_domain_classification.md` and `.northstar/dialogue/stage_1_problem_validation.md`.
-  2. Run `causality_graph_builder.py` silently in the background to update `.northstar/graphs/` property graphs.
-  3. Update `.northstar/manifest.json` and `.northstar/sprint_state.json` silently without dumping file text in chat.
-
-  ### Step 6: Surface Checkpoint & Next-Stage Outcome Preview
-  Surface ONLY the executive summary, outcome preview, and next choices to the user, make a logical default choice if needed, and proceed to the next step or finish.
-
-  ```
-  === Checkpoint 1: /officehours Discovery Summary ===
-  • Understood & Locked Decisions:
-    - Domain & Model: [Domain summary]
-    - Root Cause (5-Whys): [Validated physical root cause]
-    - Primary Target Metric: [Financial/operational metric target]
-
-  • Outcome Preview if Proceeding to /autoplan (Stage 2 & 3):
-    - System Boundaries: Latency SLA & Peak Concurrency bounds will be established.
-    - Security Perimeter: PII and secret egress rules will be locked.
-    - Design System Research: 3 bespoke domain visual directions & screenshot previews will be generated.
-
-  • Next Action Options:
-    1. Proceed to /autoplan (Technical & Visual Planning Gate)
-    2. Proceed to /spec (Data-Routing Map & Contract Specification)
-    3. Refine or adjust current strategy decisions
-  ```
+## 6. Summary and Handoff
+Do not automatically run downstream skills. End the interaction by presenting a summary of the decisions made, listing any remaining open questions, and stating the next available options.
