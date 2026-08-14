@@ -1,29 +1,27 @@
 {
-  "version": "1.0.0",
-  "persona": "crossover_a_b",
-  "project_name": "Kineti OS Project",
-  "description": "Solo Technical Founder building a Frontier AI Agent Product",
-  "tiers": {
-    "core_kernel": true
-  },
+  "version": "2.0.0",
+  "project_name": "Autonomous Software Builder",
+  "description": "Low-cognitive-load software generation pipeline with deterministic background safety",
   "active_skills": [
-    "officehours",
-    "spec",
-    "autoplan",
+    "brainstorm",
     "design",
-    "design_consultation",
-    "ship",
+    "architecture",
+    "spec",
+    "build",
     "qa",
-    "review",
-    "cso",
-    "investigate",
-    "browse"
+    "ship"
   ],
   "settings": {
-    "spend_limit_usd": 500.00,
-    "tenant_isolation": "rls",
+    "spend_limit_usd": 50.00,
+    "default_ui_stack": ["shadcn/ui", "radix-ui", "tailwind-v4", "lucide-react", "motion"],
     "default_db": "postgresql",
-    "default_hosting": "vercel",
-    "default_vector_db": ["pgvector"]
+    "qa_max_self_healing_attempts": 5,
+    "asset_paths": {
+      "screens": "design/screens/",
+      "qa_screenshots": "design/screenshots/",
+      "components": "src/components/ui/",
+      "spec": "spec.md",
+      "state": "state.json"
+    }
   }
 }
