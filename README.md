@@ -1,35 +1,46 @@
-# Kineti OS (v0.1) - Minimal Viable Reduction
+# Kineti OS (v2.0.0) — Autonomous Software Builder
 
-Welcome to Kineti OS. This repository contains the core execution directives, agent tools, and configurations for a zero-decay software development framework.
+> Low-cognitive-load software generation pipeline with deterministic background safety, modeled after modular skill architecture.
 
-## Single Source of Truth
+---
 
-**All operational logic, agent identity, and framework rules are defined in [ETHOS.md](ETHOS.md).** 
+## 🏗️ Project Structure
 
-There are no secondary guides, persona documents, or overlapping master specifications. `ETHOS.md` governs every action taken by the agents within this OS.
-
-## The 11 Core Skills
-
-Kineti OS operates using a refined set of 11 core skills, found in the `skills/` directory:
-
-### Core Pipeline
-*   `/officehours`: Socratic discovery, domain validation, and 5-Whys root cause analysis.
-*   `/spec`: Data quality audit, strict functional specifications, and API contracts (schema gate).
-*   `/autoplan`: Enterprise-grade architecture planning (DB, auth, multi-tenancy, secrets, pipelines).
-*   `/design`: Domain-specific visual audit, component library selection, and dynamic build execution.
-*   `/ship`: Cost ceiling validation, deployment strategy, and release execution.
-
-### Support Skills
-*   `/design_consultation`: Standalone domain visual system generation.
-*   `/browse`: Headless UI and layout verification.
-*   `/qa`: Multi-viewport unit and integration testing with automated trace-and-patch loop.
-*   `/review`: Production code linting, static checks, modularity, and error handling verification.
-*   `/cso`: Dynamic spend bounds monitoring, PII tracking, and OWASP top 10 checks.
-*   `/investigate`: Emergency trace/debugger loop to find and resolve regressions.
-
-## Synchronization
-
-If you modify these files locally, you can sync them to your global `~/.gemini/config/` directory by running:
-```bash
-python3 scripts/sync_kinetios.py
+```text
+kineti_os/
+├── kineti.config.json
+├── ETHOS.md
+├── WORKFLOWS.md
+├── README.md
+└── skills/
+    ├── brainstorm.md
+    ├── design.md
+    ├── architecture.md
+    ├── spec.md
+    ├── build.md
+    ├── qa.md
+    └── ship.md
 ```
+
+---
+
+## ⚡ The Greenfield Pipeline
+
+```text
+/brainstorm ──> /design ──> /architecture ──> /spec ──> /build ──> /qa ──> /ship
+ (Intake)        (UI/UX)       (System)     (Contract)   (Code)    (Test)   (Launch)
+```
+
+1. **`/brainstorm`** — Ingests raw concept, prompts for target audience (Internal, B2C, B2B), runs sanitized market research, and buckets features into P1, P2, and P3.
+2. **`/design`** — Selects 1 of 3 Visual Archetypes, enforces the 12 UI standard components, and outputs high-fidelity screen preview layouts into `design/screens/`.
+3. **`/architecture`** — Generates relational database schema (PostgreSQL), API contracts, and selects 1 of 3 tradeoff dials (Balanced, Zero Cost, Enterprise Fortress).
+4. **`/spec`** — Assembles strict, typed data contracts into `spec.md` with a mandatory human approval gate.
+5. **`/build`** — Spawns isolated sub-agents with immutable root goals and Saga LIFO rollback handlers to assemble production code in `src/`.
+6. **`/qa`** — Runs automated Playwright multi-viewport verification (Desktop, Tablet, Mobile) with a 5-attempt self-healing loop and security scan.
+7. **`/ship`** — Ingests environment secrets, launches live interactive preview, and manages production deployment under a strict $50 spend circuit breaker.
+
+---
+
+## 📜 Master Directives & Standards
+
+All operational directives, background safety guardrails (Dual-LLM Sanitization, Spend Circuit Breaker, Saga LIFO Rollbacks), and Design System Standards are defined in [ETHOS.md](ETHOS.md).
