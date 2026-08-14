@@ -29,7 +29,8 @@ def main():
     master_files = [
         "ETHOS.md",
         "kineti.config.json",
-        "README.md"
+        "README.md",
+        "WORKFLOWS.md"
     ]
     for f_name in master_files:
         src = kineti_dir / f_name
