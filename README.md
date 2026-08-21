@@ -50,7 +50,7 @@ Deleting this folder loses nothing permanent. Re-clone and re-run setup.sh.
 
 - [x] Phase 0 — skeleton + four-host installer
 - [x] Phase 1 — harness programs (`bin/`)
-- [ ] Phase 2 — full pipeline skills
+- [x] Phase 2 — full pipeline skills
 - [ ] Phase 3 — memory wiring (gbrain + rules)
 - [ ] Phase 4 — polish, v3.0.0 tag
 
