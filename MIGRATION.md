@@ -16,12 +16,22 @@ Old v2 skill files are archived untouched in `legacy/v2-skills/`.
 
 ## On your computer
 
-- `~/.gemini/config/skills/{brainstorm,design,architecture,spec,build,qa,ship}.md`
-  are the old v2 pipeline. A DEPRECATED notice file now sits beside them.
-  They get replaced by installed `kineti-*` skills at the end of Phase 2,
-  not before, so nothing stops working mid-build.
-- `~/.opencode/skills/*` (the gstack-derived set) is an independent toolkit.
-  Kineti does not remove or modify it. Where both offer the same job
-  (review, qa, ship), prefer the `kineti-*` version inside Kineti runs.
-- `~/.gemini/config/ETHOS.md` and `WORKFLOWS.md` still hold v2 text.
-  They get updated to point at this repository during Phase 2 cutover.
+- `~/.opencode/skills/` held the old gstack-derived skill set (35 items:
+  officehours, autoplan, plan-*-review, qa, ship, design-*, freeze, ...).
+  On user instruction these were **removed** on 2026-08-21 so every job
+  appears exactly once, as `kineti-*`. Backup:
+  `~/.kineti/backups/pre-v3-cleanup-*.tar.gz`.
+- Stale v0.1 docs `~/.opencode/OPENCODE.md` and
+  `~/.opencode/guide_to_kinetios.md` removed (same backup).
+- `~/.gemini/config/skills/{brainstorm,design,...}.md` and their folders
+  (v2 pipeline) were removed at the end of Phase 2; archived in
+  `legacy/v2-skills/` here.
+- `~/.config/opencode/opencode.jsonc`: the hand-written `command` block
+  was removed — skills with triggers are the only interface now, which
+  kills the duplicate `/officehours`-style entries. Skills paths point at
+  `~/.opencode/skills` only; gemini/Antigravity read
+  `~/.gemini/config/skills` natively.
+- `~/.gemini/config/{ETHOS,WORKFLOWS,MEMORY}.md` are live v3 copies kept
+  in sync for the gemini/Antigravity host.
+- `~/.gemini/antigravity/` is Antigravity's own runtime data (binaries,
+  MCP servers) — not a Kineti item; untouched.
