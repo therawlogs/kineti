@@ -3,6 +3,10 @@ name: review
 description: Hunt the bugs that tests miss. Stage 8 of 13.
 stage: verify
 version: 0.2.0
+triggers:
+  - review the code
+  - bug hunt
+  - find bugs
 ---
 
 # kineti-review

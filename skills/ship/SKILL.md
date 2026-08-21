@@ -3,6 +3,11 @@ name: ship
 description: Clean commits and a pull request, proof-gated. Stage 11 of 13.
 stage: ship
 version: 0.2.0
+triggers:
+  - ship it
+  - open a pull request
+  - release
+  - deploy ready
 ---
 
 # kineti-ship

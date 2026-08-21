@@ -3,6 +3,11 @@ name: feasibility
 description: Kill losing plans before code exists — money, data, people checks. Stage 5 gate.
 stage: gate
 version: 0.2.0
+triggers:
+  - feasibility
+  - viability check
+  - should we build this
+  - gate check
 ---
 
 # kineti-feasibility

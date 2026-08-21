@@ -1,6 +1,6 @@
 {
   "name": "kineti-os",
-  "version": "3.0.0-phase1",
+  "version": "3.0.0",
   "private": true,
   "description": "Kineti OS harness: six enforcement programs",
   "scripts": {

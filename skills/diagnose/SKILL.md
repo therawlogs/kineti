@@ -3,6 +3,11 @@ name: diagnose
 description: Prove in dollars where the business loses time or money today. Stage 2 of 13.
 stage: intake
 version: 0.2.0
+triggers:
+  - diagnose losses
+  - friction audit
+  - where do we lose money
+  - measure the problem
 ---
 
 # kineti-diagnose

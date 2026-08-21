@@ -52,6 +52,8 @@ Deleting this folder loses nothing permanent. Re-clone and re-run setup.sh.
 - [x] Phase 1 — harness programs (`bin/`)
 - [x] Phase 2 — full pipeline skills
 - [x] Phase 3 — memory wiring (gbrain + rules)
-- [ ] Phase 4 — polish, v3.0.0 tag
+- [x] Phase 4 — polish, v3.0.0 tag
 
-See MIGRATION.md for what replaced the old v2 files.
+Guides: docs/TUTORIAL-first-run.md · docs/HOWTO-daily-loop.md
+Memory contract: MEMORY.md
+Migration notes: MIGRATION.md

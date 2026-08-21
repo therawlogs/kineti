@@ -15,13 +15,13 @@ echo "$out" | grep -q "No agent host folders were found" || { echo "FAIL: empty 
 # 2. Create two fake hosts -> both install
 mkdir -p "$TMP/home/.opencode/skills" "$TMP/home/.gemini/config/skills"
 out="$(run)"
-echo "$out" | grep -q "installed: 16 skills.*opencode" || { echo "FAIL: opencode install"; exit 1; }
-echo "$out" | grep -q "installed: 16 skills.*gemini" || { echo "FAIL: gemini install"; exit 1; }
+echo "$out" | grep -q "installed: 17 skills.*opencode" || { echo "FAIL: opencode install"; exit 1; }
+echo "$out" | grep -q "installed: 17 skills.*gemini" || { echo "FAIL: gemini install"; exit 1; }
 [[ -f "$TMP/home/.opencode/skills/kineti-qa/SKILL.md" ]] || { echo "FAIL: file missing"; exit 1; }
 
 # 3. Idempotent second run
 out2="$(run)"
-[[ "$(echo "$out2" | grep -c 'installed: 16')" == "2" ]] || { echo "FAIL: not idempotent"; exit 1; }
+[[ "$(echo "$out2" | grep -c "installed: 17")" == "2" ]] || { echo "FAIL: not idempotent"; exit 1; }
 
 # 4. Uninstall removes only kineti-* files
 run --uninstall >/dev/null

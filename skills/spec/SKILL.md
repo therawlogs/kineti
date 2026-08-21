@@ -3,6 +3,11 @@ name: spec
 description: Remove every ambiguity into typed shapes and pass/fail tests. Stage 6 — hard stop.
 stage: contract
 version: 0.2.0
+triggers:
+  - write the spec
+  - specification
+  - acceptance criteria
+  - lock the contract
 ---
 
 # kineti-spec
