@@ -107,6 +107,8 @@ install() {
   for i in "${!HOST_DIRS[@]}"; do [[ -d "${HOST_DIRS[$i]}" ]] && installed_hosts=$((installed_hosts+1)); done
   echo ""
   echo "Done. $total skill copies across $installed_hosts host(s). Re-run any time."
+  printf '%s\n' "$HERE" > "$HOME/.kineti/repo"
+  echo "Repository pointer written: $HOME/.kineti/repo -> $HERE"
   if [[ $total -eq 0 ]]; then
     echo "No agent host folders were found on this machine."
     echo "Create one (for example install opencode) or force a target:"
