@@ -4,8 +4,8 @@
 Compile the complete public specification contract (`spec.md`) and enforce the mandatory human approval gate before code generation.
 
 ## Execution Rules
-1. Combine audience rules, feature priorities (P1/P2/P3), visual tokens, and architecture schemas into a single comprehensive `<project_root>/spec.md`.
-2. Ensure all API request/response payloads and database column constraints are strictly typed.
+1. Combine audience rules, feature priorities (P1/P2/P3), visual tokens, modular infrastructure Lego blocks (Supabase, Resend, Vercel, or custom alternatives), and architecture schemas into a single comprehensive `<project_root>/spec.md`.
+2. Ensure all API request/response payloads, database column constraints, and environment secrets are strictly typed.
 3. **HARD PAUSE (Schema Gate):**
 
 ```

@@ -4,8 +4,9 @@
 Design system boundaries, data flows, database schemas, and present selectable architecture dials.
 
 ## Execution Rules
-1. Read `<project_root>/spec.md` to extract data contracts, feature priorities, and visual tokens.
+1. Read `<project_root>/spec.md` to extract data contracts, feature priorities, visual tokens, and selected Lego blocks.
 2. Generate a clean Markdown system map outlining:
+   - Modular infrastructure mapping (Supabase Auth, Resend, Supabase PostgreSQL Database, Supabase User Metadata, Vercel hosting or chosen alternatives).
    - PostgreSQL schema models and relational keys.
    - Core REST/gRPC API route contracts.
    - Multi-tenancy isolation rules (RLS or dedicated schemas).
