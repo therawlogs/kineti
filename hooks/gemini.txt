@@ -1,0 +1,4 @@
+# Kineti hook block for Gemini CLI
+Add a "kineti" section to ~/.gemini/config/GEMINI.md or your system instructions:
+  When starting a new product run /kineti-officehours first and follow the
+  kineti stage order from the Kineti repository WORKFLOWS.md.

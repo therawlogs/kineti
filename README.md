@@ -1,57 +1,57 @@
-# Kineti OS (v2.0.0) — Autonomous Software Builder
+# Kineti OS v3
 
-> Low-cognitive-load software generation pipeline with deterministic background safety, modeled after modular skill architecture.
+A closed-loop software factory that runs inside your AI coding tools.
+You describe an idea once. Kineti walks it through thirteen fixed stages,
+enforced by small programs, remembered by a permanent store.
 
----
+**Skills propose. Programs enforce. Memory remembers.**
 
-## 🏗️ Project Structure
+## Install (30 seconds)
 
-```text
-kineti_os/
-├── kineti.config.json
-├── ETHOS.md
-├── WORKFLOWS.md
-├── README.md
-└── skills/
-    ├── brainstorm.md
-    ├── design.md
-    ├── architecture.md
-    ├── spec.md
-    ├── build.md
-    ├── qa.md
-    └── ship.md
+Requires: git, bash. No other dependencies for install.
+
+```sh
+git clone <this-repo> ~/kineti && cd ~/kineti && ./setup.sh
 ```
 
----
+The installer finds which of these you use and copies skills into each:
 
-## ⚡ The Greenfield Pipeline
+| Host | Skills copied to |
+|---|---|
+| opencode | `~/.opencode/skills/kineti-*` |
+| Claude Code | `~/.claude/skills/kineti-*` |
+| Gemini CLI | `~/.gemini/config/skills/kineti-*` |
+| ChatGPT Codex | `${CODEX_HOME:-~/.codex}/skills/kineti-*` |
 
-```text
-/brainstorm ──> /design ──> /architecture ──> /spec ──> /build ──> /qa ──> /ship
- (Intake)        (UI/UX)       (System)     (Contract)   (Code)    (Test)   (Launch)
+Target one host only: `./setup.sh --host opencode`
+Remove everything Kineti installed: `./setup.sh --uninstall` (touches only `kineti-*` files)
+Re-running is always safe: it overwrites its own copies and nothing else.
+
+## Use
+
+Open any project in your agent tool and run the first skill:
+
+```
+Load kineti. Run /kineti-officehours
 ```
 
-1. **`/brainstorm`** — Ingests raw concept, prompts for target audience (Internal, B2C, B2B), runs sanitized market research, validates Lego-block infrastructure relevance, and buckets features into P1, P2, and P3.
-2. **`/design`** — Selects 1 of 3 Visual Archetypes, enforces the 12 UI standard components, and outputs high-fidelity screen preview layouts into `design/screens/`.
-3. **`/architecture`** — Maps modular Lego-block infrastructure (Supabase, Resend, Vercel), generates relational database schemas (PostgreSQL), API contracts, and selects 1 of 3 tradeoff dials (Balanced, Zero Cost, Enterprise Fortress).
-4. **`/spec`** — Assembles strict, typed data contracts and infrastructure specs into `spec.md` with a mandatory human approval gate.
-5. **`/build`** — Spawns isolated sub-agents with immutable root goals and Saga LIFO rollback handlers to assemble production code in `src/`.
-6. **`/qa`** — Runs automated Playwright multi-viewport verification (Desktop, Tablet, Mobile) with a 5-attempt self-healing loop and security scan.
-7. **`/ship`** — Ingests environment secrets, launches live interactive preview, and manages production deployment to Vercel under a strict $50 spend circuit breaker.
+Then follow the loop in WORKFLOWS.md. Three gates stop for you:
+feasibility (stage 5), spec approval (stage 6), ship (stage 11).
 
----
+## What lives where
 
-## 🧱 Modular Infrastructure "Lego Blocks"
+- This repository: source of everything (skills, installer, programs, docs).
+- Your computer only: installed copies under each host's skills folder,
+  per-project `.kineti/` state, `~/.kineti/` machine data, gbrain data.
 
-- **Authentication:** Supabase Auth (Sign-up, Sign-in, Sign-out, OAuth, PKCE) or internal single-secret bypass
-- **Password Reset & Transactional Email:** Resend
-- **Database:** Supabase PostgreSQL (Row-Level Security)
-- **User Preferences:** Supabase `raw_user_meta_data` JSONB / Upstash KV
-- **Hosting & Secrets:** Vercel Edge Network
+Deleting this folder loses nothing permanent. Re-clone and re-run setup.sh.
 
----
+## Status
 
-## 📜 Master Directives & Standards
+- [x] Phase 0 — skeleton + four-host installer
+- [ ] Phase 1 — harness programs (`bin/`)
+- [ ] Phase 2 — full pipeline skills
+- [ ] Phase 3 — memory wiring (gbrain + rules)
+- [ ] Phase 4 — polish, v3.0.0 tag
 
-All operational directives, background safety guardrails (Dual-LLM Sanitization, Spend Circuit Breaker, Saga LIFO Rollbacks), and Design System Standards are defined in [ETHOS.md](ETHOS.md).
-
+See MIGRATION.md for what replaced the old v2 files.

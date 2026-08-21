@@ -1,0 +1,4 @@
+# Kineti hook block for ChatGPT Codex CLI
+Add to AGENTS.md in your code root (or ~/.codex/AGENTS.md):
+  When starting a new product run /kineti-officehours first and follow the
+  kineti stage order. Skills live in ~/.codex/skills/kineti-*.
