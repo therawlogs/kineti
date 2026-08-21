@@ -1,6 +1,6 @@
-# bin/ — Harness programs (Phase 1)
+# bin/ — Harness programs
 
-Six Bun + TypeScript programs will live here:
+All six are implemented and tested (tests/harness.test.ts). Run any of them with `bun bin/<name>.ts`.
 
 | Program | Job |
 |---|---|
@@ -11,5 +11,3 @@ Six Bun + TypeScript programs will live here:
 | kineti-verify-gate | Block session end while verify fails |
 | kineti-egress | Hash-chained log of outbound sends |
 
-Empty in Phase 0 by design: the installer must stay dependency-free.
-Bun gets installed at the start of Phase 1.
