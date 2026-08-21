@@ -42,3 +42,13 @@ Every screen must be assembled exclusively from these 12 components inside `src/
 10. `status-badge.tsx` (Semantic status pills)
 11. `skeleton.tsx` (Zero-layout-shift pulsing loaders)
 12. `button.tsx` (Primary, Secondary, Outline, Ghost, Destructive)
+
+## Part 4: Modular Infrastructure & "Lego-Block" Standard
+All projects leverage battle-tested, zero-to-low-cost modular infrastructure blocks to eliminate boilerplate and avoid reinventing the wheel:
+1. **Authentication & Identity:** Supabase Auth (JWT, PKCE, OAuth) for B2C/B2B; conditional single-secret or no-auth bypass for internal tools.
+2. **Password Recovery & Messaging:** Resend for cryptographically secure transactional reset links and magic links.
+3. **Database & Storage:** Supabase PostgreSQL with native Row-Level Security (RLS) policies.
+4. **User Preferences & Memory:** Supabase `raw_user_meta_data` JSONB or serverless Key-Value cache (Upstash).
+5. **Hosting & Secrets:** Vercel Edge Hosting with encrypted environment variable injection.
+6. **Relevance Gate:** Validate infrastructure blocks during brainstorming. If relevant to the business model, push them automatically; if not relevant, flag and present modular alternatives.
+

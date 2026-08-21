@@ -31,16 +31,27 @@ kineti_os/
  (Intake)        (UI/UX)       (System)     (Contract)   (Code)    (Test)   (Launch)
 ```
 
-1. **`/brainstorm`** — Ingests raw concept, prompts for target audience (Internal, B2C, B2B), runs sanitized market research, and buckets features into P1, P2, and P3.
+1. **`/brainstorm`** — Ingests raw concept, prompts for target audience (Internal, B2C, B2B), runs sanitized market research, validates Lego-block infrastructure relevance, and buckets features into P1, P2, and P3.
 2. **`/design`** — Selects 1 of 3 Visual Archetypes, enforces the 12 UI standard components, and outputs high-fidelity screen preview layouts into `design/screens/`.
-3. **`/architecture`** — Generates relational database schema (PostgreSQL), API contracts, and selects 1 of 3 tradeoff dials (Balanced, Zero Cost, Enterprise Fortress).
-4. **`/spec`** — Assembles strict, typed data contracts into `spec.md` with a mandatory human approval gate.
+3. **`/architecture`** — Maps modular Lego-block infrastructure (Supabase, Resend, Vercel), generates relational database schemas (PostgreSQL), API contracts, and selects 1 of 3 tradeoff dials (Balanced, Zero Cost, Enterprise Fortress).
+4. **`/spec`** — Assembles strict, typed data contracts and infrastructure specs into `spec.md` with a mandatory human approval gate.
 5. **`/build`** — Spawns isolated sub-agents with immutable root goals and Saga LIFO rollback handlers to assemble production code in `src/`.
 6. **`/qa`** — Runs automated Playwright multi-viewport verification (Desktop, Tablet, Mobile) with a 5-attempt self-healing loop and security scan.
-7. **`/ship`** — Ingests environment secrets, launches live interactive preview, and manages production deployment under a strict $50 spend circuit breaker.
+7. **`/ship`** — Ingests environment secrets, launches live interactive preview, and manages production deployment to Vercel under a strict $50 spend circuit breaker.
+
+---
+
+## 🧱 Modular Infrastructure "Lego Blocks"
+
+- **Authentication:** Supabase Auth (Sign-up, Sign-in, Sign-out, OAuth, PKCE) or internal single-secret bypass
+- **Password Reset & Transactional Email:** Resend
+- **Database:** Supabase PostgreSQL (Row-Level Security)
+- **User Preferences:** Supabase `raw_user_meta_data` JSONB / Upstash KV
+- **Hosting & Secrets:** Vercel Edge Network
 
 ---
 
 ## 📜 Master Directives & Standards
 
 All operational directives, background safety guardrails (Dual-LLM Sanitization, Spend Circuit Breaker, Saga LIFO Rollbacks), and Design System Standards are defined in [ETHOS.md](ETHOS.md).
+

@@ -9,7 +9,11 @@ Collect deployment credentials, launch the live interactive preview, and execute
 
 ```
 Build verified. Enter any required environment variables/API keys below:
-[ DATABASE_URL, API_KEYS ]
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- RESEND_API_KEY
+- (or custom environment variables)
 ```
 
 3. Spin up the live interactive preview environment.
@@ -18,10 +22,10 @@ Build verified. Enter any required environment variables/API keys below:
 ```
 # ============================================================
 DEPLOY GATE: Application ready for launch.
-Target Infrastructure: Edge Hosting / Containerized Node
+Target Infrastructure: Vercel Edge Hosting
 Spend Circuit Breaker: Active ($50.00 Cap)
 
 Type 'ship' to execute production release.
 ```
 
-5. Upon confirmation, execute container build, deploy to target hosting, run live URL verification, and mark sprint COMPLETED in `state.json`.
+5. Upon confirmation, execute build, deploy to target hosting (Vercel), run live URL verification, and mark sprint COMPLETED in `state.json`.

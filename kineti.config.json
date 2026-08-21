@@ -14,7 +14,13 @@
   "settings": {
     "spend_limit_usd": 50.00,
     "default_ui_stack": ["shadcn/ui", "radix-ui", "tailwind-v4", "lucide-react", "motion"],
-    "default_db": "postgresql",
+    "default_infrastructure": {
+      "auth": "supabase",
+      "email_reset": "resend",
+      "database": "supabase-postgresql",
+      "user_preferences": "supabase-user-metadata",
+      "hosting": "vercel"
+    },
     "qa_max_self_healing_attempts": 5,
     "asset_paths": {
       "screens": "design/screens/",
