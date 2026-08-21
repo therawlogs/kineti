@@ -55,5 +55,6 @@ Deleting this folder loses nothing permanent. Re-clone and re-run setup.sh.
 - [x] Phase 4 — polish, v3.0.0 tag
 
 Guides: docs/TUTORIAL-first-run.md · docs/HOWTO-daily-loop.md
+Roadmap: ROADMAP.md
 Memory contract: MEMORY.md
 Migration notes: MIGRATION.md
