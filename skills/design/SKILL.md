@@ -3,6 +3,11 @@ name: design
 description: Find the product look from your references, not presets. Stage 3 of 13.
 stage: plan
 version: 0.2.0
+triggers:
+  - design the look
+  - mockups
+  - style brief
+  - make it pretty
 ---
 
 # kineti-design

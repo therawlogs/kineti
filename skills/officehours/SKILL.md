@@ -3,6 +3,11 @@ name: officehours
 description: Turn a rough idea into one clear, testable goal. Stage 1 of 13.
 stage: intake
 version: 0.2.0
+triggers:
+  - new idea
+  - start a product
+  - officehours
+  - i want to build
 ---
 
 # kineti-officehours

@@ -3,6 +3,11 @@ name: qa
 description: Prove it works for a human at three screen sizes. Stage 9 of 13.
 stage: verify
 version: 0.2.0
+triggers:
+  - test the app
+  - qa
+  - browser test
+  - does it work
 ---
 
 # kineti-qa

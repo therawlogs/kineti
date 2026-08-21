@@ -3,6 +3,10 @@ name: anchors
 description: Install standing rules into a project root.
 stage: meta
 version: 0.2.0
+triggers:
+  - project rules
+  - install ethos
+  - standing rules
 ---
 
 # kineti-anchors

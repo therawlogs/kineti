@@ -3,6 +3,10 @@ name: watch
 description: Watch the live system for errors and speed regressions. Stage 12 of 13.
 stage: ship
 version: 0.2.0
+triggers:
+  - watch production
+  - monitor the deploy
+  - any regressions
 ---
 
 # kineti-watch

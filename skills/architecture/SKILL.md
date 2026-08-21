@@ -3,6 +3,11 @@ name: architecture
 description: Draw services, contracts, failures, and limits before code. Stage 4 of 13.
 stage: plan
 version: 0.2.0
+triggers:
+  - architecture
+  - system design
+  - contracts
+  - how should this be built
 ---
 
 # kineti-architecture
