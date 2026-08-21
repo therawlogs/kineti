@@ -33,7 +33,7 @@ commands map onto queries over `type: learning` records.
 
 ## Without gbrain
 
-Operate on `.kineti/journal.md` files across known projects plus
+Operate on `.kineti/journal.jsonl` files across known projects plus
 `~/.kineti/alerts.log`.
 
 ## Hard rules

@@ -41,7 +41,7 @@ Log model calls with `--stage retro`.
 
 ## Outputs
 
-Lessons in memory (or `.kineti/journal.md` fallback), updated dossiers,
+Lessons in memory (or `.kineti/journal.jsonl` fallback), updated dossiers,
 pruned expiries, chained run-record.
 
 ## Hard rules

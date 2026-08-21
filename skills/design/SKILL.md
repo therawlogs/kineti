@@ -41,7 +41,7 @@ reference site.
 5. **Record every verdict** to memory as a taste lesson:
    `{type: learning, topic: design-taste, kept: <variant>, rejected: [...],
    traits credited, expires: +90d}`. Local fallback: append to
-   `.kineti/journal.md`. These lessons bias future variant rounds.
+   `.kineti/journal.jsonl`. These lessons bias future variant rounds.
 6. **Iterate**: regenerate the losers' slots using taste lessons until one
    variant wins or three rounds pass. Three rounds max, then the human
    picks the least-bad and we note why none was loved.
