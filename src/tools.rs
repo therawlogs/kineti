@@ -395,3 +395,8 @@ mod tests {
         assert!(crate::quarantine::last_was_flagged(&out));
     }
 }
+
+/// Public recursive listing (evidence fingerprints use this).
+pub fn walk_all(root: &Path, out: &mut Vec<PathBuf>) {
+    walk_files(root, out)
+}

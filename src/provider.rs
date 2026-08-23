@@ -186,6 +186,13 @@ pub fn chat(
         body["tools"] = serde_json::Value::Array(tools.iter().map(|t| t.to_wire()).collect());
     }
 
+    // ── ETHOS §7.1: the send is recorded BEFORE it leaves the machine ──
+    crate::enforce::egress::record(
+        &url,
+        &format!("model call: {model}, {} messages", messages.len()),
+        &crate::memory::journal::sha256_hex(&body.to_string()),
+    );
+
     let attempt = |body: &serde_json::Value| -> Result<WireResp, String> {
         match ureq::post(&url)
             .set("Authorization", &format!("Bearer {}", key))

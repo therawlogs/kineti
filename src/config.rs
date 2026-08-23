@@ -40,6 +40,8 @@ pub struct Limits {
     pub per_stage_usd: f64,
     #[serde(default = "d_budget")]
     pub context_char_budget: usize,
+    #[serde(default)]
+    pub verify_command: String,
 }
 fn d_global() -> f64 { 50.0 }
 fn d_stage() -> f64 { 10.0 }
@@ -53,7 +55,7 @@ pub struct Config {
 }
 impl Limits {
     fn defaults() -> Self {
-        Limits { global_usd: 50.0, per_stage_usd: 10.0, context_char_budget: 24_000 }
+        Limits { global_usd: 50.0, per_stage_usd: 10.0, context_char_budget: 24_000, verify_command: String::new() }
     }
 }
 

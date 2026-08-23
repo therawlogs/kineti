@@ -53,8 +53,30 @@ pub fn sha256_hex(s: &str) -> String {
     out.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Hash-input canonicalization: like canonical(), but every float becomes a
+/// fixed-point string so equivalent doubles ALWAYS produce identical bytes.
+pub fn canonical_stable(v: &serde_json::Value) -> String {
+    fn norm(v: &serde_json::Value) -> serde_json::Value {
+        match v {
+            serde_json::Value::Number(n) => {
+                if let Some(f) = n.as_f64() {
+                    serde_json::Value::String(format!("{f:.6}"))
+                } else {
+                    v.clone()
+                }
+            }
+            serde_json::Value::Array(a) => serde_json::Value::Array(a.iter().map(norm).collect()),
+            serde_json::Value::Object(m) => serde_json::Value::Object(
+                m.iter().map(|(k, val)| (k.clone(), norm(val))).collect(),
+            ),
+            other => other.clone(),
+        }
+    }
+    canonical(&norm(v))
+}
+
 pub fn compute_hash(prev: &str, at: &str, id: &str, data: &serde_json::Value) -> String {
-    sha256_hex(&format!("{prev}{at}{id}{}", canonical(data)))
+    sha256_hex(&format!("{prev}{at}{id}{}", canonical_stable(data)))
 }
 
 pub struct Journal {
@@ -177,6 +199,24 @@ mod tests {
     }
 
     #[test]
+    fn float_costs_survive_roundtrip_verification() {
+        let path = tmp();
+        let mut j = Journal::load(&path);
+        // simulate ugly accumulated float sums
+        let cost = 0.0125_f64 + 0.000975;
+        j.append(
+            "stage-outcome",
+            serde_json::json!({"cost_usd": cost, "answer": "x"}),
+            vec![],
+            "kineti",
+        );
+        assert!(j.verify().is_ok());
+        // reload from disk (fresh parse) and verify again
+        let reloaded = Journal::load(&path);
+        assert!(reloaded.verify().is_ok(), "roundtrip must not flip any byte");
+    }
+
+    #[test]
     fn hash_is_deterministic() {
         let data = serde_json::json!({"b":2,"a":1});
         let h1 = compute_hash(GENESIS, "t", "x-0001", &data);
@@ -185,3 +225,5 @@ mod tests {
         assert_ne!(h1, compute_hash(GENESIS, "t2", "x-0001", &data));
     }
 }
+
+
