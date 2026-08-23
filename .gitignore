@@ -1,7 +1,5 @@
 target/
 .kineti/
 .DS_Store
-target/
-.kineti/
-.DS_Store
 demo/
+dist/

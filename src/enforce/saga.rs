@@ -73,36 +73,34 @@ impl Saga {
     pub fn rollback_all(&self) -> usize {
         let mut undone = 0;
         for step in self.steps.iter().rev() {
-            match step.kind.as_str() {
-                "file_backup" => {
-                    let p = Path::new(step.path.as_deref().unwrap_or(""));
-                    let res = match &step.prev_content {
-                        Some(prev) => {
-                            if let Some(d) = p.parent() {
-                                let _ = std::fs::create_dir_all(d);
-                            }
-                            std::fs::write(p, prev)
+            if step.kind == "file_backup" {
+                let p = Path::new(step.path.as_deref().unwrap_or(""));
+                let res = match &step.prev_content {
+                    Some(prev) => {
+                        if let Some(d) = p.parent() {
+                            let _ = std::fs::create_dir_all(d);
                         }
-                        None => {
-                            if p.exists() {
-                                std::fs::remove_file(p)
-                            } else {
-                                Ok(())
-                            }
-                        }
-                    };
-                    match res {
-                        Ok(()) => undone += 1,
-                        Err(e) => eprintln!("   ⚠ undo failed for {}: {e} — continuing", p.display()),
+                        std::fs::write(p, prev)
                     }
+                    None => {
+                        if p.exists() {
+                            std::fs::remove_file(p)
+                        } else {
+                            Ok(())
+                        }
+                    }
+                };
+                match res {
+                    Ok(()) => undone += 1,
+                    Err(e) => eprintln!("   ⚠ undo failed for {}: {e} — continuing", p.display()),
                 }
-                _ => {} // notes have no mechanical undo
-            }
+            } // bash notes have no mechanical undo
         }
         undone
     }
 
     /// Clear the journal after a successful rollback cycle or explicit commit.
+    #[allow(dead_code)] // wired to explicit commit flows in v0.2
     pub fn clear(&mut self) {
         self.steps.clear();
         let _ = std::fs::remove_file(&self.path);

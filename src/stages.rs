@@ -4,7 +4,7 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::agent_loop::{governed_turns, LoopCtx, LoopOutcome};
+use crate::agent_loop::{governed_turns, LoopCtx};
 use crate::anchor;
 use crate::config::ProviderCfg;
 use crate::memory::journal::Journal;
@@ -86,7 +86,7 @@ pub fn drive(
     goal: &str,
     global_usd: f64,
 ) -> i32 {
-    let goal_hash = match anchor::ensure_goal(root, goal) {
+    let _goal_hash = match anchor::ensure_goal(root, goal) {
         Ok(h) => h,
         Err(e) => {
             eprintln!("⛔ {e}");
@@ -125,7 +125,7 @@ pub fn drive(
             provider: p,
             model,
             system_prompt: stage_system_prompt(goal, stage),
-            seed: vec![Msg_seed(stage)],
+            seed: vec![seed_msg(stage)],
             allowed_tools: if n <= 6 { readonly.clone() } else { all.clone() },
             stage_label: format!("{n}-{}", stage.name),
             global_usd,
@@ -281,7 +281,7 @@ pub fn drive(
     0
 }
 
-fn Msg_seed(stage: &Stage) -> crate::provider::Msg {
+fn seed_msg(stage: &Stage) -> crate::provider::Msg {
     crate::provider::Msg::user(&format!("Execute stage {}: {}.", stage.name, stage.prompt))
 }
 

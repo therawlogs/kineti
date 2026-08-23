@@ -5,7 +5,6 @@ use crate::provider::ToolCallReq;
 
 /// ASI-01 defense (D1): tool output is DATA, never instructions.
 /// Instruction-shaped lines are flagged before the model ever sees them.
-
 fn patterns() -> &'static Vec<Regex> {
     static P: OnceLock<Vec<Regex>> = OnceLock::new();
     P.get_or_init(|| {
@@ -25,6 +24,7 @@ fn patterns() -> &'static Vec<Regex> {
 }
 
 /// Cheap structural pre-check on tool arguments before execution.
+#[allow(dead_code)] // structural pre-check hook, v0.2 arg schema enforcement
 pub fn check_args(call: &ToolCallReq) -> Result<(), String> {
     serde_json::from_str::<serde_json::Value>(&call.arguments)
         .map_err(|e| format!("arguments are not valid JSON ({e})"))?;
@@ -43,11 +43,7 @@ pub fn wrap_output(tool: &str, out: String) -> String {
             sanitized_lines.push(line.to_string());
         }
     }
-    let body = if out.ends_with('\n') || !out.contains('\n') {
-        sanitized_lines.join("\n")
-    } else {
-        sanitized_lines.join("\n")
-    };
+    let body = sanitized_lines.join("\n");
     format!(
         "<tool_output tool=\"{tool}\" trust=\"untrusted\"{}>\n{}\n</tool_output>",
         if flagged { " quarantined=\"true\"" } else { "" },

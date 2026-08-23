@@ -258,7 +258,7 @@ fn cmd_receipt() -> i32 {
         );
     }
     let head = j.records.last().map(|r| r.hash.clone()).unwrap_or_default();
-    println!("chain head : {}", &head.get(..16).unwrap_or(&head));
+    println!("chain head : {}", head.get(..16).unwrap_or(head.as_str()));
     println!("╚══════════════════════════════════════════════╝");
     0
 }

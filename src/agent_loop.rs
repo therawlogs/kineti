@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::anchor;
 use crate::config::ProviderCfg;
@@ -167,15 +167,15 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
                     val_fail_streak = 0;
                     crate::quarantine::wrap_output(&call.name, raw)
                 }
-                Err(vErr) => {
+                Err(v_err) => {
                     val_fail_streak += 1;
                     if val_fail_streak >= 2 {
                         halted =
-                            Some(format!("ESCALATION — validation failed twice: {vErr}"));
+                            Some(format!("ESCALATION — validation failed twice: {v_err}"));
                         break;
                     }
                     format!(
-                        "[VALIDATION FAILED: {vErr}] original output:\n{}",
+                        "[VALIDATION FAILED: {v_err}] original output:\n{}",
                         crate::quarantine::wrap_output(&call.name, raw)
                     )
                 }

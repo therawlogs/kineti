@@ -2,6 +2,7 @@
 //! D1: classification only (states are derived from age at read time).
 
 #[derive(PartialEq, Debug)]
+#[allow(dead_code)] // states become queryable via CLI in v0.2
 pub enum TtlState {
     Active,
     Warm,
@@ -10,10 +11,14 @@ pub enum TtlState {
 }
 
 /// Ages in days after which a record leaves its current state.
+#[allow(dead_code)]
 pub const WARM_AFTER_DAYS: i64 = 90;
+#[allow(dead_code)]
 pub const COLD_AFTER_WARM_DAYS: i64 = 90;
+#[allow(dead_code)]
 pub const ARCHIVE_AFTER_COLD_DAYS: i64 = 275;
 
+#[allow(dead_code)] // exposed via `kineti ttl` CLI in v0.2
 pub fn classify(age_days: i64) -> TtlState {
     if age_days < WARM_AFTER_DAYS {
         TtlState::Active
@@ -27,6 +32,7 @@ pub fn classify(age_days: i64) -> TtlState {
 }
 
 /// Count records per state given their ages in days.
+#[allow(dead_code)] // exposed via `kineti ttl` CLI in v0.2
 pub fn sweep(ages_days: &[i64]) -> std::collections::HashMap<String, usize> {
     let mut out = std::collections::HashMap::new();
     for a in ages_days {

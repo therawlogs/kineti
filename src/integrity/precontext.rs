@@ -15,11 +15,12 @@ pub fn filter(msgs: &[Msg], budget: usize) -> Filtered {
     let mut seen_dup = 0usize;
     let mut kept_idx: Vec<usize> = Vec::new();
     for (i, m) in msgs.iter().enumerate() {
-        if i > 0 && msgs[..i].iter().any(|prev| prev.content == m.content) {
-            if matches!(m.role, crate::provider::Role::Tool { .. }) {
-                seen_dup += 1;
-                continue; // drop older duplicate
-            }
+        if i > 0
+            && matches!(m.role, crate::provider::Role::Tool { .. })
+            && msgs[..i].iter().any(|prev| prev.content == m.content)
+        {
+            seen_dup += 1;
+            continue; // drop older duplicate
         }
         kept_idx.push(i);
     }
@@ -51,19 +52,13 @@ pub fn filter(msgs: &[Msg], budget: usize) -> Filtered {
         let tail_n = 4.min(kept_idx.len());
         let tail_start = kept_idx.len() - tail_n;
         let mut used: usize = keep_head.iter().chain(kept_idx[tail_start..].iter()).map(|&i| msgs[i].content.len()).sum();
-        let mut elided = 0usize;
         for (pos, &i) in kept_idx.iter().enumerate() {
             let is_kept = pos < keep_head.len() || pos >= tail_start;
-            if is_kept {
-                messages.push(msgs[i].clone());
-                continue;
-            }
-            let len = msgs[i].content.len();
-            if used + len / 4 < budget {
-                used += len;
+            if is_kept || used + msgs[i].content.len() / 4 < budget {
+                used += msgs[i].content.len();
                 messages.push(msgs[i].clone());
             } else {
-                elided += len;
+                let len = msgs[i].content.len();
                 messages.push(Msg {
                     role: msgs[i].role.clone(),
                     content: format!("[elided {len} chars — outside attention budget]"),

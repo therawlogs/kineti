@@ -37,6 +37,7 @@ pub struct Limits {
     #[serde(default = "d_global")]
     pub global_usd: f64,
     #[serde(default = "d_stage")]
+    #[allow(dead_code)] // enforced per-stage in v0.2 stage budgeting
     pub per_stage_usd: f64,
     #[serde(default = "d_budget")]
     pub context_char_budget: usize,

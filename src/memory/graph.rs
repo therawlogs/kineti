@@ -109,6 +109,7 @@ impl Graph {
 
     /// Score records by query-token overlap in their canonical data, then pull
     /// linked neighbors of the top hits.
+    #[allow(dead_code)] // invoked from context assembly in v0.2
     pub fn recall(
         &self,
         records: &[crate::memory::journal::Record],
@@ -134,7 +135,7 @@ impl Graph {
             })
             .filter(|(s, _)| *s > 0)
             .collect();
-        scored.sort_by(|a, b| b.0.cmp(&a.0));
+        scored.sort_by_key(|(s, _)| std::cmp::Reverse(*s));
 
         let mut picked: Vec<&crate::memory::journal::Record> =
             scored.iter().take(top_k).map(|(_, r)| *r).collect();

@@ -336,6 +336,11 @@ pub fn execute(root: &Path, name: &str, arguments: &str) -> Result<String, Strin
     }
 }
 
+/// Public recursive listing (evidence fingerprints use this).
+pub fn walk_all(root: &Path, out: &mut Vec<PathBuf>) {
+    walk_files(root, out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,7 +401,3 @@ mod tests {
     }
 }
 
-/// Public recursive listing (evidence fingerprints use this).
-pub fn walk_all(root: &Path, out: &mut Vec<PathBuf>) {
-    walk_files(root, out)
-}

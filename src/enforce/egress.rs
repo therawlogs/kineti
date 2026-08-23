@@ -40,8 +40,9 @@ pub fn record(dest: &str, purpose: &str, payload_sha: &str) {
 
     let mut prev = GENESIS.to_string();
     if let Ok(content) = std::fs::read_to_string(&path) {
-        if let Some(last) = content.lines().filter(|l| !l.trim().is_empty()).last() {
-            if let Ok(v) = serde_json::from_str::<serde_json::Value>(last) {
+        let non_empty: Vec<&str> = content.lines().filter(|l| !l.trim().is_empty()).collect();
+        if let Some(last_line) = non_empty.last() {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(last_line) {
                 prev = v["hash"].as_str().unwrap_or(GENESIS).to_string();
             }
         }
@@ -53,7 +54,7 @@ pub fn record(dest: &str, purpose: &str, payload_sha: &str) {
         "purpose": redact(purpose),
         "payload_sha": payload_sha,
     });
-    let hash = compute_hash(&prev, &base["at"].as_str().unwrap_or(""), "egress", &base);
+    let hash = compute_hash(&prev, base["at"].as_str().unwrap_or(""), "egress", &base);
     let mut rec = base.clone();
     rec["prev_hash"] = prev.into();
     rec["hash"] = hash.into();
