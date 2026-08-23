@@ -1,5 +1,8 @@
+mod anchor;
 mod config;
 mod agent_loop;
+mod integrity;
+mod memory;
 mod provider;
 mod quarantine;
 mod tools;
@@ -38,6 +41,8 @@ enum Cmd {
         #[arg(long)]
         last: bool,
     },
+    /// Verify the journal hash chain and print the head
+    Verify,
     /// Send one tiny completion to a provider (smoke test)
     ProviderTest {
         #[arg(long, default_value = "gemini")]
@@ -60,6 +65,7 @@ fn main() {
             eprintln!("not built yet (day-3 milestone)");
             2
         }
+        Cmd::Verify => cmd_verify(),
         Cmd::ProviderTest { provider, model } => cmd_provider_test(&provider, model.as_deref()),
     };
     std::process::exit(code);
@@ -108,6 +114,24 @@ fn cmd_run(task: &str, provider_name: &str, model: Option<&str>) -> i32 {
         1
     } else {
         0
+    }
+}
+
+fn cmd_verify() -> i32 {
+    let j = memory::journal::Journal::load(std::path::Path::new(".kineti/journal.jsonl"));
+    match j.verify() {
+        Ok(()) => {
+            println!(
+                "journal OK: {} records, chain head {}",
+                j.records.len(),
+                j.records.last().map(|r| &r.hash[..16]).unwrap_or("GENESIS")
+            );
+            0
+        }
+        Err(e) => {
+            eprintln!("TAMPERED: {e}");
+            1
+        }
     }
 }
 
