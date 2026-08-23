@@ -1,0 +1,20 @@
+# Kineti configuration. Model names are data, never compiled in.
+
+[providers.gemini]
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+api_key_env = "GEMINI_API_KEY"
+default_model = "gemini-3.6-flash"
+price_per_1m_input = 0.0
+price_per_1m_output = 0.0
+
+[providers.grok]
+base_url = "https://api.x.ai/v1"
+api_key_env = "XAI_API_KEY"
+default_model = "grok-4.20-non-reasoning"
+price_per_1m_input = 12.5
+price_per_1m_output = 25.0
+
+[limits]
+global_usd = 50.0
+per_stage_usd = 10.0
+context_char_budget = 24000
