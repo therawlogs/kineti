@@ -1,5 +1,8 @@
 mod config;
+mod agent_loop;
 mod provider;
+mod quarantine;
+mod tools;
 
 use clap::{Parser, Subcommand};
 
@@ -18,10 +21,15 @@ struct Cli {
 enum Cmd {
     /// Scaffold .kineti/ state and kineti.toml in the current directory
     Init,
-    /// Run the governed agent loop
+    /// Run the governed agent loop on a freeform task
     Run {
+        /// The task for the agent
         #[arg(long)]
-        stage: Option<u8>,
+        task: String,
+        #[arg(long, default_value = "gemini")]
+        provider: String,
+        #[arg(long)]
+        model: Option<String>,
     },
     /// Resume from last recorded stage
     Resume,
@@ -43,8 +51,9 @@ fn main() {
     let cli = Cli::parse();
     let code = match cli.cmd {
         Cmd::Init => cmd_init(),
-        Cmd::Run { .. } | Cmd::Resume => {
-            eprintln!("not built yet (day-1 milestone)");
+        Cmd::Run { task, provider, model } => cmd_run(&task, &provider, model.as_deref()),
+        Cmd::Resume => {
+            eprintln!("not built yet (day-3 milestone)");
             2
         }
         Cmd::Receipt { .. } => {
@@ -75,6 +84,33 @@ fn cmd_init() -> i32 {
     0
 }
 
+fn cmd_run(task: &str, provider_name: &str, model: Option<&str>) -> i32 {
+    let cfg = config::Config::load();
+    let p = cfg.provider(provider_name);
+    let m = model.unwrap_or(&p.default_model).to_string();
+    let root = std::env::current_dir().expect("cwd");
+
+    println!("kineti run ── {provider_name}/{m}");
+    println!("goal  : {task}\n");
+
+    let r = agent_loop::run_task(&root, &p, &m, task, cfg.limits.global_usd);
+    println!("\n═══════════════════════════════");
+    if let Some(h) = &r.halted {
+        println!("HALTED: {h}");
+    }
+    println!("iterations : {}", r.iterations);
+    println!("tokens     : {} in / {} out", r.prompt_tokens, r.completion_tokens);
+    println!("cost       : ${:.6}", r.cost_usd);
+    if !r.answer.is_empty() {
+        println!("answer     :\n{}", r.answer.trim());
+    }
+    if r.halted.is_some() {
+        1
+    } else {
+        0
+    }
+}
+
 fn cmd_provider_test(name: &str, model: Option<&str>) -> i32 {
     let cfg = config::Config::load();
     let p = cfg.provider(name);
@@ -87,9 +123,10 @@ fn cmd_provider_test(name: &str, model: Option<&str>) -> i32 {
         &p,
         &m,
         &[provider::Msg::user("Reply with exactly: KINETI-OK")],
+        &[],
     ) {
         Ok(ok) => {
-            println!("reply   : {}", ok.text.trim());
+            println!("reply   : {}", ok.content.trim());
             println!("tokens  : {} in / {} out", ok.usage.prompt_tokens, ok.usage.completion_tokens);
             println!("cost    : ${:.6}", ok.cost_usd);
             0
