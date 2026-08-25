@@ -35,7 +35,9 @@ fi
 # Prefer static Linux builds (zero dyld); fall back to the gnu-linked binary.
 asset=""
 for candidate in "${base}-static" "$base"; do
-  code=$(curl -fsSL -o /dev/null -w '%{http_code}' \
+  # 404 on the -static probe is EXPECTED on platforms without static builds —
+  # keep curl's stderr quiet so users only see real progress
+  code=$(curl -fsSL -o /dev/null -w '%{http_code}' 2>/dev/null \
     "https://github.com/$REPO/releases/download/$VERSION/$candidate" || echo 000)
   if [ "$code" = "302" ] || [ "$code" = "200" ]; then
     asset="$candidate"
