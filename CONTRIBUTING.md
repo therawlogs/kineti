@@ -19,9 +19,15 @@ Thanks for looking at Kineti. The project is small and opinionated on purpose.
 
 ```sh
 git clone https://github.com/therawlogs/kineti && cd kineti
-cargo test                    # prove before you propose
+cargo build                   # phase9 asserts symbols in target/debug cdylib
+cargo test --all              # prove before you propose
 cargo clippy --all-targets -- -D warnings
+./scripts/size-gate.sh        # <10 MB ETHOS budget (informational locally, hard in CI)
 ```
+
+CI runs the same gates on every push and PR — tests execute twice per commit
+(direct and daemon backend matrix), so both transports must stay green.
+Releases are tag-driven; maintainers cut them per [docs/RELEASE.md](docs/RELEASE.md).
 
 Open a pull request with: what failure mode it addresses, how the enforcement
 works mechanically, and which tests pin the behavior.

@@ -46,10 +46,29 @@ the prompt and into the harness control flow:
 curl -fsSL https://getkineti.com/install.sh | sh
 ```
 
-The script verifies downloads against the release's `SHA256SUMS`, never asks
-for sudo, and installs to `/usr/local/bin` when writable, else
-`~/.local/bin` (override with `$KINETI_INSTALL_DIR`). Linux builds prefer the
-musl-static variants.
+Pin a version (optional):
+
+```sh
+curl -fsSL https://getkineti.com/install.sh | sh -s v0.1.0
+```
+
+The script verifies every download against the release's `SHA256SUMS` and
+never asks for sudo. Supported platforms: **macOS** (Apple silicon & Intel)
+and **Linux** x64/arm64 — Linux prefers zero-dependency musl-static builds.
+
+Install location, in order: `$KINETI_INSTALL_DIR` → `/usr/local/bin` (only if
+writable) → `~/.local/bin` → `~/.cargo/bin` (when on PATH).
+
+### Uninstall
+
+```sh
+rm -f /usr/local/bin/kineti "$HOME/.local/bin/kineti" "$HOME/.cargo/bin/kineti"
+rm -rf ~/.kineti/auth          # stored login tokens
+# per project where you ran kineti init:
+rm -rf .kineti kineti.toml
+```
+
+No launch agents, no system directories, nothing else to remove.
 
 or from source:
 
@@ -246,13 +265,14 @@ See [docs/DEMO.md](docs/DEMO.md) for the 90-second scripted walkthrough and
 
 ## Status
 
-v0.1 — shipped and test-pinned (109 tests): ReAct loop, fenced tools,
-quarantine, pre-context filter, validation layer, signal escalation,
-authority tiers, saga undo, evidence fingerprints, egress firewall,
-13-stage machine with all gates, UDS daemon with shared reserve/settle
-ledger and per-stage ceilings, branch-and-merge DAG journals, worktree
-isolation, swarm orchestrator with arbitrator ladder, unified receipt,
-PKCE OAuth, and a C-ABI embedding surface.
+v0.1.0 — released 2026-08-25, shipped and test-pinned (109 tests): ReAct loop,
+fenced tools, quarantine, pre-context filter, validation layer, signal
+escalation, authority tiers, saga undo, evidence fingerprints, egress firewall,
+13-stage machine with all gates, UDS daemon with shared reserve/settle ledger
+and per-stage ceilings, branch-and-merge DAG journals, worktree isolation,
+swarm orchestrator with arbitrator ladder, unified receipt, PKCE OAuth, and a
+C-ABI embedding surface. The install one-liner is live and the served script
+is kept byte-identical to this repository by CI.
 
 Deferred deliberately (tracked for later): syscall sandboxing for spawned
 processes, WASI compilation, semantic/vector recall over the causal graph.
