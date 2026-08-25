@@ -35,22 +35,28 @@ jobs:
 
   release-linux:
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
       matrix:
+        # aarch64 targets build NATIVELY on arm64 runners: cross-compiling
+        # ring's C needs prefixed gcc toolchains ubuntu doesn't ship
         include:
           - target: x86_64-unknown-linux-gnu
             asset: kineti-linux-x64
+            runner: ubuntu-latest
           - target: aarch64-unknown-linux-gnu
             asset: kineti-linux-arm64
+            runner: ubuntu-24.04-arm
           # static builds: zero dyld on servers/CI — install.sh prefers these
           - target: x86_64-unknown-linux-musl
             asset: kineti-linux-x64-static
+            runner: ubuntu-latest
           - target: aarch64-unknown-linux-musl
             asset: kineti-linux-arm64-static
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
       # ring (via ureq→rustls) compiles C with cc-rs; musl targets need the
