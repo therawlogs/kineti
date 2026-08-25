@@ -39,6 +39,7 @@ jobs:
     permissions:
       contents: write
     strategy:
+      fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
@@ -52,6 +53,11 @@ jobs:
             asset: kineti-linux-arm64-static
     steps:
       - uses: actions/checkout@v4
+      # ring (via ureq→rustls) compiles C with cc-rs; musl targets need the
+      # musl gcc or the build dies with ToolNotFound
+      - name: install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
