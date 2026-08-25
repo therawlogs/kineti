@@ -11,11 +11,8 @@ pub fn reply(args: &[String]) -> Option<String> {
     }
     match args[0].as_str() {
         "-V" | "--version" => Some(format!("kineti {}", env!("CARGO_PKG_VERSION"))),
-        "-h" | "--help" => Some(SHORT_HELP.to_string()),
+        // -h/--help deliberately fall through to clap: the full command list
+        // lives there, and a stub pointing back at --help helped no one.
         _ => None,
     }
 }
-
-pub const SHORT_HELP: &str =
-    "kineti — agent harness: governed single-agent runs and parallel swarms.\n\
-     Try `kineti --help` for the full command list.";
