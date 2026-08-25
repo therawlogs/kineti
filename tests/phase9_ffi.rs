@@ -173,7 +173,10 @@ fn dylib_exports_c_symbols() {
 fn dylib_exports_c_symbols() {
     let manifest = env!("CARGO_MANIFEST_DIR");
     let dylib = format!("{manifest}/target/debug/libkineti.so");
-    let out = std::fs::read_to_string(format!("/dev/null")).unwrap_or_default();
+    assert!(
+        std::path::Path::new(&dylib).exists(),
+        "cdylib missing at {dylib} — `cargo build` must run before `cargo test`"
+    );
     let nm = std::process::Command::new("nm")
         .arg("-D")
         .arg(&dylib)
@@ -181,7 +184,6 @@ fn dylib_exports_c_symbols() {
         .expect("nm spawn");
     let syms = String::from_utf8_lossy(&nm.stdout).to_string();
     assert!(syms.contains("kineti_run") && syms.contains("kineti_receipt"), "{syms}");
-    drop(out);
 }
 
 #[cfg(target_os = "macos")]
