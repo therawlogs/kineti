@@ -43,6 +43,10 @@ fn git(repo: &Path, args: &[&str]) {
 fn git_repo(tag: &str) -> PathBuf {
     let d = tmp(tag);
     git(&d, &["init", "-q", "-b", "main"]);
+    // `git merge --no-ff` below authors merge commits; CI runners have no
+    // global identity, so pin one repo-locally or every merge exits non-zero
+    git(&d, &["config", "user.email", "test@local"]);
+    git(&d, &["config", "user.name", "Kineti Test"]);
     std::fs::write(d.join("shared.txt"), "line: base\n").unwrap();
     git(&d, &["add", "."]);
     git(
