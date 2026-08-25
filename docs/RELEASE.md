@@ -59,47 +59,47 @@ Run every check below BEFORE the first `git push`. All must pass.
 
 ### A. Git state
 
-- [ ] `origin` remote points at `https://github.com/therawlogs/kineti`
-- [ ] Committer identity set locally (`git config --local user.name/email`)
-- [ ] All intended work is committed; `git status` clean or only local-only files
-- [ ] Force-push safety confirmed: remote `main` holds only a LICENSE blob
+- [x] `origin` remote points at `https://github.com/therawlogs/kineti`
+- [x] Committer identity set locally (`git config --local user.name/email`)
+- [x] All intended work is committed; `git status` clean or only local-only files
+- [x] Force-push safety confirmed: remote `main` holds only a LICENSE blob
 
 ### B. CI release pipeline (tag-gated jobs)
 
-- [ ] Every job that uploads assets carries `permissions: contents: write`
+- [x] Every job that uploads assets carries `permissions: contents: write`
       (release-linux, release-macos, release-checksums, release-header)
-- [ ] Asset names match install.sh probes exactly:
+- [x] Asset names match install.sh probes exactly:
       kineti-linux-x64 · -arm64 · -x64-static · -arm64-static ·
       kineti-darwin-arm64 · kineti-darwin-x64
-- [ ] `SHA256SUMS` lines are `<hash>  <asset>` so install.sh's
+- [x] `SHA256SUMS` lines are `<hash>  <asset>` so install.sh's
       `grep " $asset$"` matches
-- [ ] Static musl targets build with zero C dependencies (pure-Rust dep tree)
-- [ ] `include/kineti.h` exists in the tagged commit (release-header uploads it)
+- [x] Static musl targets build with zero C dependencies (pure-Rust dep tree)
+- [x] `include/kineti.h` exists in the tagged commit (release-header uploads it)
 
 ### C. Pre-flight gates (same as "Cutting a release" step 1)
 
-- [ ] `cargo test --all` green
-- [ ] `cargo clippy --all-targets -- -D warnings` green
-- [ ] `./scripts/size-gate.sh` passes (<10 MB ETHOS budget)
-- [ ] `./scripts/bench-startup.sh` recorded (informational)
+- [x] `cargo test --all` green
+- [x] `cargo clippy --all-targets -- -D warnings` green
+- [x] `./scripts/size-gate.sh` passes (<10 MB ETHOS budget)
+- [x] `./scripts/bench-startup.sh` recorded (informational)
 
 ### D. Clean-files law (ETHOS §8.1) — zero matches required
 
-- [ ] No personal names in tracked files (search given-name and surname variants)
-- [ ] No home paths in tracked files (`$HOME`, `/Users/<name>`, `/home/<name>`)
-- [ ] No personal email inside tracked files (your mail domain) — git config
+- [x] No personal names in tracked files (search given-name and surname variants)
+- [x] No home paths in tracked files (`$HOME`, `/Users/<name>`, `/home/<name>`)
+- [x] No personal email inside tracked files (your mail domain) — git config
       metadata is exempt; file contents are not
-- [ ] No secrets: API keys, tokens, private keys (`AKIA`, `ghp_`, `sk-`,
+- [x] No secrets: API keys, tokens, private keys (`AKIA`, `ghp_`, `sk-`,
       `BEGIN.*PRIVATE KEY`, hardcoded passwords)
 
 ### E. Repo hygiene
 
-- [ ] `.gitignore` covers `target/ .kineti/ .DS_Store demo/ dist/`
-- [ ] No binary artifacts or editor junk tracked (`git ls-files` review)
-- [ ] No tracked file >1 MB (GitHub hard limit 100 MB, warn 50 MB)
-- [ ] `LICENSE` present and matches `license` field in Cargo.toml
-- [ ] README install one-liner uses `https://getkineti.com/install.sh`
-- [ ] Version in Cargo.toml is the intended first tag (`v0.1.0`)
+- [x] `.gitignore` covers `target/ .kineti/ .DS_Store demo/ dist/`
+- [x] No binary artifacts or editor junk tracked (`git ls-files` review)
+- [x] No tracked file >1 MB (GitHub hard limit 100 MB, warn 50 MB)
+- [x] `LICENSE` present and matches `license` field in Cargo.toml
+- [x] README install one-liner uses `https://getkineti.com/install.sh`
+- [x] Version in Cargo.toml is the intended first tag (`v0.1.0`)
 
 ### F. Post-push order (do not skip sequence)
 
@@ -113,3 +113,26 @@ Run every check below BEFORE the first `git push`. All must pass.
    hand-edit the copy in kineti-website.
 5. Flip repo variable `DOMAIN_LIVE=1`.
 6. Only now announce the one-liner.
+
+## Go-live record
+
+Executed 2026-08-25, all checks above passed at go-live:
+
+- First published release: `v0.1.0` (tag → `219e618a`) — 8 assets:
+  6 binaries (linux gnu/musl × x64/arm64, darwin arm64/x64),
+  `SHA256SUMS`, `kineti.h`; both spot-checked binaries hash-verified,
+  `--version` smoke OK.
+- getkineti.com serves install.sh byte-identical to main
+  (`185d8f8c…`, quiet-probe version); end-to-end one-liner executed
+  cleanly: fetch → resolve latest → download → checksum → run
+  `kineti 0.1.0`.
+- Sync bot live: edits to install.sh on green main propagate to
+  kineti-website automatically (~2 min, 201/200-aware, newline-safe
+  byte compare).
+- Repo variable `DOMAIN_LIVE=1` set — weekly `domain-smoke` is a hard
+  gate from here on.
+- CI hardening landed during go-live (kept as regression guards):
+  identity-less runners need repo-local git config; `cargo build`
+  before test so phase9 finds the cdylib; musl targets need
+  musl-tools; aarch64 builds natively on ubuntu-24.04-arm; tag pushes
+  must be in `on.push.tags`.
