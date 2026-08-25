@@ -35,10 +35,10 @@ export GEMINI_API_KEY=...   # or XAI_API_KEY with --provider grok
 - "Memory is sha256-chained. I can flip one byte and `kineti verify` fails."
 - "The breaker is how enterprises will sleep at night: money stops moving
   unless a human moves it."
-- "This whole harness is under three megabytes. No framework, no runtime."
+- "This whole harness is about three megabytes. No framework, no runtime."
 
 ## Recording notes
 
 - Terminal font ≥16pt, dark theme, 120×32 window.
 - Record with `asciinema rec` or screen capture at 2× zoom on gates.
-- Reset state between takes: `rm -rf .kineti .kineti/spend.json greeting.sh`.
+- Reset state between takes: `rm -rf .kineti greeting.sh`.

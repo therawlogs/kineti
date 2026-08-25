@@ -16,6 +16,12 @@ pub struct SignalState {
     fail_streak: u32,
 }
 
+impl Default for SignalState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SignalState {
     pub fn new() -> Self {
         SignalState { last_sig: None, fail_streak: 0 }

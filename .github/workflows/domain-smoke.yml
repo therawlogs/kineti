@@ -1,0 +1,44 @@
+name: domain-smoke
+
+# Advisory contract check for getkineti.com: the served install.sh must be
+# byte-identical to the one in this repository. Stays advisory (continue-on-
+# error) until the DOMAIN_LIVE=1 repo variable is set; then failures are
+# real CI reds.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+jobs:
+  install-sh-contract:
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ vars.DOMAIN_LIVE != '1' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: fetch served script
+        id: fetch
+        continue-on-error: true
+        run: |
+          curl -fsSL --max-time 15 https://getkineti.com/install.sh -o served.sh \
+            || { echo "MISSING=true" >> "$GITHUB_OUTPUT"; exit 0; }
+
+      - name: compare against repository script
+        run: |
+          if [ "${{ steps.fetch.outputs.MISSING }}" = "true" ]; then
+            echo "::warning::getkineti.com/install.sh is not reachable yet — go-live checklist in docs/RELEASE.md"
+            exit 1
+          fi
+          ours=$(sha256sum install.sh | cut -d' ' -f1)
+          theirs=$(sha256sum served.sh | cut -d' ' -f1)
+          if [ "$ours" = "$theirs" ]; then
+            echo "✔ getkineti.com serves install.sh byte-identical to the repository"
+          else
+            echo "::error::DOMAIN DRIFT — https://getkineti.com/install.sh differs from install.sh in this repo. Sync it (see docs/RELEASE.md)."
+            diff -u install.sh served.sh | head -40 || true
+            exit 1
+          fi
+
+      - name: served script smoke (syntax only, no execution)
+        run: sh -n served.sh && echo "✔ served script parses"

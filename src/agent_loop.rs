@@ -2,12 +2,12 @@ use std::path::PathBuf;
 
 use crate::anchor;
 use crate::config::ProviderCfg;
-use crate::enforce::spend::Spend;
 use crate::enforce::saga::Saga;
 use crate::integrity::precontext;
 use crate::integrity::signal::SignalState;
 use crate::memory::graph::{Edge, Graph};
-use crate::memory::journal::Journal;
+use crate::ipc::dto::{ReserveCtx, Reservation};
+use crate::memory::journal::Record;
 use crate::provider::{self, Msg, ToolDef};
 
 pub const MAX_ITERATIONS: u32 = 25;
@@ -24,7 +24,17 @@ pub struct LoopOutcome {
 
 /// Everything one governed turn-sequence needs.
 pub struct LoopCtx<'a> {
+    /// Tool fence root — where read/write/bash act. For swarm workers this is
+    /// the WORKTREE; governance below targets `governance_root`.
     pub root: &'a PathBuf,
+    /// Where spend/journal/goal-anchor live. Defaults to `root` for single
+    /// mode; workers point this at the MAIN project so they share one pool
+    /// and append to their own branch chain.
+    pub governance_root: PathBuf,
+    /// Journal branch name ("" = main chain).
+    pub journal_branch: String,
+    /// Cooperative stop flag shared across a swarm (None in single mode).
+    pub halt: Option<&'a std::sync::atomic::AtomicBool>,
     pub provider: &'a ProviderCfg,
     pub model: &'a str,
     pub system_prompt: String,
@@ -32,7 +42,7 @@ pub struct LoopCtx<'a> {
     /// tool names permitted at this authority tier
     pub allowed_tools: Vec<String>,
     pub stage_label: String,
-    pub global_usd: f64,
+    pub ceilings: crate::ipc::pool::Ceilings,
     /// breaker halts do NOT auto-rollback (money pause ≠ work failure)
     pub auto_rollback_on_halt: bool,
     pub goal: String,
@@ -45,18 +55,81 @@ fn tier_tools(allowed: &[String]) -> Vec<ToolDef> {
         .collect()
 }
 
+/// Phase 3: journal access through the `JournalWriter` boundary — O(1) appends
+/// against a cached head instead of loading the whole chain every turn.
+/// Attaches to the live daemon when one runs; never spawns one.
+/// A failed write warns ONCE and continues (memory loss ≠ run failure).
+struct SessionJournal {
+    writer: Box<dyn crate::ipc::JournalWriter>,
+    branch: String,
+    k: u64,
+    times: std::collections::HashMap<String, String>,
+    warned: bool,
+}
+
+impl SessionJournal {
+    /// Write into a NAMED branch chain (`journal.<branch>.jsonl`) — swarm
+    /// workers use this in Phase 5/6 so their history merges independently.
+    fn new_in_branch(root: &std::path::Path, branch: &str) -> Self {
+        SessionJournal {
+            writer: crate::ipc::journal_writer_no_spawn(root),
+            branch: branch.to_string(),
+            k: 0,
+            times: std::collections::HashMap::new(),
+            warned: false,
+        }
+    }
+
+    fn append(&mut self, r#type: &str, data: serde_json::Value) -> Option<Record> {
+        let head = match self.writer.head(&self.branch) {
+            Ok(h) => h,
+            Err(e) => return self.warn(e),
+        };
+        self.k += 1;
+        let millis = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        // ids are unique across sessions/writers: type + millis + session seq
+        let id = format!("{}-{millis:013}-{k:03}", r#type, k = self.k);
+        let rec = crate::memory::journal::build(&head, &id, r#type, &data);
+        if let Err(e) = self.writer.append_batch(&self.branch, vec![rec.clone()]) {
+            return self.warn(e);
+        }
+        self.times.insert(id, rec.at.clone());
+        Some(rec)
+    }
+
+    fn warn(&mut self, e: String) -> Option<Record> {
+        if !self.warned {
+            self.warned = true;
+            println!("   ⚠ journal write failed ({e}) — continuing without memory");
+        }
+        None
+    }
+
+    fn times(&self) -> std::collections::HashMap<String, String> {
+        self.times.clone()
+    }
+}
+
 /// The ReAct engine shared by freeform runs and every pipeline stage.
 pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
     let budget = crate::config::Config::load().limits.context_char_budget;
-    let goal_hash = match anchor::ensure_goal(ctx.root, &ctx.goal) {
+    let goal_hash = match anchor::ensure_goal(&ctx.governance_root, &ctx.goal) {
         Ok(h) => h,
         Err(e) => return outcome(String::new(), 0, 0.0, 0, 0, Some(e)),
     };
 
-    let mut journal = Journal::load(&ctx.root.join(".kineti/journal.jsonl"));
+    let mut journal = SessionJournal::new_in_branch(&ctx.governance_root.clone(), &ctx.journal_branch);
     let mut graph = Graph::load(&ctx.root.join(".kineti/graph.jsonl"));
     let mut saga = Saga::load(ctx.root);
-    let mut spend = Spend::load(ctx.root);
+    let (spend_svc, _) = match crate::ipc::select_backends(&ctx.governance_root, ctx.ceilings.clone()) {
+        Ok(pair) => pair,
+        Err(e) => {
+            return outcome(String::new(), 0, 0.0, 0, 0, Some(format!("LEDGER LOCK: {e}")))
+        }
+    };
 
     let tools = tier_tools(&ctx.allowed_tools);
     let mut messages = vec![Msg::system(&ctx.system_prompt.replace("{GOAL_HASH}", &goal_hash))];
@@ -71,9 +144,12 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
     while iters < MAX_ITERATIONS {
         iters += 1;
 
-        if let Err(e) = spend.pre_check(ctx.global_usd) {
-            halted = Some(e);
-            break;
+        // cooperative swarm stop: sibling failed → wind down without rollback
+        if let Some(flag) = &ctx.halt {
+            if flag.load(std::sync::atomic::Ordering::Relaxed) {
+                halted = Some("SWARM STOP: coordinator halted the wave".into());
+                break;
+            }
         }
 
         println!("── [{}] iteration {iters} ──────────────────────", ctx.stage_label);
@@ -82,9 +158,29 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
             println!("   ⚑ precontext: {f}");
         }
 
+        // ETHOS §3.1: reserve BEFORE the call — denial halts the run.
+        let est = provider::estimate_cost_micro(
+            ctx.provider.price_per_1m_input,
+            ctx.provider.price_per_1m_output,
+            filtered.messages.iter().map(|m| m.content.len()).sum(),
+        );
+        let res: Reservation = match spend_svc.reserve(&ReserveCtx {
+            stage: ctx.stage_label.clone(),
+            worker: ctx.journal_branch.clone(), // per-worker ceilings when set
+            est_micro_usd: est,
+        }) {
+            Ok(r) => r,
+            Err(e) => {
+                halted = Some(e);
+                break;
+            }
+        };
+
         let ok = match provider::chat(ctx.provider, ctx.model, &filtered.messages, &tools) {
             Ok(ok) => ok,
             Err(e) => {
+                // settle the hold at estimate so a provider error can't leak it
+                let _ = spend_svc.settle(&res, est);
                 halted = Some(format!("provider error: {e}"));
                 break;
             }
@@ -92,13 +188,18 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
         cost += ok.cost_usd;
         pin += ok.usage.prompt_tokens;
         pout += ok.usage.completion_tokens;
-        spend.add(ok.cost_usd, ctx.root);
-        println!(
-            "   model: {} chars, {} tool calls | ${:.6} total",
-            ok.content.len(),
-            ok.tool_calls.len(),
-            cost
-        );
+        match spend_svc.settle(&res, (ok.cost_usd * 1_000_000.0).round() as u64) {
+            Ok(total) => {
+                if total > 0 {
+                    println!("   model: {} chars, {} tool calls | ${:.6} total",
+                        ok.content.len(), ok.tool_calls.len(),
+                        total as f64 / 1_000_000.0);
+                } else {
+                    println!("   model: {} chars, {} tool calls", ok.content.len(), ok.tool_calls.len());
+                }
+            }
+            Err(e) => println!("   ⚠ settle failed: {e}"),
+        }
 
         if ok.tool_calls.is_empty() {
             if let Some(reason) = SignalState::check_assistant(&ok.content) {
@@ -106,7 +207,7 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
                 break;
             }
             messages.push(Msg::assistant_extra(&ok.content, vec![], ok.extra.clone()));
-            journal.append(
+            let _ = journal.append(
                 "stage-outcome",
                 serde_json::json!({
                     "stage": ctx.stage_label,
@@ -115,8 +216,6 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
                     "cost_usd": cost,
                     "answer": ok.content.chars().take(500).collect::<String>(),
                 }),
-                vec![],
-                "kineti",
             );
             return outcome(ok.content, iters, cost, pin, pout, None);
         }
@@ -198,8 +297,6 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
                     "arguments": call.arguments,
                     "stage": ctx.stage_label,
                 }),
-                vec![],
-                "kineti",
             );
             let observation = journal.append(
                 "observation",
@@ -208,20 +305,20 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
                     "output_head": wrapped.chars().take(300).collect::<String>(),
                     "flagged": crate::quarantine::last_was_flagged(&wrapped),
                 }),
-                vec![],
-                "kineti",
             );
-            if let Err(e) = graph.commit(
-                Edge {
-                    from: action.id.clone(),
-                    to: observation.id.clone(),
-                    word: "caused".into(),
-                    status: "candidate".into(),
-                    proof_id: None,
-                },
-                &journal.times(),
-            ) {
-                println!("   ⚠ graph: {e}");
+            if let (Some(a), Some(o)) = (&action, &observation) {
+                if let Err(e) = graph.commit(
+                    Edge {
+                        from: a.id.clone(),
+                        to: o.id.clone(),
+                        word: "caused".into(),
+                        status: "candidate".into(),
+                        proof_id: None,
+                    },
+                    &journal.times(),
+                ) {
+                    println!("   ⚠ graph: {e}");
+                }
             }
         }
 
@@ -237,7 +334,15 @@ pub fn governed_turns(ctx: &LoopCtx) -> LoopOutcome {
     // ETHOS §4.2: on failure, undo newest-first (except money pauses)
     if let Some(h) = &halted {
         let is_breaker = h.contains("SPEND BREAKER");
-        if ctx.auto_rollback_on_halt && !is_breaker {
+        let is_swarm_stop = h.contains("SWARM STOP");
+        if is_breaker {
+            // audit the trip into the chain, not just the console
+            let _ = journal.append(
+                "gate",
+                serde_json::json!({"kind": "breaker", "detail": h}),
+            );
+        }
+        if ctx.auto_rollback_on_halt && !is_breaker && !is_swarm_stop {
             println!("\n↩ failure — running saga rollback (newest-first)…");
             let n = saga.rollback_all();
             println!("   {n} step(s) undone; failures logged above if any");
@@ -271,11 +376,14 @@ pub fn run_task(
     p: &ProviderCfg,
     model: &str,
     goal: &str,
-    global_usd: f64,
+    ceilings: crate::ipc::pool::Ceilings,
 ) -> LoopOutcome {
     let all: Vec<String> =
         crate::tools::defs().iter().map(|t| t.name.to_string()).collect();
     let ctx = LoopCtx {
+        governance_root: root.clone(),
+        journal_branch: String::new(),
+        halt: None,
         root,
         provider: p,
         model,
@@ -283,7 +391,7 @@ pub fn run_task(
         seed: vec![Msg::user(goal)],
         allowed_tools: all,
         stage_label: "freeform".into(),
-        global_usd,
+        ceilings,
         auto_rollback_on_halt: true,
         goal: goal.to_string(),
     };

@@ -14,6 +14,11 @@ default_model = "grok-4.20-non-reasoning"
 price_per_1m_input = 12.5
 price_per_1m_output = 25.0
 
+[execution]
+mode = "single"              # "single" | "swarm"
+max_parallel_workers = 4
+worker_isolation = "auto"    # auto | git | scratchpad
+
 [limits]
 global_usd = 50.0
 per_stage_usd = 10.0

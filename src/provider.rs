@@ -10,6 +10,21 @@ pub enum Role {
     Tool { tool_call_id: String },
 }
 
+/// Conservative pre-call cost estimate in micro-USD: prompt chars ≈ tokens/4
+/// priced at input rate, plus an 8192-token output allowance at output rate.
+/// Settlement trues the number up against real wire usage.
+pub fn estimate_cost_micro(
+    price_per_1m_input: f64,
+    price_per_1m_output: f64,
+    prompt_chars: usize,
+) -> u64 {
+    const OUT_ALLOWANCE_TOKENS: f64 = 8_192.0;
+    let micro = |tokens: f64, price: f64| (tokens / 1_000_000.0 * price * 1_000_000.0).round();
+    let in_tokens = prompt_chars as f64 / 4.0;
+    ((micro(in_tokens, price_per_1m_input) + micro(OUT_ALLOWANCE_TOKENS, price_per_1m_output))
+        .max(0.0)) as u64
+}
+
 #[derive(Clone, Debug)]
 pub struct Msg {
     pub role: Role,
@@ -176,8 +191,8 @@ pub fn chat(
     messages: &[Msg],
     tools: &[ToolDef],
 ) -> Result<ChatOk, String> {
-    let key = std::env::var(&p.api_key_env)
-        .map_err(|_| format!("env var {} not set", p.api_key_env))?;
+    // Phase 8: stored OAuth token wins; expired falls back to env key.
+    let key = crate::auth::resolve_bearer(&p.name, p)?;
     let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
 
     let mut body = serde_json::json!({ "model": model });

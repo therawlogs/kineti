@@ -4,6 +4,7 @@
 
 use crate::memory::journal::{compute_hash, now_iso, GENESIS};
 use regex::Regex;
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 fn key_patterns() -> &'static Vec<Regex> {
@@ -34,8 +35,15 @@ pub fn redact(s: &str) -> String {
 
 /// Append a hash-chained egress record under <cwd>/.kineti/egress.jsonl.
 pub fn record(dest: &str, purpose: &str, payload_sha: &str) {
-    let dir = std::path::Path::new(".kineti");
-    let _ = std::fs::create_dir_all(dir);
+    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    record_at(&cwd, dest, purpose, payload_sha);
+}
+
+/// Root-scoped variant: workers in isolated worktrees must log into THEIR
+/// root's egress chain, never the process cwd. (ETHOS §7.1)
+pub fn record_at(root: &std::path::Path, dest: &str, purpose: &str, payload_sha: &str) {
+    let dir = root.join(".kineti");
+    let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("egress.jsonl");
 
     let mut prev = GENESIS.to_string();
@@ -65,13 +73,76 @@ pub fn record(dest: &str, purpose: &str, payload_sha: &str) {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct EgressSource {
+    pub tag: String,
+    pub path: std::path::PathBuf,
+    pub records: usize,
+}
+
+/// Roll up every egress log for the receipt: the main chain plus any
+/// per-worker logs preserved from swarm runs (`egress.<branch>.jsonl`) and
+/// any still-alive worktrees.
+pub fn summarize(root: &std::path::Path) -> Vec<EgressSource> {
+    let kineti = root.join(".kineti");
+    let mut out = Vec::new();
+
+    let mut push = |tag: String, path: std::path::PathBuf| {
+        if !path.exists() {
+            return;
+        }
+        let count = std::fs::read_to_string(&path)
+            .map(|c| c.lines().filter(|l| !l.trim().is_empty()).count())
+            .unwrap_or(0);
+        if count > 0 {
+            out.push(EgressSource { tag, path, records: count });
+        }
+    };
+
+    push("main".into(), kineti.join("egress.jsonl"));
+    if let Ok(entries) = std::fs::read_dir(&kineti) {
+        let mut tagged: Vec<(String, PathBuf)> = entries
+            .flatten()
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().to_string();
+                name.strip_prefix("egress.")
+                    .and_then(|r| r.strip_suffix(".jsonl"))
+                    .map(|tag| (format!("worker:{tag}"), e.path()))
+            })
+            .collect();
+        tagged.sort();
+        for (tag, path) in tagged {
+            push(tag, path);
+        }
+    }
+    // live worker trees not yet preserved
+    if let Ok(entries) = std::fs::read_dir(kineti.join("worktrees")) {
+        let mut live: Vec<(String, PathBuf)> = entries
+            .flatten()
+            .map(|e| {
+                let id = e.file_name().to_string_lossy().to_string();
+                (
+                    format!("live:{id}"),
+                    e.path().join(".kineti/egress.jsonl"),
+                )
+            })
+            .collect();
+        live.sort();
+        for (tag, path) in live {
+            push(tag, path);
+        }
+    }
+    out
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn redaction_catches_key_shapes() {
-        assert!(redact("key is xai-AbCdEf123456789012345678 done").contains("[REDACTED]"));
+        assert!(redact("key is xai-AbCdEf123456789012345678 done").contains("[REDACTED]")); // kineti-clean-ignore (fixture)
         assert!(redact("Bearer abcdef123456789012345678").contains("[REDACTED]"));
         assert!(redact("mail me a@b.com now").contains("[REDACTED]"));
         assert_eq!(redact("clean text"), "clean text");

@@ -1,15 +1,6 @@
-mod agent_loop;
-mod anchor;
-mod config;
-mod enforce;
-mod integrity;
-mod memory;
-mod provider;
-mod quarantine;
-mod stages;
-mod tools;
-
 use clap::{Parser, Subcommand};
+
+use kineti::{agent_loop, config, daemon, enforce, ipc, light, memory, provider, stages};
 
 #[derive(Parser)]
 #[command(
@@ -38,6 +29,9 @@ enum Cmd {
         /// Override global spend cap (demo aid)
         #[arg(long)]
         cap: Option<f64>,
+        /// Override [execution].mode ("single" | "swarm")
+        #[arg(long)]
+        mode: Option<String>,
     },
     /// One freeform governed task (no stage machine)
     Task {
@@ -67,7 +61,38 @@ enum Cmd {
     /// Run the ship proof gate only (fresh-fingerprint check)
     ShipCheck,
     /// Verify the journal hash chain and print the head
-    Verify,
+    Verify {
+        /// Full DAG check: main chain + every merged branch + orphan closure
+        #[arg(long)]
+        all: bool,
+    },
+    /// Scan project files for names/home-paths/secrets — zero matches required (ETHOS §8.2)
+    CleanCheck,
+    /// Commit a branch journal into the main chain with a 2-parent merge record
+    Merge {
+        /// The branch name (journal.<branch>.jsonl)
+        #[arg(long)]
+        branch: String,
+    },
+    /// OAuth2/PKCE login for a configured provider (opens browser)
+    Login {
+        /// provider name as keyed in kineti.toml [providers.<name>]
+        #[arg(long)]
+        provider: String,
+    },
+    /// Remove a stored OAuth token
+    Logout {
+        #[arg(long)]
+        provider: String,
+    },
+    /// List stored OAuth tokens and expiry state
+    AuthStatus,
+    /// Run the kinetid governance daemon on .kineti/kineti.sock
+    Serve {
+        /// Accepted for symmetry; serve always runs in-process (spawners detach it).
+        #[arg(long)]
+        foreground: bool,
+    },
     /// Print the hash-chained run record summary
     Receipt {
         #[arg(long)]
@@ -83,11 +108,17 @@ enum Cmd {
 }
 
 fn main() {
+    // Tier-2 fast path: exact-match light flags never build the clap tree.
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if let Some(reply) = light::reply(&argv) {
+        println!("{reply}");
+        return;
+    }
     let cli = Cli::parse();
     let code = match cli.cmd {
         Cmd::Init => cmd_init(),
-        Cmd::Run { goal, provider, model, cap } => {
-            cmd_pipeline(&goal, &provider, model.as_deref(), cap)
+        Cmd::Run { goal, provider, model, cap, mode } => {
+            cmd_pipeline(&goal, &provider, model.as_deref(), cap, mode)
         }
         Cmd::Task { task, provider, model } => cmd_run(&task, &provider, model.as_deref()),
         Cmd::Resume { provider, model } => {
@@ -112,10 +143,36 @@ fn main() {
                 1
             }
         },
-        Cmd::Verify => cmd_verify(),
+        Cmd::Verify { all } => cmd_verify(all),
+        Cmd::CleanCheck => cmd_clean_check(),
+        Cmd::Merge { branch } => cmd_merge(&branch),
+        Cmd::Login { provider } => cmd_login(&provider),
+        Cmd::Logout { provider } => cmd_logout(&provider),
+        Cmd::AuthStatus => cmd_auth_status(),
+        Cmd::Serve { foreground } => daemon::serve(std::path::Path::new("."), foreground),
         Cmd::ProviderTest { provider, model } => cmd_provider_test(&provider, model.as_deref()),
     };
     std::process::exit(code);
+}
+
+
+fn ceilings_from(cfg: &config::Config, cap_override: Option<f64>) -> ipc::pool::Ceilings {
+    let pos = |v: f64| (v > 0.0).then(|| (v * 1_000_000.0).round() as u64);
+    ipc::pool::Ceilings {
+        global_micro: (cap_override.unwrap_or(cfg.limits.global_usd).max(0.0) * 1_000_000.0)
+            .round() as u64,
+        stage_micro: pos(cfg.limits.per_stage_usd),
+        worker_micro: pos(cfg.limits.max_worker_usd),
+    }
+}
+
+/// Human-only reset (ETHOS §3.3), routed through the selected backend so a
+/// live daemon's pool state is reset too — never a divergent direct write.
+/// Fails closed when the ledger lock cannot be taken.
+fn human_reset_via_backend(root: &std::path::Path) -> Result<bool, String> {
+    let cfg = config::Config::load();
+    let (svc, _) = ipc::select_backends(root, ceilings_from(&cfg, None))?;
+    svc.reset_if_human_requested(root)
 }
 
 fn cmd_init() -> i32 {
@@ -146,7 +203,7 @@ fn cmd_run(task: &str, provider_name: &str, model: Option<&str>) -> i32 {
     println!("kineti run ── {provider_name}/{m}");
     println!("goal  : {task}\n");
 
-    let r = agent_loop::run_task(&root, &p, &m, task, cfg.limits.global_usd);
+    let r = agent_loop::run_task(&root, &p, &m, task, ceilings_from(&cfg, None));
     println!("\n═══════════════════════════════");
     if let Some(h) = &r.halted {
         println!("HALTED: {h}");
@@ -164,26 +221,58 @@ fn cmd_run(task: &str, provider_name: &str, model: Option<&str>) -> i32 {
     }
 }
 
-fn cmd_pipeline(goal: &str, provider: &str, model: Option<&str>, cap: Option<f64>) -> i32 {
+fn cmd_pipeline(
+    goal: &str,
+    provider: &str,
+    model: Option<&str>,
+    cap: Option<f64>,
+    mode_override: Option<String>,
+) -> i32 {
     let cfg = config::Config::load();
     let p = cfg.provider(provider);
     let m = model.unwrap_or(&p.default_model).to_string();
-    // human reset check (ETHOS §3.3)
-    if enforce::spend::Spend::human_reset_if_requested(std::path::Path::new(".")) {
-        println!("⚡ spend breaker reset via human flag file — counter zeroed");
+    // human reset check (ETHOS §3.3) — through the backend, never a side-write
+    match human_reset_via_backend(std::path::Path::new(".")) {
+        Ok(true) => println!("⚡ spend breaker reset via human flag file — counter zeroed"),
+        Ok(false) => {}
+        Err(e) => {
+            eprintln!("⛔ {e}");
+            return 1;
+        }
     }
-    let g = cap.unwrap_or(cfg.limits.global_usd);
-    println!("kineti pipeline ── {provider}/{m} | spend cap ${g:.2}");
-    stages::drive(&std::env::current_dir().expect("cwd"), &p, &m, goal, g)
+    let ceilings = ceilings_from(&cfg, cap);
+    println!(
+        "kineti pipeline ── {provider}/{m} | spend cap ${:.2} | per-stage {}",
+        ceilings.global_micro as f64 / 1_000_000.0,
+        ceilings
+            .stage_micro
+            .map(|m| format!("${:.2}", m as f64 / 1_000_000.0))
+            .unwrap_or_else(|| "off".into())
+    );
+    let mut exec = cfg.execution.clone();
+    if let Some(mo) = mode_override {
+        exec.mode = mo;
+    }
+    stages::drive(&std::env::current_dir().expect("cwd"), &p, &m, goal, ceilings, &exec)
 }
 
 fn resume_pipeline(goal: &str, provider: &str, model: Option<&str>) -> i32 {
     let cfg = config::Config::load();
     let p = cfg.provider(provider);
     let m = model.unwrap_or(&p.default_model).to_string();
-    enforce::spend::Spend::human_reset_if_requested(std::path::Path::new("."));
+    if let Err(e) = human_reset_via_backend(std::path::Path::new(".")) {
+        eprintln!("⛔ {e}");
+        return 1;
+    }
     println!("kineti resume ── {provider}/{m}");
-    stages::drive(&std::env::current_dir().expect("cwd"), &p, &m, goal, cfg.limits.global_usd)
+    stages::drive(
+        &std::env::current_dir().expect("cwd"),
+        &p,
+        &m,
+        goal,
+        ceilings_from(&cfg, None),
+        &cfg.execution.clone(),
+    )
 }
 
 fn cmd_undo() -> i32 {
@@ -221,64 +310,257 @@ fn cmd_evidence(cmd: &str) -> i32 {
     if code == 0 { 0 } else { 1 }
 }
 
-fn cmd_receipt() -> i32 {
-    let j = memory::journal::Journal::load(std::path::Path::new(".kineti/journal.jsonl"));
-    let g = memory::graph::Graph::load(std::path::Path::new(".kineti/graph.jsonl"));
-    if let Err(e) = j.verify() {
-        eprintln!("⛔ chain TAMPERED: {e}");
-        return 1;
-    }
 
-    let goal = std::fs::read_to_string(".kineti/root_goal").unwrap_or_default();
-    let last_run = j.records.iter().rev().find(|r| r.r#type == "run-record");
-    let gates: Vec<&memory::journal::Record> =
-        j.records.iter().filter(|r| r.r#type == "gate").collect();
-
-    println!("╔═══════════════ KINETI RECEIPT ═══════════════╗");
-    println!("goal       : {}", goal.trim());
-    if let Some(r) = last_run {
-        println!("last run   : {} · {}", r.id, r.at);
-        println!(
-            "outcome    : {} | iters {} | ${:.4} | {}→{} tok",
-            r.data["outcome"].as_str().unwrap_or("?"),
-            r.data["iterations"].as_u64().unwrap_or(0),
-            r.data["cost_usd"].as_f64().unwrap_or(0.0),
-            r.data["prompt_tokens"].as_u64().unwrap_or(0),
-            r.data["completion_tokens"].as_u64().unwrap_or(0),
-        );
-    }
-    println!("records    : {} chained", j.records.len());
-    println!("causal edges: {}", g.edges.len());
-    println!("gates hit:");
-    for gate in gates {
-        println!(
-            "   • {} {}",
-            gate.data["kind"].as_str().unwrap_or("?"),
-            gate.data["detail"].as_str().unwrap_or("")
-        );
-    }
-    let head = j.records.last().map(|r| r.hash.clone()).unwrap_or_default();
-    println!("chain head : {}", head.get(..16).unwrap_or(head.as_str()));
-    println!("╚══════════════════════════════════════════════╝");
-    0
-}
-
-fn cmd_verify() -> i32 {
-    let j = memory::journal::Journal::load(std::path::Path::new(".kineti/journal.jsonl"));
-    match j.verify() {
-        Ok(()) => {
-            println!(
-                "journal OK: {} records, chain head {}",
-                j.records.len(),
-                j.records.last().map(|r| &r.hash[..16]).unwrap_or("GENESIS")
+fn cmd_login(provider: &str) -> i32 {
+    let cfg = config::Config::load();
+    let p = cfg.provider(provider);
+    let oa = match &p.auth {
+        Some(a) => a,
+        None => {
+            eprintln!(
+                "⛔ provider '{provider}' has no [providers.{provider}.auth] block in kineti.toml"
             );
+            return 1;
+        }
+    };
+    let sess = match kineti::auth::prepare_login(&p.name, oa) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("⛔ login failed to start: {e}");
+            return 1;
+        }
+    };
+    println!("╔═══════════════ KINETI LOGIN — {provider} ═══════════════");
+    println!("║ open this URL in your browser:");
+    println!("║ {}", sess.auth_url);
+    println!("║ waiting for redirect on 127.0.0.1:{} (5 min timeout)…", sess.port);
+    println!("╚═════════════════════════════════════════════════════════");
+
+    let code = match kineti::auth::await_callback(&sess, std::time::Duration::from_secs(300)) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("⛔ {e}");
+            return 1;
+        }
+    };
+    match kineti::auth::exchange_code(&p.name, oa, &code, &sess.verifier, sess.port) {
+        Ok(tok) => {
+            if let Err(e) = kineti::auth::save_token(&tok) {
+                eprintln!("⛔ token save failed: {e}");
+                return 1;
+            }
+            let exp = tok
+                .expires_at
+                .map(|e| format!("expires at unix {}", e))
+                .unwrap_or_else(|| "no expiry".into());
+            println!("✔ logged in as '{provider}' ({exp}) — env key no longer required");
             0
         }
         Err(e) => {
-            eprintln!("TAMPERED: {e}");
+            eprintln!("⛔ token exchange failed: {e}");
             1
         }
     }
+}
+
+fn cmd_logout(provider: &str) -> i32 {
+    if kineti::auth::logout(provider) {
+        println!("✔ removed stored token for '{provider}'");
+        0
+    } else {
+        println!("no stored token for '{provider}'");
+        1
+    }
+}
+
+fn cmd_auth_status() -> i32 {
+    let tokens = kineti::auth::status_all();
+    if tokens.is_empty() {
+        println!("no stored OAuth tokens (env keys still work)");
+        return 0;
+    }
+    for t in &tokens {
+        println!(
+            "• {} : {}{}{}",
+            t.provider,
+            if t.expired { "EXPIRED" } else { "valid" },
+            t.expires_at.map(|e| format!(", expires unix {e}")).unwrap_or_default(),
+            if t.has_refresh { ", refresh available" } else { "" },
+        );
+    }
+    0
+}
+
+fn root_dir() -> std::path::PathBuf {
+    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
+}
+
+fn cmd_receipt() -> i32 {
+    let root = root_dir();
+    let r = kineti::receipt::build(&root);
+
+    println!("╔═══════════════ KINETI RECEIPT ═══════════════╗");
+    println!("goal       : {}", r.goal);
+
+    if let Some((id, outcome, cost)) = &r.last_run {
+        println!("last run   : {id} · outcome {outcome} · ${cost:.4}");
+    }
+    println!(
+        "spend      : ${:.4} total (coordinator ${:.4} + workers {})",
+        r.total_cost_usd(),
+        r.coordinator_cost_usd,
+        if r.workers.is_empty() {
+            "none".into()
+        } else {
+            format!(
+                "${:.4}",
+                r.workers.iter().map(|w| w.cost_usd).sum::<f64>()
+            )
+        }
+    );
+    for w in &r.workers {
+        println!(
+            "   • {} : ${:.4} · {}→{} tok · {} records",
+            w.branch, w.cost_usd, w.prompt_tokens, w.completion_tokens, w.records
+        );
+    }
+
+    println!("history    : {} records chained · head {}", r.records, &r.chain_head[..16.min(r.chain_head.len())]);
+    println!("causal     : {} edges", r.causal_edges);
+
+    if !r.dag.branches.is_empty() || !r.dag.orphans.is_empty() {
+        println!(
+            "branches   : {} merged{}",
+            r.dag.branches.len(),
+            if r.dag.orphans.is_empty() {
+                String::new()
+            } else {
+                format!(", ⚠ ORPHANS: {}", r.dag.orphans.join(", "))
+            }
+        );
+    }
+    for e in &r.dag.errors {
+        println!("   ⛔ {e}");
+    }
+
+    if !r.gates.is_empty() {
+        println!("gate timeline:");
+        for g in &r.gates {
+            let t = g.at.get(11..19).unwrap_or(&g.at);
+            println!("   • [{t}] {} {}", g.kind, g.detail);
+        }
+    }
+
+    if !r.egress.is_empty() {
+        print!("egress     : ");
+        let parts: Vec<String> =
+            r.egress.iter().map(|e| format!("{}: {} send(s)", e.tag, e.records)).collect();
+        println!("{}", parts.join(" · "));
+    } else {
+        println!("egress     : no outbound sends recorded");
+    }
+
+    match &r.clean_files {
+        Ok(()) => println!("clean-files: ✔ 0 findings"),
+        Err(n) => println!("clean-files: ⚠ {n} finding(s) — ship will refuse"),
+    }
+    if !r.dag.is_clean() {
+        println!("⚠ history not clean — `kineti verify --all` for details");
+    }
+    println!("╚══════════════════════════════════════════════╝");
+
+    // receipt stays informational; gates enforce. Nonzero only on broken history.
+    if r.dag.is_clean() { 0 } else { 1 }
+}
+
+
+fn cmd_verify(all: bool) -> i32 {
+    let root = std::path::Path::new(".");
+    if !all {
+        let j = memory::journal::Journal::load(std::path::Path::new(".kineti/journal.jsonl"));
+        return match j.verify() {
+            Ok(()) => {
+                println!(
+                    "journal OK: {} records, chain head {}",
+                    j.records.len(),
+                    j.records.last().map(|r| r.hash.get(..16).unwrap_or(&r.hash)).unwrap_or("GENESIS")
+                );
+                0
+            }
+            Err(e) => {
+                eprintln!("TAMPERED: {e}");
+                1
+            }
+        };
+    }
+
+    let report = memory::merge::verify_project(root);
+    if !report.errors.is_empty() {
+        for e in &report.errors {
+            eprintln!("⛔ DAG: {e}");
+        }
+    }
+    for o in &report.orphans {
+        eprintln!("⛔ ORPHAN branch file {o} — never merged; run `kineti merge --branch <name>`");
+    }
+    println!(
+        "DAG {}: main {} records (head {}), branches merged: {}, orphans: {}",
+        if report.is_clean() { "OK" } else { "REFUSED" },
+        report.main_records,
+        report.main_head.get(..16).unwrap_or(&report.main_head),
+        report.branches.len(),
+        report.orphans.len(),
+    );
+    for (b, n, h) in &report.branches {
+        println!("   • {b}: {n} records, head {}", h.get(..16).unwrap_or(h));
+    }
+    if report.is_clean() { 0 } else { 1 }
+}
+
+fn cmd_merge(branch: &str) -> i32 {
+    let root = std::env::current_dir().expect("cwd");
+    let mut w = ipc::journal_writer_no_spawn(&root);
+    match memory::merge::merge_branch(&root, w.as_mut(), branch) {
+        Ok(Some(rec)) => {
+            println!(
+                "✔ merged '{}' → main (records chained through {})",
+                branch,
+                rec.data["head"].as_str().and_then(|h| h.get(..16)).unwrap_or("?")
+            );
+            let rep = memory::merge::verify_project(&root);
+            if rep.is_clean() {
+                println!("✔ DAG clean: {} merged branch(es)", rep.branches.len());
+                0
+            } else {
+                for e in &rep.errors { eprintln!("⛔ {e}"); }
+                for o in &rep.orphans { eprintln!("⛔ ORPHAN {o}"); }
+                1
+            }
+        }
+        Ok(None) => {
+            eprintln!("branch '{branch}' is empty — nothing to merge");
+            1
+        }
+        Err(e) => {
+            eprintln!("⛔ merge failed: {e}");
+            1
+        }
+    }
+}
+
+fn cmd_clean_check() -> i32 {
+    let cfg = config::Config::load();
+    let root = std::env::current_dir().expect("cwd");
+    let findings = enforce::cleanfiles::scan(&root, &cfg.clean_files.forbid);
+    if findings.is_empty() {
+        println!("✔ clean-files scan: 0 findings");
+        return 0;
+    }
+    eprintln!("⛔ clean-files scan: {} finding(s) — zero matches required", findings.len());
+    for f in &findings {
+        eprintln!("   {}:{} [{}] {}", f.path, f.line, f.kind, f.snippet);
+    }
+    1
 }
 
 fn cmd_provider_test(name: &str, model: Option<&str>) -> i32 {
