@@ -163,5 +163,6 @@ jobs:
             rsha=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$api" | jq -r '.sha')
             code=$(put "$rsha")
           fi
-          [ "$code" = "200" ] || { cat /tmp/put.json; exit 1; }
+          # 200 = updated · 201 = first-time created
+          [ "$code" = "200" ] || [ "$code" = "201" ] || { cat /tmp/put.json; exit 1; }
           echo "pushed public/install.sh ($(wc -c < install.sh | tr -d ' ') bytes) at ${SHA:0:8} — Vercel will redeploy"
