@@ -34,8 +34,10 @@ Go-live / sync procedure:
 curl -fsSL https://getkineti.com/install.sh | sha256sum
 shasum -a 256 install.sh          # macOS; sha256sum install.sh on Linux
 
-# sync (whatever mechanism hosts the file — CDN, object storage, redirect):
-# upload install.sh verbatim after every change to it.
+# sync: automatic — the `sync-install-sh` CI job mirrors install.sh into
+# therawlogs/kineti-website@main/public/install.sh on every change to it
+# (requires the WEBSITE_REPO_TOKEN secret). Manual re-sync: re-run the job
+# from the Actions tab. Never hand-edit the copy in kineti-website.
 ```
 
 Prerequisites before announcing the URL anywhere:
@@ -101,9 +103,13 @@ Run every check below BEFORE the first `git push`. All must pass.
 
 ### F. Post-push order (do not skip sequence)
 
-1. Push `main`; confirm the `ci` workflow runs green on the push event.
+1. Push `main`; confirm the `ci` workflow runs green on the push event,
+   including `sync-install-sh` (needs the WEBSITE_REPO_TOKEN secret).
 2. Tag `vX.Y.Z` and push the tag; watch all four release jobs finish.
 3. Verify release assets + SHA256SUMS on GitHub Releases.
-4. Deploy install.sh to getkineti.com; verify byte-identical (see above).
+4. Confirm Vercel redeployed and getkineti.com serves the new bytes
+   byte-identical (hash compare above). The sync bot does this
+   automatically whenever install.sh changes on green main — never
+   hand-edit the copy in kineti-website.
 5. Flip repo variable `DOMAIN_LIVE=1`.
 6. Only now announce the one-liner.

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -115,3 +116,49 @@ jobs:
       - env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" include/kineti.h --repo "$GITHUB_REPOSITORY" --clobber
+
+  # getkineti.com contract (docs/RELEASE.md): the domain serves install.sh
+  # byte-identical to main. Whenever install.sh changes on a green main,
+  # mirror it into therawlogs/kineti-website/public/install.sh so Vercel
+  # redeploys. Weekly domain-smoke verifies the served bytes independently.
+  sync-install-sh:
+    name: sync install.sh to website
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: push install.sh to kineti-website when bytes differ
+        env:
+          TOKEN: ${{ secrets.WEBSITE_REPO_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -eu
+          [ -n "${TOKEN:-}" ] || { echo "::error::WEBSITE_REPO_TOKEN secret not set — create a fine-grained PAT with Contents:RW on kineti-website only (docs/RELEASE.md)"; exit 1; }
+          api="https://api.github.com/repos/therawlogs/kineti-website/contents/public/install.sh"
+          lsha=$(sha256sum install.sh | cut -d' ' -f1)
+          remote=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$api" 2>/dev/null || echo '{}')
+          rsha=$(printf '%s' "$remote" | jq -r '.sha // empty')
+          # hash the DECODED bytes from a file: command substitution would
+          # strip the trailing newline and break byte-identity comparison
+          tmp=$(mktemp); trap 'rm -f "$tmp"' EXIT
+          if printf '%s' "$remote" | jq -r '.content // empty' | base64 -d > "$tmp" 2>/dev/null \
+             && [ "$(sha256sum "$tmp" | cut -d' ' -f1)" = "$lsha" ]; then
+            echo "already in sync — no deploy needed"; exit 0
+          fi
+          b64=$(base64 -w0 install.sh)
+          put() {
+            jq -n --arg msg "sync install.sh from therawlogs/kineti@${SHA:0:8}" \
+                  --arg content "$b64" --arg sha "${1:-}" \
+                  '{message:$msg, content:$content} + (if $sha != "" then {sha:$sha} else {} end)' \
+            | curl -sS -o /tmp/put.json -w '%{http_code}' -X PUT \
+                -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
+                "$api" -d @-
+          }
+          code=$(put "$rsha")
+          if [ "$code" = "409" ]; then   # raced a concurrent update: refetch sha, retry once
+            rsha=$(curl -fsSL -H "Authorization: Bearer $TOKEN" "$api" | jq -r '.sha')
+            code=$(put "$rsha")
+          fi
+          [ "$code" = "200" ] || { cat /tmp/put.json; exit 1; }
+          echo "pushed public/install.sh ($(wc -c < install.sh | tr -d ' ') bytes) at ${SHA:0:8} — Vercel will redeploy"
