@@ -15,9 +15,9 @@ price_per_1m_input = 12.5
 price_per_1m_output = 25.0
 
 [execution]
-mode = "single"              # "single" | "swarm"
+mode = "single"              # "single" | "swarm" (swarm = legacy 13-stage, use --legacy)
 max_parallel_workers = 4
-worker_isolation = "auto"    # auto | git | scratchpad
+worker_isolation = "auto"    # auto | git | scratchpad (swarm/legacy only)
 
 [limits]
 global_usd = 50.0

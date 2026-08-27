@@ -16,7 +16,7 @@
 
 ### Demoted (not default, code kept but hidden)
 
-- `kineti run --goal` 13-stage pipeline → `kineti run` hidden, prints legacy warning, see `docs/v0.1.md` / tag `v0.1.0`
+- `kineti run --legacy --goal` 13-stage pipeline → `kineti run --legacy` hidden, prints legacy warning, see `docs/v0.1.md` / tag `v0.1.0`
 - `resume`, `undo`, `merge`, swarm/worktrees, `officehours → retro` stages 1–13 as product
 - `review` / `qa-as-stage` / `security` as pipeline stages → replaced by caller's `evidence --cmd`
 - `watch` / `retro` removed from default docs

@@ -8,17 +8,24 @@ Everything needed to cut a Kineti release and keep getkineti.com honest.
 2. **Version**: bump `version` in `Cargo.toml`. The CLI banner, daemon stamp,
    and C-ABI `kineti_version()` all derive from this single field
    (`env!("CARGO_PKG_VERSION")`) — never hand-edit version strings elsewhere.
-3. **Tag**: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-4. **CI publishes automatically** (tag-gated jobs):
+3. **Changelog**: add `CHANGELOG.md` entry for `vX.Y.Z` (Kept/Demoted/Added/Compatibility). This is the human note for `install.sh -s vX.Y.Z`.
+4. **Tag**: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. **CI publishes automatically** (tag-gated jobs):
    - linux gnu + musl-static: `kineti-linux-x64`, `kineti-linux-arm64`,
      `kineti-linux-x64-static`, `kineti-linux-arm64-static`
    - macos: `kineti-darwin-arm64`, `kineti-darwin-x64`
    - then `release-checksums` aggregates every asset into `SHA256SUMS`
      and uploads it to the same release
    - then `release-header` attaches `include/kineti.h` for C/Python consumers
-5. **Verify**: download two assets on different platforms and run
+6. **Release notes**: paste the `CHANGELOG.md` `vX.Y.Z` section into the GitHub release body so `install.sh -s vX.Y.Z` has a human note (not just the tag name):
+   ```sh
+   gh release edit vX.Y.Z --notes-file <(sed -n '/^## vX.Y.Z/,/^## v/p' CHANGELOG.md | head -n -1)
+   # or via GitHub UI: Releases → Edit → paste CHANGELOG section
+   ```
+   Verify: `gh api repos/therawlogs/kineti/releases/tags/vX.Y.Z --jq .body` must not be empty.
+7. **Verify**: download two assets on different platforms and run
    `sha256sum -c` against `SHA256SUMS`; smoke `--version` on each.
-6. **Announce** only after step 7 passes.
+8. **Announce** only after steps 6–7 pass.
 
 ## getkineti.com contract
 
@@ -136,3 +143,4 @@ Executed 2026-08-25, all checks above passed at go-live:
   before test so phase9 finds the cdylib; musl targets need
   musl-tools; aarch64 builds natively on ubuntu-24.04-arm; tag pushes
   must be in `on.push.tags`.
+- v0.2.0 (2026-08-27): cut to gateway + receipt (`evidence → ship-check → verify`), release body now holds the `CHANGELOG.md` `v0.2.0` section (pasted via `gh release edit v0.2.0 --notes-file`), so `curl ... | sh -s v0.2.0` has a human note.

@@ -87,9 +87,12 @@ enum Cmd {
     /// List stored OAuth tokens and expiry state
     AuthStatus,
     // ── legacy (hidden from default help) ──
-    /// Legacy 13-stage pipeline — frozen at v0.1.0, see docs/v0.1.md
+    /// Legacy 13-stage pipeline — frozen at v0.1.0, see docs/v0.1.md (use `kineti run --legacy --goal "..."`)
     #[command(hide = true)]
     Run {
+        /// Legacy flag — use `kineti run --legacy --goal "..."` (no effect, kept for docs parity)
+        #[arg(long)]
+        legacy: bool,
         /// The locked root goal
         #[arg(long)]
         goal: String,
@@ -141,17 +144,17 @@ fn main() {
         Cmd::Login { provider } => cmd_login(&provider),
         Cmd::Logout { provider } => cmd_logout(&provider),
         Cmd::AuthStatus => cmd_auth_status(),
-        Cmd::Run { goal, provider, model, cap, mode } => {
-            eprintln!("⚠ `kineti run` is legacy — frozen at v0.1.0. See docs/v0.1.md");
+        Cmd::Run { legacy: _, goal, provider, model, cap, mode } => {
+            eprintln!("⚠ `kineti run --legacy` is legacy — frozen at v0.1.0. See docs/v0.1.md");
             eprintln!("  The product is now: evidence → ship-check → verify (gateway meter + stamp).");
             cmd_pipeline(&goal, &provider, model.as_deref(), cap, mode)
         }
         Cmd::Resume { provider, model } => {
-            eprintln!("⚠ `kineti resume` is legacy — see docs/v0.1.md");
+            eprintln!("⚠ `kineti resume` is legacy — see docs/v0.1.md (frozen at v0.1.0)");
             match std::fs::read_to_string(".kineti/root_goal") {
                 Ok(goal) => resume_pipeline(goal.trim(), &provider, model.as_deref()),
                 Err(_) => {
-                    eprintln!("no root goal found — `kineti run` was the legacy pipeline");
+                    eprintln!("no root goal found — `kineti run --legacy` was the legacy pipeline");
                     1
                 }
             }

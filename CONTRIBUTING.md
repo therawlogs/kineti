@@ -2,6 +2,8 @@
 
 Thanks for looking at Kineti. The project is small and opinionated on purpose.
 
+**Product:** v0.2 is ship proof + spend fuse (`evidence → ship-check → verify` + gateway). The 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`, `kineti run --legacy --goal` hidden, prints legacy warning) — bug fixes only, no new stages.
+
 ## Ground rules
 
 1. **Governance features must be mechanical.** If a safeguard depends on the
@@ -23,11 +25,15 @@ cargo build                   # phase9 asserts symbols in target/debug cdylib
 cargo test --all              # prove before you propose
 cargo clippy --all-targets -- -D warnings
 ./scripts/size-gate.sh        # <10 MB ETHOS budget (informational locally, hard in CI)
+kineti evidence --cmd "cargo test --all" && kineti ship-check  # gate you ship
 ```
 
 CI runs the same gates on every push and PR — tests execute twice per commit
-(direct and daemon backend matrix), so both transports must stay green.
-Releases are tag-driven; maintainers cut them per [docs/RELEASE.md](docs/RELEASE.md).
+(direct and daemon backend matrix), so both transports must stay green. The
+required check `kineti-receipt` (`.github/actions/kineti-receipt`, `with: verify-command`)
+runs `evidence --cmd` then `ship-check`+`verify --all` — see `README.md`.
+Releases are tag-driven; maintainers cut them per [docs/RELEASE.md](docs/RELEASE.md)
+(paste `CHANGELOG.md` section into the GitHub release body).
 
 Open a pull request with: what failure mode it addresses, how the enforcement
 works mechanically, and which tests pin the behavior.

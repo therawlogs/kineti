@@ -1,5 +1,7 @@
 /*
- * kineti.h — C-ABI for the Kineti agent harness (v0.1.0, Phase 9).
+ * kineti.h — C-ABI for the Kineti agent harness (v0.2.0, Phase 9).
+ * v0.2: product is gateway + receipt (evidence/ship-check/verify); kineti_run()
+ * below is the frozen 13-stage pipeline (legacy, use `kineti run --legacy`).
  *
  * Link against libkineti (cdylib). All calls MUST be made with the target
  * project directory as the process working directory.
@@ -32,14 +34,15 @@ typedef struct KinetiResult {
     char *payload;      /* JSON on success, error text on failure         */
 } KinetiResult;
 
-/* Static library version string ("0.1.0"). Do not free. */
+/* Static library version string ("0.2.0"). Do not free. */
 const char *kineti_version(void);
 
 /* Release a payload obtained from any KinetiResult. NULL is a no-op. */
 void kineti_free_string(char *ptr);
 
 /*
- * Run the governed 13-stage pipeline against the current working directory.
+ * Run the governed 13-stage pipeline (legacy, frozen at v0.1.0 — use `kineti run --legacy`)
+ * against the current working directory.
  *
  * args_json — JSON object:
  *   {

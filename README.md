@@ -2,87 +2,40 @@
 
 **Ship proof + spend fuse for any agent. The meter and the stamp.**
 
-Claude, Cursor, Grok, and `fx` write the code. Kineti writes the receipt and blocks merge if tests do not match the files.
+Claude, Cursor, Grok, and `fx` write code. Kineti writes the receipt and blocks merge if tests don't match files.
 
-> **v0.2:** Kineti is a ship proof and spend fuse for any agent. The old 13-stage runner is no longer the default — it is frozen on tag `v0.1.0` (see `docs/v0.1.md`). `kineti run --goal` still exists as `kineti run --legacy` for that tag; the new default is three commands and a red X on merge.
+> **v0.2:** Old 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`). Use `kineti run --legacy --goal "..."` for the old pipeline — it is hidden and prints a legacy warning (`kineti run --help` shows `--legacy`). The product is three commands and a red X on merge.
 
 ```
-Cursor / Claude / Grok / LangGraph
-        │
-        ▼
-   your gateway  ← policy: cap, allow tools, require y
-        │
-        ├─► model API (OpenAI, xAI, Anthropic, …)
-        │
-        ▼
-   receipt written  (who, model, $ spent, hashes, pass/fail)
-        │
-        ▼
-   CI / merge  ← fail if receipt missing or stale
+agent → gateway (cap, policy) → model API
+              ↓
+       receipt (hashes, $, pass/fail)
+              ↓
+        CI / merge ← fail if stale or missing
 ```
 
 ```sh
-# 1. Any agent writes code (Cursor, Claude, Grok …) pointed at your URL:
-#    base_url = https://gate.getkineti.com/v1   # or http://localhost:8787/v1 locally
-
-# 2. Bind tests to the current files:
-kineti evidence --cmd "cargo test"
-
-# 3. Gate — CI runs this (see Action below):
-kineti ship-check   # exit 1 = stale, 2 = missing
-
-# 4. Inspect:
-kineti verify && kineti receipt
+kineti evidence --cmd "cargo test"   # bind tests to current files
+kineti ship-check                    # gate: 0 fresh, 1 stale, 2 missing
+kineti verify && kineti receipt      # offline check + summary
 ```
 
-Merge is blocked if `ship-check` fails. `verify` works offline from files you already have — no cloud required.
+`verify` is offline — no server required.
 
 ## Install
 
 ```sh
 curl -fsSL https://getkineti.com/install.sh | sh
+curl -fsSL https://getkineti.com/install.sh | sh -s v0.2.0  # pin — GitHub release body holds CHANGELOG v0.2.0 notes
 ```
 
-Pin a version:
+macOS (arm64/x64) and Linux (x64/arm64, musl-static preferred). From source: `cargo install --git https://github.com/therawlogs/kineti`
 
-```sh
-curl -fsSL https://getkineti.com/install.sh | sh -s v0.2.0
-# v0.1.0 13-stage runner stays available as tag v0.1.0
-```
-
-Supported: **macOS** (Apple silicon & Intel) and **Linux** x64/arm64 — Linux prefers musl-static builds.
-
-### Uninstall
-
-```sh
-rm -f /usr/local/bin/kineti "$HOME/.local/bin/kineti" "$HOME/.cargo/bin/kineti"
-rm -rf ~/.kineti/auth
-rm -rf .kineti kineti.toml
-```
-
-Or from source: `cargo install --git https://github.com/therawlogs/kineti`
-
-## What it keeps from v0.1
-
-| Keep | Why it sells |
-|---|---|
-| Spend reserve / settle + hard stop (`src/ipc/pool.rs`) | Stops a bill. Finance understands it. |
-| Ship proof bound to file hashes (`src/enforce/evidence.rs`) | Stops merge of untested agent edits. |
-| Hash-chained journal + offline verify (`src/memory/journal.rs`) | Receipt someone else can check. |
-
-Everything else is demo — stages 1–13 are now `docs/v0.1.md` / `examples/`.
-
-## How it is distributed
-
-Three install paths, all at once:
-
-1. **Proxy URL** — `base_url = https://gate.getkineti.com/v1` — one line in their OpenAI-compatible SDK config. Gateway does `reserve` → forward → `settle`, writes receipt (hashes + metadata, never raw prompts). Hosted in `therawlogs/kineti-pro` (private); local demo via `kineti gateway --port 8787`.
-2. **CI Action** — `kineti-receipt` required on the protected branch. Works even if they never change the agent. Weakest on spend, strongest on ship.
-3. **Wrap command** — `kineti wrap -- claude -p "…"` or `kineti wrap -- fx ask "…"` — laptops/agencies. Does not catch Cursor Cloud unless cloud points at your URL.
-
-Start with 1 + 2. Wrap is extra.
+Uninstall: `rm -f /usr/local/bin/kineti ~/.local/bin/kineti ~/.cargo/bin/kineti && rm -rf ~/.kineti/auth .kineti kineti.toml`
 
 ## GitHub Action (required check)
+
+Uses the composite at `.github/actions/kineti-receipt` (exists on `main`). No server.
 
 ```yaml
 # .github/workflows/kineti-receipt.yml
@@ -98,71 +51,70 @@ jobs:
           verify-command: "cargo test --all"
 ```
 
-Fail if receipt missing or fingerprint does not match current files. No server required for `verify`.
+- With `verify-command` set, the action runs `kineti evidence --cmd "<verify-command>"` then `ship-check` + `verify --all` — no prior `.kineti/` needed.
+- Without it, run `kineti evidence --cmd "..."` in a prior step first, then the action runs `ship-check`/`verify`.
+
+Fails if receipt missing, stale, or fingerprint doesn't match current files.
 
 ## Quickstart (local, no gateway)
 
 ```sh
-kineti init                                   # .kineti/ + kineti.toml (cap, verify_command)
-kineti evidence --cmd "cargo test"            # bind proof to fingerprint
-kineti ship-check                             # gate
-kineti receipt                                # spend + head + gates
-kineti verify --all                           # full DAG check
-kineti wrap -- cargo test                     # run anything under the cap
-kineti gateway --port 8787 &                  # OpenAI proxy with reserve/settle (demo)
-kineti serve &                                # local ledger daemon (optional)
+kineti init                                   # .kineti/ + kineti.toml
+kineti evidence --cmd "cargo test"
+kineti ship-check
+kineti receipt
+kineti verify --all
+kineti wrap -- cargo test                     # run any command under the cap
+kineti gateway --port 8787 &                  # OpenAI proxy demo (reserve/settle)
 ```
-
-Scale note: `verify` is offline. Gateway is stateless workers + one ledger per org; receipts are append-only to object storage. Never store raw prompts — hashes + counts only.
 
 ## Configuration
 
-`kineti.toml` — model names, prices, caps, verify command. Data, never compiled in.
+`kineti.toml` — caps, model prices, verify command. Never compiled in.
 
 ```toml
 [limits]
 global_usd = 50.0
 per_stage_usd = 10.0        # 0 disables
-max_worker_usd = 0
 verify_command = "cargo test"
-
 [execution]
 mode = "single"
 ```
 
-Agents that speak OpenAI wire format work through one client (`src/provider.rs`). Point them at the gateway via `[providers.*].base_url`.
+Agents using OpenAI wire format point at the gateway via `[providers.*].base_url` (`src/provider.rs`). Gateway is stateless workers + one ledger per org; receipts are append-only, hashes + counts only — never raw prompts.
 
-## Receipt schema (v1)
+## Receipt (v1)
 
-`kineti receipt --json` (or `.kineti/receipt.jsonl` line) is versioned:
+`kineti receipt --json` line:
 
 ```json
 {"v":"1","at":"2026-08-27T…Z","cmd":"cargo test","passed":true,"fingerprint":"abc…","chain_head":"def…","cost_usd":0.042}
 ```
 
-`ship-check` exit codes: `0` fresh, `1` stale/failed, `2` missing.
+`ship-check` codes: `0` fresh, `1` stale/failed, `2` missing, `3` chain broken.
 
-## Command reference (default)
+## Commands
 
 | Command | Purpose |
 |---|---|
 | `init` | scaffold `.kineti/` + `kineti.toml` |
-| `evidence --cmd …` | bind proof to current fingerprint |
-| `ship-check` | refuse if proof stale/missing (gate) |
-| `verify [--all]` | offline chain check |
-| `receipt` | spend + gates + DAG summary |
+| `evidence --cmd …` | bind proof to fingerprint |
+| `ship-check` | gate — refuse if stale/missing |
+| `verify [--all]` | offline hash-chain check |
+| `receipt` | spend + gates + DAG |
 | `wrap -- <cmd>` | run any command under the cap |
-| `gateway --port 8787` | OpenAI proxy with reserve/settle (demo; hosted in kineti-pro) |
+| `gateway --port 8787` | OpenAI proxy demo (hosted in `kineti-pro`) |
 | `clean-check` | scan for secrets / forbidden strings |
-| `serve` | local ledger daemon on `.kineti/kineti.sock` |
-| `provider-test` | smoke-test a provider |
-| `login/logout/auth-status` | PKCE OAuth |
-| `run --legacy` / `resume` / `undo` / `merge` | frozen 13-stage pipeline (v0.1.0, hidden) |
+| `serve` | local ledger daemon |
+| `provider-test` / `login` / `auth-status` | provider smoke-test + OAuth |
+| `run --legacy --goal …` / `resume` / `undo` / `merge` | frozen 13-stage pipeline (v0.1.0, hidden, see `kineti run --help`) |
 
 ## Status
 
-v0.2.0 — ship proof + spend fuse, 13-stage runner demoted. `verify` + `ship-check` + `receipt.v1` stable. Hosted gateway + dashboard live in `therawlogs/kineti-pro` (private). See `CHANGELOG.md`.
+v0.2.0 — `verify` + `ship-check` + `receipt.v1` stable. Hosted gateway + dashboard in `therawlogs/kineti-pro` (private). See `CHANGELOG.md`.
 
-## License
+Legacy 13-stage code remains in `src/` (`stages.rs`, `swarm.rs`, etc.) behind hidden `kineti run --legacy`; no `examples/` directory — `docs/v0.1.md` is the frozen reference.
+
+Docs: [`docs/DEMO.md`](docs/DEMO.md) (30s receipt demo + legacy 90s) · [`docs/RELEASE.md`](docs/RELEASE.md) (cut + release-notes) · [`docs/v0.1.md`](docs/v0.1.md) (frozen runner) · [`CONTRIBUTING.md`](CONTRIBUTING.md) · [`SECURITY.md`](SECURITY.md)
 
 Apache-2.0 — `v0.1.0` tag preserved, forkable.

@@ -27,10 +27,10 @@ price_per_1m_output = 25.0
 forbid = []
 
 [execution]
-# "single" = linear 13-stage pipeline (default) | "swarm" = parallel workers
+# "single" = linear 13-stage pipeline (default) | "swarm" = parallel workers (legacy, use `kineti run --legacy`)
 mode = "single"
 max_parallel_workers = 4
-# auto | git | scratchpad — how worker trees are isolated (Phase 5)
+# auto | git | scratchpad — how worker trees are isolated (Phase 5, legacy swarm only)
 worker_isolation = "auto"
 
 [limits]
