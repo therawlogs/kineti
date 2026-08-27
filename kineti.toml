@@ -15,9 +15,10 @@ price_per_1m_input = 12.5
 price_per_1m_output = 25.0
 
 [execution]
-mode = "single"              # "single" | "swarm" (swarm = legacy 13-stage, use --legacy)
+# v0.2 product is evidence → ship-check → verify (no mode). This only matters for `kineti run --legacy`.
+mode = "single"              # legacy 13-stage mode: single | swarm
 max_parallel_workers = 4
-worker_isolation = "auto"    # auto | git | scratchpad (swarm/legacy only)
+worker_isolation = "auto"    # legacy swarm only: auto | git | scratchpad
 
 [limits]
 global_usd = 50.0

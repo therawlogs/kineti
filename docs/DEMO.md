@@ -39,7 +39,7 @@ CI: same gate via `.github/actions/kineti-receipt` — set `verify-command: "car
 
 ## v0.1 — 90s 13-stage pipeline (frozen, `kineti run --legacy`)
 
-> Frozen on tag `v0.1.0` (`docs/v0.1.md`). Use `kineti run --legacy --goal` — hidden, prints legacy warning (`kineti run --help` shows `--legacy`). Kept for reference; not the homepage.
+> Frozen on tag `v0.1.0` (`docs/v0.1.md`). Use `kineti run --legacy --goal` — hidden, prints legacy warning (`kineti run --help` shows `--legacy`; without `--legacy` still works). Kept for reference; not the homepage.
 
 Setup:
 ```sh

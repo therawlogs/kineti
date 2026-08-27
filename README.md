@@ -4,7 +4,7 @@
 
 Claude, Cursor, Grok, and `fx` write code. Kineti writes the receipt and blocks merge if tests don't match files.
 
-> **v0.2:** Old 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`). Use `kineti run --legacy --goal "..."` for the old pipeline — it is hidden and prints a legacy warning (`kineti run --help` shows `--legacy`). The product is three commands and a red X on merge.
+> **v0.2:** Old 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`). Use `kineti run --legacy --goal "..."` for the old pipeline — hidden, prints legacy warning (`kineti run --help` shows `--legacy`; without `--legacy` still works). The product is three commands and a red X on merge.
 
 ```
 agent → gateway (cap, policy) → model API
@@ -83,15 +83,17 @@ mode = "single"
 
 Agents using OpenAI wire format point at the gateway via `[providers.*].base_url` (`src/provider.rs`). Gateway is stateless workers + one ledger per org; receipts are append-only, hashes + counts only — never raw prompts.
 
-## Receipt (v1)
+## Receipt
 
-`kineti receipt --json` line:
+`kineti receipt` prints text (spend + head + gates + DAG) — not JSON. Example proof bound to the fingerprint lives in `.kineti/evidence.json`:
 
 ```json
 {"v":"1","at":"2026-08-27T…Z","cmd":"cargo test","passed":true,"fingerprint":"abc…","chain_head":"def…","cost_usd":0.042}
 ```
 
-`ship-check` codes: `0` fresh, `1` stale/failed, `2` missing, `3` chain broken.
+FFI `kineti_receipt()` JSON shape (`goal`, `spend`, `gates`, `dag`, …) is in `include/kineti.h:79-88`.
+
+`ship-check` codes: `0` fresh, `1` stale/failed, `2` missing.
 
 ## Commands
 
@@ -106,7 +108,9 @@ Agents using OpenAI wire format point at the gateway via `[providers.*].base_url
 | `gateway --port 8787` | OpenAI proxy demo (hosted in `kineti-pro`) |
 | `clean-check` | scan for secrets / forbidden strings |
 | `serve` | local ledger daemon |
-| `provider-test` / `login` / `auth-status` | provider smoke-test + OAuth |
+| `provider-test` | smoke-test a provider |
+| `login --provider <name>` / `logout --provider <name>` / `auth-status` | PKCE OAuth |
+| `task --task <text>` | one freeform governed task (thin, legacy) |
 | `run --legacy --goal …` / `resume` / `undo` / `merge` | frozen 13-stage pipeline (v0.1.0, hidden, see `kineti run --help`) |
 
 ## Status

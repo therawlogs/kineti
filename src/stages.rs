@@ -1,4 +1,4 @@
-//! The 13-stage governed pipeline (WORKFLOWS.md compiled into control flow).
+//! The 13-stage governed pipeline (frozen, see docs/v0.1.md — was WORKFLOWS.md).
 //! Three hard gates: feasibility fail→stage 2 · SPEC human stop · ship proof gate.
 
 use std::collections::HashMap;

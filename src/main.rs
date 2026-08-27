@@ -23,7 +23,7 @@ enum Cmd {
         #[arg(long)]
         cmd: String,
     },
-    /// Run the ship proof gate — refuse if proof stale/missing (exit 1 = stale, 2 = missing, 3 = chain broken)
+    /// Run the ship proof gate — refuse if proof stale/missing (exit 1 = stale/failed, 2 = missing)
     ShipCheck,
     /// Verify the journal hash chain and print the head
     Verify {
@@ -565,7 +565,7 @@ fn cmd_ship_check() -> i32 {
             0
         }
         Err(e) => {
-            // exit codes: 2 = missing, 1 = stale/failed, 3 = chain broken (via verify)
+            // exit codes: 2 = missing, 1 = stale/failed
             let code = if e.contains("MISSING") { 2 } else { 1 };
             eprintln!("⛔ {e}");
             code

@@ -80,7 +80,7 @@ Run every check below BEFORE the first `git push`. All must pass.
       kineti-darwin-arm64 · kineti-darwin-x64
 - [x] `SHA256SUMS` lines are `<hash>  <asset>` so install.sh's
       `grep " $asset$"` matches
-- [x] Static musl targets build with zero C dependencies (pure-Rust dep tree)
+- [x] Static musl targets need `musl-tools` (ring via `ureq` compiles C; see `ci.yml:62-66` `install musl-tools`)
 - [x] `include/kineti.h` exists in the tagged commit (release-header uploads it)
 
 ### C. Pre-flight gates (same as "Cutting a release" step 1)
@@ -106,7 +106,7 @@ Run every check below BEFORE the first `git push`. All must pass.
 - [x] No tracked file >1 MB (GitHub hard limit 100 MB, warn 50 MB)
 - [x] `LICENSE` present and matches `license` field in Cargo.toml
 - [x] README install one-liner uses `https://getkineti.com/install.sh`
-- [x] Version in Cargo.toml is the intended first tag (`v0.1.0`)
+- [x] Version in Cargo.toml was the intended first tag (`v0.1.0`) at go-live — current is `0.2.0` (see Cutting a release #2)
 
 ### F. Post-push order (do not skip sequence)
 

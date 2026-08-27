@@ -2,7 +2,7 @@
 
 Thanks for looking at Kineti. The project is small and opinionated on purpose.
 
-**Product:** v0.2 is ship proof + spend fuse (`evidence → ship-check → verify` + gateway). The 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`, `kineti run --legacy --goal` hidden, prints legacy warning) — bug fixes only, no new stages.
+**Product:** v0.2 is ship proof + spend fuse (`evidence → ship-check → verify` + gateway). The 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`, `kineti run --legacy --goal` hidden, prints legacy warning; without `--legacy` still works) — bug fixes only, no new stages.
 
 ## Ground rules
 

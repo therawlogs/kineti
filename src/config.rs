@@ -15,7 +15,7 @@ default_model = "grok-4.20-non-reasoning"
 price_per_1m_input = 12.5
 price_per_1m_output = 25.0
 
-# Optional OAuth2/PKCE per provider — `kineti login grok` then skips env keys:
+# Optional OAuth2/PKCE per provider — `kineti login --provider grok` then skips env keys:
 # [providers.grok.auth]
 # client_id = "kineti-cli"
 # authorize_url = "https://idp.example.com/authorize"
@@ -27,10 +27,11 @@ price_per_1m_output = 25.0
 forbid = []
 
 [execution]
-# "single" = linear 13-stage pipeline (default) | "swarm" = parallel workers (legacy, use `kineti run --legacy`)
+# v0.2 product is evidence → ship-check → verify (no mode). This only matters for `kineti run --legacy`.
+# "single" = linear pipeline | "swarm" = parallel workers (legacy)
 mode = "single"
 max_parallel_workers = 4
-# auto | git | scratchpad — how worker trees are isolated (Phase 5, legacy swarm only)
+# legacy swarm only: auto | git | scratchpad — how worker trees are isolated (Phase 5)
 worker_isolation = "auto"
 
 [limits]

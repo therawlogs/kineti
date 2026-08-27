@@ -7,7 +7,7 @@
 ### Kept (this is 0.2 / future 1.0)
 
 - `evidence --cmd` bound to fingerprint (`src/enforce/evidence.rs`)
-- `ship-check` — exits 1 stale/failed, 2 missing, 3 chain broken
+- `ship-check` — exits 1 stale/failed, 2 missing
 - `verify` / `verify --all` — offline hash-chain check (`src/memory/journal.rs`)
 - `receipt` (v1 JSON) + `clean-check` + `serve` local ledger (`src/daemon.rs`)
 - Spend reserve/settle + `.kineti/spend.reset` human gate (`src/ipc/pool.rs`)

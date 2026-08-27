@@ -1,5 +1,5 @@
 //! Kineti — agent harness library.
-//! Context integrity, mechanical governance, chained memory (ETHOS.md).
+//! Context integrity, mechanical governance, chained memory (frozen spec, see docs/v0.1.md).
 //! The binary in main.rs is a thin CLI over this crate; tests/guarantees.rs
 //! pins every standing guarantee as an executable invariant.
 
