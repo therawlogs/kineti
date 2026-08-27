@@ -21,9 +21,9 @@ One loop. Thirteen stages. Three gates. Every stage reads memory first and write
 
 | # | Stage | Produces | Hard rule |
 |---|---|---|---|
-| 1 | officehours | brief.md + locked goal | No feature talk before pain is proven with examples |
+| 1 | officehours | brief.md + locked goal + UX Blueprint (Persona, Journey, Interaction Matrix, 3-Layer Split) | No feature talk before pain is proven with examples; UX blueprint must precede design |
 | 2 | diagnose | diagnostics.md (loss table, bottleneck map, cause chains) | Every dollar figure shows its math |
-| 3 | design | style brief, winning mockup, tokens file | No component code before a mockup wins |
+| 3 | design | style brief, HTML screen variants from UX blueprint, winning mockup, tokens file | No component code before HTML screen variants match UX blueprint |
 | 4 | architecture | architecture.md, diagrams, contracts, test matrix | Stack chosen by comparison math, never by default |
 | 5 | feasibility gate | feasibility.md, pass/fail per check | Any fail returns to stage 2 with reasons |
 | 6 | spec | spec.md | HARD STOP: no code before human approval |

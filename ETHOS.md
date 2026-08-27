@@ -6,7 +6,9 @@ Short, absolute rules. Skills propose. Programs enforce. Memory remembers.
 
 1.1 Use plain words. Remove jargon and metaphors so anyone can follow without interpretation.
 1.2 Present decisions as numbered options.
-1.3 Before any generative task, read `WORKFLOWS.md` and the project state. Do not skip gates.
+1.3 **UX-First Blueprint Before Tokens:** Before selecting visual archetypes, tokens, or generating code, complete a detailed **User Experience Blueprint** (User Persona, Visual Journey Flowchart, Screen Interaction Matrix with $X$ input / $Y$ output, and 3-Layer Split across Frontend, Backend, and Autonomous Agents). All HTML screen variants in `/design` must strictly derive from this blueprint.
+1.4 **Sequential Execution & File Memory:** Read `<project_root>/spec.md` and `state.json` before performing any generative task. Do not skip pipeline gates.
+1.5 **Strict Repository Asset Boundaries:** All visual mockups, screen previews, code, and test artifacts must be stored strictly inside the active project directory (`design/screens/`, `src/`). Never write to `/tmp` or global system folders.
 
 ## 2. Locked goal
 
