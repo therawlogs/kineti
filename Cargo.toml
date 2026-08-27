@@ -4,6 +4,12 @@ version = "0.2.0"
 edition = "2021"
 description = "Ship proof + spend fuse for any agent — gateway meter and merge stamp"
 license = "Apache-2.0"
+repository = "https://github.com/therawlogs/kineti"
+homepage = "https://www.getkineti.com"
+readme = "README.md"
+keywords = ["agent", "ci", "receipt", "devtools"]
+categories = ["command-line-utilities", "development-tools"]
+exclude = ["demo/", "dist/", "target/"]
 
 # rlib: normal Rust linking (bin, tests) ·
 # cdylib: Phase 9 C-ABI surface (kineti_run / kineti_verify / kineti_receipt)
