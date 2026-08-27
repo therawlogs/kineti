@@ -50,6 +50,12 @@ enum Cmd {
         #[arg(last = true)]
         command: Vec<String>,
     },
+    /// OpenAI-compatible gateway proxy with reserve/settle (demo; hosted in kineti-pro)
+    Gateway {
+        /// Port to listen on
+        #[arg(long, default_value = "8787")]
+        port: u16,
+    },
     /// One freeform governed task (legacy thin wrapper)
     Task {
         /// The task for the agent
@@ -129,6 +135,7 @@ fn main() {
         Cmd::CleanCheck => cmd_clean_check(),
         Cmd::Serve { foreground } => daemon::serve(std::path::Path::new("."), foreground),
         Cmd::Wrap { command } => cmd_wrap(&command),
+        Cmd::Gateway { port } => kineti::gateway::serve(port),
         Cmd::Task { task, provider, model } => cmd_run(&task, &provider, model.as_deref()),
         Cmd::ProviderTest { provider, model } => cmd_provider_test(&provider, model.as_deref()),
         Cmd::Login { provider } => cmd_login(&provider),
