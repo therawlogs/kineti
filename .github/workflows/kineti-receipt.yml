@@ -10,4 +10,4 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/kineti-receipt
         with:
-          verify-command: "cargo test --all"
+          verify-command: "cargo build && cargo test --all"

@@ -28,7 +28,9 @@ runs:
     - name: evidence (optional)
       if: inputs.verify-command != ''
       shell: bash
-      run: kineti evidence --cmd "${{ inputs.verify-command }}"
+      run: |
+        echo "→ kineti evidence --cmd ${{ inputs.verify-command }}"
+        kineti evidence --cmd "${{ inputs.verify-command }}"
     - name: ship-check (stale/missing → fail)
       shell: bash
       run: |
