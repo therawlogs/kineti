@@ -1,0 +1,46 @@
+name: "Kineti receipt"
+description: "Offline ship gate — fails if evidence missing, stale, or chain broken. No server required."
+branding:
+  icon: shield
+  color: green
+inputs:
+  verify-command:
+    description: 'Command that evidence binds to (e.g. "cargo test"). If set, runs evidence before check.'
+    required: false
+    default: ""
+  install:
+    description: "Install kineti binary if not on PATH (uses getkineti.com/install.sh)"
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: install kineti
+      if: inputs.install == 'true'
+      shell: bash
+      run: |
+        if ! command -v kineti >/dev/null 2>&1; then
+          curl -fsSL https://getkineti.com/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
+        fi
+        kineti --version
+    - name: evidence (optional)
+      if: inputs.verify-command != ''
+      shell: bash
+      run: kineti evidence --cmd "${{ inputs.verify-command }}"
+    - name: ship-check (stale/missing → fail)
+      shell: bash
+      run: |
+        echo "→ kineti ship-check"
+        kineti ship-check
+        echo "✔ proofs fresh"
+    - name: verify chain (offline)
+      shell: bash
+      run: |
+        echo "→ kineti verify --all"
+        kineti verify --all
+        echo "✔ chain clean"
+    - name: receipt
+      shell: bash
+      run: kineti receipt

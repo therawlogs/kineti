@@ -46,7 +46,7 @@ fn version_returns_static_string() {
     let v = kineti_version();
     assert!(!v.is_null());
     let s = unsafe { CStr::from_ptr(v) }.to_str().unwrap();
-    assert_eq!(s, "0.1.0");
+    assert_eq!(s, env!("CARGO_PKG_VERSION"));
     // deliberately NOT freed — static storage
 }
 
