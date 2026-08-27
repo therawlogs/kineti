@@ -33,7 +33,7 @@ curl -s http://localhost:8787/v1/chat/completions -H "Content-Type: application/
 kineti receipt
 ```
 
-CI: same gate via `.github/actions/kineti-receipt` — set `verify-command: "cargo test"` and the action runs `evidence --cmd` then `ship-check`+`verify --all` (no prior `.kineti/` needed).
+CI: same gate via `.github/actions/kineti-receipt` — set `verify-command: "cargo test --all"` and the action runs `evidence --cmd` then `ship-check`+`verify --all` (no prior `.kineti/` needed).
 
 ---
 
