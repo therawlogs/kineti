@@ -45,8 +45,24 @@ function save(dir: string, recs: Rec[]): void {
   fs.writeFileSync(journalFile(dir), body);
 }
 
-function recordHash(r: Rec): string {
-  return sha256(`${r.prev_hash}|${r.at}|${r.id}|${JSON.stringify(r.data)}`);
+// Canonicalization ported from src/memory/journal.rs: recursively key-sorted
+// JSON; stable=true converts every finite number to fixed 6-decimal strings
+// (compute_hash) while false keeps raw numbers (legacy compute_hash_v1).
+function canonStable(v: any, stable: boolean): string {
+  const norm = (x: any): any => {
+    if (x === null || typeof x !== "object") {
+      return (stable && typeof x === "number" && Number.isFinite(x)) ? x.toFixed(6) : x;
+    }
+    if (Array.isArray(x)) return x.map(norm);
+    const o: any = {};
+    for (const k of Object.keys(x).sort()) o[k] = norm(x[k]);
+    return o;
+  };
+  return JSON.stringify(norm(v));
+}
+
+function recordHash(r: Rec, stable: boolean): string {
+  return sha256(`${r.prev_hash}${r.at}${r.id}${canonStable(r.data, stable)}`);
 }
 
 function ageDays(iso: string): number {
@@ -79,22 +95,27 @@ function main() {
   }
 
   if (cmd === "verify-chain") {
-    const chain = load(dir)
-      .filter((r) => r.type === "run-record")
-      .sort((a, b) => a.at.localeCompare(b.at));
+    // Mirror src/memory/journal.rs::verify(): ONE chain over ALL record
+    // types in file order, float-stable canonicalization, with legacy
+    // (pre-float-stable) hash acceptance for day<3 journals.
+    const chain = load(dir);
     let prev = "GENESIS";
     for (const r of chain) {
-      if (r.prev_hash !== prev) {
-        console.error(`kineti: CHAIN BROKEN at ${r.id}: expected prev ${prev.slice(0, 8)}, found ${(r.prev_hash ?? "none").slice(0, 8)}`);
+      if (!r.prev_hash || !r.hash) {
+        console.error(`kineti: CHAIN BROKEN at ${r.id}: missing prev_hash/hash — append via JournalWriter, not raw JSONL`);
         process.exit(3);
       }
-      if (recordHash(r) !== r.hash) {
+      if (r.prev_hash !== prev) {
+        console.error(`kineti: CHAIN BROKEN at ${r.id}: expected prev ${prev.slice(0, 8)}, found ${r.prev_hash.slice(0, 8)}`);
+        process.exit(3);
+      }
+      if (recordHash(r, true) !== r.hash && recordHash(r, false) !== r.hash) {
         console.error(`kineti: TAMPER at ${r.id}: content hash mismatch`);
         process.exit(3);
       }
-      prev = r.hash!;
+      prev = r.hash;
     }
-    ok(`chain intact: ${chain.length} run-record(s)`);
+    ok(`chain intact: ${chain.length} record(s), head ${prev.slice(0, 12)}`);
     return;
   }
 
