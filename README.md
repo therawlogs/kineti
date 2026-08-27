@@ -26,10 +26,13 @@ kineti verify && kineti receipt      # offline check + summary
 
 ```sh
 curl -fsSL https://getkineti.com/install.sh | sh
-curl -fsSL https://getkineti.com/install.sh | sh -s v0.2.0  # pin — GitHub release body holds CHANGELOG v0.2.0 notes
+cargo install kineti
+cargo install --git https://github.com/therawlogs/kineti
 ```
 
-macOS (arm64/x64) and Linux (x64/arm64, musl-static preferred). From source: `cargo install --git https://github.com/therawlogs/kineti`
+Pin a version: `curl -fsSL https://getkineti.com/install.sh | sh -s v0.2.0` — GitHub release body holds CHANGELOG v0.2.0 notes.
+
+macOS (arm64/x64) and Linux (x64/arm64, musl-static preferred).
 
 Uninstall: `rm -f /usr/local/bin/kineti ~/.local/bin/kineti ~/.cargo/bin/kineti && rm -rf ~/.kineti/auth .kineti kineti.toml`
 
