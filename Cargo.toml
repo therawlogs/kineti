@@ -1,8 +1,8 @@
 [package]
 name = "kineti"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Agent harness — context integrity, mechanical governance, chained memory"
+description = "Ship proof + spend fuse for any agent — gateway meter and merge stamp"
 license = "Apache-2.0"
 
 # rlib: normal Rust linking (bin, tests) ·

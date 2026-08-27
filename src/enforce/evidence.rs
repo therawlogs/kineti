@@ -6,6 +6,7 @@ use std::path::Path;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct Proof {
+    pub v: String, // schema version, e.g. "1"
     pub fingerprint: String,
     pub command: String,
     pub passed: bool,
@@ -34,6 +35,7 @@ fn proof_path(root: &Path) -> std::path::PathBuf {
 
 pub fn record(root: &Path, cmd: &str, passed: bool, exit_code: i32) -> Proof {
     let proof = Proof {
+        v: "1".into(),
         fingerprint: fingerprint(root),
         command: cmd.to_string(),
         passed,

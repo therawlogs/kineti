@@ -14,6 +14,7 @@ pub mod integrity;
 pub mod ipc;
 pub mod light;
 pub mod memory;
+pub mod gateway;
 pub mod provider;
 pub mod plan;
 pub mod quarantine;

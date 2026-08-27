@@ -163,6 +163,7 @@ pub fn egress_map(summary: &ReceiptSummary) -> BTreeMap<String, usize> {
 /// the wire shape stable regardless of internal struct churn.
 pub fn to_json(s: &ReceiptSummary) -> serde_json::Value {
     serde_json::json!({
+        "v": "1",
         "goal": s.goal,
         "records": s.records,
         "chain_head": s.chain_head,

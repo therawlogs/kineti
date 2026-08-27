@@ -6,7 +6,7 @@ use kineti::{agent_loop, config, daemon, enforce, ipc, light, memory, provider, 
 #[command(
     name = "kineti",
     version,
-    about = "Agent harness — context integrity, mechanical governance, chained memory"
+    about = "Ship proof + spend fuse for any agent — gateway meter and merge stamp"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -17,23 +17,46 @@ struct Cli {
 enum Cmd {
     /// Scaffold .kineti/ state and kineti.toml in the current directory
     Init,
-    /// Run the full 13-stage governed pipeline on a goal
-    Run {
-        /// The locked root goal
+    /// Run a command and bind its result to a code fingerprint (default product)
+    Evidence {
+        /// The verification command, e.g. "cargo test"
         #[arg(long)]
-        goal: String,
-        #[arg(long, default_value = "gemini")]
-        provider: String,
-        #[arg(long)]
-        model: Option<String>,
-        /// Override global spend cap (demo aid)
-        #[arg(long)]
-        cap: Option<f64>,
-        /// Override [execution].mode ("single" | "swarm")
-        #[arg(long)]
-        mode: Option<String>,
+        cmd: String,
     },
-    /// One freeform governed task (no stage machine)
+    /// Run the ship proof gate — refuse if proof stale/missing (exit 1 = stale, 2 = missing, 3 = chain broken)
+    ShipCheck,
+    /// Verify the journal hash chain and print the head
+    Verify {
+        /// Full DAG check: main chain + every merged branch + orphan closure
+        #[arg(long)]
+        all: bool,
+    },
+    /// Print the hash-chained receipt summary (spend + hashes + gates)
+    Receipt {
+        #[arg(long)]
+        last: bool,
+    },
+    /// Scan project files for names/home-paths/secrets — zero matches required
+    CleanCheck,
+    /// Run the kinetid governance daemon on .kineti/kineti.sock
+    Serve {
+        /// Accepted for symmetry; serve always runs in-process (spawners detach it).
+        #[arg(long)]
+        foreground: bool,
+    },
+    /// Wrap an external agent under the spend cap: kineti wrap -- claude -p "..."
+    Wrap {
+        /// The command to run under the cap (after --)
+        #[arg(last = true)]
+        command: Vec<String>,
+    },
+    /// OpenAI-compatible gateway proxy with reserve/settle (demo; hosted in kineti-pro)
+    Gateway {
+        /// Port to listen on
+        #[arg(long, default_value = "8787")]
+        port: u16,
+    },
+    /// One freeform governed task (legacy thin wrapper)
     Task {
         /// The task for the agent
         #[arg(long)]
@@ -43,36 +66,12 @@ enum Cmd {
         #[arg(long)]
         model: Option<String>,
     },
-    /// Resume the pipeline from the last saved stage
-    Resume {
+    /// Send one tiny completion to a provider (smoke test)
+    ProviderTest {
         #[arg(long, default_value = "gemini")]
         provider: String,
         #[arg(long)]
         model: Option<String>,
-    },
-    /// Roll back saga-registered file changes, newest-first
-    Undo,
-    /// Run a command and bind its result to a code fingerprint
-    Evidence {
-        /// The verification command, e.g. "cargo test"
-        #[arg(long)]
-        cmd: String,
-    },
-    /// Run the ship proof gate only (fresh-fingerprint check)
-    ShipCheck,
-    /// Verify the journal hash chain and print the head
-    Verify {
-        /// Full DAG check: main chain + every merged branch + orphan closure
-        #[arg(long)]
-        all: bool,
-    },
-    /// Scan project files for names/home-paths/secrets — zero matches required (ETHOS §8.2)
-    CleanCheck,
-    /// Commit a branch journal into the main chain with a 2-parent merge record
-    Merge {
-        /// The branch name (journal.<branch>.jsonl)
-        #[arg(long)]
-        branch: String,
     },
     /// OAuth2/PKCE login for a configured provider (opens browser)
     Login {
@@ -87,23 +86,35 @@ enum Cmd {
     },
     /// List stored OAuth tokens and expiry state
     AuthStatus,
-    /// Run the kinetid governance daemon on .kineti/kineti.sock
-    Serve {
-        /// Accepted for symmetry; serve always runs in-process (spawners detach it).
+    // ── legacy (hidden from default help) ──
+    /// Legacy 13-stage pipeline — frozen at v0.1.0, see docs/v0.1.md
+    #[command(hide = true)]
+    Run {
+        /// The locked root goal
         #[arg(long)]
-        foreground: bool,
-    },
-    /// Print the hash-chained run record summary
-    Receipt {
-        #[arg(long)]
-        last: bool,
-    },
-    /// Send one tiny completion to a provider (smoke test)
-    ProviderTest {
+        goal: String,
         #[arg(long, default_value = "gemini")]
         provider: String,
         #[arg(long)]
         model: Option<String>,
+        #[arg(long)]
+        cap: Option<f64>,
+        #[arg(long)]
+        mode: Option<String>,
+    },
+    #[command(hide = true)]
+    Resume {
+        #[arg(long, default_value = "gemini")]
+        provider: String,
+        #[arg(long)]
+        model: Option<String>,
+    },
+    #[command(hide = true)]
+    Undo,
+    #[command(hide = true)]
+    Merge {
+        #[arg(long)]
+        branch: String,
     },
 }
 
@@ -117,40 +128,36 @@ fn main() {
     let cli = Cli::parse();
     let code = match cli.cmd {
         Cmd::Init => cmd_init(),
+        Cmd::Evidence { cmd } => cmd_evidence(&cmd),
+        Cmd::ShipCheck => cmd_ship_check(),
+        Cmd::Verify { all } => cmd_verify(all),
+        Cmd::Receipt { .. } => cmd_receipt(),
+        Cmd::CleanCheck => cmd_clean_check(),
+        Cmd::Serve { foreground } => daemon::serve(std::path::Path::new("."), foreground),
+        Cmd::Wrap { command } => cmd_wrap(&command),
+        Cmd::Gateway { port } => kineti::gateway::serve(port),
+        Cmd::Task { task, provider, model } => cmd_run(&task, &provider, model.as_deref()),
+        Cmd::ProviderTest { provider, model } => cmd_provider_test(&provider, model.as_deref()),
+        Cmd::Login { provider } => cmd_login(&provider),
+        Cmd::Logout { provider } => cmd_logout(&provider),
+        Cmd::AuthStatus => cmd_auth_status(),
         Cmd::Run { goal, provider, model, cap, mode } => {
+            eprintln!("⚠ `kineti run` is legacy — frozen at v0.1.0. See docs/v0.1.md");
+            eprintln!("  The product is now: evidence → ship-check → verify (gateway meter + stamp).");
             cmd_pipeline(&goal, &provider, model.as_deref(), cap, mode)
         }
-        Cmd::Task { task, provider, model } => cmd_run(&task, &provider, model.as_deref()),
         Cmd::Resume { provider, model } => {
+            eprintln!("⚠ `kineti resume` is legacy — see docs/v0.1.md");
             match std::fs::read_to_string(".kineti/root_goal") {
                 Ok(goal) => resume_pipeline(goal.trim(), &provider, model.as_deref()),
                 Err(_) => {
-                    eprintln!("no root goal found — run `kineti run --goal …` first");
+                    eprintln!("no root goal found — `kineti run` was the legacy pipeline");
                     1
                 }
             }
         }
         Cmd::Undo => cmd_undo(),
-        Cmd::Evidence { cmd } => cmd_evidence(&cmd),
-        Cmd::Receipt { .. } => cmd_receipt(),
-        Cmd::ShipCheck => match enforce::evidence::check_ship(std::path::Path::new(".")) {
-            Ok(proof) => {
-                println!("✔ proofs FRESH ({} at {})", proof.command, proof.at);
-                0
-            }
-            Err(e) => {
-                eprintln!("⛔ {e}");
-                1
-            }
-        },
-        Cmd::Verify { all } => cmd_verify(all),
-        Cmd::CleanCheck => cmd_clean_check(),
         Cmd::Merge { branch } => cmd_merge(&branch),
-        Cmd::Login { provider } => cmd_login(&provider),
-        Cmd::Logout { provider } => cmd_logout(&provider),
-        Cmd::AuthStatus => cmd_auth_status(),
-        Cmd::Serve { foreground } => daemon::serve(std::path::Path::new("."), foreground),
-        Cmd::ProviderTest { provider, model } => cmd_provider_test(&provider, model.as_deref()),
     };
     std::process::exit(code);
 }
@@ -543,6 +550,60 @@ fn cmd_merge(branch: &str) -> i32 {
         }
         Err(e) => {
             eprintln!("⛔ merge failed: {e}");
+            1
+        }
+    }
+}
+
+fn cmd_ship_check() -> i32 {
+    match enforce::evidence::check_ship(std::path::Path::new(".")) {
+        Ok(proof) => {
+            println!("✔ proofs FRESH ({} at {})", proof.command, proof.at);
+            0
+        }
+        Err(e) => {
+            // exit codes: 2 = missing, 1 = stale/failed, 3 = chain broken (via verify)
+            let code = if e.contains("MISSING") { 2 } else { 1 };
+            eprintln!("⛔ {e}");
+            code
+        }
+    }
+}
+
+fn cmd_wrap(command: &[String]) -> i32 {
+    if command.is_empty() {
+        eprintln!("usage: kineti wrap -- <command> [args...]");
+        return 1;
+    }
+    let cfg = config::Config::load();
+    let ceilings = ceilings_from(&cfg, None);
+    let root = std::env::current_dir().expect("cwd");
+    // reserve a small estimate for the wrapped command's potential model calls
+    // (actual spend tracked inside agent_loop; this is just a cap check)
+    let ctx = crate::ipc::dto::ReserveCtx {
+        stage: "wrap".into(),
+        worker: String::new(),
+        est_micro_usd: 0,
+    };
+    match crate::ipc::select_backends(&root, ceilings) {
+        Ok((svc, _)) => {
+            if let Err(e) = svc.reserve(&ctx) {
+                eprintln!("⛔ {e}");
+                return 1;
+            }
+        }
+        Err(e) => {
+            eprintln!("⛔ ledger: {e}");
+            return 1;
+        }
+    }
+    let status = std::process::Command::new(&command[0])
+        .args(&command[1..])
+        .status();
+    match status {
+        Ok(s) => s.code().unwrap_or(1),
+        Err(e) => {
+            eprintln!("wrap spawn failed: {e}");
             1
         }
     }
