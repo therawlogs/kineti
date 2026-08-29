@@ -1,8 +1,8 @@
 [package]
 name = "kineti"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
-description = "Ship proof + spend fuse for any agent — gateway meter and merge stamp"
+description = "Ship proof + spend fuse for any agent — gateway meter and merge stamp (artifacts + swarm)"
 license = "Apache-2.0"
 repository = "https://github.com/therawlogs/kineti"
 homepage = "https://www.getkineti.com"

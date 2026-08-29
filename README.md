@@ -2,7 +2,7 @@
 
 **Ship proof + spend fuse for any agent. The meter and the stamp.**
 
-Claude, Cursor, Grok, and `fx` write code. Kineti writes the receipt and blocks merge if tests don't match files.
+Claude, Cursor, Grok, `fx`, or any shell task produce artifacts. Kineti binds *any* verification to file hashes, caps the bill, and fails merge if the proof is stale.
 
 > **v0.2:** Old 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`). Use `kineti run --legacy --goal "..."` for the old pipeline — hidden, prints legacy warning (`kineti run --help` shows `--legacy`; without `--legacy` still works). The product is three commands and a red X on merge.
 
@@ -15,12 +15,13 @@ agent → gateway (cap, policy) → model API
 ```
 
 ```sh
-kineti evidence --cmd "cargo test"   # bind tests to current files
+kineti evidence --cmd "cargo test"   # any verify cmd: pytest / npm test / ./verify.sh — binds to artifact hashes
 kineti ship-check                    # gate: 0 fresh, 1 stale, 2 missing
 kineti verify && kineti receipt      # offline check + summary
+kineti swarm --tasks tasks.jsonl --cap 10  # one command: fan-out N agents, same caps + proofs
 ```
 
-`verify` is offline — no server required.
+`verify` is offline — no server required. `swarm` fans out N agents (LLM prompts or shell `command`s) under one spend cap and auto-binds a fresh proof.
 
 ## Install
 
@@ -63,51 +64,67 @@ Fails if receipt missing, stale, or fingerprint doesn't match current files.
 
 ```sh
 kineti init                                   # .kineti/ + kineti.toml
-kineti evidence --cmd "cargo test"
+kineti evidence --cmd "cargo test"            # or pytest / npm test / make check / ./verify.sh
 kineti ship-check
 kineti receipt
 kineti verify --all
 kineti wrap -- cargo test                     # run any command under the cap
+kineti swarm --tasks tasks.jsonl --cap 10     # swarm — see tasks.jsonl below
 kineti gateway --port 8787 &                  # OpenAI proxy demo (reserve/settle)
+```
+
+`tasks.jsonl` — one JSON per line (`prompt` for LLM agent, `command` for shell):
+```jsonl
+{"id":"research","prompt":"Research pricing and write docs/pricing.md"}
+{"id":"tests","command":"cargo test --all"}
 ```
 
 ## Configuration
 
-`kineti.toml` — caps, model prices, verify command. Never compiled in.
+`kineti.toml` — caps, artifact fingerprint, proof command. Never compiled in.
 
 ```toml
+[artifacts]
+include = ["**/*"]
+exclude = [".git", ".kineti", "target", "node_modules", "dist", "build", ".next"]
+max_file_bytes = 4194304  # skip large binaries/datasets above 4 MiB
+
+[proof]
+command = "cargo test"   # default for `evidence` when --cmd omitted; any verify cmd works
+
 [limits]
 global_usd = 50.0
-per_stage_usd = 10.0        # 0 disables
-verify_command = "cargo test"
+per_stage_usd = 10.0        # per-scope cap for any agent; 0 disables
+
 [execution]
-mode = "single"
+max_parallel_workers = 4   # swarm concurrency
 ```
 
-Agents using OpenAI wire format point at the gateway via `[providers.*].base_url` (`src/provider.rs`). Gateway is stateless workers + one ledger per org; receipts are append-only, hashes + counts only — never raw prompts.
+`[artifacts]` controls the fingerprint for any work product (code, docs, configs, data). Agents using OpenAI wire format point at the gateway via `[providers.*].base_url` (`src/provider.rs`). Gateway is stateless workers + one ledger per org; receipts store hashes + counts only — never raw prompts.
 
 ## Receipt
 
-`kineti receipt` prints text (spend + head + gates + DAG) — not JSON. Example proof bound to the fingerprint lives in `.kineti/evidence.json`:
+`kineti receipt` prints text (spend + head + gates + DAG) — not JSON. Example proof bound to artifact fingerprint lives in `.kineti/evidence.json`:
 
 ```json
 {"v":"1","at":"2026-08-27T…Z","cmd":"cargo test","passed":true,"fingerprint":"abc…","chain_head":"def…","cost_usd":0.042}
 ```
 
-FFI `kineti_receipt()` JSON shape (`goal`, `spend`, `gates`, `dag`, …) is in `include/kineti.h:79-88`.
+`cmd` can be any verification (code tests, docs lint, data check). FFI `kineti_receipt()` JSON shape (`goal`, `spend`, `gates`, `dag`, …) is in `include/kineti.h:79-88`.
 
-`ship-check` codes: `0` fresh, `1` stale/failed, `2` missing.
+`ship-check` codes: `0` fresh, `1` stale/failed, `2` missing. Fails when *artifacts* changed since the proof (not just `code`).
 
 ## Commands
 
 | Command | Purpose |
 |---|---|
 | `init` | scaffold `.kineti/` + `kineti.toml` |
-| `evidence --cmd …` | bind proof to fingerprint |
-| `ship-check` | gate — refuse if stale/missing |
+| `evidence --cmd …` | bind proof to artifact fingerprint (any verify cmd). Omitting `--cmd` uses `[proof].command` |
+| `ship-check` | gate — refuse if stale/missing (artifacts changed) |
 | `verify [--all]` | offline hash-chain check |
 | `receipt` | spend + gates + DAG |
 | `wrap -- <cmd>` | run any command under the cap |
+| `swarm --tasks <file> [--cap N]` | fan-out N agents (LLM `prompt` or shell `command`) under one cap; merges + re-proofs |
 | `gateway --port 8787` | OpenAI proxy demo (hosted in `kineti-pro`) |
 | `clean-check` | scan for secrets / forbidden strings |
 | `serve` | local ledger daemon |

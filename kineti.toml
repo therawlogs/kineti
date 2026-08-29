@@ -1,4 +1,4 @@
-# Kineti configuration. Model names are data, never compiled in.
+# Kineti configuration — any agent. Model names are data, never compiled in.
 
 [providers.gemini]
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
@@ -14,13 +14,34 @@ default_model = "grok-4.20-non-reasoning"
 price_per_1m_input = 12.5
 price_per_1m_output = 25.0
 
+[artifacts]
+# which files count toward the proof fingerprint — any work product (code, docs, data, configs)
+include = ["**/*"]
+exclude = [".git", ".kineti", "target", "node_modules", "dist", "build", ".next", "coverage", "tmp", ".cache", "legacy"]
+max_file_bytes = 4194304
+follow_symlinks = false
+
+[proof]
+# default verification command for `kineti evidence` / `ship-check` when --cmd not given
+# works for any agent: "cargo test" | "pytest" | "npm test" | "make check" | "./verify.sh" | "python -m verify"
+command = "cargo test"
+# legacy alias still honored: [limits].verify_command
+
 [execution]
-# v0.2 product is evidence → ship-check → verify (no mode). This only matters for `kineti run --legacy`.
-mode = "single"              # legacy 13-stage mode: single | swarm
-max_parallel_workers = 4
-worker_isolation = "auto"    # legacy swarm only: auto | git | scratchpad
+# v0.2+ product is evidence → ship-check → verify + swarm (any agent). `run --legacy` is frozen.
+mode = "single"              # single | swarm (legacy)
+max_parallel_workers = 4     # swarm concurrency for `kineti swarm`
+worker_isolation = "auto"    # auto | git | scratchpad — how swarm workers are isolated
 
 [limits]
 global_usd = 50.0
-per_stage_usd = 10.0
+per_stage_usd = 10.0         # per-scope cap (any agent spend via gateway/wrap). 0 disables.
 context_char_budget = 24000
+
+# Swarm tasks (alternative to --tasks file) — `kineti swarm` reads these when no file is given:
+# [[swarm.tasks]]
+# id = "research"
+# prompt = "Research pricing tables and write docs/pricing.md"
+# [[swarm.tasks]]
+# id = "build-api"
+# command = "cargo test --all"

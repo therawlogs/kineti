@@ -9,17 +9,28 @@ mkdir -p /tmp/kineti-demo && cd /tmp/kineti-demo
 kineti init
 echo 'echo hi' > greeting.sh && chmod +x greeting.sh
 
-kineti evidence --cmd "./greeting.sh"   # bind proof to fingerprint
+kineti evidence --cmd "./greeting.sh"   # bind proof to artifact fingerprint (any verify cmd)
 kineti ship-check                       # 0 = fresh
 kineti receipt                          # $ + head + gates
 kineti verify --all                     # offline hash-chain
 
-# sabotage: edit greeting.sh, then see gate refuse
+# generic: same gate works for docs / data / configs, not just code
+#   kineti evidence --cmd "pytest"      # or "npm test" / "make check" / "./verify.sh"
+#   kineti evidence --cmd "python -m verify_data"
+
+# sabotage: edit artifact, then see gate refuse
 echo 'echo hacked' > greeting.sh
-kineti ship-check                       # ⛔ STALE proof
+kineti ship-check                       # ⛔ STALE proof (artifacts changed)
 
 kineti evidence --cmd "./greeting.sh"   # re-bind after fix
 kineti ship-check                       # ✔ FRESH
+
+# swarm: one command fans out N agents (LLM prompts + shell commands) under one cap
+cat > tasks.jsonl <<'EOF'
+{"id":"a","prompt":"Write docs/notes.md with one insight about Kineti"}
+{"id":"b","command":"./greeting.sh"}
+EOF
+kineti swarm --tasks tasks.jsonl --cap 5
 ```
 
 With gateway (optional demo):
@@ -46,8 +57,9 @@ Setup:
 mkdir -p /tmp/kineti-demo && cd /tmp/kineti-demo
 kineti init
 export GEMINI_API_KEY=...  # or XAI_API_KEY with --provider grok
-# verify_command in kineti.toml so ship gate has something to bind:
-#   [limits] verify_command = "./greeting.sh"
+# proof command in kineti.toml so ship gate has something to bind:
+#   [proof] command = "./greeting.sh"
+# legacy alias still works: [limits] verify_command
 ```
 
 Script (legacy pipeline):

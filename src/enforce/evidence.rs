@@ -1,5 +1,6 @@
-//! Evidence (ETHOS §5, D1): test results bind to a fingerprint of the code.
-//! Ship refuses STALE or MISSING proofs. Assertions are not evidence.
+//! Evidence (ETHOS §5, D1): verification results bind to a fingerprint of ANY artifacts.
+//! Ship refuses STALE or MISSING proofs. Works for code, docs, datasets, configs — any work product.
+//! Fingerprint respects [artifacts] in kineti.toml (include/exclude globs, max bytes).
 
 use sha2::{Digest, Sha256};
 use std::path::Path;
@@ -14,17 +15,23 @@ pub struct Proof {
     pub at: String,
 }
 
-/// Fingerprint = sha256 over sorted (rel_path, content) of all project files.
+/// Fingerprint = sha256 over sorted (rel_path, content) of tracked artifact files.
+/// Honors [artifacts] config (include/exclude/max_file_bytes) — generic for any agent.
 pub fn fingerprint(root: &Path) -> String {
+    let cfg = crate::config::Config::load_from(root).artifacts;
+    fingerprint_with_config(root, &cfg)
+}
+
+pub fn fingerprint_with_config(root: &Path, cfg: &crate::config::Artifacts) -> String {
     let mut files = vec![];
-    crate::tools::walk_all(root, &mut files);
+    crate::tools::walk_all_with_config(root, cfg, &mut files);
     files.sort();
     let mut h = Sha256::new();
     for f in files {
         let rel = f.strip_prefix(root).unwrap_or(&f).to_string_lossy().to_string();
-        let content = std::fs::read_to_string(&f).unwrap_or_default();
+        let content = std::fs::read(&f).unwrap_or_default();
         h.update(rel.as_bytes());
-        h.update(content.as_bytes());
+        h.update(&content);
     }
     h.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
@@ -53,10 +60,10 @@ pub fn load(root: &Path) -> Option<Proof> {
         .and_then(|s| serde_json::from_str(&s).ok())
 }
 
-/// Ship gate (ETHOS §10.3 / §5.2): fresh + passing proof on the CURRENT code.
+/// Ship gate (ETHOS §10.3 / §5.2): fresh + passing proof on the CURRENT artifacts.
 pub fn check_ship(root: &Path) -> Result<Proof, String> {
     let proof = load(root).ok_or_else(|| {
-        "SHIP REFUSED — MISSING proof: no test evidence exists. Run the verify command first."
+        "SHIP REFUSED — MISSING proof: no proof evidence exists. Run your proof command first (e.g. kineti evidence --cmd \"...\")."
             .to_string()
     })?;
     if !proof.passed {
@@ -68,7 +75,7 @@ pub fn check_ship(root: &Path) -> Result<Proof, String> {
     let current = fingerprint(root);
     if current != proof.fingerprint {
         return Err(format!(
-            "SHIP REFUSED — STALE proof: code changed since {} ran at {}. Re-run proofs.",
+            "SHIP REFUSED — STALE proof: artifacts changed since {} ran at {}. Re-run proofs.",
             proof.command, proof.at
         ));
     }

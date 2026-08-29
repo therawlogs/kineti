@@ -251,21 +251,64 @@ fn glob_match(pattern: &str, path: &str) -> bool {
 }
 
 fn walk_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let cfg = crate::config::Artifacts::default();
+    walk_filtered(dir, &cfg, out, dir)
+}
+
+fn walk_filtered(root: &Path, cfg: &crate::config::Artifacts, out: &mut Vec<PathBuf>, dir: &Path) {
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
     };
     for e in entries.flatten() {
         let p = e.path();
-        if p.is_dir() {
-            let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
-            if name != ".git" && name != "target" && name != ".kineti" && name != "node_modules" {
-                walk_files(&p, out);
+        // symlink handling
+        if !cfg.follow_symlinks {
+            if let Ok(meta) = std::fs::symlink_metadata(&p) {
+                if meta.file_type().is_symlink() { continue; }
             }
+        }
+        // dir handling — check exclude early
+        if p.is_dir() {
+            let rel = p.strip_prefix(root).unwrap_or(&p).to_string_lossy().to_string();
+            // directory exclude: match against rel path + bare name
+            let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if is_excluded(&rel, &name, &cfg.exclude) { continue; }
+            // legacy hardcoded fast-path + generic globs
+            walk_filtered(root, cfg, out, &p);
         } else {
+            // file — size gate first
+            if cfg.max_file_bytes > 0 {
+                if let Ok(meta) = std::fs::metadata(&p) {
+                    if meta.len() as usize > cfg.max_file_bytes { continue; }
+                }
+            }
+            let rel = p.strip_prefix(root).unwrap_or(&p).to_string_lossy().to_string();
+            let name = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+            if is_excluded(&rel, &name, &cfg.exclude) { continue; }
+            if !is_included(&rel, &cfg.include) { continue; }
             out.push(p);
         }
     }
+}
+
+fn is_excluded(rel: &str, name: &str, exclude: &[String]) -> bool {
+    for pat in exclude {
+        // bare name match (e.g. "target") + full rel glob
+        if pat == name || glob_match(pat, rel) || glob_match(pat, name) || rel.starts_with(&format!("{pat}/")) || rel.contains(&format!("/{pat}/")) {
+            return true;
+        }
+    }
+    false
+}
+fn is_included(rel: &str, include: &[String]) -> bool {
+    if include.is_empty() { return true; }
+    for pat in include {
+        if glob_match(pat, rel) { return true; }
+        // support "**/*" fast path
+        if pat == "**/*" || pat == "*" { return true; }
+    }
+    false
 }
 
 fn run_glob(root: &Path, args: &serde_json::Value) -> Result<String, String> {
@@ -337,8 +380,15 @@ pub fn execute(root: &Path, name: &str, arguments: &str) -> Result<String, Strin
 }
 
 /// Public recursive listing (evidence fingerprints use this).
+/// Honors [artifacts] config when available — generic for any agent, not code-only.
 pub fn walk_all(root: &Path, out: &mut Vec<PathBuf>) {
-    walk_files(root, out)
+    let cfg = crate::config::Config::load_from(root).artifacts;
+    walk_filtered(root, &cfg, out, root)
+}
+
+/// Generic listing with explicit artifacts config.
+pub fn walk_all_with_config(root: &Path, cfg: &crate::config::Artifacts, out: &mut Vec<PathBuf>) {
+    walk_filtered(root, cfg, out, root)
 }
 
 #[cfg(test)]

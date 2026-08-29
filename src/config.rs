@@ -26,21 +26,41 @@ price_per_1m_output = 25.0
 # extra case-insensitive forbidden substrings (team/client/project names)
 forbid = []
 
+# ── Generic artifact fingerprint (any agent) ──────────────────────────────
+# Which files count toward the proof fingerprint. Works for code, docs,
+# datasets, configs — any work product an agent produces.
+[artifacts]
+# glob patterns relative to repo root; first match wins. Empty = defaults.
+include = ["**/*"]
+exclude = [".git", ".kineti", "target", "node_modules", "dist", "build", ".next", "coverage", "tmp", ".cache", "legacy"]
+# skip files larger than this (bytes) — avoids hashing large binaries/datasets; 0 = no limit
+max_file_bytes = 4194304
+follow_symlinks = false
+
+[proof]
+# default verification command for `evidence` / `ship-check` when --cmd not given.
+# Works for any agent: "cargo test", "pytest", "npm test", "make check", "./verify.sh"
+command = ""
+# legacy alias still honored: [limits].verify_command
+
 [execution]
 # v0.2 product is evidence → ship-check → verify (no mode). This only matters for `kineti run --legacy`.
-# "single" = linear pipeline | "swarm" = parallel workers (legacy)
+# "single" = linear pipeline | "swarm" = parallel workers
 mode = "single"
 max_parallel_workers = 4
-# legacy swarm only: auto | git | scratchpad — how worker trees are isolated (Phase 5)
+# swarm only: auto | git | scratchpad — how worker trees are isolated (Phase 5)
 worker_isolation = "auto"
 
 [limits]
 global_usd = 50.0
-# per-stage ceiling, ENFORCED (ETHOS §3.1). Set 0 to disable.
+# per-scope ceiling, ENFORCED (ETHOS §3.1). Applies to any agent spend via gateway/wrap. 0 = disabled.
 per_stage_usd = 10.0
+# legacy alias: per_stage_usd = per-scope cap; keep name for compat
 # per-worker ceiling for swarm mode. 0 = disabled.
 # max_worker_usd = 25.0
 context_char_budget = 24000
+# legacy: use [proof].command instead
+# verify_command = "cargo test"
 "#;
 
 /// Optional per-provider OAuth2 (PKCE) endpoints. When a token exists for
@@ -113,6 +133,36 @@ pub struct CleanFiles {
     pub forbid: Vec<String>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+pub struct Artifacts {
+    #[serde(default = "d_art_include")]
+    pub include: Vec<String>,
+    #[serde(default = "d_art_exclude")]
+    pub exclude: Vec<String>,
+    #[serde(default = "d_art_max_bytes")]
+    pub max_file_bytes: usize,
+    #[serde(default)]
+    pub follow_symlinks: bool,
+}
+fn d_art_include() -> Vec<String> { vec!["**/*".into()] }
+fn d_art_exclude() -> Vec<String> {
+    vec![".git".into(), ".kineti".into(), "target".into(), "node_modules".into(),
+         "dist".into(), "build".into(), ".next".into(), "coverage".into(),
+         "tmp".into(), ".cache".into(), "legacy".into()]
+}
+fn d_art_max_bytes() -> usize { 4 * 1024 * 1024 }
+impl Default for Artifacts {
+    fn default() -> Self {
+        Artifacts { include: d_art_include(), exclude: d_art_exclude(), max_file_bytes: d_art_max_bytes(), follow_symlinks: false }
+    }
+}
+
+#[derive(Deserialize, Clone, Default, Debug)]
+pub struct ProofCfg {
+    #[serde(default)]
+    pub command: String,
+}
+
 #[derive(Deserialize, Clone)]
 pub struct Config {
     pub providers: std::collections::HashMap<String, ProviderCfg>,
@@ -120,6 +170,10 @@ pub struct Config {
     pub limits: Limits,
     #[serde(default)]
     pub clean_files: CleanFiles,
+    #[serde(default)]
+    pub artifacts: Artifacts,
+    #[serde(default)]
+    pub proof: ProofCfg,
     #[serde(default)]
     pub execution: Execution,
 }
@@ -137,14 +191,35 @@ impl Limits {
 
 impl Config {
     /// Load kineti.toml from cwd; fall back to built-in defaults when absent.
-    pub fn load() -> Self {
-        match std::fs::read_to_string("kineti.toml") {
+    pub fn load() -> Self { Self::load_from(std::path::Path::new(".")) }
+
+    pub fn load_from(root: &std::path::Path) -> Self {
+        let path = root.join("kineti.toml");
+        let mut cfg: Self = match std::fs::read_to_string(&path) {
             Ok(s) => toml::from_str(&s).unwrap_or_else(|e| {
-                eprintln!("kineti.toml parse error ({e}); using defaults");
+                eprintln!("kineti.toml parse error at {} ({e}); using defaults", path.display());
                 toml::from_str(DEFAULT_TOML).expect("built-in default toml must parse")
             }),
-            Err(_) => toml::from_str(DEFAULT_TOML).expect("built-in default toml must parse"),
+            Err(_) => {
+                // fallback to cwd for backwards compat when root != cwd but file only at cwd
+                if root != std::path::Path::new(".") {
+                    if let Ok(s) = std::fs::read_to_string("kineti.toml") {
+                        if let Ok(c) = toml::from_str::<Self>(&s) { return { let mut c2 = c; if c2.proof.command.trim().is_empty() && !c2.limits.verify_command.trim().is_empty() { c2.proof.command = c2.limits.verify_command.clone(); } c2 } }
+                    }
+                }
+                toml::from_str(DEFAULT_TOML).expect("built-in default toml must parse")
+            },
+        };
+        // legacy alias: [limits].verify_command → [proof].command
+        if cfg.proof.command.trim().is_empty() && !cfg.limits.verify_command.trim().is_empty() {
+            cfg.proof.command = cfg.limits.verify_command.clone();
         }
+        cfg
+    }
+
+    /// Unified proof command — honors [proof].command first, then legacy [limits].verify_command.
+    pub fn proof_command(&self) -> String {
+        if !self.proof.command.trim().is_empty() { self.proof.command.clone() } else { self.limits.verify_command.clone() }
     }
 
     pub fn provider(&self, name: &str) -> ProviderCfg {
