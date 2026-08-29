@@ -2,7 +2,7 @@
 
 Thanks for looking at Kineti. The project is small and opinionated on purpose.
 
-**Product:** v0.2 is ship proof + spend fuse (`evidence → ship-check → verify` + gateway). The 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`, `kineti run --legacy --goal` hidden, prints legacy warning; without `--legacy` still works) — bug fixes only, no new stages.
+**Product:** v0.2.2 is ship proof + spend fuse for any agent — `evidence → ship-check → verify` + `gateway` + `swarm --tasks` (any verification via `[artifacts]` + `[proof].command`). The 13-stage runner is frozen on tag `v0.1.0` (`docs/v0.1.md`, `kineti run --legacy --goal` hidden, prints legacy warning; without `--legacy` still works) — bug fixes only, no new stages.
 
 ## Ground rules
 
@@ -22,15 +22,16 @@ Thanks for looking at Kineti. The project is small and opinionated on purpose.
 ```sh
 git clone https://github.com/therawlogs/kineti && cd kineti
 cargo build                   # phase9 asserts symbols in target/debug cdylib
-cargo test --all              # prove before you propose
+cargo test --all              # prove before you propose (any verify cmd also works)
 cargo clippy --all-targets -- -D warnings
 ./scripts/size-gate.sh        # <10 MB ETHOS budget (informational locally, hard in CI)
-kineti evidence --cmd "cargo test --all" && kineti ship-check  # gate you ship
+kineti evidence --cmd "cargo test --all" && kineti ship-check  # any cmd: pytest / npm test / ./verify.sh
+# or: kineti evidence         # uses [proof].command from kineti.toml
 ```
 
 CI runs the same gates on every push and PR — tests execute twice per commit
 (direct and daemon backend matrix), so both transports must stay green. The
-required check `kineti-receipt` (`.github/actions/kineti-receipt`, `with: verify-command`)
+required check `kineti-receipt` (`.github/actions/kineti-receipt`, `with: verify-command` / `proof-command`)
 runs `evidence --cmd` then `ship-check`+`verify --all` — see `README.md`.
 Releases are tag-driven; maintainers cut them per [docs/RELEASE.md](docs/RELEASE.md)
 (paste `CHANGELOG.md` section into the GitHub release body).

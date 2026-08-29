@@ -31,7 +31,7 @@ cargo install kineti
 cargo install --git https://github.com/therawlogs/kineti
 ```
 
-Pin a version: `curl -fsSL https://getkineti.com/install.sh | sh -s v0.2.0` — GitHub release body holds CHANGELOG v0.2.0 notes.
+Pin a version: `curl -fsSL https://getkineti.com/install.sh | sh -s v0.2.2` — GitHub release body holds CHANGELOG v0.2.2 notes. `cargo install kineti` now pulls 0.2.2 from crates.io.
 
 macOS (arm64/x64) and Linux (x64/arm64, musl-static preferred).
 
@@ -55,8 +55,8 @@ jobs:
           verify-command: "cargo test --all"
 ```
 
-- With `verify-command` set, the action runs `kineti evidence --cmd "<verify-command>"` then `ship-check` + `verify --all` — no prior `.kineti/` needed.
-- Without it, run `kineti evidence --cmd "..."` in a prior step first, then the action runs `ship-check`/`verify`.
+- With `verify-command` (or `proof-command`) set, the action runs `kineti evidence --cmd "<verify-command>"` then `ship-check` + `verify --all` — no prior `.kineti/` needed. Any verify cmd works (`cargo test` | `pytest` | `npm test` | `./verify.sh`).
+- Without it, run `kineti evidence --cmd "..."` (or `kineti evidence` with `[proof].command` in `kineti.toml`) in a prior step first, then the action runs `ship-check`/`verify`.
 
 Fails if receipt missing, stale, or fingerprint doesn't match current files.
 
@@ -135,7 +135,7 @@ max_parallel_workers = 4   # swarm concurrency
 
 ## Status
 
-v0.2.0 — `verify` + `ship-check` + `receipt.v1` stable. Hosted gateway + dashboard in `therawlogs/kineti-pro` (private). See `CHANGELOG.md`.
+v0.2.2 — any-agent `verify` + `ship-check` + `receipt.v1` (`[artifacts]` + `swarm --tasks`) stable. `cargo install kineti` → 0.2.2. Hosted gateway + dashboard in `therawlogs/kineti-pro` (private). See `CHANGELOG.md`.
 
 Legacy 13-stage code remains in `src/` (`stages.rs`, `swarm.rs`, etc.) behind hidden `kineti run --legacy`; no `examples/` directory — `docs/v0.1.md` is the frozen reference.
 

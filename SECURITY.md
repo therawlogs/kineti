@@ -7,8 +7,8 @@ Please do not open public issues for exploitable findings. Expect a response
 within 7 days.
 
 ## Scope
-Kineti v0.2 is a ship proof + spend fuse: gateway meter (reserve/settle) and
-offline receipt (`evidence → ship-check → verify`). In scope:
+Kineti v0.2.2 is a ship proof + spend fuse for **any agent** — code, docs, data, configs: gateway meter (reserve/settle) and
+offline receipt (`evidence → ship-check → verify` + `swarm`). Fingerprint honors `[artifacts]` in `kineti.toml`. In scope:
 
 - Path-fence escapes (tools escaping the project root, symlink tricks)
 - Prompt-injection paths that lead to tool execution from untrusted content
@@ -21,13 +21,13 @@ offline receipt (`evidence → ship-check → verify`). In scope:
 - Worktree teardown path traversal: `destroy()` refusing anything outside
   `.kineti/worktrees/<id>` (legacy swarm, still in tree)
 
-## Honest limitations (v0.2)
+## Honest limitations (v0.2.2)
 
-- `bash` (via `evidence --cmd` or wrapped agents) runs with your user's
+- `bash` (via `evidence --cmd`, `wrap`, or `swarm` tasks) runs with your user's
   permissions inside the project directory; there is no syscall sandbox yet
-  (planned: platform sandbox profiles). Blast radius is bounded by scope
+  (planned: platform sandbox profiles). Blast radius is bounded by `[artifacts]` scope
   partitioning + `ship-check` refusing stale proofs, not by the kernel.
-- Gateway is stateless workers + one ledger per org; receipts store
+- Gateway + `swarm`/`wrap` are stateless workers + one ledger per org; receipts store
   `fingerprint`, `chain_head`, `cost_usd`, `cmd`, `passed` — never raw prompts
   (hashes + counts only). A compromised gateway worker sees prompts in memory
   while forwarding.

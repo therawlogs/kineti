@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## v0.2.2 — 2026-08-29 — docs polish + crates.io README sync
+
+- `README.md` pin now `v0.2.2` + `cargo install kineti` note; `Status` now `v0.2.2 any-agent`.
+- `docs/RELEASE.md` current `0.2.2`, added v0.2.1 go-live record; `docs/v0.1.md` points to `v0.2.1` as active.
+- `SECURITY.md` scope now `v0.2.2` any-agent (`[artifacts]` + `swarm`); `CONTRIBUTING.md` product `v0.2.2` + any-cmd note.
+- `.github/actions/kineti-receipt` now `verify-command` + `proof-command` alias, description any-agent (`pytest`/`npm test`/`./verify.sh`).
+- No code change beyond docs; fingerprint & wire format still `v1`.
+
 ## v0.2.1 — 2026-08-29 — any-agent artifacts + single-command swarm
 
 > Ship proof and spend cap for **any** agent — code, docs, data, configs. Same meter and stamp, now with generic artifact selection and `kineti swarm` in one command.

@@ -106,7 +106,7 @@ Run every check below BEFORE the first `git push`. All must pass.
 - [x] No tracked file >1 MB (GitHub hard limit 100 MB, warn 50 MB)
 - [x] `LICENSE` present and matches `license` field in Cargo.toml
 - [x] README install one-liner uses `https://getkineti.com/install.sh`
-- [x] Version in Cargo.toml was the intended first tag (`v0.1.0`) at go-live — current is `0.2.0` (see Cutting a release #2)
+- [x] Version in Cargo.toml was the intended first tag (`v0.1.0`) at go-live — current is `0.2.2` (see Cutting a release #2)
 
 ### F. Post-push order (do not skip sequence)
 
@@ -144,3 +144,4 @@ Executed 2026-08-25, all checks above passed at go-live:
   musl-tools; aarch64 builds natively on ubuntu-24.04-arm; tag pushes
   must be in `on.push.tags`.
 - v0.2.0 (2026-08-27): cut to gateway + receipt (`evidence → ship-check → verify`), release body now holds the `CHANGELOG.md` `v0.2.0` section (pasted via `gh release edit v0.2.0 --notes-file`), so `curl ... | sh -s v0.2.0` has a human note.
+- v0.2.1 (2026-08-29): any-agent artifacts (`[artifacts]`/`[proof].command`) + `kineti swarm` single-command fan-out. `cargo publish` → `cargo install kineti` now serves 0.2.1; GitHub tag `v0.2.1` + release body holds CHANGELOG 0.2.1; site (`kineti-web`) auto-deployed. `install.sh` unchanged → byte-identical, no sync drift.

@@ -5,7 +5,11 @@ branding:
   color: green
 inputs:
   verify-command:
-    description: 'Command that evidence binds to (e.g. "cargo test"). If set, runs evidence before check.'
+    description: 'Verification command that evidence binds to — any agent (e.g. "cargo test" | "pytest" | "npm test" | "./verify.sh"). If set, runs evidence before check. Legacy alias for `proof-command`.'
+    required: false
+    default: ""
+  proof-command:
+    description: 'Alias for verify-command — preferred key for any-agent verification (e.g. "pytest"). If both set, verify-command wins.'
     required: false
     default: ""
   install:
@@ -26,11 +30,13 @@ runs:
         fi
         kineti --version
     - name: evidence (optional)
-      if: inputs.verify-command != ''
+      if: inputs.verify-command != '' || inputs.proof-command != ''
       shell: bash
       run: |
-        echo "→ kineti evidence --cmd ${{ inputs.verify-command }}"
-        kineti evidence --cmd "${{ inputs.verify-command }}"
+        CMD="${{ inputs.verify-command }}"
+        if [ -z "$CMD" ]; then CMD="${{ inputs.proof-command }}"; fi
+        echo "→ kineti evidence --cmd $CMD"
+        kineti evidence --cmd "$CMD"
     - name: ship-check (stale/missing → fail)
       shell: bash
       run: |
