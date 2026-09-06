@@ -35,6 +35,7 @@
    - 3.6 Systematic Remediation & Eradication Matrix of All 44 Audit Defects (CRIT-01 to INFO-10)
 4. [Solo-Founder Unit Economics & Monetization Engine (R3)](#4-solo-founder-unit-economics--monetization-engine-r3)
    - 4.1 The Three-Tier Packaging & Pricing Matrix (Open-Core, Pro $39/mo, Enterprise $250+/mo)
+   - 4.1.1 The getkineti.com Open-Source Move: Boundary, IP Protection & The "Services Trap" Fix
    - 4.2 Comprehensive 24-Month Financial Pro-Forma Model ($0 to $1.40M ARR M12, $4.59M ARR M24)
    - 4.3 Solo Operator Cost Structure, COGS, OpEx, and Operating Leverage (> 95% Gross Margins, > 90% EBITDA)
    - 4.4 The Economics Paradigm Shift: $/Token to Cost Per Verified Outcome ($/Outcome) & Mathematical Enterprise ROI
@@ -1761,6 +1762,72 @@ The Kineti OS pricing architecture aligns directly with developer value and orga
 
 ---
 
+### 4.1.1 The getkineti.com Open-Source Move: Strategic Analysis, Code Boundaries & The "Services Trap" Fix
+
+**Strategic Inquiry:** Does open-sourcing the base Kineti execution engine (Rust CLI v0.2.2 distributed via `getkineti.com`, crates.io, and `github.com/therawlogs/kineti`) compromise or cannibalize the commercial harness strategy?
+
+**The Verdict:** **No. It is the single most important trust catalyst and top-of-funnel engine for Kineti—provided the intellectual property boundary is strictly defended.**
+
+#### 1. Why Open-Core is Non-Negotiable for Developer Harnesses
+In the modern developer ecosystem, **closed-source agent infrastructure dies on arrival**. No senior engineer, security officer, or enterprise team will grant root filesystem or terminal execution access to a closed proprietary binary that intercepts agent commands, wraps git hooks, and monitors files without full auditability.
+- **The Historical Precedent:** Docker, Git, Terraform, Supabase, PostHog, Sentry, and Temporal achieved multi-billion-dollar enterprise outcomes precisely by establishing an open-source, local-first developer standard before selling commercial governance.
+- **The Zero-Friction Trojan Horse:** An open-source local CLI (`kineti init`, `evidence`, `ship-check`, `receipt`) eliminates security paranoia, wins developer trust, earns organic GitHub stars, and bypasses enterprise procurement red tape. Developers adopt it locally because it solves their immediate pain—preventing agents from breaking tests and burning credit cards—for free.
+
+#### 2. The Strict Open-Core Demarcation Matrix (What is Free vs. Commercial)
+To preserve enterprise pricing power and prevent cloud hyperscalers from commoditizing Kineti, the codebase is formally partitioned:
+
+```
++----------------------------------------------------------------------------------------------------------------------------------------+
+|                                             OPEN-CORE CODE DEMARCATION & LICENSING MATRIX                                              |
++------------------------------------+---------------------------------------------------+--------------------+--------------------------+
+| Component Layer                    | Scope & Functional Capabilities                   | License Model      | Distribution Channels    |
++------------------------------------+---------------------------------------------------+--------------------+--------------------------+
+| Layer A: Community Client (Free)   | Local Rust CLI (`kineti v0.2.2+`), SHA-256        | MIT / Apache 2.0   | crates.io, GitHub,       |
+|                                    | artifact fingerprinting (`evidence`), local spend | (Permissive OSS)   | `getkineti.com/install.sh|
+|                                    | cap killswitch, git pre-commit hook (`ship-check`)|                    | brew, npx                |
+|                                    | and standard stdio Model Context Protocol (MCP).  |                    |                          |
++------------------------------------+---------------------------------------------------+--------------------+--------------------------+
+| Layer B: Commercial Pro ($39/mo)   | Aside-Style Floating Companion Canvas (WebSocket  | Business Source    | getkineti.com Pro license|
+|                                    | `ws://127.0.0.1:8788`), Live Merkle DAG Visualizer| License (BSL 1.1 / | authenticated desktop    |
+|                                    | Interactive Replay Scrubber, Multi-Repo E2EE      | ELv2 — Sentry model| binary download          |
+|                                    | Causal Memory Sync.                               | converts in 36 mo) |                          |
++------------------------------------+---------------------------------------------------+--------------------+--------------------------+
+| Layer C: Enterprise ($250+/seat/mo)| Central Attestation Authority (Ed25519 OVT signer)| Proprietary        | Private Docker Registry, |
+|                                    | ISO SQL/PGQ Causal Property Graph Cluster, Fleet  | Commercial         | VPC Helm Chart, Kineti   |
+|                                    | Budget Pools, CI/CD Gate GitHub Action, Turnkey   | (Annual Contracts) | Hosted Cloud Gateway     |
+|                                    | SOC 2 / ISO 27001 / HIPAA Audit Packages.         |                    |                          |
++------------------------------------+---------------------------------------------------+--------------------+--------------------------+
+```
+
+#### 3. Re-Architecting getkineti.com: Escaping the "$5,000 Consulting Trap"
+On `getkineti.com/pricing`, the current live offering states:
+> *"Get team setup — $5K one time →"*
+
+**The Strategic Hazard:** A $5,000 one-time fee inadvertently positions Kineti as an agency or boutique devtools consultancy rather than a scalable software platform. For a solo founder, custom one-off setups consume precious engineering hours, do not generate recurring revenue, and trade at low 1x–2x service multiples rather than the 15x–30x SaaS ARR multiples commanded by AI governance platforms.
+
+**The Solution — Transition to the "Enterprise Pilot & Architecture Package":**
+Transform the $5,000 entry point on `getkineti.com/pricing` into an **Enterprise Pilot Program**:
+- **Price:** $5,000 upfront.
+- **Contract Deliverables:**
+  1. **90-Day Full License** for up to 10 Enterprise seats (normally a $7,500 retail value).
+  2. **Bespoke Architecture Integration:** White-glove CI/CD pipeline setup and custom OTD schema mapping for the customer's proprietary codebase.
+  3. **Executive Governance Audit Report:** A comprehensive quarterly report demonstrating exact tokens saved, regressions prevented, and audit-ready OVT records.
+  4. **100% Contract Credit:** If the customer signs an annual Enterprise agreement ($30,000 ACV baseline) before day 90, the full $5,000 pilot fee is credited toward their first-year subscription.
+- **The Solo Advantage:** This eliminates unscalable bespoke consulting, immediately qualifies serious enterprise buyers, generates non-dilutive working capital, and feeds directly into the compounding enterprise cohort model in Section 4.2.
+
+#### 4. Progressive Brand Alignment on getkineti.com
+The current tagline on `getkineti.com` reads:
+> *"Ship proof and spend cap for any agent. Claude, Cursor, Grok, and fx produce artifacts — code, docs, data, configs. Kineti binds any verification to artifact hashes, caps the bill, and fails merge if the proof is stale."*
+
+This is an exceptionally strong, pragmatic hook for developer utility. The blueprint unifies this public message into a 3-tier progressive revelation:
+1. **Developer Hook (Current getkineti.com):** *"Ship proof and spend cap for any agent."* (Immediate, zero-jargon developer utility).
+2. **Platform Hook (Q2 with Companion Canvas):** *"The Visual Control Plane & Live DAG Inspector for Autonomous Agents."* (Productivity and visibility for power users).
+3. **Enterprise Hook (Q3 with Cloud Gateway):** *"The Context Integrity Protocol & Cryptographic Compliance Standard for Enterprise AI."* (SOC 2, ISO 27001, dual-signed OVTs).
+
+By keeping the developer hook sharp on `getkineti.com`, the open-source CLI drives thousands of organic installations that naturally upgrade into the visual companion and enterprise compliance layers.
+
+---
+
 ### 4.2 Comprehensive 24-Month Financial Pro-Forma Model
 
 The following model details the quantitative trajectory for a solo founder scaling Kineti OS from launch to **$1.40M ARR in 12 months** and **$4.59M ARR in 24 months** via product-led growth and automated self-serve enterprise expansion.
@@ -2001,11 +2068,16 @@ As a solo founder, paid advertising and outbound sales forces are unviable. Grow
      - *"Stop Paying for Tokens: The Case for Cost Per Verified Outcome"*
    - Goal: Establish technical thought leadership and drive 15,000+ GitHub stars and 35,000+ local CLI downloads in the first 6 months.
 
-2. **Dominance in the Model Context Protocol (MCP) Ecosystem:**
-   - Anthropic’s open-standard MCP is becoming the universal interface for AI tool discovery. Kineti packages its runtime as the premier MCP server:
+2. **Dominance in the Model Context Protocol (MCP) Ecosystem & Multi-Channel Distribution:**
+   - Kineti leverages its live multi-channel distribution engine (`getkineti.com`, crates.io, Homebrew, and npm):
      ```bash
-     # One-command universal installation
-     npx @kineti/harness init
+     # Live production installation (Rust binary v0.2.2+)
+     curl -fsSL https://getkineti.com/install.sh | sh
+     # or crates.io:
+     cargo install kineti
+
+     # One-command universal MCP server registration
+     kineti mcp init # or npx @kineti/harness init
      ```
    - Automatically injects configuration into `claude_desktop_config.json`, Cursor MCP settings, and Antigravity profiles. Featured on MCP directory registries (Smithery.ai, PulseMCP).
 
