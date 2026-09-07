@@ -3,6 +3,9 @@
   "version": "3.0.0",
   "private": true,
   "description": "Kineti OS harness: six enforcement programs",
+  "bin": {
+    "kineti": "./bin/kineti.ts"
+  },
   "scripts": {
     "setup": "./setup.sh",
     "test": "bun test tests/",
