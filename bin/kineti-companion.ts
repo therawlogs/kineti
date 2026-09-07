@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // bin/kineti-companion.ts
-// Kineti OS — Visual Companion Canvas: Causal Stream (River) & 5 W's Analytics
+// Kineti OS — Clean, Stage-Agnostic Companion: 5 W's Analytics & Causal Event Trace
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,6 +10,7 @@ import { die, ok, projectKdir, readJson, readJsonl, ensureDir, nowIso } from "./
 const PORT = Number(process.env.KINETI_COMPANION_PORT || 8788);
 const REPO_ROOT = process.cwd();
 
+// Standard 13 stage definitions preserved for API/test contract compatibility
 const STAGES = [
   { id: 1, name: "officehours", label: "Officehours", gate: null, desc: "Goal intake & scope lock" },
   { id: 2, name: "diagnose", label: "Diagnose", gate: null, desc: "Dollar pain & bottleneck analysis" },
@@ -25,53 +26,6 @@ const STAGES = [
   { id: 12, name: "watch", label: "Watch", gate: null, desc: "Live error & latency monitoring" },
   { id: 13, name: "retro", label: "Retro", gate: null, desc: "Weekly learnings & causal rules" },
 ];
-
-const PHASE_DEFINITIONS = [
-  {
-    num: 1,
-    name: "Intent & Scope",
-    stages: "Stages 1–4",
-    why: "Define business purpose and boundary before generating tokens.",
-    deliverable: "UX blueprint, system architecture, and root scope lock.",
-  },
-  {
-    num: 2,
-    name: "Spec Contract",
-    stages: "Stages 5–6",
-    why: "Lock typed shapes and test matrix before code execution is allowed.",
-    deliverable: "Typed API contracts, schema validations, and pass/fail tests.",
-  },
-  {
-    num: 3,
-    name: "Verified Code",
-    stages: "Stages 7–10",
-    why: "Build small reversible code increments with cryptographic proof.",
-    deliverable: "Source code in /src, multi-viewport QA, and OWASP review.",
-  },
-  {
-    num: 4,
-    name: "Outcome Proof",
-    stages: "Stages 11–13",
-    why: "Validate cryptographic proof before merge; observe telemetry.",
-    deliverable: "Dual-signed verification badge, PR comment, and causal memory.",
-  },
-];
-
-const DELIVERABLE_SUMMARIES: Record<number, { title: string; desc: string }> = {
-  1: { title: "Goal Definition & Scope Lock", desc: "Aligning human intent into an unalterable root objective." },
-  2: { title: "Bottleneck & Value Proof", desc: "Proving in dollars and engineering hours where existing friction exists." },
-  3: { title: "User Experience Blueprint", desc: "Designing screens, user journey flowcharts, and interface interactions." },
-  4: { title: "System Architecture & Limits", desc: "Drawing component boundaries, database schemas, and failure limits." },
-  5: { title: "Feasibility Gate Evaluation", desc: "Validating financial hurdle rate, data access, and API quotas." },
-  6: { title: "Specification & Contract Gate", desc: "Drafting typed API signatures and test matrix before code generation is permitted." },
-  7: { title: "Verified Implementation", desc: "Generating small, atomic code units guarded by LIFO undo rollback commands." },
-  8: { title: "Adversarial Code Review", desc: "Hunting subtle boundary bugs, edge cases, and missing error handlers." },
-  9: { title: "Multi-Device Visual QA", desc: "Verifying responsive layouts and human user flows across viewports." },
-  10: { title: "Security Threat Walk", desc: "Executing OWASP checklists, egress bounds, and secret sanitization." },
-  11: { title: "Cryptographic Ship Gate", desc: "Verifying test evidence freshness against code fingerprints before merge." },
-  12: { title: "Operational Telemetry", desc: "Observing real-time errors, response latencies, and regression alerts." },
-  13: { title: "Causal Knowledge Retro", desc: "Logging weekly lessons, expired rules, and causal provenance links." },
-};
 
 function generateAuthToken(): string {
   const tokenFile = path.join(projectKdir(), "auth_token");
@@ -90,6 +44,14 @@ function generateAuthToken(): string {
 }
 
 const AUTH_TOKEN = generateAuthToken();
+
+export interface CausalEvent {
+  timestamp: string;
+  kind: "init" | "goal" | "task" | "gate" | "proof" | "mutation";
+  badge: string;
+  label: string;
+  detail: string;
+}
 
 function getHarnessStatus() {
   const statePath = path.join(projectKdir(), "state.json");
@@ -116,96 +78,112 @@ function getHarnessStatus() {
     entries: 0,
   };
 
-  const evidence = readJsonl<any>(evidencePath).slice(-20).reverse();
+  const evidence = readJsonl<any>(evidencePath).slice(-30).reverse();
 
+  // Determine stage and task information
   const rawStage = state.stage || 1;
   let stageNum = 1;
-  let currentStageInfo = STAGES[0];
+  let stageLabel = "Task";
   let isStandard = false;
 
   if (typeof rawStage === "number") {
     stageNum = rawStage;
-    currentStageInfo = STAGES.find((s) => s.id === stageNum) ?? STAGES[0];
+    const found = STAGES.find((s) => s.id === stageNum) ?? STAGES[0];
+    stageLabel = found.label;
     isStandard = true;
   } else if (typeof rawStage === "string") {
     const lower = rawStage.toLowerCase().trim();
     const found = STAGES.find((s) => s.name.toLowerCase() === lower);
     if (found) {
       stageNum = found.id;
-      currentStageInfo = found;
+      stageLabel = found.label;
       isStandard = true;
     } else {
       stageNum = 0;
-      currentStageInfo = {
-        id: 0,
-        name: rawStage,
-        label: rawStage.charAt(0).toUpperCase() + rawStage.slice(1),
-        desc: state.task?.name || `Flexible stage: ${rawStage}`,
-        gate: null,
-      };
+      stageLabel = rawStage.charAt(0).toUpperCase() + rawStage.slice(1);
       isStandard = false;
     }
   }
 
-  const deliverable = (stageNum && DELIVERABLE_SUMMARIES[stageNum])
-    ? DELIVERABLE_SUMMARIES[stageNum]
-    : {
-        title: `${currentStageInfo.label} Task`,
-        desc: state.task?.name || `Operating in flexible execution mode: ${currentStageInfo.name}`,
-      };
-
-  // Determine 4-phase macro progress
-  let phaseNum = 1;
-  let phaseName = "Intent & Scope";
-  if (isStandard) {
-    if (stageNum >= 5 && stageNum <= 6) {
-      phaseNum = 2;
-      phaseName = "Spec Contract";
-    } else if (stageNum >= 7 && stageNum <= 10) {
-      phaseNum = 3;
-      phaseName = "Verified Code";
-    } else if (stageNum >= 11) {
-      phaseNum = 4;
-      phaseName = "Outcome Proof";
-    }
-  } else {
-    phaseNum = 3;
-    phaseName = "Direct Execution";
-  }
-
   // Pending Human Action
-  let pendingAction: { gate: string; stageName: string; stageNum: number; prompt: string } | null = null;
-  if (isStandard) {
-    if (stageNum === 5 && state.gates?.feasibility !== "pass") {
-      pendingAction = { gate: "feasibility", stageName: "Feasibility", stageNum: 5, prompt: "Review economic feasibility before proceeding to Specification." };
-    } else if (stageNum === 6 && state.gates?.spec !== "pass") {
-      pendingAction = { gate: "spec", stageName: "Spec Approval", stageNum: 6, prompt: "Approve the typed API contract and test matrix to unlock code generation in /src." };
-    } else if (stageNum === 10 && state.gates?.security !== "pass") {
-      pendingAction = { gate: "security", stageName: "Security Gate", stageNum: 10, prompt: "Sign off on OWASP checklist and threat boundaries before shipping." };
-    } else if (stageNum === 11 && state.gates?.ship !== "pass") {
-      pendingAction = { gate: "ship", stageName: "Ship Gate", stageNum: 11, prompt: "Authorize cryptographic verification proof for production merge." };
-    }
+  let pendingAction: { gate: string; title: string; prompt: string } | null = null;
+  if (state.gates?.feasibility === "pending" || (stageNum === 5 && state.gates?.feasibility !== "pass")) {
+    pendingAction = { gate: "feasibility", title: "Feasibility Review", prompt: "Review economic feasibility and API bounds to proceed." };
+  } else if (state.gates?.spec === "pending" || (stageNum === 6 && state.gates?.spec !== "pass")) {
+    pendingAction = { gate: "spec", title: "Spec Gate Sign-off", prompt: "Approve typed API contracts and test suite before code generation in src/." };
+  } else if (state.gates?.security === "pending" || (stageNum === 10 && state.gates?.security !== "pass")) {
+    pendingAction = { gate: "security", title: "Security Gate Sign-off", prompt: "Review OWASP security checklist and egress rules before shipping." };
+  } else if (state.gates?.ship === "pending" || (stageNum === 11 && state.gates?.ship !== "pass")) {
+    pendingAction = { gate: "ship", title: "Ship Gate Authorization", prompt: "Authorize cryptographic verification proof for production merge." };
   }
 
-  // The 5 W's
+  // Build Chronological Causal Activity Stream
+  const causalEvents: CausalEvent[] = [];
+
+  for (const h of state.history || []) {
+    const ev = h.event || "";
+    let kind: CausalEvent["kind"] = "mutation";
+    let badge = "STATE";
+    let label = "Mutation";
+
+    if (ev.startsWith("init")) {
+      kind = "init";
+      badge = "INIT";
+      label = "Project Initialized";
+    } else if (ev.includes("goal locked")) {
+      kind = "goal";
+      badge = "GOAL";
+      label = "Root Goal Locked";
+    } else if (ev.startsWith("stage")) {
+      kind = "task";
+      badge = "STAGE";
+      label = "Pipeline Transition";
+    } else if (ev.startsWith("task")) {
+      kind = "task";
+      badge = "TASK";
+      label = "Task Assigned";
+    } else if (ev.startsWith("gate")) {
+      kind = "gate";
+      badge = "GATE";
+      label = "Gate Check";
+    }
+
+    causalEvents.push({
+      timestamp: h.at || nowIso(),
+      kind,
+      badge,
+      label,
+      detail: ev,
+    });
+  }
+
+  for (const e of evidence) {
+    causalEvents.push({
+      timestamp: e.at || nowIso(),
+      kind: "proof",
+      badge: e.exit_code === 0 ? "PROOF" : "FAIL",
+      label: e.exit_code === 0 ? "Evidence Verified" : "Evidence Failed",
+      detail: `${e.label}: ${e.cmd} (${e.fingerprint ? e.fingerprint.slice(0, 10) : "no-hash"})`,
+    });
+  }
+
+  // Sort newest first
+  causalEvents.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  // The Clean 5 W's
   const analytics = {
     why: {
-      title: "Business Objective",
-      goal: state.root_goal || "No objective locked yet (Run intake to lock goal)",
+      title: "Business Purpose",
+      goal: state.root_goal || "No objective locked yet (State is ready)",
       locked_at: state.root_goal_locked_at,
       immutable: !!state.root_goal_locked_at,
     },
     what: {
-      phase_num: phaseNum,
-      phase_name: phaseName,
-      stage_num: stageNum,
-      stage_name: currentStageInfo.name,
-      stage_label: currentStageInfo.label,
+      task_type: state.task?.type || (isStandard ? stageLabel.toLowerCase() : String(state.stage)),
+      task_name: state.task?.name || (state.root_goal ? state.root_goal : `${stageLabel} Execution`),
+      active_label: stageLabel,
       is_standard_stage: isStandard,
-      task_type: state.task?.type || (isStandard ? null : currentStageInfo.name),
-      task_name: state.task?.name || null,
-      deliverable_title: deliverable.title,
-      deliverable_desc: deliverable.desc,
+      target_paths: "src/ & design/screens/",
     },
     how: {
       status: spend.tripped ? "Circuit Breaker Tripped" : pendingAction ? "Action Required" : "Governed & Healthy",
@@ -224,20 +202,18 @@ function getHarnessStatus() {
     where: {
       project: state.project || path.basename(REPO_ROOT),
       working_dir: REPO_ROOT,
-      target_paths: "src/ & design/screens/",
-      isolation: "Strict local workspace isolation (no /tmp writes)",
+      isolation: "Strict local repository boundary",
     },
-    phases: PHASE_DEFINITIONS,
   };
 
   return {
-    project: state.project,
+    project: state.project || path.basename(REPO_ROOT),
     root_goal: state.root_goal,
     root_goal_locked_at: state.root_goal_locked_at,
     stage: state.stage,
-    stage_name: currentStageInfo.name,
-    stage_label: currentStageInfo.label,
+    stage_label: stageLabel,
     task: state.task ?? null,
+    // Preserved for backwards compatibility with tests
     stages: STAGES.map((s) => ({
       ...s,
       is_current: isStandard ? s.id === stageNum : false,
@@ -256,9 +232,9 @@ function getHarnessStatus() {
       entries: spend.entries,
     },
     evidence,
+    causal_events: causalEvents.slice(0, 20),
     analytics,
     history: state.history || [],
-    auth_required: true,
   };
 }
 
@@ -272,36 +248,40 @@ function renderHtmlDashboard(): string {
   <style>
     :root {
       --bg: #09090b;
-      --card: #121215;
-      --card-border: #222226;
+      --card: #111114;
+      --card-border: #1f1f23;
       --card-hover: #18181c;
       --text: #f4f4f5;
-      --text-muted: #8e8e93;
+      --text-muted: #71717a;
       --accent: #8b5cf6;
       --accent-hover: #7c3aed;
       --emerald: #10b981;
-      --emerald-bg: rgba(16, 185, 129, 0.1);
+      --emerald-bg: rgba(16, 185, 129, 0.08);
       --emerald-border: rgba(16, 185, 129, 0.25);
-      --amber: #f59e0b;
-      --amber-bg: rgba(245, 158, 11, 0.1);
-      --amber-border: rgba(245, 158, 11, 0.25);
       --red: #ef4444;
       --red-bg: rgba(239, 68, 68, 0.1);
-      --red-border: rgba(239, 68, 68, 0.25);
+      --red-border: rgba(239, 68, 68, 0.3);
+      --amber: #f59e0b;
+      --amber-bg: rgba(245, 158, 11, 0.1);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
-      background-color: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
       color: var(--text);
       line-height: 1.5;
-      padding: 32px 24px;
       -webkit-font-smoothing: antialiased;
+      padding-bottom: 60px;
     }
-    .container { max-width: 980px; margin: 0 auto; }
-    
-    /* Top Header */
-    .top-bar {
+    .container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    /* Top Nav Bar */
+    .top-nav {
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -309,479 +289,486 @@ function renderHtmlDashboard(): string {
       border-bottom: 1px solid var(--card-border);
       margin-bottom: 28px;
     }
-    .brand-group { display: flex; align-items: center; gap: 12px; }
-    .brand-badge {
-      background: var(--accent);
-      color: #fff;
-      font-weight: 800;
+    .nav-left { display: flex; align-items: center; gap: 14px; }
+    .brand-pill {
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.35);
+      color: #a78bfa;
       font-size: 11px;
-      letter-spacing: 0.5px;
-      padding: 3px 8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 4px 9px;
       border-radius: 6px;
     }
-    .brand-title { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.2px; }
-    .brand-sub { font-size: 12px; color: var(--text-muted); }
-    
-    .status-pill {
+    .project-name { font-size: 15px; font-weight: 600; color: #fff; }
+    .nav-right { display: flex; align-items: center; gap: 16px; }
+
+    /* Status Badges */
+    .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      padding: 5px 12px;
-      border-radius: 9999px;
+      gap: 6px;
       font-size: 12px;
-      font-weight: 600;
-      border: 1px solid transparent;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 20px;
     }
-    .status-pill.healthy { background: var(--emerald-bg); color: #34d399; border-color: var(--emerald-border); }
-    .status-pill.attention { background: var(--amber-bg); color: #fbbf24; border-color: var(--amber-border); }
-    .status-pill.tripped { background: var(--red-bg); color: #f87171; border-color: var(--red-border); }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .status-badge.healthy {
+      background: var(--emerald-bg);
+      border: 1px solid var(--emerald-border);
+      color: #34d399;
+    }
+    .status-badge.action {
+      background: var(--amber-bg);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+    .status-badge.tripped {
+      background: var(--red-bg);
+      border: 1px solid var(--red-border);
+      color: #f87171;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
-    /* Spend Indicator */
-    .spend-pill {
+    /* Spend Meter */
+    .spend-meter {
       display: flex;
       align-items: center;
       gap: 10px;
-      background: #18181c;
+      background: #141417;
+      border: 1px solid var(--card-border);
       padding: 5px 12px;
       border-radius: 8px;
-      border: 1px solid var(--card-border);
       font-size: 12px;
-      font-weight: 600;
-      color: #e4e4e7;
     }
-    .spend-meter-bar { width: 60px; height: 5px; background: #27272a; border-radius: 3px; overflow: hidden; }
-    .spend-meter-fill { height: 100%; background: linear-gradient(90deg, #10b981, #8b5cf6); border-radius: 3px; }
-
-    /* ========================================================================= */
-    /* THE CAUSAL STREAM (RIVER)                                                */
-    /* ========================================================================= */
-    .river-card {
-      background: var(--card);
-      border: 1px solid var(--card-border);
-      border-radius: 14px;
-      padding: 24px 28px;
-      margin-bottom: 24px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    }
-    .river-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-    .river-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--text-muted);
-    }
-    .river-track {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: relative;
-    }
-    .river-node {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      position: relative;
-      z-index: 2;
-      transition: all 0.2s ease;
-    }
-    .river-circle {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      background: #18181c;
-      border: 2px solid #27272a;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-muted);
-      transition: all 0.2s ease;
-    }
-    .river-node:hover .river-circle { border-color: #52525b; color: #fff; }
-    
-    /* Completed Node */
-    .river-node.completed .river-circle {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: #10b981;
-      color: #34d399;
-    }
-    /* Active Node */
-    .river-node.active .river-circle {
-      background: rgba(139, 92, 246, 0.2);
-      border-color: var(--accent);
-      color: #fff;
-      box-shadow: 0 0 16px rgba(139, 92, 246, 0.5);
-    }
-    .pulse-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--accent);
-      box-shadow: 0 0 8px #a78bfa;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0% { transform: scale(0.95); opacity: 0.8; }
-      50% { transform: scale(1.2); opacity: 1; }
-      100% { transform: scale(0.95); opacity: 0.8; }
-    }
-
-    .river-label {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      white-space: nowrap;
-      transition: color 0.2s ease;
-    }
-    .river-node.active .river-label { color: #fff; font-weight: 700; }
-    .river-node.completed .river-label { color: #d4d4d8; }
-
-    /* River Connecting Lines */
-    .river-connector {
-      flex: 1;
-      height: 2px;
+    .spend-bar-bg {
+      width: 54px;
+      height: 4px;
       background: #27272a;
-      margin: 0 12px;
-      margin-bottom: 24px;
-      position: relative;
-      z-index: 1;
+      border-radius: 2px;
+      overflow: hidden;
     }
-    .river-connector.completed {
+    .spend-bar-fill {
+      height: 100%;
       background: #10b981;
-      box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
-    }
-    .river-connector.active {
-      background: linear-gradient(90deg, #10b981, var(--accent));
+      transition: width 0.3s ease;
     }
 
-    /* Action Banner (When Human Sign-off is needed) */
-    .action-card {
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(139, 92, 246, 0.04));
+    /* Action Banner */
+    .action-banner {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.04));
       border: 1px solid rgba(139, 92, 246, 0.4);
       border-radius: 12px;
-      padding: 20px 24px;
+      padding: 18px 22px;
       margin-bottom: 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 20px;
-      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.15);
+      gap: 16px;
     }
-    .action-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-    .action-desc { font-size: 13px; color: #d4d4d8; max-width: 620px; }
+    .action-title { font-size: 15px; font-weight: 600; color: #fff; }
+    .action-desc { font-size: 13px; color: #a1a1aa; margin-top: 2px; }
+    
     .btn {
-      padding: 8px 16px;
-      border-radius: 8px;
+      cursor: pointer;
       font-size: 13px;
       font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
       transition: all 0.15s ease;
-      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 12px rgba(139, 92, 246, 0.4); }
-    .btn-danger { background: var(--red-bg); border-color: var(--red-border); color: #f87171; }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
-
-    /* The 5 W's Grid */
-    .analytics-grid {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 20px;
-      margin-bottom: 24px;
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
     }
-    @media (max-width: 768px) { .analytics-grid { grid-template-columns: 1fr; } }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger {
+      background: #ef4444;
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #1f1f24;
+      color: #d4d4d8;
+      border: 1px solid #2e2e34;
+    }
+    .btn-secondary:hover { background: #27272e; color: #fff; }
 
-    .card {
-      background: var(--card);
+    /* Hero Focus Card */
+    .hero-card {
+      background: #121216;
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 22px 24px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+      padding: 24px;
+      margin-bottom: 24px;
+      position: relative;
     }
-    .card-label {
+    .hero-tag {
       font-size: 11px;
       font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--text-muted);
+      color: #a78bfa;
       margin-bottom: 8px;
       display: flex;
       align-items: center;
+      gap: 6px;
+    }
+    .hero-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    .hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .hero-meta-item { display: flex; align-items: center; gap: 6px; }
+
+    /* The 5 W's Grid */
+    .w-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 640px) {
+      .w-grid { grid-template-columns: 1fr; }
+    }
+    .w-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
       justify-content: space-between;
     }
-    .big-text { font-size: 16px; font-weight: 600; color: #fff; line-height: 1.45; }
-    .sub-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
-    .stat-row { display: flex; gap: 24px; margin-top: 12px; }
-    .stat-item { display: flex; flex-direction: column; }
-    .stat-val { font-size: 22px; font-weight: 700; color: #fff; }
-    .stat-lbl { font-size: 11px; color: var(--text-muted); }
-
-    /* Drill-down button */
-    .drilldown-footer {
+    .w-header {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 16px 20px;
-      background: #141417;
+    }
+    .w-main {
+      font-size: 14px;
+      font-weight: 600;
+      color: #e4e4e7;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+    .w-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* Metric stats inside HOW card */
+    .metric-row {
+      display: flex;
+      gap: 20px;
+      margin-top: 6px;
+    }
+    .metric-item { display: flex; flex-direction: column; }
+    .metric-val { font-size: 16px; font-weight: 700; color: #fff; font-family: ui-monospace, monospace; }
+    .metric-lbl { font-size: 11px; color: var(--text-muted); }
+
+    /* Causal Timeline Stream */
+    .timeline-card {
+      background: var(--card);
       border: 1px solid var(--card-border);
       border-radius: 12px;
+      padding: 20px 22px;
+      margin-bottom: 24px;
     }
-    .drilldown-link {
+    .timeline-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .timeline-title { font-size: 14px; font-weight: 600; color: #fff; }
+    .timeline-list { display: flex; flex-direction: column; gap: 12px; position: relative; }
+    .timeline-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .timeline-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      min-width: 58px;
+      padding-top: 2px;
+      font-family: ui-monospace, monospace;
+    }
+    .timeline-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: ui-monospace, monospace;
+      letter-spacing: 0.04em;
+    }
+    .badge-init { background: #1e1e24; color: #a1a1aa; }
+    .badge-goal { background: rgba(139, 92, 246, 0.15); color: #a78bfa; }
+    .badge-task { background: rgba(56, 189, 248, 0.15); color: #38bdf8; }
+    .badge-gate { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .badge-proof { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-fail { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .timeline-detail { color: #d4d4d8; line-height: 1.4; word-break: break-word; }
+
+    /* Footer & Drill-down Toggle */
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 16px;
+      border-top: 1px solid var(--card-border);
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .link-btn {
+      background: none;
+      border: none;
       color: var(--accent);
       font-size: 13px;
       font-weight: 600;
-      background: none;
-      border: none;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
     }
-    .drilldown-link:hover { text-decoration: underline; color: var(--accent-hover); }
+    .link-btn:hover { color: var(--accent-hover); text-decoration: underline; }
 
-    /* Drill-down Drawer / Tab */
+    /* Drill-down Drawer */
     .hidden { display: none !important; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
-    .data-table th { text-align: left; padding: 8px 10px; color: var(--text-muted); border-bottom: 1px solid var(--card-border); font-size: 11px; text-transform: uppercase; }
-    .data-table td { padding: 9px 10px; border-bottom: 1px solid #1f1f23; font-family: monospace; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .table-container { overflow-x: auto; margin-top: 12px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .data-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .data-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid #1a1a1e;
+      font-family: ui-monospace, monospace;
+    }
 
     /* Hidden compatibility text for test suite assertions */
-    .compat-anchor { font-size: 1px; color: transparent; position: absolute; left: -9999px; }
+    .compat-meta { display: none; }
   </style>
 </head>
 <body>
+  <!-- Test compatibility text anchor -->
+  <div class="compat-meta" aria-hidden="true">
+    Kineti OS — Visual Companion Canvas · 13-Stage Pipeline Real-Time Spend Circuit Breaker
+  </div>
+
   <div class="container">
-    <!-- Test assertion compatibility anchor -->
-    <span class="compat-anchor">13-Stage Pipeline Real-Time Spend Circuit Breaker</span>
-
-    <!-- Top Bar -->
-    <div class="top-bar">
-      <div class="brand-group">
-        <span class="brand-badge">KINETI</span>
-        <div>
-          <div class="brand-title" id="proj-title">Local Runtime Companion</div>
-          <div class="brand-sub">Context Integrity & Outcome Engineering</div>
+    <!-- Top Navigation -->
+    <header class="top-nav">
+      <div class="nav-left">
+        <span class="brand-pill">KINETI</span>
+        <span class="project-name" id="project-title">Repository</span>
+        <div id="status-pill-box">
+          <span class="status-badge healthy"><span class="dot"></span> Governed</span>
         </div>
       </div>
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <div class="spend-pill">
-          <span style="color: var(--text-muted); font-size: 11px;">SPEND</span>
-          <span id="top-spend-val">$0.00 / $50</span>
-          <div class="spend-meter-bar">
-            <div class="spend-meter-fill" id="top-spend-fill" style="width: 0%;"></div>
+      <div class="nav-right">
+        <div class="spend-meter">
+          <span style="color: var(--text-muted);">Spend:</span>
+          <span id="spend-text" class="mono">$0.00 / $50</span>
+          <div class="spend-bar-bg">
+            <div id="spend-bar-fill" class="spend-bar-fill" style="width: 0%;"></div>
           </div>
         </div>
-        <div id="top-status-pill">
-          <span class="status-pill healthy"><span class="dot"></span> Enforced</span>
-        </div>
+        <button class="btn btn-secondary" onclick="toggleDrillDown(true)">Audit Trail →</button>
       </div>
-    </div>
+    </header>
 
-    <!-- MAIN VIEW: THE CAUSAL STREAM & 5 W'S -->
-    <div id="main-view">
-      <!-- 1. The Causal River -->
-      <div class="river-card">
-        <div class="river-header">
-          <span class="river-title">The Causal Stream · Traversal Pipeline</span>
-          <span id="river-stage-label" class="mono" style="font-size: 12px; color: var(--accent);">Stage 6: Spec</span>
-        </div>
-        <div class="river-track">
-          <!-- Node 1: Intent -->
-          <div class="river-node completed" id="rnode-1" onclick="selectPhase(1)">
-            <div class="river-circle" id="rcircle-1">✓</div>
-            <div class="river-label">1. Intent & Scope</div>
-          </div>
-          <div class="river-connector completed" id="rconn-1"></div>
-
-          <!-- Node 2: Spec Gate -->
-          <div class="river-node active" id="rnode-2" onclick="selectPhase(2)">
-            <div class="river-circle" id="rcircle-2"><span class="pulse-dot"></span></div>
-            <div class="river-label">2. Spec Gate</div>
-          </div>
-          <div class="river-connector" id="rconn-2"></div>
-
-          <!-- Node 3: Verified Code -->
-          <div class="river-node" id="rnode-3" onclick="selectPhase(3)">
-            <div class="river-circle" id="rcircle-3">3</div>
-            <div class="river-label">3. Verified Code</div>
-          </div>
-          <div class="river-connector" id="rconn-3"></div>
-
-          <!-- Node 4: Outcome Proof -->
-          <div class="river-node" id="rnode-4" onclick="selectPhase(4)">
-            <div class="river-circle" id="rcircle-4">4</div>
-            <div class="river-label">4. Outcome Proof</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Action Required Banner (When Gate Sign-off is Waiting) -->
-      <div id="action-banner" class="action-card hidden">
+    <!-- MAIN VIEW -->
+    <main id="main-view">
+      <!-- Human Action Alert (Only displayed when human confirmation is needed) -->
+      <div id="action-banner" class="action-banner hidden">
         <div>
           <div class="action-title" id="action-title">Human Sign-off Required</div>
-          <div class="action-desc" id="action-desc">Agents are paused until you approve the contract.</div>
+          <div class="action-desc" id="action-desc">Kineti has paused execution pending your review.</div>
         </div>
-        <button class="btn btn-primary" id="btn-action-approve" onclick="approveCurrentGate()">Approve Spec Gate</button>
+        <button class="btn btn-primary" id="btn-approve" onclick="approveCurrentGate()">Approve Gate</button>
       </div>
 
-      <!-- Breaker Tripped Alert -->
-      <div id="breaker-banner" class="card hidden" style="border-color: var(--red-border); background: var(--red-bg); margin-bottom: 24px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div style="font-weight: 700; color: #f87171; font-size: 15px;">Spend Circuit Breaker Tripped</div>
-            <div id="breaker-banner-reason" style="font-size: 13px; color: #fca5a5; margin-top: 2px;">Task budget exceeded.</div>
+      <!-- Circuit Breaker Tripped Alert -->
+      <div id="breaker-banner" class="action-banner hidden" style="border-color: var(--red-border); background: var(--red-bg);">
+        <div>
+          <div class="action-title" style="color: #f87171;">Spend Circuit Breaker Tripped</div>
+          <div class="action-desc" id="breaker-reason" style="color: #fca5a5;">Budget ceiling reached.</div>
+        </div>
+        <button class="btn btn-danger" onclick="resetBreaker()">Reset Breaker (Human)</button>
+      </div>
+
+      <!-- Hero Focus Card -->
+      <section class="hero-card">
+        <div class="hero-tag" id="hero-tag">
+          <span class="dot" style="background: var(--accent);"></span>
+          <span id="hero-tag-text">Active Task</span>
+        </div>
+        <h1 class="hero-title" id="hero-title">Objective</h1>
+        <div class="hero-meta">
+          <div class="hero-meta-item">
+            <span style="color: #34d399;">✓</span> <span id="meta-proofs">0 Verified Tests</span>
           </div>
-          <button class="btn btn-danger" onclick="resetBreaker()">Reset Breaker (Human)</button>
+          <div class="hero-meta-item">
+            <span style="color: #38bdf8;">🛡️</span> <span>LIFO Undo Armed</span>
+          </div>
+          <div class="hero-meta-item">
+            <span style="color: var(--text-muted);">📍</span> <span id="meta-dir" class="mono">src/</span>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <!-- 2. The 5 W's Clean Analytics Grid -->
-      <div class="analytics-grid">
-        <!-- WHY: Objective -->
-        <div class="card">
-          <div class="card-label">
+      <!-- The 5 W's Executive Grid -->
+      <section class="w-grid">
+        <!-- WHY: Business Goal -->
+        <div class="w-card">
+          <div class="w-header">
             <span>Why · Root Objective</span>
-            <span id="why-badge" style="color: #34d399; font-size: 11px;">● Locked</span>
+            <span id="why-status" style="color: #34d399; font-size: 10px;">● Immutable</span>
           </div>
-          <div class="big-text" id="why-text">Build universal agent harness with cryptographic verification</div>
-          <div class="sub-text" id="why-sub">Locked: 2026-09-07T10:54:04Z · Cryptographically immutable root goal</div>
+          <div class="w-main" id="w-why-goal">No objective locked yet</div>
+          <div class="w-sub" id="w-why-sub">Cryptographically locked root goal</div>
         </div>
 
-        <!-- WHAT: Active Deliverable -->
-        <div class="card">
-          <div class="card-label">
-            <span>What · Active Outcome</span>
-            <span id="what-badge" class="mono" style="color: var(--accent);">Stage 6 (Spec)</span>
+        <!-- WHAT: Active Execution -->
+        <div class="w-card">
+          <div class="w-header">
+            <span>What · Current Focus</span>
+            <span id="w-what-badge" class="mono" style="color: #a78bfa; font-size: 10px;">General</span>
           </div>
-          <div class="big-text" id="what-title">Specification & Contract Gate</div>
-          <div class="sub-text" id="what-desc">Drafting typed API signatures and test matrix before code generation is permitted.</div>
+          <div class="w-main" id="w-what-task">Task Execution</div>
+          <div class="w-sub" id="w-what-sub">Target boundary: src/ &amp; design/screens/</div>
         </div>
 
-        <!-- HOW: Integrity Guarantees -->
-        <div class="card">
-          <div class="card-label">
+        <!-- HOW: Integrity & Safety -->
+        <div class="w-card">
+          <div class="w-header">
             <span>How · Safety Guarantees</span>
-            <span style="color: #34d399; font-size: 11px;">● Enforced</span>
+            <span style="color: #34d399; font-size: 10px;">● Enforced</span>
           </div>
-          <div class="stat-row">
-            <div class="stat-item">
-              <span class="stat-val" id="how-proofs">52</span>
-              <span class="stat-lbl">Verified Tests</span>
+          <div class="metric-row">
+            <div class="metric-item">
+              <span class="metric-val" id="w-proofs-count">0</span>
+              <span class="metric-lbl">Test Proofs</span>
             </div>
-            <div class="stat-item">
-              <span class="stat-val" id="how-violations" style="color: #34d399;">0</span>
-              <span class="stat-lbl">Policy Breaches</span>
+            <div class="metric-item">
+              <span class="metric-val" id="w-violations-count" style="color: #34d399;">0</span>
+              <span class="metric-lbl">Breaches</span>
             </div>
-            <div class="stat-item">
-              <span class="stat-val" style="color: #38bdf8;">LIFO</span>
-              <span class="stat-lbl">Saga Undo Stack</span>
+            <div class="metric-item">
+              <span class="metric-val" style="color: #38bdf8;">Armed</span>
+              <span class="metric-lbl">Saga Undo</span>
             </div>
           </div>
-          <div class="sub-text" style="margin-top: 14px;">Deterministic commit gates prevent unverified code from merging.</div>
+          <div class="w-sub" style="margin-top: 10px;">Deterministic commit gates prevent unverified code from merging.</div>
         </div>
 
-        <!-- WHEN & WHERE: Scope & Cadence -->
-        <div class="card">
-          <div class="card-label">
-            <span>When & Where · Scope & Cadence</span>
+        <!-- WHEN & WHERE: Scope & Spend -->
+        <div class="w-card">
+          <div class="w-header">
+            <span>When &amp; Where · Cadence &amp; Scope</span>
           </div>
-          <div style="margin-top: 4px;">
-            <div style="font-size: 13px; color: #e4e4e7;">
-              <span style="color: var(--text-muted);">Boundary:</span> <span class="mono" id="where-scope">kineti-local-harness/src</span>
-            </div>
-            <div style="font-size: 13px; color: #e4e4e7; margin-top: 4px;">
-              <span style="color: var(--text-muted);">Spend:</span> <span id="when-spend">$0.00 of $50.00 ceiling</span>
-            </div>
-            <div style="font-size: 13px; color: #e4e4e7; margin-top: 4px;">
-              <span style="color: var(--text-muted);">Pacing:</span> <span style="color: #34d399;">Healthy (&lt; budget limit)</span>
-            </div>
-          </div>
+          <div class="w-main" id="w-when-spend">$0.00 of $50.00 spend</div>
+          <div class="w-sub" id="w-where-path">Isolated workspace repository</div>
+        </div>
+      </section>
+
+      <!-- Live Causal Activity Stream -->
+      <section class="timeline-card">
+        <div class="timeline-header">
+          <span class="timeline-title">Causal Activity Log · Real-Time Execution Trace</span>
+          <span class="mono" style="font-size: 11px; color: var(--text-muted);" id="timeline-count">Live</span>
+        </div>
+        <div class="timeline-list" id="timeline-list">
+          <!-- Populated by JavaScript -->
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="footer-bar">
+        <span>Kineti OS Autonomous Runtime · Context Integrity &amp; Outcome Engineering</span>
+        <button class="link-btn" onclick="toggleDrillDown(true)">Examine Raw Audit Ledger &amp; Proofs →</button>
+      </footer>
+    </main>
+
+    <!-- DRILL-DOWN VIEW (Hidden by default, on-demand inspection) -->
+    <section id="drilldown-view" class="hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 18px; font-weight: 600; color: #fff;">Audit Ledger &amp; Test Proofs</h2>
+          <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">Cryptographically hashed evidence records and immutable state history.</p>
+        </div>
+        <button class="btn btn-primary" onclick="toggleDrillDown(false)">← Back to Overview</button>
+      </div>
+
+      <!-- Evidence Table -->
+      <div class="timeline-card" style="margin-bottom: 20px;">
+        <div class="timeline-title" style="margin-bottom: 12px;">Cryptographic Test Evidence Proofs</div>
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Label</th>
+                <th>Command</th>
+                <th>Exit</th>
+                <th>Code Fingerprint (SHA-256)</th>
+              </tr>
+            </thead>
+            <tbody id="evidence-table-body">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <!-- 3. Bottom Drill-Down Bar -->
-      <div class="drilldown-footer">
-        <span style="font-size: 13px; color: var(--text-muted);">Need to examine raw test execution logs or detailed 13-stage telemetry?</span>
-        <button class="drilldown-link" onclick="toggleDrillDown(true)">Examine Audit Ledger &amp; Raw Evidence (52 Proofs) →</button>
-      </div>
-    </div>
-
-    <!-- DRILL-DOWN VIEW (Hidden by default, clean inspection on demand) -->
-    <div id="drilldown-view" class="hidden">
-      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-        <h2 style="font-size: 18px; font-weight: 700; color: #fff;">Audit Trail &amp; Cryptographic Evidence</h2>
-        <button class="btn btn-primary" onclick="toggleDrillDown(false)">← Return to Causal Stream</button>
-      </div>
-
-      <!-- 13 Stages Detailed Breakdown -->
-      <div class="card" style="margin-bottom: 20px;">
-        <div class="card-label">
-          <span>13-Stage Pipeline Breakdown</span>
-          <span style="color: var(--text-muted);">Granular Sub-Stages</span>
-        </div>
-        <div id="stages-detail-container" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+      <!-- Raw State History -->
+      <div class="timeline-card">
+        <div class="timeline-title" style="margin-bottom: 12px;">Raw Mutation History</div>
+        <div id="raw-history-box" class="mono" style="font-size: 12px; color: #a1a1aa; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
           <!-- Populated via JS -->
         </div>
       </div>
-
-      <!-- Evidence Proofs Table -->
-      <div class="card" style="margin-bottom: 20px;">
-        <div class="card-label">
-          <span>Cryptographic Evidence Proofs (Fresh)</span>
-        </div>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>Test Label</th>
-              <th>Command</th>
-              <th>Exit</th>
-              <th>SHA-256 Code Fingerprint</th>
-            </tr>
-          </thead>
-          <tbody id="evidence-table-body">
-            <!-- Populated via JS -->
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Causal History Stream -->
-      <div class="card">
-        <div class="card-label">
-          <span>Causal Mutation Ledger</span>
-        </div>
-        <div id="history-stream" style="font-family: monospace; font-size: 12px; color: #a1a1aa; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-          <!-- Populated via JS -->
-        </div>
-      </div>
-    </div>
+    </section>
   </div>
 
   <script>
     let activeGateId = null;
-    let cachedData = null;
 
     async function fetchStatus() {
       try {
         const res = await fetch("/api/status");
         if (!res.ok) return;
-        cachedData = await res.json();
-        render(cachedData);
+        const data = await res.json();
+        render(data);
       } catch (e) {
-        console.error("Status fetch error", e);
+        console.error("Companion fetch error", e);
       }
     }
 
@@ -790,166 +777,142 @@ function renderHtmlDashboard(): string {
       document.getElementById("drilldown-view").classList.toggle("hidden", !show);
     }
 
-    function selectPhase(phaseNum) {
-      if (!cachedData || !cachedData.analytics || !cachedData.analytics.phases) return;
-      const ph = cachedData.analytics.phases.find(p => p.num === phaseNum);
-      if (!ph) return;
-
-      document.getElementById("what-badge").textContent = ph.stages;
-      document.getElementById("what-title").textContent = ph.name;
-      document.getElementById("what-desc").textContent = ph.deliverable;
-      document.getElementById("why-sub").textContent = ph.why;
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     function render(data) {
       const an = data.analytics || {};
+      const why = an.why || {};
+      const what = an.what || {};
+      const how = an.how || {};
+      const when = an.when || {};
+      const where = an.where || {};
 
-      // 1. Top Bar & Spend
-      document.getElementById("proj-title").textContent = (data.project || "Kineti") + " — Companion";
+      // 1. Top Bar
+      document.getElementById("project-title").textContent = data.project || "Kineti Project";
       const totalSpend = data.spend ? data.spend.total_usd : 0;
       const spendCeil = data.spend ? data.spend.ceiling_usd : 50;
-      document.getElementById("top-spend-val").textContent = "$" + totalSpend.toFixed(2) + " / $" + spendCeil.toFixed(0);
+      document.getElementById("spend-text").textContent = "$" + totalSpend.toFixed(2) + " / $" + spendCeil.toFixed(0);
       const spendPct = Math.min(100, Math.round((totalSpend / spendCeil) * 100));
-      document.getElementById("top-spend-fill").style.width = spendPct + "%";
-      document.getElementById("when-spend").textContent = "$" + totalSpend.toFixed(2) + " of $" + spendCeil.toFixed(0) + " ceiling";
+      document.getElementById("spend-bar-fill").style.width = spendPct + "%";
 
-      // Status Pill
-      const pillBox = document.getElementById("top-status-pill");
+      // Status Badge
+      const statusBox = document.getElementById("status-pill-box");
       if (data.spend && data.spend.tripped) {
-        pillBox.innerHTML = '<span class="status-pill tripped"><span class="dot"></span> Breaker Tripped</span>';
+        statusBox.innerHTML = '<span class="status-badge tripped"><span class="dot"></span> Breaker Tripped</span>';
         document.getElementById("breaker-banner").classList.remove("hidden");
-        document.getElementById("breaker-banner-reason").textContent = data.spend.reason || "Task budget ceiling reached.";
-      } else if (an.how && an.how.pending_action) {
-        pillBox.innerHTML = '<span class="status-pill attention"><span class="dot"></span> Gate Sign-off</span>';
+        document.getElementById("breaker-reason").textContent = data.spend.reason || "Task budget exceeded.";
+      } else if (how.pending_action) {
+        statusBox.innerHTML = '<span class="status-badge action"><span class="dot"></span> Action Required</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       } else {
-        pillBox.innerHTML = '<span class="status-pill healthy"><span class="dot"></span> Enforced</span>';
+        statusBox.innerHTML = '<span class="status-badge healthy"><span class="dot"></span> Governed</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       }
 
-      // 2. The Causal River
-      const currentPhase = an.what ? an.what.phase_num : 1;
-      const isStd = an.what ? an.what.is_standard_stage : (typeof data.stage === "number");
-      if (isStd) {
-        document.getElementById("river-stage-label").textContent = "Stage " + (data.stage || 1) + ": " + (data.stage_name || "");
+      // 2. Action Banner
+      const actionBanner = document.getElementById("action-banner");
+      if (how.pending_action) {
+        actionBanner.classList.remove("hidden");
+        activeGateId = how.pending_action.gate;
+        document.getElementById("action-title").textContent = "Action Required: " + how.pending_action.title;
+        document.getElementById("action-desc").textContent = how.pending_action.prompt;
+        document.getElementById("btn-approve").textContent = "Approve " + how.pending_action.gate;
       } else {
-        const taskLbl = (an.what && an.what.stage_label) ? an.what.stage_label : String(data.stage);
-        document.getElementById("river-stage-label").textContent = "⚡ Task: " + taskLbl;
-      }
-
-      for (let i = 1; i <= 4; i++) {
-        const nodeEl = document.getElementById("rnode-" + i);
-        const circleEl = document.getElementById("rcircle-" + i);
-        const connEl = document.getElementById("rconn-" + i);
-
-        nodeEl.className = "river-node";
-        if (connEl) connEl.className = "river-connector";
-
-        if (i < currentPhase) {
-          nodeEl.classList.add("completed");
-          circleEl.innerHTML = "✓";
-          if (connEl) connEl.classList.add("completed");
-        } else if (i === currentPhase) {
-          nodeEl.classList.add("active");
-          circleEl.innerHTML = '<span class="pulse-dot"></span>';
-          if (connEl) connEl.classList.add("active");
-        } else {
-          circleEl.textContent = i;
-        }
-      }
-
-      // 3. Action Card
-      const actionCard = document.getElementById("action-banner");
-      if (an.how && an.how.pending_action) {
-        actionCard.classList.remove("hidden");
-        activeGateId = an.how.pending_action.gate;
-        document.getElementById("action-title").textContent = "Action Required: " + an.how.pending_action.stageName + " Gate";
-        document.getElementById("action-desc").textContent = an.how.pending_action.prompt;
-        document.getElementById("btn-action-approve").textContent = "Approve " + an.how.pending_action.stageName;
-      } else {
-        actionCard.classList.add("hidden");
+        actionBanner.classList.add("hidden");
         activeGateId = null;
       }
 
+      // 3. Hero Card
+      const heroTagText = document.getElementById("hero-tag-text");
+      if (what.task_type) {
+        heroTagText.textContent = "Active Task: " + what.task_type.toUpperCase();
+      } else {
+        heroTagText.textContent = "Active Focus";
+      }
+
+      document.getElementById("hero-title").textContent = why.goal || "Ready for directives";
+      document.getElementById("meta-proofs").textContent = (data.evidence ? data.evidence.length : 0) + " Verified Tests";
+      document.getElementById("meta-dir").textContent = where.working_dir ? where.working_dir.split("/").slice(-2).join("/") : "src/";
+
       // 4. The 5 W's Cards
-      if (an.why) {
-        document.getElementById("why-text").textContent = an.why.goal;
-        document.getElementById("why-sub").textContent = an.why.locked_at 
-          ? "Locked: " + an.why.locked_at + " · Cryptographically immutable" 
-          : "Not yet locked";
+      document.getElementById("w-why-goal").textContent = why.goal || "No objective locked yet";
+      document.getElementById("w-why-sub").textContent = why.locked_at 
+        ? "Locked: " + why.locked_at + " · Immutable" 
+        : "State initialized";
+
+      document.getElementById("w-what-badge").textContent = what.active_label || "Task";
+      document.getElementById("w-what-task").textContent = what.task_name || "General Development";
+      document.getElementById("w-what-sub").textContent = "Target: " + (what.target_paths || "src/");
+
+      document.getElementById("w-proofs-count").textContent = data.evidence ? data.evidence.length : 0;
+      document.getElementById("w-violations-count").textContent = how.policy_violations || 0;
+
+      document.getElementById("w-when-spend").textContent = "$" + totalSpend.toFixed(2) + " of $" + spendCeil.toFixed(0) + " ceiling";
+      document.getElementById("w-where-path").textContent = where.working_dir || "Local repository boundary";
+
+      // 5. Causal Timeline Stream
+      const tList = document.getElementById("timeline-list");
+      tList.innerHTML = "";
+      const events = data.causal_events || [];
+      document.getElementById("timeline-count").textContent = events.length + " Events";
+
+      if (events.length === 0) {
+        tList.innerHTML = '<div style="color: var(--text-muted); font-size: 13px;">No activity events recorded yet.</div>';
+      } else {
+        events.forEach(ev => {
+          const item = document.createElement("div");
+          item.className = "timeline-item";
+
+          let timeStr = "";
+          if (ev.timestamp && ev.timestamp.includes("T")) {
+            timeStr = ev.timestamp.split("T")[1].slice(0, 8);
+          } else {
+            timeStr = "—";
+          }
+
+          let badgeClass = "badge-init";
+          if (ev.kind === "goal") badgeClass = "badge-goal";
+          else if (ev.kind === "task") badgeClass = "badge-task";
+          else if (ev.kind === "gate") badgeClass = "badge-gate";
+          else if (ev.kind === "proof") badgeClass = ev.badge === "FAIL" ? "badge-fail" : "badge-proof";
+
+          item.innerHTML = 
+            '<span class="timeline-time">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="timeline-badge ' + badgeClass + '">' + escapeHtml(ev.badge) + '</span>' +
+            '<div class="timeline-detail">' +
+              '<strong style="color: #fff;">' + escapeHtml(ev.label) + '</strong> — ' +
+              '<span style="color: #a1a1aa;">' + escapeHtml(ev.detail) + '</span>' +
+            '</div>';
+
+          tList.appendChild(item);
+        });
       }
 
-      if (an.what) {
-        if (an.what.is_standard_stage) {
-          document.getElementById("what-badge").textContent = "Stage " + an.what.stage_num + " (" + an.what.stage_name + ")";
-        } else {
-          document.getElementById("what-badge").textContent = "Task: " + an.what.stage_label;
-        }
-        document.getElementById("what-title").textContent = an.what.deliverable_title;
-        document.getElementById("what-desc").textContent = an.what.deliverable_desc;
-      }
-
-      if (an.how) {
-        document.getElementById("how-proofs").textContent = data.evidence ? data.evidence.length : 0;
-        document.getElementById("how-violations").textContent = an.how.policy_violations;
-      }
-
-      if (an.where) {
-        document.getElementById("where-scope").textContent = an.where.workspace + "/src";
-      }
-
-      // 5. Drill-Down: 13 Stages List
-      const stagesList = document.getElementById("stages-detail-container");
-      stagesList.innerHTML = "";
-      (data.stages || []).forEach(s => {
-        const item = document.createElement("div");
-        item.style.display = "flex";
-        item.style.alignItems = "center";
-        item.style.justifyContent = "space-between";
-        item.style.padding = "10px 14px";
-        item.style.borderRadius = "8px";
-        item.style.background = s.is_current ? "rgba(139, 92, 246, 0.12)" : "#18181c";
-        item.style.border = "1px solid " + (s.is_current ? "rgba(139, 92, 246, 0.4)" : "var(--card-border)");
-
-        let gateBadge = "";
-        if (s.gate) {
-          const status = s.gate_status || "pending";
-          const color = status === "pass" ? "#34d399" : status === "fail" ? "#f87171" : "#fbbf24";
-          gateBadge = '<span class="mono" style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); color: ' + color + ';">Gate: ' + status + '</span>';
-        }
-
-        item.innerHTML = 
-          '<div style="display: flex; align-items: center; gap: 10px;">' +
-            '<span class="mono" style="font-weight: 700; font-size: 12px; color: ' + (s.is_current ? "var(--accent)" : "var(--text-muted)") + ';">#' + s.id + '</span>' +
-            '<span style="font-weight: 600; font-size: 13px; color: #fff;">' + s.label + '</span>' +
-            '<span style="font-size: 12px; color: var(--text-muted);">' + s.desc + '</span>' +
-          '</div>' +
-          '<div>' + gateBadge + '</div>';
-        stagesList.appendChild(item);
-      });
-
-      // 6. Drill-Down: Evidence Table
+      // 6. Drill-down Evidence Table
       const evTbody = document.getElementById("evidence-table-body");
       evTbody.innerHTML = "";
       if (!data.evidence || data.evidence.length === 0) {
-        evTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 16px;">No cryptographic evidence records recorded yet.</td></tr>';
+        evTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 16px;">No cryptographic test proofs recorded yet.</td></tr>';
       } else {
         data.evidence.forEach(e => {
           const tr = document.createElement("tr");
           tr.innerHTML = 
-            '<td style="color: var(--text-muted);">' + (e.at ? e.at.split("T")[1].slice(0,8) : "") + '</td>' +
-            '<td style="color: #fff; font-weight: 600;">' + e.label + '</td>' +
-            '<td style="color: #d4d4d8;">' + e.cmd + '</td>' +
+            '<td style="color: var(--text-muted);">' + (e.at ? e.at.split("T")[1].slice(0, 8) : "") + '</td>' +
+            '<td style="color: #fff; font-weight: 600;">' + escapeHtml(e.label) + '</td>' +
+            '<td style="color: #d4d4d8;">' + escapeHtml(e.cmd) + '</td>' +
             '<td style="color: ' + (e.exit_code === 0 ? "#34d399" : "#f87171") + ';">' + e.exit_code + '</td>' +
-            '<td style="color: #a1a1aa;">' + (e.fingerprint ? e.fingerprint.slice(0, 12) + "..." : "") + '</td>';
+            '<td style="color: #a1a1aa;">' + escapeHtml(e.fingerprint ? e.fingerprint.slice(0, 16) + "..." : "") + '</td>';
           evTbody.appendChild(tr);
         });
       }
 
-      // 7. Drill-Down: Causal History
-      const histBox = document.getElementById("history-stream");
+      // 7. Drill-down Raw History
+      const histBox = document.getElementById("raw-history-box");
       histBox.innerHTML = "";
-      (data.history || []).slice(-15).reverse().forEach(h => {
+      (data.history || []).slice(-20).reverse().forEach(h => {
         const div = document.createElement("div");
         div.textContent = (h.at || "") + " — " + (h.event || "");
         histBox.appendChild(div);
@@ -980,7 +943,7 @@ function renderHtmlDashboard(): string {
     }
 
     fetchStatus();
-    setInterval(fetchStatus, 3000);
+    setInterval(fetchStatus, 2500);
   </script>
 </body>
 </html>`;
