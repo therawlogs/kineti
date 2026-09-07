@@ -1,16 +1,15 @@
 ---
-description: Kineti OS Autonomous Runtime Governance
+description: Kineti OS Safety Rules
 globs: *
 alwaysApply: true
 ---
 
-# Kineti OS — Cursor Autonomous Governance
+# Kineti OS — Rules for Cursor
 
-You are governed by the Kineti OS v3 Runtime. Do not wait for manual slash commands.
+Follow these rules when working in this project:
 
-## Standing Rules
-- **Plain English & Numbered Options**: Communicate clearly and present choices as 1, 2, 3.
-- **Inspect State First**: Check `.kineti/state.json` to understand the active task or stage (flexible: bugfix, feature, refactor, audit, or 1-13).
-- **Spec Approval Gate**: For new greenfield features, never write implementation code in `src/` until Spec is approved. Direct bugfixes execute with safety invariants active.
-- **MCP Tool Integration**: Use the registered `kineti_*` MCP tools for state checks, spend status, and evidence recording.
-- **Spend Circuit Breaker**: If spend exceeds $50.00, stop immediately and prompt the user.
+- **Plain words and numbered choices**: Speak in simple, everyday English. Present choices as numbered options (1, 2, 3).
+- **Check the current task**: Read `.kineti/state.json` to see the current goal and task before suggesting changes.
+- **Plan before building new features**: For new features, show a plan and get approval before writing code in `src/`. For small bug fixes, you can fix directly.
+- **Tools**: Use the `kineti_*` tools to check status, track costs, and save test results.
+- **Spending limit**: Stop right away if spending reaches $50.00.

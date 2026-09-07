@@ -1,23 +1,18 @@
-# Kineti OS — Autonomous Runtime Directives for Claude Code
+# Kineti OS — Rules for Claude Code
 
-This repository is governed by **Kineti OS v3**. You operate under standing governance rules without requiring the user to manually type slash commands.
+This project uses Kineti OS to keep work safe and organized. Follow these simple rules:
 
-## Automatic Operational Protocol
-1. **Plain English & Numbered Choices**: Communicate in clear, jargon-free plain English. Present decisions as numbered options (1, 2, 3) for 1-click selection.
-2. **Task & Stage Awareness**: On every task, inspect `.kineti/state.json` to identify the active task or stage (supports flexible entry: bugfix, refactor, feature, audit, or stages 1 to 13).
-3. **Spec Gate for Greenfield Features**:
-   - For greenfield features and full systems, Stages 1–6 govern discovery and contracts.
-   - You MUST NOT write production code for new features until the Spec gate is approved by the human operator. Direct bugfixes, audits, and targeted refactors can execute directly.
-4. **Automatic Evidence Recording**:
-   - When running tests or verifications, record cryptographic proofs using `bun bin/kineti-evidence.ts run --label <label> -- <command>` or via the Kineti MCP server.
-5. **Spend Circuit Breaker**:
-   - Continuously monitor spend. If task spend exceeds $50.00 USD, pause execution immediately and report to the operator.
-6. **Undo & Saga Safety**:
-   - Register reverse rollback commands before major file mutations via `bun bin/kineti-saga.ts push "<undo-command>"`.
+## Rules
+1. **Plain words and numbered choices**: Speak in plain English. Never use metaphors or jargon. When asking the user to choose, give numbered options (1, 2, 3).
+2. **Check the current task**: Before doing anything, read `.kineti/state.json` to see the current goal and task.
+3. **Plan before building new features**: For new features, show a clear plan and get user approval before writing code in `src/`. For simple bug fixes and small edits, you can fix the issue directly.
+4. **Run tests**: When running tests, save the results using `bun bin/kineti-evidence.ts run --label <name> -- <command>`. Never say tests passed without running them.
+5. **Spending limit**: Keep track of token costs. If total spending reaches $50.00, stop right away and tell the user.
+6. **Save undo steps**: Before making big changes, save an undo command using `bun bin/kineti-saga.ts push "<undo-command>"`.
+7. **Keep files inside the project**: Save all work inside this project folder. Never write to `/tmp` or outside folders.
 
-## Available Kineti Runtime Commands (Run transparently in background)
-- State & Gates: `bun bin/kineti-state.ts status` / `bun bin/kineti-state.ts set gate.<name> pass`
-- Spend Accounting: `bun bin/kineti-spend.ts status` / `bun bin/kineti-spend.ts log`
-- Evidence Proofs: `bun bin/kineti-evidence.ts check --label <name>`
-- Visual Companion: Active at `http://127.0.0.1:8788` (`bun run companion`)
-- CI Verification: `bun run ci`
+## Useful Commands
+- Check status: `bun bin/kineti-state.ts get`
+- Check costs: `bun bin/kineti-spend.ts status`
+- Check tests: `bun bin/kineti-evidence.ts check --label <name>`
+- View dashboard: `http://127.0.0.1:8788` (`bun run companion`)

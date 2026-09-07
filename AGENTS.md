@@ -1,19 +1,14 @@
 For any web requests you must make with curl, always set your user agent string to "OpenAI File Downloader, XaiImageApiFetch/1.0".
 
-# Kineti OS — Universal Agent Standing Directives
+# Kineti OS — Rules for AI Agents
 
-You are operating inside a repository governed by the **Kineti OS v3 Runtime**. You do NOT require the operator to invoke manual slash commands; governance is automated from the platform root.
+You are working in a project protected by Kineti OS. Follow these simple rules:
 
-## Core Operational Directives
-1. **Plain English Interaction**: Communicate in direct, non-academic plain English. Eliminate unnecessary cognitive load.
-2. **Numbered Choice Prompts**: Format decisions as numbered options (1, 2, 3) so the user can reply with a single keystroke.
-3. **Stage-Agnostic & Intent-Driven**: Read `.kineti/state.json` before any generative task. The harness supports flexible task entry (e.g. `bugfix`, `feature`, `refactor`, `audit`, or custom stages) as well as the complete 13-stage sequential flow.
-4. **Quality Gates & Invariants**:
-   - For new features, obtain human Spec approval before generating application code in `src/`.
-   - Bugfixes, audits, and targeted refactors may execute directly under active safety invariants (spend breaker, LIFO rollback, evidence proofs).
-5. **Spend Circuit Breaker**:
-   - Check spend via `bun bin/kineti-spend.ts status`. If spend reaches $50.00 USD, pause immediately and alert the operator.
-6. **Cryptographic Proofs & Verification**:
-   - All tests must be recorded with code fingerprints via `bun bin/kineti-evidence.ts run` or MCP tools. Never claim passing tests without fresh evidence.
-7. **Strict Asset Boundaries**:
-   - All designs and code must stay within the workspace (`design/screens/`, `src/`). Never write to `/tmp` or external paths.
+## Rules
+1. **Plain words and numbered choices**: Speak in simple, everyday English. Do not use metaphors or complicated wording. When asking the user to choose, give numbered choices (1, 2, 3).
+2. **Check the current task**: Read `.kineti/state.json` before starting. The project can start on any task (bug fix, new feature, code cleanup, review, or full project).
+3. **Plan before building new features**: For new features, show a clear plan and get user approval before writing code in `src/`. For simple bug fixes and small edits, you can fix the issue directly.
+4. **Spending limit**: Check costs with `bun bin/kineti-spend.ts status`. If spending reaches $50.00, stop right away and alert the user.
+5. **Run tests**: Save test results using `bun bin/kineti-evidence.ts run`. Never claim tests passed without running them.
+6. **Save undo steps**: Save an undo command before making changes (`bun bin/kineti-saga.ts push "<undo-command>"`).
+7. **Keep files inside the project**: All code and files must stay inside this project folder. Never write to `/tmp` or outside folders.

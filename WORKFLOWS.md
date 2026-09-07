@@ -1,58 +1,38 @@
-# WORKFLOWS.md — The Kineti v3 Loop
+# WORKFLOWS.md — How Work Flows in Kineti
 
-One loop. Thirteen stages. Three gates. Every stage reads memory first and writes it after.
+Kineti supports direct tasks (like fixing a bug or cleaning up code) as well as full project builds.
 
-```
- 1 officehours ─► 2 diagnose ─► 3 design ─► 4 architecture
-        ▲                                          │
-        │                                          ▼
-        │                              5 FEASIBILITY GATE ◄─┐
-        │                              (fail → back to 2)   │ fail
-        │                                          │ pass   │
-        │                                          ▼        │
-        │                                   6 SPEC [STOP]   │
-        │                                   human approval  │
-        │                                          │ approved
-        │                                          ▼
-        └── 13 retro + learn ◄─ 12 watch ◄─ 11 ship ◄─ 10 security ◄─ 9 qa ◄─ 8 review ◄─ 7 build
-```
+## 1. Direct Tasks (Start Anywhere)
+You do not need to follow every step for small jobs:
+- **Bug fix**: Reproduce issue, fix code in `src/`, run tests.
+- **Code cleanup**: Clean code, run tests, verify changes.
+- **Code review**: Review files, check security, report issues.
 
-## Stage table
+Safety rules always run in the background (undo commands, spending limits, test checks).
 
-| # | Stage | Produces | Hard rule |
+## 2. Full Project Steps
+When building a new project from scratch, follow these steps:
+
+| Step | Name | What it does | Key Rule |
 |---|---|---|---|
-| 1 | officehours | brief.md + locked goal + UX Blueprint (Persona, Journey, Interaction Matrix, 3-Layer Split) | No feature talk before pain is proven with examples; UX blueprint must precede design |
-| 2 | diagnose | diagnostics.md (loss table, bottleneck map, cause chains) | Every dollar figure shows its math |
-| 3 | design | style brief, HTML screen variants from UX blueprint, winning mockup, tokens file | No component code before HTML screen variants match UX blueprint |
-| 4 | architecture | architecture.md, diagrams, contracts, test matrix | Stack chosen by comparison math, never by default |
-| 5 | feasibility gate | feasibility.md, pass/fail per check | Any fail returns to stage 2 with reasons |
-| 6 | spec | spec.md | HARD STOP: no code before human approval |
-| 7 | build | src/, tests, progress commits | Undo step registered = change allowed |
-| 8 | review | findings with file:line | No new features during review |
-| 9 | qa | report, screenshots, regression tests | 5 self-repair attempts max, then escalate |
-| 10 | security | findings with exploit story + fix | Critical finding blocks ship |
-| 11 | ship | clean commits, pull request | Fresh proofs + passed security required |
-| 12 | watch | alerts versus baseline | Baseline recorded before deploy |
-| 13 | retro + learn | expiring lessons, dossier updates | Lessons feed stages 1-5 automatically |
+| 1 | Office hours | Define the main goal and user flow | Clearly explain the problem first |
+| 2 | Diagnose | Measure costs and find slow points | Show the math for any cost claim |
+| 3 | Design | Create screen mockups and layout styles | Review mockups before writing code |
+| 4 | Architecture | Choose libraries, database, and API shape | Compare options with clear numbers |
+| 5 | Cost & limits check | Check costs and API rate limits | Stop if costs are too high |
+| 6 | Plan approval | Write clear plan and test list | STOP: You must approve before code is written |
+| 7 | Build | Write code in small pieces with tests | Save an undo command before each change |
+| 8 | Review | Look for edge cases and errors | No new features during review |
+| 9 | QA | Test on desktop and mobile viewports | Run tests and take screenshots |
+| 10 | Security check | Check for common security flaws | Fix all serious flaws before moving on |
+| 11 | Final approval | Clean commits and pull request | All tests must pass |
+| 12 | Monitoring | Watch errors and response speed | Record normal numbers before release |
+| 13 | Review lessons | Record what went well and what failed | Save lessons to help future tasks |
 
-## Harness calls per stage
-
-| Stage | Programs used |
-|---|---|
-| 1-6 | kineti-state · kineti-spend · kineti-egress (any web research) |
-| 7 | + kineti-saga on every change |
-| 8-9 | + kineti-evidence run/check |
-| 11 | kineti-evidence check (all groups) · verify-gate final run |
-| 13 | memory weekly rules apply |
-
-## Memory rules
-
-1. Expiry states: active → warm → cold → archive. Enforced by the weekly job.
-2. Cause links: open vocabulary; core words from the Kineti causal schema (`caused triggers blocks enables requires supports indicates contributes_to remediates contradicts supersedes resolves duplicates`); status candidate → hypothesis → validated → rejected; validation requires a linked proof record; time order checked weekly.
-3. Each project's run-records chain by fingerprint.
-
-## Feasibility checks (stage 5)
-
-- Money: profit per user, margin, return vs hurdle rate, breakeven month where relevant.
-- Data: completeness × accuracy × freshness ≥ threshold (default 0.8).
-- People: power (0-1) × agreement (-1 to +1); powerful opponents become mitigation tasks.
+## 3. Programs Used
+- State and tasks: `kineti-state.ts`
+- Costs and spending limit ($50): `kineti-spend.ts`
+- Undo safety: `kineti-saga.ts`
+- Test checking: `kineti-evidence.ts`
+- Web requests: `kineti-egress.ts`
+- Companion dashboard: `kineti-companion.ts` (`http://127.0.0.1:8788`)

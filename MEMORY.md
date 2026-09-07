@@ -1,21 +1,19 @@
-# MEMORY.md — How Kineti Remembers
+# Memory System
 
-Engine: **gbrain** (local database, installed from GitHub). When gbrain MCP
-is connected, skills use its memory verbs. Everywhere else — and always as
-the durable fallback — Kineti writes structured records to a project's
-`.kineti/journal.jsonl`. This file defines the record formats and the three
-rules that make memory trustworthy.
+This document describes how Kineti saves and verifies notes across tasks.
 
-## Record types
+Kineti saves structured records to `.kineti/journal.jsonl` in your project folder. When `gbrain` is connected, it also saves notes to a local database.
 
-Every record is one JSON line with these top-level fields:
+## Record Types
+
+Each record is one JSON line:
 
 ```json
 {
   "at": "ISO timestamp",
   "type": "run-record | learning | dossier",
   "state": "active",
-  "project": "slug",
+  "project": "project-name",
   "id": "rr-001",
   "data": {},
   "links": [],
@@ -23,27 +21,36 @@ Every record is one JSON line with these top-level fields:
 }
 ```
 
-**run-record** — one per pipeline run.
-`data`: `{ root_goal, stage_outcomes, costs_usd, failed_approaches[] }`.
-Also carries `prev_hash` and `hash` (see Rule 3). Expires: never.
+### 1. `run-record`
+Saved once per task or run.
+- `data`: `{ root_goal, stage_outcomes, costs_usd, failed_approaches[] }`
+- Includes `prev_hash` and `hash`.
+- Does not expire.
 
-**learning** — one insight. `data`: `{ skill, trigger, lesson }`.
-Default expiry 90 days (process lessons 180, vendor-specific 60).
+### 2. `learning`
+A lesson learned from a task.
+- `data`: `{ skill, trigger, lesson }`
+- Standard expiry: 90 days (180 days for process lessons, 60 days for service-specific lessons).
 
-**dossier** — living facts about a project.
-`data`: `{ stakeholders:[{role, power, agreement}], stack, next_steps[] }`.
-Refreshed by diagnose/feasibility/retro; expires only if abandoned.
+### 3. `dossier`
+Facts about a project, people, and technical stack.
+- `data`: `{ stakeholders:[{role, power, agreement}], stack, next_steps[] }`
+- Updated during project planning and weekly reviews.
 
-## Rule 1 — Expiry states
+## Rule 1 — Record Expiry
 
-Records move: `active → warm → cold → archive`. Nothing is deleted.
-Ages (since `at`, using type-specific expiry for active): active until
-expiry, then warm 90 days, cold 275 days, then archive. Only `active`
-records answer recall. The weekly job performs all moves.
+Records follow four stages over time: `active` → `warm` → `cold` → `archive`. No records are deleted.
 
-## Rule 2 — Open causality
+- **Active**: Used for recall and answering questions.
+- **Warm**: Next 90 days after active expires.
+- **Cold**: Next 275 days after warm.
+- **Archive**: Kept permanently for historical reference.
 
-Links live in `links[]`:
+The weekly job updates these states automatically.
+
+## Rule 2 — Cause and Effect Links
+
+Links between records are saved in `links[]`:
 
 ```json
 {
@@ -55,26 +62,23 @@ Links live in `links[]`:
 }
 ```
 
-- Any relationship word is allowed at write time. Core words come from the
-  Kineti causal schema: `caused triggers blocks enables requires supports indicates
-  contributes_to remediates contradicts supersedes resolves duplicates`.
-- Status flow: `candidate → hypothesis → validated → rejected`.
-- A link reaches `validated` only when `proof_id` points at an existing
-  record holding evidence. Unproven links stay candidate and expire.
-- Time order: for `caused`, `triggers`, `blocks`, the effect's `at` must
-  not precede the cause's `at`. The weekly job flags violations; nothing
-  is silently dropped or rewritten.
-- The weekly job reports non-core words used 3+ times as promotion
-  candidates. Vocabulary grows by use, never capped.
+- Allowed link words: `caused`, `triggers`, `blocks`, `enables`, `requires`, `supports`, `indicates`, `contributes_to`, `remediates`, `contradicts`, `supersedes`, `resolves`, `duplicates`.
+- Status sequence: `candidate` → `hypothesis` → `validated` → `rejected`.
+- A link reaches `validated` only when `proof_id` points to a record containing evidence.
+- Time check: A cause cannot occur after its effect.
+- Words used 3 or more times are suggested for permanent addition.
 
-## Rule 3 — Project hash chain
+## Rule 3 — Record Hash Chain
 
-Each run-record sets `prev_hash` to the previous run-record's `hash` for
-the same project (`GENESIS` for the first), and
-`hash = sha256(prev_hash + at + id + canonical_json(data))`.
-The weekly job recomputes the chain; any break proves history was edited.
+Each `run-record` includes a cryptographic hash of the previous record:
+- `prev_hash`: Hash of the prior record (or `"GENESIS"` for the first record).
+- `hash`: `sha256(prev_hash + at + id + canonical_json(data))`.
 
-## Weekly job
+The weekly job recalculates hashes. Any change to older records is detected immediately.
+
+## Weekly Maintenance Job
+
+Run these four commands every week:
 
 ```sh
 KIN="$(cat "$HOME/.kineti/repo")"
@@ -83,13 +87,5 @@ bun "$KIN/bin/kineti-memory-job.ts" verify-chain --dir <project>
 bun "$KIN/bin/kineti-memory-job.ts" time-order   --dir <project>
 bun "$KIN/bin/kineti-memory-job.ts" promote      --dir <project>
 ```
-Schedule weekly (launchd/cron). `retro` runs the same four commands at the
-end of every retro regardless.
 
-## With gbrain connected
-
-The same records are remembered via memory verbs with their settings block
-as page metadata; `journal.jsonl` remains the export/import format. Search
-today is keyword-based because no embedding key is configured — exact
-recall works, semantic ("similar meaning") search activates when an
-embedding provider key is added to gbrain config.
+These commands expire old records, verify hashes, check timestamps, and suggest new words.
