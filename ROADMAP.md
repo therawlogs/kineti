@@ -1,6 +1,6 @@
 # Project Roadmap
 
-This document lists future planned improvements.
+This document lists future planned improvements and completed capabilities.
 
 ## Planned Updates
 
@@ -18,7 +18,14 @@ This document lists future planned improvements.
 | **Native Graph Storage** | Store cause-and-effect records directly in a graph database. | Add link scoring to `kineti-memory-job` before changing databases. |
 | **Team Mode** | Allow multiple team members to share memory securely. | Add workspace permissions to memory storage. |
 
-## Completed in Version 3
+## Completed in Version 3.1
+
+- **Multi-Repository Fleet Governance**: Multi-repo grid (`Fleet View`), repository switcher dropdown, and unified spending analytics.
+- **Apple HIG Web Design**: Full adoption of Apple Human Interface Guidelines, material library (vibrancy, blurs, hairlines), continuous squircles, and removal of mock window chrome.
+- **Settings & Integrations Drawer**: Slide-out panel for GitHub App connection, one-click agent IDE auto-latching (Cursor, Claude Code, Antigravity, Codex), and repository owner budget allocation.
+- **Agent Swarm Coordination & Cryptographic Identity**: Ed25519 keypairs per agent, anti-drift envelopes, dual-signed Outcome Verification Tickets (OVT), and role-gated approvals.
+
+## Completed in Version 3.0
 
 - Direct task entry (`bugfix`, `feature`, `refactor`, `audit`) and full project workflow
 - Spend limit protection ($50 USD max)
