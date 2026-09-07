@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // bin/kineti-companion.ts
-// Kineti OS — Visual Companion Canvas & Executive Analytics Dashboard
+// Kineti OS — Visual Companion Canvas: Causal Stream (River) & 5 W's Analytics
 
 import fs from "node:fs";
 import path from "node:path";
@@ -24,6 +24,37 @@ const STAGES = [
   { id: 11, name: "ship", label: "Ship", gate: "ship", desc: "Gate: Proof-gated merge & clean PR" },
   { id: 12, name: "watch", label: "Watch", gate: null, desc: "Live error & latency monitoring" },
   { id: 13, name: "retro", label: "Retro", gate: null, desc: "Weekly learnings & causal rules" },
+];
+
+const PHASE_DEFINITIONS = [
+  {
+    num: 1,
+    name: "Intent & Scope",
+    stages: "Stages 1–4",
+    why: "Define business purpose and boundary before generating tokens.",
+    deliverable: "UX blueprint, system architecture, and root scope lock.",
+  },
+  {
+    num: 2,
+    name: "Spec Contract",
+    stages: "Stages 5–6",
+    why: "Lock typed shapes and test matrix before code execution is allowed.",
+    deliverable: "Typed API contracts, schema validations, and pass/fail tests.",
+  },
+  {
+    num: 3,
+    name: "Verified Code",
+    stages: "Stages 7–10",
+    why: "Build small reversible code increments with cryptographic proof.",
+    deliverable: "Source code in /src, multi-viewport QA, and OWASP review.",
+  },
+  {
+    num: 4,
+    name: "Outcome Proof",
+    stages: "Stages 11–13",
+    why: "Validate cryptographic proof before merge; observe telemetry.",
+    deliverable: "Dual-signed verification badge, PR comment, and causal memory.",
+  },
 ];
 
 const DELIVERABLE_SUMMARIES: Record<number, { title: string; desc: string }> = {
@@ -93,16 +124,16 @@ function getHarnessStatus() {
 
   // Determine 4-phase macro progress
   let phaseNum = 1;
-  let phaseName = "Discovery & Design";
+  let phaseName = "Intent & Scope";
   if (stageNum >= 5 && stageNum <= 6) {
     phaseNum = 2;
-    phaseName = "Specification & Gates";
+    phaseName = "Spec Contract";
   } else if (stageNum >= 7 && stageNum <= 10) {
     phaseNum = 3;
-    phaseName = "Implementation & Security";
+    phaseName = "Verified Code";
   } else if (stageNum >= 11) {
     phaseNum = 4;
-    phaseName = "Shipment & Continuous Learning";
+    phaseName = "Outcome Proof";
   }
 
   // Pending Human Action
@@ -153,7 +184,8 @@ function getHarnessStatus() {
       working_dir: REPO_ROOT,
       target_paths: "src/ & design/screens/",
       isolation: "Strict local workspace isolation (no /tmp writes)",
-    }
+    },
+    phases: PHASE_DEFINITIONS,
   };
 
   return {
@@ -223,7 +255,7 @@ function renderHtmlDashboard(): string {
       padding: 32px 24px;
       -webkit-font-smoothing: antialiased;
     }
-    .container { max-width: 1080px; margin: 0 auto; }
+    .container { max-width: 980px; margin: 0 auto; }
     
     /* Top Header */
     .top-bar {
@@ -262,42 +294,178 @@ function renderHtmlDashboard(): string {
     .status-pill.tripped { background: var(--red-bg); color: #f87171; border-color: var(--red-border); }
     .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 
-    /* Tab Switcher */
-    .tab-bar {
+    /* Spend Indicator */
+    .spend-pill {
       display: flex;
-      gap: 8px;
-      background: #151518;
-      padding: 4px;
-      border-radius: 10px;
+      align-items: center;
+      gap: 10px;
+      background: #18181c;
+      padding: 5px 12px;
+      border-radius: 8px;
       border: 1px solid var(--card-border);
-      width: fit-content;
-      margin-bottom: 24px;
-    }
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      padding: 6px 14px;
-      border-radius: 7px;
-      cursor: pointer;
-      transition: all 0.15s ease;
+      color: #e4e4e7;
     }
-    .tab-btn.active {
-      background: #27272a;
+    .spend-meter-bar { width: 60px; height: 5px; background: #27272a; border-radius: 3px; overflow: hidden; }
+    .spend-meter-fill { height: 100%; background: linear-gradient(90deg, #10b981, #8b5cf6); border-radius: 3px; }
+
+    /* ========================================================================= */
+    /* THE CAUSAL STREAM (RIVER)                                                */
+    /* ========================================================================= */
+    .river-card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px 28px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+    .river-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .river-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+    }
+    .river-track {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+    }
+    .river-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      position: relative;
+      z-index: 2;
+      transition: all 0.2s ease;
+    }
+    .river-circle {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #18181c;
+      border: 2px solid #27272a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-muted);
+      transition: all 0.2s ease;
+    }
+    .river-node:hover .river-circle { border-color: #52525b; color: #fff; }
+    
+    /* Completed Node */
+    .river-node.completed .river-circle {
+      background: rgba(16, 185, 129, 0.15);
+      border-color: #10b981;
+      color: #34d399;
+    }
+    /* Active Node */
+    .river-node.active .river-circle {
+      background: rgba(139, 92, 246, 0.2);
+      border-color: var(--accent);
       color: #fff;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      box-shadow: 0 0 16px rgba(139, 92, 246, 0.5);
+    }
+    .pulse-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px #a78bfa;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
     }
 
-    /* Cards & Grids */
+    .river-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      white-space: nowrap;
+      transition: color 0.2s ease;
+    }
+    .river-node.active .river-label { color: #fff; font-weight: 700; }
+    .river-node.completed .river-label { color: #d4d4d8; }
+
+    /* River Connecting Lines */
+    .river-connector {
+      flex: 1;
+      height: 2px;
+      background: #27272a;
+      margin: 0 12px;
+      margin-bottom: 24px;
+      position: relative;
+      z-index: 1;
+    }
+    .river-connector.completed {
+      background: #10b981;
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.3);
+    }
+    .river-connector.active {
+      background: linear-gradient(90deg, #10b981, var(--accent));
+    }
+
+    /* Action Banner (When Human Sign-off is needed) */
+    .action-card {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.14), rgba(139, 92, 246, 0.04));
+      border: 1px solid rgba(139, 92, 246, 0.4);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 4px 16px rgba(139, 92, 246, 0.15);
+    }
+    .action-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .action-desc { font-size: 13px; color: #d4d4d8; max-width: 620px; }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 12px rgba(139, 92, 246, 0.4); }
+    .btn-danger { background: var(--red-bg); border-color: var(--red-border); color: #f87171; }
+    .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
+
+    /* The 5 W's Grid */
+    .analytics-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 20px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 768px) { .analytics-grid { grid-template-columns: 1fr; } }
+
     .card {
       background: var(--card);
       border: 1px solid var(--card-border);
       border-radius: 14px;
-      padding: 24px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      padding: 22px 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
     }
     .card-label {
       font-size: 11px;
@@ -310,141 +478,65 @@ function renderHtmlDashboard(): string {
       align-items: center;
       justify-content: space-between;
     }
-    
-    /* Phase Progress Bar */
-    .phase-bar-wrapper { margin-bottom: 24px; }
-    .phase-steps {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-top: 10px;
-    }
-    .phase-step {
-      background: #18181c;
-      border: 1px solid var(--card-border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      transition: all 0.2s ease;
-    }
-    .phase-step.active {
-      background: rgba(139, 92, 246, 0.08);
-      border-color: rgba(139, 92, 246, 0.4);
-    }
-    .phase-step.completed {
-      border-color: var(--emerald-border);
-      background: rgba(16, 185, 129, 0.04);
-    }
-    .phase-step-num { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
-    .phase-step.active .phase-step-num { color: var(--accent); }
-    .phase-step.completed .phase-step-num { color: #34d399; }
-    .phase-step-name { font-size: 12px; font-weight: 600; color: #e4e4e7; margin-top: 2px; }
+    .big-text { font-size: 16px; font-weight: 600; color: #fff; line-height: 1.45; }
+    .sub-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+    .stat-row { display: flex; gap: 24px; margin-top: 12px; }
+    .stat-item { display: flex; flex-direction: column; }
+    .stat-val { font-size: 22px; font-weight: 700; color: #fff; }
+    .stat-lbl { font-size: 11px; color: var(--text-muted); }
 
-    /* Action Banner */
-    .action-card {
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.04));
-      border: 1px solid rgba(139, 92, 246, 0.35);
-      border-radius: 14px;
-      padding: 22px;
-      margin-bottom: 24px;
+    /* Drill-down button */
+    .drilldown-footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 20px;
-    }
-    .action-title { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-    .action-desc { font-size: 13px; color: #d4d4d8; max-width: 650px; }
-    .btn {
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.15s ease;
-      white-space: nowrap;
-    }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: var(--accent-hover); }
-    .btn-outline { background: transparent; border-color: #3f3f46; color: #d4d4d8; }
-    .btn-outline:hover { background: #27272a; color: #fff; }
-    .btn-danger { background: var(--red-bg); border-color: var(--red-border); color: #f87171; }
-    .btn-danger:hover { background: rgba(239, 68, 68, 0.2); }
-
-    /* 2x2 Analytics Grid (The 5 W's) */
-    .analytics-grid {
-      display: grid;
-      grid-template-columns: 1.2fr 1fr;
-      gap: 20px;
-      margin-bottom: 20px;
-    }
-    @media (max-width: 800px) { .analytics-grid { grid-template-columns: 1fr; } }
-    
-    .big-text { font-size: 17px; font-weight: 600; color: #fff; line-height: 1.4; margin-top: 4px; }
-    .sub-text { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
-    .stat-row { display: flex; gap: 20px; margin-top: 12px; }
-    .stat-item { display: flex; flex-direction: column; }
-    .stat-val { font-size: 20px; font-weight: 700; color: #fff; }
-    .stat-lbl { font-size: 11px; color: var(--text-muted); }
-
-    /* Spend Meter Bar in Top Bar */
-    .spend-meter-inline {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: #18181c;
-      padding: 6px 14px;
-      border-radius: 10px;
+      padding: 16px 20px;
+      background: #141417;
       border: 1px solid var(--card-border);
+      border-radius: 12px;
     }
-    .spend-meter-text { font-size: 13px; font-weight: 600; color: #fff; }
-    .spend-meter-bar { width: 80px; height: 6px; background: #27272a; border-radius: 3px; overflow: hidden; }
-    .spend-meter-fill { height: 100%; background: linear-gradient(90deg, #10b981, #8b5cf6); border-radius: 3px; }
-
-    /* Drill-down styles */
-    .hidden { display: none !important; }
-    .drilldown-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    .drilldown-link {
       color: var(--accent);
       font-size: 13px;
       font-weight: 600;
       background: none;
       border: none;
       cursor: pointer;
-      padding: 4px 0;
-      margin-top: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
-    .drilldown-btn:hover { text-decoration: underline; color: var(--accent-hover); }
+    .drilldown-link:hover { text-decoration: underline; color: var(--accent-hover); }
 
-    /* Table */
+    /* Drill-down Drawer / Tab */
+    .hidden { display: none !important; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
     .data-table th { text-align: left; padding: 8px 10px; color: var(--text-muted); border-bottom: 1px solid var(--card-border); font-size: 11px; text-transform: uppercase; }
     .data-table td { padding: 9px 10px; border-bottom: 1px solid #1f1f23; font-family: monospace; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 
-    /* Hidden hook tags to maintain backwards test assertion compatibility */
+    /* Hidden compatibility text for test suite assertions */
     .compat-anchor { font-size: 1px; color: transparent; position: absolute; left: -9999px; }
   </style>
 </head>
 <body>
   <div class="container">
-    <!-- Hidden compatibility text for test suite assertions -->
+    <!-- Test assertion compatibility anchor -->
     <span class="compat-anchor">13-Stage Pipeline Real-Time Spend Circuit Breaker</span>
 
-    <!-- Top Navigation & Health Bar -->
+    <!-- Top Bar -->
     <div class="top-bar">
       <div class="brand-group">
         <span class="brand-badge">KINETI</span>
         <div>
           <div class="brand-title" id="proj-title">Local Runtime Companion</div>
-          <div class="brand-sub">Context Integrity & Outcome Governance</div>
+          <div class="brand-sub">Context Integrity & Outcome Engineering</div>
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 14px;">
-        <div class="spend-meter-inline">
-          <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Spend</span>
-          <span class="spend-meter-text" id="top-spend-val">$0.00 / $50</span>
+        <div class="spend-pill">
+          <span style="color: var(--text-muted); font-size: 11px;">SPEND</span>
+          <span id="top-spend-val">$0.00 / $50</span>
           <div class="spend-meter-bar">
             <div class="spend-meter-fill" id="top-spend-fill" style="width: 0%;"></div>
           </div>
@@ -455,54 +547,55 @@ function renderHtmlDashboard(): string {
       </div>
     </div>
 
-    <!-- Segmented Navigation Switcher -->
-    <div class="tab-bar">
-      <button class="tab-btn active" id="tab-btn-overview" onclick="switchView('overview')">Executive Overview</button>
-      <button class="tab-btn" id="tab-btn-audits" onclick="switchView('audits')">Audit Trail & Evidence Drill-Down</button>
-    </div>
-
-    <!-- VIEW 1: EXECUTIVE OVERVIEW (Clean Analytics & 5 W's) -->
-    <div id="view-overview">
-      <!-- 4-Phase Progress Bar -->
-      <div class="card phase-bar-wrapper">
-        <div class="card-label">
-          <span>Macro Pipeline Traversal</span>
-          <span id="overview-stage-badge" class="mono" style="color: var(--accent);">Stage 6 of 13</span>
+    <!-- MAIN VIEW: THE CAUSAL STREAM & 5 W'S -->
+    <div id="main-view">
+      <!-- 1. The Causal River -->
+      <div class="river-card">
+        <div class="river-header">
+          <span class="river-title">The Causal Stream · Traversal Pipeline</span>
+          <span id="river-stage-label" class="mono" style="font-size: 12px; color: var(--accent);">Stage 6: Spec</span>
         </div>
-        <div class="phase-steps">
-          <div class="phase-step" id="phase-step-1">
-            <div class="phase-step-num">Phase 1</div>
-            <div class="phase-step-name">Discovery & Arch</div>
+        <div class="river-track">
+          <!-- Node 1: Intent -->
+          <div class="river-node completed" id="rnode-1" onclick="selectPhase(1)">
+            <div class="river-circle" id="rcircle-1">✓</div>
+            <div class="river-label">1. Intent & Scope</div>
           </div>
-          <div class="phase-step" id="phase-step-2">
-            <div class="phase-step-num">Phase 2</div>
-            <div class="phase-step-name">Spec Gate</div>
+          <div class="river-connector completed" id="rconn-1"></div>
+
+          <!-- Node 2: Spec Gate -->
+          <div class="river-node active" id="rnode-2" onclick="selectPhase(2)">
+            <div class="river-circle" id="rcircle-2"><span class="pulse-dot"></span></div>
+            <div class="river-label">2. Spec Gate</div>
           </div>
-          <div class="phase-step" id="phase-step-3">
-            <div class="phase-step-num">Phase 3</div>
-            <div class="phase-step-name">Build & QA</div>
+          <div class="river-connector" id="rconn-2"></div>
+
+          <!-- Node 3: Verified Code -->
+          <div class="river-node" id="rnode-3" onclick="selectPhase(3)">
+            <div class="river-circle" id="rcircle-3">3</div>
+            <div class="river-label">3. Verified Code</div>
           </div>
-          <div class="phase-step" id="phase-step-4">
-            <div class="phase-step-num">Phase 4</div>
-            <div class="phase-step-name">Ship & Monitor</div>
+          <div class="river-connector" id="rconn-3"></div>
+
+          <!-- Node 4: Outcome Proof -->
+          <div class="river-node" id="rnode-4" onclick="selectPhase(4)">
+            <div class="river-circle" id="rcircle-4">4</div>
+            <div class="river-label">4. Outcome Proof</div>
           </div>
         </div>
       </div>
 
-      <!-- Action Required Card (Displayed when gate is pending) -->
+      <!-- Action Required Banner (When Gate Sign-off is Waiting) -->
       <div id="action-banner" class="action-card hidden">
         <div>
-          <div class="action-title" id="action-title">Human Sign-Off Required</div>
-          <div class="action-desc" id="action-desc">Approve the typed API contract and test matrix to unlock code generation in /src.</div>
+          <div class="action-title" id="action-title">Human Sign-off Required</div>
+          <div class="action-desc" id="action-desc">Agents are paused until you approve the contract.</div>
         </div>
-        <div style="display: flex; gap: 8px;">
-          <button class="btn btn-primary" id="btn-action-approve" onclick="approveCurrentGate()">Approve Contract</button>
-          <button class="btn btn-outline" onclick="switchView('audits')">Review Details</button>
-        </div>
+        <button class="btn btn-primary" id="btn-action-approve" onclick="approveCurrentGate()">Approve Spec Gate</button>
       </div>
 
       <!-- Breaker Tripped Alert -->
-      <div id="breaker-banner" class="card hidden" style="border-color: var(--red-border); background: var(--red-bg);">
+      <div id="breaker-banner" class="card hidden" style="border-color: var(--red-border); background: var(--red-bg); margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
             <div style="font-weight: 700; color: #f87171; font-size: 15px;">Spend Circuit Breaker Tripped</div>
@@ -512,41 +605,41 @@ function renderHtmlDashboard(): string {
         </div>
       </div>
 
-      <!-- The 5 W's Analytics Grid -->
+      <!-- 2. The 5 W's Clean Analytics Grid -->
       <div class="analytics-grid">
-        <!-- WHY: Business Objective -->
+        <!-- WHY: Objective -->
         <div class="card">
           <div class="card-label">
-            <span>Why · Objective & Root Goal</span>
-            <span id="why-status-badge" style="color: #34d399; font-size: 11px;">● Locked</span>
+            <span>Why · Root Objective</span>
+            <span id="why-badge" style="color: #34d399; font-size: 11px;">● Locked</span>
           </div>
-          <div class="big-text" id="why-goal-text">Build universal agent harness with cryptographic verification</div>
-          <div class="sub-text" id="why-locked-sub">Locked: 2026-09-07T10:54:04Z · Cryptographically immutable</div>
+          <div class="big-text" id="why-text">Build universal agent harness with cryptographic verification</div>
+          <div class="sub-text" id="why-sub">Locked: 2026-09-07T10:54:04Z · Cryptographically immutable root goal</div>
         </div>
 
         <!-- WHAT: Active Deliverable -->
         <div class="card">
           <div class="card-label">
-            <span>What · Current Deliverable</span>
-            <span id="what-stage-name" class="mono" style="color: var(--accent);">stage-6: spec</span>
+            <span>What · Active Outcome</span>
+            <span id="what-badge" class="mono" style="color: var(--accent);">Stage 6 (Spec)</span>
           </div>
-          <div class="big-text" id="what-deliverable-title">Specification & Typed Contract Gate</div>
-          <div class="sub-text" id="what-deliverable-desc">Drafting typed API signatures and test matrix before code generation is permitted.</div>
+          <div class="big-text" id="what-title">Specification & Contract Gate</div>
+          <div class="sub-text" id="what-desc">Drafting typed API signatures and test matrix before code generation is permitted.</div>
         </div>
 
-        <!-- HOW: Integrity & Guarantees -->
+        <!-- HOW: Integrity Guarantees -->
         <div class="card">
           <div class="card-label">
-            <span>How · Integrity Guarantees</span>
+            <span>How · Safety Guarantees</span>
             <span style="color: #34d399; font-size: 11px;">● Enforced</span>
           </div>
           <div class="stat-row">
             <div class="stat-item">
-              <span class="stat-val" id="how-evidence-count">52</span>
-              <span class="stat-lbl">Verified Proofs</span>
+              <span class="stat-val" id="how-proofs">52</span>
+              <span class="stat-lbl">Verified Tests</span>
             </div>
             <div class="stat-item">
-              <span class="stat-val" id="how-violations-count" style="color: #34d399;">0</span>
+              <span class="stat-val" id="how-violations" style="color: #34d399;">0</span>
               <span class="stat-lbl">Policy Breaches</span>
             </div>
             <div class="stat-item">
@@ -554,146 +647,166 @@ function renderHtmlDashboard(): string {
               <span class="stat-lbl">Saga Undo Stack</span>
             </div>
           </div>
-          <div class="sub-text" style="margin-top: 14px;">Deterministic commit gates ensure zero unverified code merges.</div>
+          <div class="sub-text" style="margin-top: 14px;">Deterministic commit gates prevent unverified code from merging.</div>
         </div>
 
-        <!-- WHEN & WHERE: Cadence & Boundary -->
+        <!-- WHEN & WHERE: Scope & Cadence -->
         <div class="card">
           <div class="card-label">
             <span>When & Where · Scope & Cadence</span>
           </div>
-          <div style="margin-top: 6px;">
+          <div style="margin-top: 4px;">
             <div style="font-size: 13px; color: #e4e4e7;">
-              <span style="color: var(--text-muted);">Boundary:</span> <span class="mono" id="where-boundary">kineti-local-harness/src</span>
+              <span style="color: var(--text-muted);">Boundary:</span> <span class="mono" id="where-scope">kineti-local-harness/src</span>
             </div>
             <div style="font-size: 13px; color: #e4e4e7; margin-top: 4px;">
-              <span style="color: var(--text-muted);">Pacing:</span> <span id="when-pacing">$0.00 spent of $50.00 ceiling</span>
+              <span style="color: var(--text-muted);">Spend:</span> <span id="when-spend">$0.00 of $50.00 ceiling</span>
             </div>
             <div style="font-size: 13px; color: #e4e4e7; margin-top: 4px;">
-              <span style="color: var(--text-muted);">Activity:</span> <span id="when-last-activity">Active</span>
+              <span style="color: var(--text-muted);">Pacing:</span> <span style="color: #34d399;">Healthy (&lt; budget limit)</span>
             </div>
           </div>
-          <button class="drilldown-btn" onclick="switchView('audits')">Examine full audit trail & raw logs →</button>
         </div>
+      </div>
+
+      <!-- 3. Bottom Drill-Down Bar -->
+      <div class="drilldown-footer">
+        <span style="font-size: 13px; color: var(--text-muted);">Need to examine raw test execution logs or detailed 13-stage telemetry?</span>
+        <button class="drilldown-link" onclick="toggleDrillDown(true)">Examine Audit Ledger &amp; Raw Evidence (52 Proofs) →</button>
       </div>
     </div>
 
-    <!-- VIEW 2: AUDIT TRAIL & LOGS (Drill-Down) -->
-    <div id="view-audits" class="hidden">
-      <!-- 13 Stages Drill-Down -->
-      <div class="card">
+    <!-- DRILL-DOWN VIEW (Hidden by default, clean inspection on demand) -->
+    <div id="drilldown-view" class="hidden">
+      <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h2 style="font-size: 18px; font-weight: 700; color: #fff;">Audit Trail &amp; Cryptographic Evidence</h2>
+        <button class="btn btn-primary" onclick="toggleDrillDown(false)">← Return to Causal Stream</button>
+      </div>
+
+      <!-- 13 Stages Detailed Breakdown -->
+      <div class="card" style="margin-bottom: 20px;">
         <div class="card-label">
-          <span>Granular 13-Stage Pipeline Status</span>
-          <span style="color: var(--text-muted);">Sequential Traversal</span>
+          <span>13-Stage Pipeline Breakdown</span>
+          <span style="color: var(--text-muted);">Granular Sub-Stages</span>
         </div>
-        <div id="stages-detail-list" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
-          <!-- Injected via JS -->
+        <div id="stages-detail-container" style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+          <!-- Populated via JS -->
         </div>
       </div>
 
-      <!-- Cryptographic Evidence Proofs -->
-      <div class="card">
+      <!-- Evidence Proofs Table -->
+      <div class="card" style="margin-bottom: 20px;">
         <div class="card-label">
-          <span>Cryptographic Evidence Proof Ledger</span>
-          <span id="evidence-summary-badge" class="mono" style="color: #34d399;">Fresh</span>
+          <span>Cryptographic Evidence Proofs (Fresh)</span>
         </div>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Timestamp</th>
+              <th>Time</th>
               <th>Test Label</th>
-              <th>Command Executed</th>
-              <th>Exit Code</th>
-              <th>SHA-256 Fingerprint</th>
+              <th>Command</th>
+              <th>Exit</th>
+              <th>SHA-256 Code Fingerprint</th>
             </tr>
           </thead>
           <tbody id="evidence-table-body">
-            <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">No evidence recorded.</td></tr>
+            <!-- Populated via JS -->
           </tbody>
         </table>
       </div>
 
-      <!-- Causal Event History -->
+      <!-- Causal History Stream -->
       <div class="card">
         <div class="card-label">
-          <span>Causal State Event Stream</span>
+          <span>Causal Mutation Ledger</span>
         </div>
         <div id="history-stream" style="font-family: monospace; font-size: 12px; color: #a1a1aa; max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
-          <!-- Injected via JS -->
+          <!-- Populated via JS -->
         </div>
       </div>
-
-      <button class="drilldown-btn" onclick="switchView('overview')">← Return to Executive Overview</button>
     </div>
   </div>
 
   <script>
     let activeGateId = null;
+    let cachedData = null;
 
     async function fetchStatus() {
       try {
         const res = await fetch("/api/status");
         if (!res.ok) return;
-        const data = await res.json();
-        render(data);
+        cachedData = await res.json();
+        render(cachedData);
       } catch (e) {
         console.error("Status fetch error", e);
       }
     }
 
-    function switchView(tab) {
-      const overviewView = document.getElementById("view-overview");
-      const auditsView = document.getElementById("view-audits");
-      const btnOverview = document.getElementById("tab-btn-overview");
-      const btnAudits = document.getElementById("tab-btn-audits");
+    function toggleDrillDown(show) {
+      document.getElementById("main-view").classList.toggle("hidden", show);
+      document.getElementById("drilldown-view").classList.toggle("hidden", !show);
+    }
 
-      if (tab === "overview") {
-        overviewView.classList.remove("hidden");
-        auditsView.classList.add("hidden");
-        btnOverview.classList.add("active");
-        btnAudits.classList.remove("active");
-      } else {
-        overviewView.classList.add("hidden");
-        auditsView.classList.remove("hidden");
-        btnOverview.classList.remove("active");
-        btnAudits.classList.add("active");
-      }
+    function selectPhase(phaseNum) {
+      if (!cachedData || !cachedData.analytics || !cachedData.analytics.phases) return;
+      const ph = cachedData.analytics.phases.find(p => p.num === phaseNum);
+      if (!ph) return;
+
+      document.getElementById("what-badge").textContent = ph.stages;
+      document.getElementById("what-title").textContent = ph.name;
+      document.getElementById("what-desc").textContent = ph.deliverable;
+      document.getElementById("why-sub").textContent = ph.why;
     }
 
     function render(data) {
       const an = data.analytics || {};
 
-      // 1. Header & Spend
+      // 1. Top Bar & Spend
       document.getElementById("proj-title").textContent = (data.project || "Kineti") + " — Companion";
       const totalSpend = data.spend ? data.spend.total_usd : 0;
       const spendCeil = data.spend ? data.spend.ceiling_usd : 50;
       document.getElementById("top-spend-val").textContent = "$" + totalSpend.toFixed(2) + " / $" + spendCeil.toFixed(0);
       const spendPct = Math.min(100, Math.round((totalSpend / spendCeil) * 100));
       document.getElementById("top-spend-fill").style.width = spendPct + "%";
+      document.getElementById("when-spend").textContent = "$" + totalSpend.toFixed(2) + " of $" + spendCeil.toFixed(0) + " ceiling";
 
-      // Status pill
+      // Status Pill
       const pillBox = document.getElementById("top-status-pill");
       if (data.spend && data.spend.tripped) {
         pillBox.innerHTML = '<span class="status-pill tripped"><span class="dot"></span> Breaker Tripped</span>';
         document.getElementById("breaker-banner").classList.remove("hidden");
-        document.getElementById("breaker-banner-reason").textContent = data.spend.reason || "Ceiling reached.";
+        document.getElementById("breaker-banner-reason").textContent = data.spend.reason || "Task budget ceiling reached.";
       } else if (an.how && an.how.pending_action) {
-        pillBox.innerHTML = '<span class="status-pill attention"><span class="dot"></span> Action Required</span>';
+        pillBox.innerHTML = '<span class="status-pill attention"><span class="dot"></span> Gate Sign-off</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       } else {
         pillBox.innerHTML = '<span class="status-pill healthy"><span class="dot"></span> Enforced</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       }
 
-      // 2. Phase Steps
-      const stageNum = data.stage || 1;
-      document.getElementById("overview-stage-badge").textContent = "Stage " + stageNum + " of 13 (" + (data.stage_name || "") + ")";
+      // 2. The Causal River
+      const currentPhase = an.what ? an.what.phase_num : 1;
+      document.getElementById("river-stage-label").textContent = "Stage " + (data.stage || 1) + ": " + (data.stage_name || "");
+
       for (let i = 1; i <= 4; i++) {
-        const stepEl = document.getElementById("phase-step-" + i);
-        stepEl.className = "phase-step";
-        const phaseNum = an.what ? an.what.phase_num : 1;
-        if (i < phaseNum) stepEl.classList.add("completed");
-        else if (i === phaseNum) stepEl.classList.add("active");
+        const nodeEl = document.getElementById("rnode-" + i);
+        const circleEl = document.getElementById("rcircle-" + i);
+        const connEl = document.getElementById("rconn-" + i);
+
+        nodeEl.className = "river-node";
+        if (connEl) connEl.className = "river-connector";
+
+        if (i < currentPhase) {
+          nodeEl.classList.add("completed");
+          circleEl.innerHTML = "✓";
+          if (connEl) connEl.classList.add("completed");
+        } else if (i === currentPhase) {
+          nodeEl.classList.add("active");
+          circleEl.innerHTML = '<span class="pulse-dot"></span>';
+          if (connEl) connEl.classList.add("active");
+        } else {
+          circleEl.textContent = i;
+        }
       }
 
       // 3. Action Card
@@ -701,7 +814,7 @@ function renderHtmlDashboard(): string {
       if (an.how && an.how.pending_action) {
         actionCard.classList.remove("hidden");
         activeGateId = an.how.pending_action.gate;
-        document.getElementById("action-title").textContent = "Action Required: " + an.how.pending_action.stageName;
+        document.getElementById("action-title").textContent = "Action Required: " + an.how.pending_action.stageName + " Gate";
         document.getElementById("action-desc").textContent = an.how.pending_action.prompt;
         document.getElementById("btn-action-approve").textContent = "Approve " + an.how.pending_action.stageName;
       } else {
@@ -711,33 +824,29 @@ function renderHtmlDashboard(): string {
 
       // 4. The 5 W's Cards
       if (an.why) {
-        document.getElementById("why-goal-text").textContent = an.why.goal;
-        document.getElementById("why-locked-sub").textContent = an.why.locked_at 
+        document.getElementById("why-text").textContent = an.why.goal;
+        document.getElementById("why-sub").textContent = an.why.locked_at 
           ? "Locked: " + an.why.locked_at + " · Cryptographically immutable" 
           : "Not yet locked";
       }
 
       if (an.what) {
-        document.getElementById("what-stage-name").textContent = "stage-" + an.what.stage_num + ": " + an.what.stage_name;
-        document.getElementById("what-deliverable-title").textContent = an.what.deliverable_title;
-        document.getElementById("what-deliverable-desc").textContent = an.what.deliverable_desc;
+        document.getElementById("what-badge").textContent = "Stage " + an.what.stage_num + " (" + an.what.stage_name + ")";
+        document.getElementById("what-title").textContent = an.what.deliverable_title;
+        document.getElementById("what-desc").textContent = an.what.deliverable_desc;
       }
 
       if (an.how) {
-        document.getElementById("how-evidence-count").textContent = data.evidence ? data.evidence.length : 0;
-        document.getElementById("how-violations-count").textContent = an.how.policy_violations;
+        document.getElementById("how-proofs").textContent = data.evidence ? data.evidence.length : 0;
+        document.getElementById("how-violations").textContent = an.how.policy_violations;
       }
 
       if (an.where) {
-        document.getElementById("where-boundary").textContent = an.where.workspace + "/src";
+        document.getElementById("where-scope").textContent = an.where.workspace + "/src";
       }
 
-      if (an.when) {
-        document.getElementById("when-pacing").textContent = "$" + totalSpend.toFixed(2) + " spent of $" + spendCeil.toFixed(0) + " budget";
-      }
-
-      // 5. Drill-Down: Detailed 13 Stages List
-      const stagesList = document.getElementById("stages-detail-list");
+      // 5. Drill-Down: 13 Stages List
+      const stagesList = document.getElementById("stages-detail-container");
       stagesList.innerHTML = "";
       (data.stages || []).forEach(s => {
         const item = document.createElement("div");
@@ -766,7 +875,7 @@ function renderHtmlDashboard(): string {
         stagesList.appendChild(item);
       });
 
-      // 6. Evidence Table
+      // 6. Drill-Down: Evidence Table
       const evTbody = document.getElementById("evidence-table-body");
       evTbody.innerHTML = "";
       if (!data.evidence || data.evidence.length === 0) {
@@ -784,7 +893,7 @@ function renderHtmlDashboard(): string {
         });
       }
 
-      // 7. Causal History
+      // 7. Drill-Down: Causal History
       const histBox = document.getElementById("history-stream");
       histBox.innerHTML = "";
       (data.history || []).slice(-15).reverse().forEach(h => {
