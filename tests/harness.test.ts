@@ -48,6 +48,26 @@ describe("kineti-state", () => {
     expect(run("kineti-state.ts", ["set", "gate.feasibility", "pass"], c).status).toBe(0);
     fs.rmSync(c.root, { recursive: true, force: true });
   });
+
+  test("stage-agnostic execution supports arbitrary task types and stages", () => {
+    const c = makeCtx();
+    expect(run("kineti-state.ts", ["init", "--project", "acme", "--task", "bugfix", "--task-name", "Fix OAuth callback timeout"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["get", "stage"], c).out.trim()).toBe("bugfix");
+    expect(run("kineti-state.ts", ["get", "task.type"], c).out.trim()).toBe("bugfix");
+    expect(run("kineti-state.ts", ["get", "task.name"], c).out.trim()).toBe("Fix OAuth callback timeout");
+
+    // Setting a custom stage like refactor
+    expect(run("kineti-state.ts", ["set", "stage", "refactor"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["get", "stage"], c).out.trim()).toBe("refactor");
+
+    // Setting standard named stage resolves to its number
+    expect(run("kineti-state.ts", ["set", "stage", "build"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["get", "stage"], c).out.trim()).toBe("7");
+
+    // Validation passes
+    expect(run("kineti-state.ts", ["validate"], c).status).toBe(0);
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
 });
 
 describe("kineti-spend", () => {

@@ -74,11 +74,12 @@ const TOOLS = [
   },
   {
     name: "kineti_set_stage",
-    description: "Update the active stage in the 13-stage Kineti OS workflow pipeline (e.g. 'build', 'qa', 'ship').",
+    description: "Update the active stage or task in the Kineti OS runtime (e.g. 'build', 'spec', 'bugfix', 'refactor', or numbers 1-13).",
     inputSchema: {
       type: "object",
       properties: {
-        stage: { type: "string", description: "Target stage name" },
+        stage: { type: "string", description: "Target stage name, number (1-13), or flexible task type (e.g. 'bugfix', 'refactor', 'feature')" },
+        task_name: { type: "string", description: "Optional description of the task or objective" },
       },
       required: ["stage"],
     },
@@ -230,14 +231,15 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
 
       case "kineti_set_stage": {
         const num = resolveStageNumber(args.stage);
-        if (!num) {
-          return { content: [{ type: "text", text: `Invalid stage: '${args.stage}'. Must be integer 1-13 or standard stage name (e.g. 'build', 'spec').` }], isError: true };
-        }
-        const res = runBin("kineti-state.ts", ["set", "stage", String(num)]);
+        const stageArg = num ? String(num) : String(args.stage);
+        const res = runBin("kineti-state.ts", ["set", "stage", stageArg]);
         if (res.exitCode !== 0) {
           return { content: [{ type: "text", text: res.stderr || "Failed to set stage" }], isError: true };
         }
-        return { content: [{ type: "text", text: `Stage updated to: ${num} (${args.stage})` }] };
+        if (args.task_name) {
+          runBin("kineti-state.ts", ["set", "task.name", String(args.task_name)]);
+        }
+        return { content: [{ type: "text", text: num ? `Stage updated to: ${num} (${args.stage})` : `Stage updated to: ${args.stage}` }] };
       }
 
       case "kineti_set_gate": {

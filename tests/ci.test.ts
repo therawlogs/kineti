@@ -108,4 +108,29 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     expect(report.evidenceFresh).toBe(false);
     expect(report.failures.some((f) => f.includes("qa-suite"))).toBe(true);
   });
+
+  it("supports flexible stage-agnostic task in CI verification", () => {
+    writeJson(path.join(kinetiDir, "state.json"), {
+      version: 1,
+      stage: "bugfix",
+      task: { type: "bugfix", name: "Fix edge case" },
+      root_goal: {
+        description: "Emergency hotfix for memory leak",
+        locked_at: new Date().toISOString(),
+        hash: "b".repeat(64),
+      },
+    });
+
+    writeJson(path.join(kinetiDir, "spend.json"), {
+      total_microcents: 500000,
+      tripped: false,
+      limit_microcents: 50000000,
+    });
+
+    const report = generateCIReport(tmpDir);
+    expect(report.verified).toBe(true);
+    expect(report.stageName).toBe("bugfix");
+    expect(report.stageNumber).toBe(0);
+    expect(report.markdownSummary).toContain("bugfix");
+  });
 });

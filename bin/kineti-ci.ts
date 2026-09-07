@@ -28,9 +28,10 @@ interface KinetiState {
     | string
     | null;
   root_goal_locked_at?: string | null;
-  current_stage?: number;
-  stage?: number;
-  stages_completed?: number[];
+  current_stage?: number | string;
+  stage?: number | string;
+  task?: { type?: string; name?: string; step?: string };
+  stages_completed?: (number | string)[];
   gates?: Record<string, "pass" | "fail" | "pending">;
 }
 
@@ -90,8 +91,24 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
   const statePath = path.join(kdir, "state.json");
   const state = fs.existsSync(statePath) ? readJson<KinetiState>(statePath) : null;
   
-  const stageNum = state?.stage ?? state?.current_stage ?? 1;
-  const stageName = STAGE_NAMES[stageNum] ?? `stage-${stageNum}`;
+  const rawStage = state?.stage ?? state?.current_stage ?? 1;
+  let stageNum = 1;
+  let stageName = "unknown";
+
+  if (typeof rawStage === "number") {
+    stageNum = rawStage;
+    stageName = STAGE_NAMES[rawStage] ?? `stage-${rawStage}`;
+  } else if (typeof rawStage === "string") {
+    const trimmed = rawStage.trim().toLowerCase();
+    const foundEntry = Object.entries(STAGE_NAMES).find(([_, name]) => name.toLowerCase() === trimmed);
+    if (foundEntry) {
+      stageNum = Number(foundEntry[0]);
+      stageName = foundEntry[1];
+    } else {
+      stageNum = 0;
+      stageName = rawStage;
+    }
+  }
   
   let rootGoal = "Unspecified Goal";
   let goalHash: string | null = null;
