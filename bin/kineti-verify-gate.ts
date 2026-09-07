@@ -19,6 +19,9 @@ function main() {
 
   if (cmd === "--trust") {
     if (!declared) die("no verify command declared (kineti.config.json settings.verify_command or KINETI_VERIFY_CMD)", 2);
+    if (!process.stdin.isTTY && !process.env.KINETI_TRUST_CONFIRMED) {
+      die("security: --trust must be executed interactively in a human TTY session", 2);
+    }
     const t = readJson<Trust>(trustFile()) ?? {};
     t[repoKey()] = { cmd_hash: sha256(declared), at: nowIso() };
     writeJson(trustFile(), t);

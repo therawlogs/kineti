@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "kineti": {
+      "command": "bun",
+      "args": [
+        "/Users/praveen/Documents/Products/kineti local harness/bin/kineti-mcp.ts",
+        "--workspace-root",
+        "/Users/praveen/Documents/Products/kineti local harness"
+      ]
+    }
+  }
+}

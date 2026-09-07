@@ -16,7 +16,7 @@ blocks it and the first concrete step when that blocker clears.
 | Item | Why | First step |
 |---|---|---|
 | Eval gate (stage 10.5) | Ship currently proves tests pass; it cannot prove answers are good. Cohen's kappa ≥ 0.75 judge vs human-labeled golden set, blocking PRs like any other gate. | Collect 50 real input/output pairs from first v3 runs into `.kineti/golden.jsonl`; write `bin/kineti-eval.ts` |
-| Native memory engine | Full 10XE fidelity: numeric evidence scoring on causal edges, loop checks at write time, SQL/PGQ store. gbrain + journal rules approximate this today by design. | Only if journal conventions feel tight: extend `kineti-memory-job` with edge scoring before considering a store swap |
+| Native memory engine | Full Kineti causal fidelity: numeric evidence scoring on causal edges, loop checks at write time, SQL/PGQ store. gbrain + journal rules approximate this today by design. | Only if journal conventions feel tight: extend `kineti-memory-job` with edge scoring before considering a store swap |
 | Team mode | Shared-brain scoping per login, required-vs-optional installs. Solo scope was a v3 decision. | gbrain already ships company-brain mode; start from its OAuth scoping tutorial |
 | Token-exact context bill | Current audit counts words. Exact token accounting needs an off-machine count call (egress receipt first) or a local tokenizer. | Port gstack's context-bill approach onto skills/ tree |
 
@@ -24,7 +24,7 @@ blocks it and the first concrete step when that blocker clears.
 
 | Item | Note |
 |---|---|
-| 10XE go-to-market | ICP, pricing, lighthouse customer plan; rewrite thesis-external around quantified buyer pain (friction-cost matrix as opening argument), per the sales manifesto. Kineti v3 is now the working proof artifact to point at. |
+| Kineti Enterprise go-to-market | ICP, pricing, lighthouse customer plan; rewrite thesis-external around quantified buyer pain (friction-cost matrix as opening argument), per the sales manifesto. Kineti v3 is now the working proof artifact to point at. |
 | Sales layer as pipeline artifacts | Mutual action plans and stakeholder maps already exist inside feasibility/dossiers; formalize them as named outputs a deal-flow skill maintains. |
 
 ## Done in v3 (for context)

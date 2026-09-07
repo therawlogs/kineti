@@ -15,7 +15,7 @@ function run(
   const p = Bun.spawnSync({
     cmd: ["bun", path.join(REPO, "bin", prog), ...args],
     cwd: ctx.cwd,
-    env: { ...process.env, KINETI_MACHINE_DIR: ctx.machine },
+    env: { ...process.env, KINETI_MACHINE_DIR: ctx.machine, KINETI_TRUST_CONFIRMED: "1" },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -139,6 +139,22 @@ describe("kineti-verify-gate", () => {
     expect(run("kineti-verify-gate.ts", ["--status"], c).out).toContain("trusted and current");
     fs.rmSync(c.root, { recursive: true, force: true });
   });
+
+  test("verify-gate --trust rejects non-interactive execution without confirmation token", () => {
+    const c = makeCtx();
+    const cfg = path.join(c.cwd, "kineti.config.json");
+    fs.writeFileSync(cfg, JSON.stringify({ settings: { verify_command: "true" } }));
+    const p = Bun.spawnSync({
+      cmd: ["bun", path.join(REPO, "bin", "kineti-verify-gate.ts"), "--trust"],
+      cwd: c.cwd,
+      env: { ...process.env, KINETI_MACHINE_DIR: c.machine, KINETI_TRUST_CONFIRMED: "" },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    expect(p.exitCode).toBe(2);
+    expect(p.stderr.toString()).toContain("interactively in a human TTY session");
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
 });
 
 describe("kineti-egress", () => {
@@ -162,3 +178,47 @@ describe("kineti-egress", () => {
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 });
+
+describe("hardening-cryptography-and-units", () => {
+  test("computeDelimitedHash prevents second-preimage delimiter collisions across variable-length fields", async () => {
+    const { computeDelimitedHash } = await import("../bin/lib.ts");
+
+    // Case A: entity_type = "ToolCall", entity_id = "1234abcd"
+    const hashA = computeDelimitedHash(["genesis", "ToolCall", "1234abcd", "payload_hash"]);
+
+    // Case B: entity_type = "Tool", entity_id = "Call1234abcd"
+    const hashB = computeDelimitedHash(["genesis", "Tool", "Call1234abcd", "payload_hash"]);
+
+    // With naive concatenation ("genesisToolCall1234abcdpayload_hash"), these would be equal.
+    // With computeDelimitedHash, length-prefixing and null delimiters guarantee distinct digests!
+    expect(hashA).not.toEqual(hashB);
+  });
+
+  test("usdToMicrocents and microcentsToUsd maintain exact integer arithmetic without float drift", async () => {
+    const { usdToMicrocents, microcentsToUsd } = await import("../bin/lib.ts");
+
+    expect(usdToMicrocents(1.42)).toBe(1420000);
+    expect(usdToMicrocents(0.0001)).toBe(100);
+    expect(usdToMicrocents(0.000001)).toBe(1);
+
+    expect(microcentsToUsd(1420000)).toBe(1.42);
+    expect(microcentsToUsd(100)).toBe(0.0001);
+  });
+
+  test("kineti-spend persists and calculates total_microcents correctly", () => {
+    const c = makeCtx();
+    const s = (a: string[]) => run("kineti-spend.ts", a, c);
+
+    expect(s(["log", "--stage", "build", "--tokens-in", "1000", "--tokens-out", "500", "--usd", "1.42"]).status).toBe(0);
+
+    const spendFile = path.join(c.cwd, ".kineti", "spend.json");
+    expect(fs.existsSync(spendFile)).toBe(true);
+    const state = JSON.parse(fs.readFileSync(spendFile, "utf8"));
+    expect(state.total_microcents).toBe(1420000);
+    expect(state.by_stage_microcents.build).toBe(1420000);
+    expect(state.total_usd).toBe(1.42);
+
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+});
+

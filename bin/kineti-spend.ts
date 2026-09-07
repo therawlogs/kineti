@@ -3,15 +3,25 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   appendJsonl, die, ensureDir, loadLimits, machineDir, nowIso,
-  ok, projectKdir, readJson, writeJson,
+  ok, projectKdir, readJson, usdToMicrocents, writeJson,
 } from "./lib.ts";
 
-interface Entry { at: string; stage: string; model: string; tokens_in: number; tokens_out: number; usd: number }
+interface Entry {
+  at: string;
+  stage: string;
+  model: string;
+  tokens_in: number;
+  tokens_out: number;
+  usd: number;
+  microcents: number;
+}
 interface SpendState {
   tripped: boolean;
   reason: string | null;
   total_usd: number;
+  total_microcents: number;
   by_stage: Record<string, number>;
+  by_stage_microcents: Record<string, number>;
   entries: number;
 }
 
@@ -26,11 +36,28 @@ const PRICES: Record<string, { in: number; out: number }> = {
 const DEFAULT_PRICE = { in: 3, out: 15 };
 
 function file(): string { return path.join(projectKdir(), "spend.json"); }
-function logFile(): string { return path.join(projectKdir(), ".kineti", "spend.log.jsonl"); }
+function logFile(): string { return path.join(projectKdir(), "spend.log.jsonl"); }
 
 function load(): SpendState {
-  return readJson<SpendState>(file()) ?? {
-    tripped: false, reason: null, total_usd: 0, by_stage: {}, entries: 0,
+  const loaded = readJson<SpendState>(file());
+  if (loaded) {
+    if (loaded.total_microcents === undefined) loaded.total_microcents = usdToMicrocents(loaded.total_usd);
+    if (!loaded.by_stage_microcents) {
+      loaded.by_stage_microcents = {};
+      for (const [stg, amt] of Object.entries(loaded.by_stage || {})) {
+        loaded.by_stage_microcents[stg] = usdToMicrocents(amt);
+      }
+    }
+    return loaded;
+  }
+  return {
+    tripped: false,
+    reason: null,
+    total_usd: 0,
+    total_microcents: 0,
+    by_stage: {},
+    by_stage_microcents: {},
+    entries: 0,
   };
 }
 
@@ -65,16 +92,28 @@ function main() {
     const p = priceFor(model);
     const usd = usdOverride ?? (tin / 1e6) * p.in + (tout / 1e6) * p.out;
 
-    s.total_usd = round(s.total_usd + usd);
-    s.by_stage[stage] = round((s.by_stage[stage] ?? 0) + usd);
+    const microcents = usdToMicrocents(usd);
+    s.total_microcents = (s.total_microcents ?? usdToMicrocents(s.total_usd)) + microcents;
+    s.total_usd = round(s.total_microcents / 1e6);
+
+    s.by_stage_microcents[stage] = (s.by_stage_microcents[stage] ?? usdToMicrocents(s.by_stage[stage] ?? 0)) + microcents;
+    s.by_stage[stage] = round(s.by_stage_microcents[stage] / 1e6);
     s.entries += 1;
     writeJson(file(), s);
-    appendJsonl(logFile(), { at: nowIso(), stage, model, tokens_in: tin, tokens_out: tout, usd: round(usd) } satisfies Entry);
+    appendJsonl(logFile(), {
+      at: nowIso(),
+      stage,
+      model,
+      tokens_in: tin,
+      tokens_out: tout,
+      usd: round(usd),
+      microcents,
+    } satisfies Entry);
 
-    const globalCeiling = limits.globalUsd * limits.safetyFactor;
-    const stageCeiling = stageLimit(limits, stage) * limits.safetyFactor;
-    if (s.total_usd >= globalCeiling) trip(s, `global total $${s.total_usd} reached ceiling $${round(globalCeiling)} of $${limits.globalUsd}`);
-    else if (s.by_stage[stage] >= stageCeiling) trip(s, `stage ${stage} total $${s.by_stage[stage]} reached ceiling $${round(stageCeiling)}`);
+    const globalCeilingMicrocents = Math.round(limits.globalUsd * limits.safetyFactor * 1e6);
+    const stageCeilingMicrocents = Math.round(stageLimit(limits, stage) * limits.safetyFactor * 1e6);
+    if (s.total_microcents >= globalCeilingMicrocents) trip(s, `global total $${s.total_usd} reached ceiling $${round(limits.globalUsd * limits.safetyFactor)} of $${limits.globalUsd}`);
+    else if (s.by_stage_microcents[stage] >= stageCeilingMicrocents) trip(s, `stage ${stage} total $${s.by_stage[stage]} reached ceiling $${round(stageLimit(limits, stage) * limits.safetyFactor)}`);
     else ok(`logged $${round(usd)} (stage ${stage}); run total $${s.total_usd}`);
     return;
   }
@@ -85,10 +124,10 @@ function main() {
       process.exit(3);
     }
     let over = false;
-    for (const [stg, spent] of Object.entries(s.by_stage)) {
-      if (spent >= stageLimit(limits, stg)) over = true;
+    for (const [stg, spentMicro] of Object.entries(s.by_stage_microcents)) {
+      if (spentMicro >= Math.round(stageLimit(limits, stg) * 1e6)) over = true;
     }
-    if (s.total_usd >= limits.globalUsd) over = true;
+    if (s.total_microcents >= Math.round(limits.globalUsd * 1e6)) over = true;
     if (over && cmd === "check") { console.error("kineti: over limit"); process.exit(3); }
     ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}`);
     return;
@@ -108,8 +147,10 @@ function main() {
 function trip(s: SpendState, reason: string): never {
   s.tripped = true; s.reason = reason;
   writeJson(file(), s);
-  ensureDir(machineDir());
-  fs.appendFileSync(path.join(machineDir(), "alerts.log"), `${nowIso()} SPEND TRIPPED: ${reason}\n`);
+  try {
+    ensureDir(machineDir());
+    fs.appendFileSync(path.join(machineDir(), "alerts.log"), `${nowIso()} SPEND TRIPPED: ${reason}\n`);
+  } catch {}
   die(`SPEND BREAKER TRIPPED: ${reason}`, 3);
 }
 

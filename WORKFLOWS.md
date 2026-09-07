@@ -48,7 +48,7 @@ One loop. Thirteen stages. Three gates. Every stage reads memory first and write
 ## Memory rules
 
 1. Expiry states: active → warm → cold → archive. Enforced by the weekly job.
-2. Cause links: open vocabulary; core words from the 10XE schema (`caused triggers blocks enables requires supports indicates contributes_to remediates contradicts supersedes resolves duplicates`); status candidate → hypothesis → validated → rejected; validation requires a linked proof record; time order checked weekly.
+2. Cause links: open vocabulary; core words from the Kineti causal schema (`caused triggers blocks enables requires supports indicates contributes_to remediates contradicts supersedes resolves duplicates`); status candidate → hypothesis → validated → rejected; validation requires a linked proof record; time order checked weekly.
 3. Each project's run-records chain by fingerprint.
 
 ## Feasibility checks (stage 5)

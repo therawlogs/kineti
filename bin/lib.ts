@@ -46,13 +46,21 @@ export function writeJson(file: string, value: unknown): void {
 }
 
 export function readJsonl<T>(file: string): T[] {
+  if (!fs.existsSync(file)) return [];
   try {
     const text = fs.readFileSync(file, "utf8");
-    return text
-      .split("\n")
-      .filter((l) => l.trim().length > 0)
-      .map((l) => JSON.parse(l) as T);
-  } catch {
+    const lines = text.split("\n").filter((l) => l.trim().length > 0);
+    const items: T[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        items.push(JSON.parse(lines[i]) as T);
+      } catch (err) {
+        console.error(`kineti: warning: corrupt line ${i + 1} in ${file} skipped: ${(err as Error).message}`);
+      }
+    }
+    return items;
+  } catch (err) {
+    console.error(`kineti: error reading ${file}: ${(err as Error).message}`);
     return [];
   }
 }
@@ -87,3 +95,27 @@ export function loadVerifyCommand(cwd: string = process.cwd()): string | null {
   const cmd = cfg?.settings?.verify_command;
   return typeof cmd === "string" && cmd.trim().length > 0 ? cmd.trim() : null;
 }
+
+/**
+ * Length-prefixed and null-byte delimited hash to eliminate second-preimage
+ * delimiter collisions (RFC 8785 and cryptographic domain separation).
+ */
+export function computeDelimitedHash(parts: (string | Buffer)[]): string {
+  const bufs: Buffer[] = [];
+  for (const p of parts) {
+    const b = Buffer.isBuffer(p) ? p : Buffer.from(String(p), "utf8");
+    const lenBuf = Buffer.alloc(4);
+    lenBuf.writeUInt32BE(b.length, 0);
+    bufs.push(lenBuf, b, Buffer.from("\x00", "utf8"));
+  }
+  return crypto.createHash("sha256").update(Buffer.concat(bufs)).digest("hex");
+}
+
+export function usdToMicrocents(usd: number): number {
+  return Math.round(usd * 1_000_000);
+}
+
+export function microcentsToUsd(microcents: number): number {
+  return Math.round((microcents / 1_000_000) * 1e4) / 1e4;
+}
+

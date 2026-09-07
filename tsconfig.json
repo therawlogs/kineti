@@ -3,6 +3,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
+    "jsx": "preserve",
     "lib": ["ES2022"],
     "types": ["bun", "node"],
     "strict": true,
@@ -11,5 +12,5 @@
     "allowImportingTsExtensions": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["bin/**/*.ts", "tests/**/*.test.ts"]
+  "include": ["bin/**/*.ts", "src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts"]
 }
