@@ -45,8 +45,12 @@ if (!subcommand || subcommand === "--help" || subcommand === "-h") {
 }
 
 if (subcommand === "--version" || subcommand === "-v") {
-  const pkg = JSON.parse(fs.readFileSync(path.resolve(import.meta.dir, "../package.json"), "utf8"));
-  console.log(`kineti v${pkg.version}`);
+  let version = "1.0.0";
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(import.meta.dir, "../package.json"), "utf8"));
+    if (pkg && pkg.version) version = pkg.version;
+  } catch {}
+  console.log(`kineti v${version}`);
   process.exit(0);
 }
 
