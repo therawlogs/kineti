@@ -12,7 +12,7 @@ ARCH="$(uname -m)"
 if [ "$OS" = "darwin" ] && [ "$ARCH" = "arm64" ]; then ASSET="kineti-darwin-arm64";
 elif [ "$OS" = "darwin" ] && [ "$ARCH" = "x86_64" ]; then ASSET="kineti-darwin-x64";
 elif [ "$OS" = "linux" ] && [ "$ARCH" = "x86_64" ]; then ASSET="kineti-linux-x64";
-else echo "kineti: no build for $OS $ARCH yet. Use: npm i -g kineti-os"; exit 1; fi
+else echo "kineti: no build for $OS $ARCH yet. Use: npm i -g kineti"; exit 1; fi
 
 if [ "$VERSION" = "latest" ]; then
   URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
