@@ -1,5 +1,5 @@
 // src/components/ui/tabs.tsx
-// Archetype A: Modern Technical SaaS (Linear / Vercel style)
+// Apple Segmented Control & Master Design System Tabs
 
 export interface TabItem {
   id: string;
@@ -21,9 +21,9 @@ export function Tabs({ id, tabs, className = "" }: TabsProps): string {
       <button
         onclick="switchTab('${id}', '${t.id}')"
         data-tab-id="${t.id}"
-        class="tab-btn px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+        class="tab-btn relative px-3.5 py-1 text-xs font-medium rounded-md transition-all duration-150 ease-out cursor-pointer ${
           t.active
-            ? "bg-zinc-800 text-zinc-100 shadow-sm"
+            ? "bg-zinc-800 text-white shadow-[0_1px_3px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.12)] font-semibold"
             : "text-zinc-400 hover:text-zinc-200"
         }"
       >
@@ -45,7 +45,7 @@ export function Tabs({ id, tabs, className = "" }: TabsProps): string {
 
   return `
     <div id="${id}" class="w-full ${className}">
-      <div class="inline-flex h-9 items-center justify-center rounded-lg bg-zinc-900 p-1 border border-zinc-800 text-zinc-400">
+      <div class="inline-flex h-9 items-center justify-center rounded-[10px] bg-zinc-900/90 p-1 border border-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] backdrop-blur-md text-zinc-400">
         ${triggerButtons}
       </div>
       <div class="tab-contents">
