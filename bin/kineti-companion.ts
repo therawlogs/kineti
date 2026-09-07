@@ -118,34 +118,73 @@ function getHarnessStatus() {
 
   const evidence = readJsonl<any>(evidencePath).slice(-20).reverse();
 
-  const stageNum = state.stage || 1;
-  const currentStageInfo = STAGES.find((s) => s.id === stageNum) ?? STAGES[0];
-  const deliverable = DELIVERABLE_SUMMARIES[stageNum] ?? { title: currentStageInfo.label, desc: currentStageInfo.desc };
+  const rawStage = state.stage || 1;
+  let stageNum = 1;
+  let currentStageInfo = STAGES[0];
+  let isStandard = false;
+
+  if (typeof rawStage === "number") {
+    stageNum = rawStage;
+    currentStageInfo = STAGES.find((s) => s.id === stageNum) ?? STAGES[0];
+    isStandard = true;
+  } else if (typeof rawStage === "string") {
+    const lower = rawStage.toLowerCase().trim();
+    const found = STAGES.find((s) => s.name.toLowerCase() === lower);
+    if (found) {
+      stageNum = found.id;
+      currentStageInfo = found;
+      isStandard = true;
+    } else {
+      stageNum = 0;
+      currentStageInfo = {
+        id: 0,
+        name: rawStage,
+        label: rawStage.charAt(0).toUpperCase() + rawStage.slice(1),
+        desc: state.task?.name || `Flexible stage: ${rawStage}`,
+        gate: null,
+      };
+      isStandard = false;
+    }
+  }
+
+  const deliverable = (stageNum && DELIVERABLE_SUMMARIES[stageNum])
+    ? DELIVERABLE_SUMMARIES[stageNum]
+    : {
+        title: `${currentStageInfo.label} Task`,
+        desc: state.task?.name || `Operating in flexible execution mode: ${currentStageInfo.name}`,
+      };
 
   // Determine 4-phase macro progress
   let phaseNum = 1;
   let phaseName = "Intent & Scope";
-  if (stageNum >= 5 && stageNum <= 6) {
-    phaseNum = 2;
-    phaseName = "Spec Contract";
-  } else if (stageNum >= 7 && stageNum <= 10) {
+  if (isStandard) {
+    if (stageNum >= 5 && stageNum <= 6) {
+      phaseNum = 2;
+      phaseName = "Spec Contract";
+    } else if (stageNum >= 7 && stageNum <= 10) {
+      phaseNum = 3;
+      phaseName = "Verified Code";
+    } else if (stageNum >= 11) {
+      phaseNum = 4;
+      phaseName = "Outcome Proof";
+    }
+  } else {
     phaseNum = 3;
-    phaseName = "Verified Code";
-  } else if (stageNum >= 11) {
-    phaseNum = 4;
-    phaseName = "Outcome Proof";
+    phaseName = "Direct Execution";
   }
 
   // Pending Human Action
   let pendingAction: { gate: string; stageName: string; stageNum: number; prompt: string } | null = null;
-  if (stageNum === 5 && state.gates?.feasibility !== "pass") {
-    pendingAction = { gate: "feasibility", stageName: "Feasibility", stageNum: 5, prompt: "Review economic feasibility before proceeding to Specification." };
-  } else if (stageNum === 6 && state.gates?.spec !== "pass") {
-    pendingAction = { gate: "spec", stageName: "Spec Approval", stageNum: 6, prompt: "Approve the typed API contract and test matrix to unlock code generation in /src." };
-  } else if (stageNum === 10 && state.gates?.security !== "pass") {
-    pendingAction = { gate: "security", stageName: "Security Gate", stageNum: 10, prompt: "Sign off on OWASP checklist and threat boundaries before shipping." };
-  } else if (stageNum === 11 && state.gates?.ship !== "pass") {
-    pendingAction = { gate: "ship", stageName: "Ship Gate", stageNum: 11, prompt: "Authorize cryptographic verification proof for production merge." };
+  if (isStandard) {
+    if (stageNum === 5 && state.gates?.feasibility !== "pass") {
+      pendingAction = { gate: "feasibility", stageName: "Feasibility", stageNum: 5, prompt: "Review economic feasibility before proceeding to Specification." };
+    } else if (stageNum === 6 && state.gates?.spec !== "pass") {
+      pendingAction = { gate: "spec", stageName: "Spec Approval", stageNum: 6, prompt: "Approve the typed API contract and test matrix to unlock code generation in /src." };
+    } else if (stageNum === 10 && state.gates?.security !== "pass") {
+      pendingAction = { gate: "security", stageName: "Security Gate", stageNum: 10, prompt: "Sign off on OWASP checklist and threat boundaries before shipping." };
+    } else if (stageNum === 11 && state.gates?.ship !== "pass") {
+      pendingAction = { gate: "ship", stageName: "Ship Gate", stageNum: 11, prompt: "Authorize cryptographic verification proof for production merge." };
+    }
   }
 
   // The 5 W's
@@ -162,6 +201,9 @@ function getHarnessStatus() {
       stage_num: stageNum,
       stage_name: currentStageInfo.name,
       stage_label: currentStageInfo.label,
+      is_standard_stage: isStandard,
+      task_type: state.task?.type || (isStandard ? null : currentStageInfo.name),
+      task_name: state.task?.name || null,
       deliverable_title: deliverable.title,
       deliverable_desc: deliverable.desc,
     },
@@ -195,10 +237,11 @@ function getHarnessStatus() {
     stage: state.stage,
     stage_name: currentStageInfo.name,
     stage_label: currentStageInfo.label,
+    task: state.task ?? null,
     stages: STAGES.map((s) => ({
       ...s,
-      is_current: s.id === state.stage,
-      is_past: s.id < state.stage,
+      is_current: isStandard ? s.id === stageNum : false,
+      is_past: isStandard ? s.id < stageNum : false,
       gate_status: s.gate ? (state.gates[s.gate] ?? "pending") : null,
     })),
     gates: state.gates,
@@ -786,7 +829,13 @@ function renderHtmlDashboard(): string {
 
       // 2. The Causal River
       const currentPhase = an.what ? an.what.phase_num : 1;
-      document.getElementById("river-stage-label").textContent = "Stage " + (data.stage || 1) + ": " + (data.stage_name || "");
+      const isStd = an.what ? an.what.is_standard_stage : (typeof data.stage === "number");
+      if (isStd) {
+        document.getElementById("river-stage-label").textContent = "Stage " + (data.stage || 1) + ": " + (data.stage_name || "");
+      } else {
+        const taskLbl = (an.what && an.what.stage_label) ? an.what.stage_label : String(data.stage);
+        document.getElementById("river-stage-label").textContent = "⚡ Task: " + taskLbl;
+      }
 
       for (let i = 1; i <= 4; i++) {
         const nodeEl = document.getElementById("rnode-" + i);
@@ -831,7 +880,11 @@ function renderHtmlDashboard(): string {
       }
 
       if (an.what) {
-        document.getElementById("what-badge").textContent = "Stage " + an.what.stage_num + " (" + an.what.stage_name + ")";
+        if (an.what.is_standard_stage) {
+          document.getElementById("what-badge").textContent = "Stage " + an.what.stage_num + " (" + an.what.stage_name + ")";
+        } else {
+          document.getElementById("what-badge").textContent = "Task: " + an.what.stage_label;
+        }
         document.getElementById("what-title").textContent = an.what.deliverable_title;
         document.getElementById("what-desc").textContent = an.what.deliverable_desc;
       }

@@ -7,10 +7,10 @@ You are operating inside a repository governed by the **Kineti OS v3 Runtime**. 
 ## Core Operational Directives
 1. **Plain English Interaction**: Communicate in direct, non-academic plain English. Eliminate unnecessary cognitive load.
 2. **Numbered Choice Prompts**: Format decisions as numbered options (1, 2, 3) so the user can reply with a single keystroke.
-3. **Sequential Stage Progression**: Read `.kineti/state.json` before any generative task. Respect the 13 sequential stages:
-   `officehours -> diagnose -> design -> architecture -> feasibility (gate) -> spec (gate) -> build -> review -> qa -> security (gate) -> ship (gate) -> watch -> retro`
-4. **Hard Stop at Stage 6 (Spec)**:
-   - Produce no application code in `src/` or business logic until Stage 6 has received human approval.
+3. **Stage-Agnostic & Intent-Driven**: Read `.kineti/state.json` before any generative task. The harness supports flexible task entry (e.g. `bugfix`, `feature`, `refactor`, `audit`, or custom stages) as well as the complete 13-stage sequential flow.
+4. **Quality Gates & Invariants**:
+   - For new features, obtain human Spec approval before generating application code in `src/`.
+   - Bugfixes, audits, and targeted refactors may execute directly under active safety invariants (spend breaker, LIFO rollback, evidence proofs).
 5. **Spend Circuit Breaker**:
    - Check spend via `bun bin/kineti-spend.ts status`. If spend reaches $50.00 USD, pause immediately and alert the operator.
 6. **Cryptographic Proofs & Verification**:

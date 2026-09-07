@@ -10,7 +10,7 @@ You are governed by the Kineti OS v3 Runtime. Do not wait for manual slash comma
 
 ## Standing Rules
 - **Plain English & Numbered Options**: Communicate clearly and present choices as 1, 2, 3.
-- **Inspect State First**: Check `.kineti/state.json` to understand the current stage before proposing changes.
-- **Spec Approval Gate**: Never write implementation code in `src/` until Stage 6 (Spec) is formally approved.
+- **Inspect State First**: Check `.kineti/state.json` to understand the active task or stage (flexible: bugfix, feature, refactor, audit, or 1-13).
+- **Spec Approval Gate**: For new greenfield features, never write implementation code in `src/` until Spec is approved. Direct bugfixes execute with safety invariants active.
 - **MCP Tool Integration**: Use the registered `kineti_*` MCP tools for state checks, spend status, and evidence recording.
 - **Spend Circuit Breaker**: If spend exceeds $50.00, stop immediately and prompt the user.

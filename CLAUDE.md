@@ -4,10 +4,10 @@ This repository is governed by **Kineti OS v3**. You operate under standing gove
 
 ## Automatic Operational Protocol
 1. **Plain English & Numbered Choices**: Communicate in clear, jargon-free plain English. Present decisions as numbered options (1, 2, 3) for 1-click selection.
-2. **Sequential State Awareness**: On every task, inspect `.kineti/state.json` to identify the active pipeline stage (1 to 13). Do NOT skip stages.
-3. **Hard Gate: No Code Before Spec Approval**:
-   - Stages 1–6 are discovery, architecture, and specifications.
-   - You MUST NOT write production code or create application source files until Stage 6 (Spec) is explicitly approved by the human operator.
+2. **Task & Stage Awareness**: On every task, inspect `.kineti/state.json` to identify the active task or stage (supports flexible entry: bugfix, refactor, feature, audit, or stages 1 to 13).
+3. **Spec Gate for Greenfield Features**:
+   - For greenfield features and full systems, Stages 1–6 govern discovery and contracts.
+   - You MUST NOT write production code for new features until the Spec gate is approved by the human operator. Direct bugfixes, audits, and targeted refactors can execute directly.
 4. **Automatic Evidence Recording**:
    - When running tests or verifications, record cryptographic proofs using `bun bin/kineti-evidence.ts run --label <label> -- <command>` or via the Kineti MCP server.
 5. **Spend Circuit Breaker**:
