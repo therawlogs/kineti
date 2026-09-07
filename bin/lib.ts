@@ -131,7 +131,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
   if (!fs.existsSync(claudePath)) {
     fs.writeFileSync(
       claudePath,
-      `# Kineti OS — Autonomous Directives for Claude Code\n\nThis repository is governed by Kineti OS v3.\n\n## Rules\n1. Plain English and numbered choices (1, 2, 3).\n2. Inspect .kineti/state.json on every prompt to track the active task or stage (flexible: bugfix, feature, refactor, audit, or stages 1-13).\n3. Hard gate: For new features, do NOT write application code in src/ before Spec approval.\n4. Check spend status before heavy tasks ($50.00 limit).\n5. Record test proofs via bun bin/kineti-evidence.ts run.\n`
+      `# Kineti OS — Rules for Claude Code\n\nThis project uses Kineti OS to keep work safe and organized.\n\n## Rules\n1. Plain words and numbered choices: Speak in plain English without metaphors or jargon. Give numbered options (1, 2, 3).\n2. Check the current task: Read .kineti/state.json before starting.\n3. Plan before building new features: Get user approval before writing code in src/.\n4. Run tests: Save test proofs with bun bin/kineti-evidence.ts run.\n5. Spending limit: Stop right away if spending reaches $50.00.\n6. Save undo steps: Save an undo command before making changes.\n`
     );
     installed.push("CLAUDE.md");
   }
@@ -141,7 +141,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
   if (!fs.existsSync(agentsPath)) {
     fs.writeFileSync(
       agentsPath,
-      `# Kineti OS — Autonomous Agent Standing Directives\n\nThis repository is governed by Kineti OS v3.\n\n## Rules\n1. Plain English interaction with numbered choices.\n2. Read .kineti/state.json. Supports stage-agnostic tasks (bugfix, refactor, etc.) and full 13-stage pipelines.\n3. Verify test proofs with code fingerprints.\n4. Pause if spend reaches $50 USD.\n`
+      `# Kineti OS — Rules for AI Agents\n\nThis project uses Kineti OS to keep work safe and organized.\n\n## Rules\n1. Plain words and numbered choices: Speak in simple English without metaphors.\n2. Check the current task: Read .kineti/state.json before starting.\n3. Plan before building new features: Get approval before writing code in src/.\n4. Run tests: Save test proofs before claiming work is finished.\n5. Spending limit: Stop right away if spending reaches $50.00.\n6. Save undo steps: Save undo commands before making changes.\n`
     );
     installed.push("AGENTS.md");
   }
@@ -153,7 +153,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
     ensureDir(cursorRulesDir);
     fs.writeFileSync(
       cursorRulePath,
-      `---\ndescription: Kineti OS Autonomous Runtime Governance\nglobs: *\nalwaysApply: true\n---\n\n# Kineti OS — Cursor Autonomous Governance\n\n- Inspect .kineti/state.json on every task (flexible stages: bugfix, feature, refactor, audit, 1-13).\n- Spec gate blocks code generation for new features until approved.\n- Use registered kineti_* MCP tools.\n- Respect spend circuit breaker ($50 ceiling).\n`
+      `---\ndescription: Kineti OS Safety Rules\nglobs: *\nalwaysApply: true\n---\n\n# Kineti OS — Rules for Cursor\n\n- Plain words and numbered choices: Speak in simple English without metaphors.\n- Check .kineti/state.json to see the current goal and task.\n- For new features, get user approval before writing code in src/.\n- Stop right away if spending reaches $50.00.\n`
     );
     installed.push(".cursor/rules/kineti.mdc");
   }
@@ -163,7 +163,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
   if (!fs.existsSync(codexPath)) {
     fs.writeFileSync(
       codexPath,
-      `# Kineti OS — Autonomous Directives for OpenAI Codex\n\nGoverned by Kineti OS v3.\n\n1. Plain English and numbered options.\n2. Read .kineti/state.json. Supports flexible stage entry (bugfix, refactor, spec, build).\n3. Verify evidence with code fingerprints.\n`
+      `# Kineti OS — Rules for OpenAI Codex\n\nThis project uses Kineti OS to keep work safe and organized.\n\n1. Plain words and numbered choices (1, 2, 3).\n2. Read .kineti/state.json to see the current task.\n3. For new features, get approval before writing code in src/.\n4. Stop if spending reaches $50.00.\n5. Run and check tests.\n`
     );
     installed.push("CODEX.md");
   }

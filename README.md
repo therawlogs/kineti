@@ -1,98 +1,80 @@
-# Kineti OS v3
+# Kineti OS
 
-A closed-loop software factory that runs inside your AI coding tools.
-You describe an idea once. Kineti walks it through thirteen fixed stages,
-enforced by small programs, remembered by a permanent store.
+A safe coding assistant system that works inside your existing AI tools (Claude Code, Cursor, Antigravity, OpenCode, and Codex).
 
-**Skills propose. Programs enforce. Memory remembers.**
+Kineti keeps your AI coding safe by doing four simple things:
+1. **Tracks spending**: Pauses work if token costs reach $50.00.
+2. **Saves undo steps**: Lets you undo any file changes cleanly.
+3. **Runs tests**: Checks that tests actually pass before saving work.
+4. **Shows clear progress**: Shows you what is happening in a clean local dashboard.
 
-## Install (30 seconds)
+## Installation (30 seconds)
 
-Requires: git, bash. No other dependencies for install.
+Requirements: `git` and `bash`.
 
 ```sh
 git clone <this-repo> ~/kineti && cd ~/kineti && ./setup.sh
 ```
 
-The installer finds which of these you use and copies skills into each:
+The setup script detects your tools and adds Kineti skills automatically:
+- Claude Code (`~/.claude/skills/kineti-*`)
+- OpenCode (`~/.opencode/skills/kineti-*`)
+- Gemini / Antigravity (`~/.gemini/config/skills/kineti-*`)
+- Codex (`~/.codex/skills/kineti-*`)
 
-| Host | Skills copied to |
-|---|---|
-| opencode | `~/.opencode/skills/kineti-*` |
-| Claude Code | `~/.claude/skills/kineti-*` |
-| Gemini CLI | `~/.gemini/config/skills/kineti-*` |
-| ChatGPT Codex | `${CODEX_HOME:-~/.codex}/skills/kineti-*` |
+To uninstall at any time: `./setup.sh --uninstall`
 
-Target one host only: `./setup.sh --host opencode`
-Remove everything Kineti installed: `./setup.sh --uninstall` (touches only `kineti-*` files)
-Re-running is always safe: it overwrites its own copies and nothing else.
+## How to Use
 
-## Use (Zero-Touch Governance)
+You do not need to learn special slash commands. Just open your project in your tool (like Claude Code or Cursor) and describe your task in plain English:
 
-**No slash commands required.** When you open a repository in Claude Code, Cursor, Google Antigravity, or Codex, the agent automatically reads its native root directives (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/kineti.mdc`, `CODEX.md`).
-
-Simply prompt your agent in plain English:
 ```text
-"Let's build the customer billing webhook."
+"Fix the login redirect bug."
 ```
 
-The agent automatically:
-1. Reads `.kineti/state.json` to identify the active pipeline stage.
-2. Conducts intake, design, and architecture first.
-3. Hard stops at Stage 6 (Spec approval) before generating any application code.
-4. Records test proofs and tracks spend transparently in the background.
+The AI agent will:
+1. Read `.kineti/state.json` to see the active task.
+2. For new features: write a plan and ask for your approval first.
+3. For bug fixes: fix the issue directly and run tests.
+4. Track spending and save undo commands in the background.
 
-Three gates stop for your explicit approval:
-- **Feasibility** (Stage 5): Money, data, and boundary check
-- **Spec Approval** (Stage 6): Pass/fail contracts and typed shapes approved by you
-- **Ship Gate** (Stage 11): Fresh test proofs and security checklist verified
+## Companion Dashboard
 
-## Universal Host Integration & Visual Companion
+Open the clean local dashboard in your browser to see the active task, costs, and recent activity:
 
-### 1. Visual Companion Canvas (Port 8788)
-Run the live companion dashboard sidecar to observe pipeline stage transitions, real-time spend counters, and 1-click gate approvals:
 ```sh
 bun run companion
 ```
-Visit `http://127.0.0.1:8788` in your browser.
+Open `http://127.0.0.1:8788` in your browser.
 
-### 2. Universal Model Context Protocol (MCP)
-Connect any MCP-compatible AI agent (Cursor, Claude Desktop, Antigravity, OpenCode):
+## Tool Integration (MCP)
+
+Connect any tool that supports the Model Context Protocol (MCP):
+
 ```sh
-# Auto-configure Cursor (.cursor/mcp.json)
+# Set up Cursor (.cursor/mcp.json)
 bun run mcp:init
 
-# Start stdio MCP daemon
+# Start the MCP server
 bun run mcp
 ```
 
-### 3. GitHub Actions Causal Verification Gate
-Every pull request is automatically verified with cryptographic evidence checks, spend budget monitoring, and status badges via `.github/workflows/kineti-gate.yml`:
+## Pull Request Check (CI)
+
+Run the automated verification check locally:
 ```sh
-# Run verification check locally
 bun run ci
 ```
 
 ## What lives where
 
-- This repository: source of everything (skills, installer, programs, UI components, docs).
-- Your computer only: installed copies under each host's skills folder,
-  per-project `.kineti/` state, `~/.kineti/` machine data, gbrain data.
+- This folder: source code, scripts, UI components, and guides.
+- Your project folder: `.kineti/state.json` (current task), `.kineti/spend.json` (costs), `.kineti/evidence.jsonl` (test results).
+- Deleting this folder loses nothing permanent. You can re-clone and run setup again anytime.
 
-Deleting this folder loses nothing permanent. Re-clone and re-run setup.sh.
-
-## Status
-
-- [x] Phase 0 — skeleton + four-host installer
-- [x] Phase 1 — harness programs (`bin/`) & cryptographic hardening
-- [x] Phase 2 — visual companion canvas (`bin/kineti-companion.ts`) & 12 UI components (`src/components/ui/`)
-- [x] Phase 3 — universal MCP server (`bin/kineti-mcp.ts`) & GitHub Actions PR verification gate (`.github/workflows/kineti-gate.yml`)
-- [x] Phase 4 — memory wiring (gbrain + causal rules) & v3.0.0 release
-
-Guides: docs/TUTORIAL-first-run.md · docs/HOWTO-daily-loop.md
-Strategy Blueprint: docs/HARNESS_STRATEGY_BLUEPRINT.md
-Audit Report: docs/BLUEPRINT_AUDIT_REPORT.md
-Roadmap: ROADMAP.md
-Memory contract: MEMORY.md
-Migration notes: MIGRATION.md
+## Guides and Documentation
+- First run tutorial: `docs/TUTORIAL-first-run.md`
+- Daily workflows: `docs/HOWTO-daily-loop.md`
+- Core rules: `ETHOS.md`
+- Workflows: `WORKFLOWS.md`
 

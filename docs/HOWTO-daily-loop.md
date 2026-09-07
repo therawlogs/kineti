@@ -1,71 +1,92 @@
-# How-To — Daily and Weekly Operation
+# Daily and Weekly Guide
 
-## Start a new product run
+This guide shows how to run and maintain Kineti.
 
-```sh
-cd <project-folder>       # empty or existing repo
-# in your agent session:
-Load kineti-officehours. My idea: ...
-```
-The pipeline owns the order from there: diagnose → design → architecture →
-feasibility → spec (your approval) → build → review → qa → security → ship.
+## Start a New Task or Project
 
-## Resume after a break
+1. Open your project folder:
+   ```sh
+   cd <project-folder>
+   ```
+2. In your agent session, tell the agent what you want to do:
+   - For a direct task: `Fix the login bug in auth.ts` or `Refactor database queries`
+   - For a full project: `Load kineti-officehours. My idea: ...`
 
-State lives in `<project>/.kineti/state.json`. Ask the agent:
-> Read .kineti/state.json and tell me where this run stands and what is next.
+You can start at any step or follow the full sequence:
+`officehours` → `diagnose` → `design` → `architecture` → `feasibility` → `spec` → `build` → `review` → `qa` → `security` → `ship`.
 
-## Check money mid-run
+## Resume Saved Work
 
+The current state is saved in `<project>/.kineti/state.json`.
+
+Ask the agent:
+> Read .kineti/state.json and tell me the current state and next step.
+
+## Check Money Spent
+
+Check the current cost:
 ```sh
 bun "$(cat ~/.kineti/repo)/bin/kineti-spend.ts" status
 ```
-Tripped? Only you may reset it:
-`... kineti-spend.ts reset --i-am-human`
 
-## Undo a bad build session
+If spending reached the $50 limit, the run stops. Only a human can reset it:
+```sh
+bun "$(cat ~/.kineti/repo)/bin/kineti-spend.ts" reset --i-am-human
+```
 
+## Undo Changes
+
+To undo changes from a run:
 ```sh
 bun "$(cat ~/.kineti/repo)/bin/kineti-saga.ts" rollback --run-id <id>
 ```
-Undo steps run newest-first; one failing undo does not stop the rest.
 
-## Prove tests before ship
+Undo steps run newest first. If one undo step fails, the remaining steps still run.
 
+## Verify Tests Before Shipping
+
+Run tests and save proof:
 ```sh
 K=$(cat ~/.kineti/repo)/bin
 bun $K/kineti-evidence.ts run --label qa -- -- bun test
-bun $K/kineti-evidence.ts check --label qa     # FRESH required by ship
+bun $K/kineti-evidence.ts check --label qa
 ```
 
-## Weekly memory maintenance
+Shipping requires recent passing test proof.
 
+## Weekly Maintenance
+
+Run the weekly check:
 ```sh
 KINETI_PROJECTS="$HOME/projects/a $HOME/projects/b" \
   $(cat ~/.kineti/repo)/scripts/weekly.sh
 ```
-Or put that line in crontab. It expires stale records, verifies every
-project's hash chain, checks cause-link time order, and suggests new
-vocabulary worth promoting.
 
-## Ask what Kineti remembers
+This script:
+1. Marks old records as expired.
+2. Checks that history records were not changed.
+3. Checks that timestamps follow real order.
+4. Lists frequently used words to save.
 
-With gbrain connected (opencode sessions have it):
+## Search Saved Memory
+
+With gbrain active:
 > What do you remember about <topic>?
 
-Without a session:
+In the terminal:
 ```sh
 gbrain search "<topic>"
 ```
 
-## Add a new project to memory tracking
+## Track a New Project
 
-Run any pipeline stage once in it — `.kineti/journal.jsonl` appears
-automatically and weekly.sh picks it up via KINETI_PROJECTS.
+Run any task in the project. Kineti creates `.kineti/journal.jsonl` automatically.
 
-## Retire a machine
+## Uninstall Kineti
 
+To remove Kineti from your computer:
 ```sh
-cd <kineti-repo> && ./setup.sh --uninstall   # removes only kineti-* files
+cd <kineti-repo> && ./setup.sh --uninstall
 ```
-Memory survives independently in `~/.gbrain` and your brain repository.
+
+This removes only Kineti files. Saved notes in `~/.gbrain` stay intact.

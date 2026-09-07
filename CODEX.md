@@ -1,10 +1,10 @@
-# Kineti OS — Autonomous Directives for OpenAI Codex
+# Kineti OS — Rules for OpenAI Codex
 
-This repository is governed by **Kineti OS v3**.
+This project uses Kineti OS to keep work safe and organized.
 
-## Autonomous Operating Protocol
-1. **Plain Words & Numbered Choices**: Speak in plain English. Present decisions as numbered options (1, 2, 3).
-2. **Task & Stage Awareness**: Read `.kineti/state.json`. Supports flexible entry (bugfix, refactor, feature, audit, 1-13).
-3. **Spec Gate Enforcement**: For new features, do not write application code before Spec approval. Direct bugfixes execute with safety invariants active.
-4. **Spend Limit**: Cease generation if spend limit of $50.00 is reached.
-5. **Tamper-Evident Evidence**: Verify code against test proofs (`bun bin/kineti-evidence.ts check`).
+## Rules
+1. **Plain words and numbered choices**: Speak in simple, everyday English. Give numbered choices (1, 2, 3).
+2. **Check the current task**: Read `.kineti/state.json` to see the current task and goal.
+3. **Plan before building new features**: For new features, get user approval before writing code in `src/`. For small fixes, you can fix directly.
+4. **Spending limit**: Stop right away if spending reaches $50.00.
+5. **Run tests**: Run and check tests before claiming work is finished (`bun bin/kineti-evidence.ts check`).

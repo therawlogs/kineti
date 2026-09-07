@@ -1,88 +1,85 @@
-# Tutorial — Your First Kineti Run
+# First Run Tutorial
 
-Follow this once and you will know the whole system. Time: about 20
-minutes. You need: this repository installed (`./setup.sh`), an agent
-session open in opencode, and any small idea you actually care about.
+This tutorial walks you through using Kineti. It takes about 20 minutes.
 
-## 0. Confirm the ground
+You will need:
+- Kineti installed (`./setup.sh`)
+- An agent session open
+- A small project or idea
 
-In a scratch project folder (not the Kineti repo), start an agent session
-and ask:
+You can start at any step, or run simple tasks directly (like bug fixes). If you are building a new project from scratch, follow these steps:
 
+## Step 0: Check Installation
+
+In your project folder, open your agent and ask:
 > What kineti skills are available?
 
-You should see the `kineti-*` list. If not, re-run `./setup.sh` from the
-repository and reopen the session.
+You should see skills starting with `kineti-`. If not, run `./setup.sh` from the Kineti folder.
 
-## 1. Office hours (stage 1)
+## Step 1: Define the Goal (Office Hours)
 
-> Load kineti-officehours. My idea: <one sentence about your idea>
+Tell the agent your idea:
+> Load kineti-officehours. My idea: <one sentence describing your idea>
 
-The skill interviews you before it plans. Expect pushback: it asks for
-real examples of pain, challenges your framing, and proposes the smallest
-useful version. It ends by writing `brief.md` and locking your goal:
+The agent asks clarifying questions to find the simplest useful version. It creates `brief.md` and locks your main goal in `.kineti/state.json`.
 
-```sh
-cat .kineti/state.json   # root_goal is now immutable
-```
+Once locked, the goal cannot be changed by the agent. This prevents unintended drift.
 
-Try to change the goal and watch it refuse — that refusal is the system
-working.
+## Step 2: Measure the Problem (Diagnose)
 
-## 2. Diagnose (stage 2)
-
+Ask the agent:
 > Run kineti-diagnose against <the process from your brief>
 
-Answer its questions with real numbers when you have them, estimates when
-you do not (it marks which is which). You get `diagnostics.md`: a loss
-table in dollars where every figure shows its math.
+The agent calculates where time or money is lost. It writes the results and calculations to `diagnostics.md`.
 
-## 3. Design (stage 3)
+## Step 3: Choose the Visual Style (Design)
 
+Ask the agent:
 > Run kineti-design
 
-Name three products whose look you like. It writes a style brief for your
-approval, then generates real HTML variants side by side. Pick, reject,
-iterate. Your picks are remembered for next time.
+Name three websites or apps whose look you like. The agent writes a design summary and creates HTML screen previews. Pick the layout you prefer.
 
-## 4. Architecture (stage 4)
+## Step 4: Map Services and Failures (Architecture)
 
+Ask the agent:
 > Run kineti-architecture
 
-It draws services and arrows, gives every arrow an error path, builds the
-failure table, and shows stack math comparing Supabase/Vercel-style blocks
-against alternatives — including self-hosting.
+The agent creates a diagram of services, lists error scenarios, and compares hosting costs.
 
-## 5. The gate (stage 5)
+## Step 5: Check Practical Limits (Feasibility)
 
+Ask the agent:
 > Run kineti-feasibility
 
-Three checks: money (margin, return vs hurdle), data (quality ≥ 0.8 on
-required fields), people (who can kill this, and what artifact wins them).
-A fail routes back to stage 2 with the exact number that failed. Try it on
-a deliberately bad idea once — watching it die cheaply is the lesson.
+The agent checks three areas:
+1. Money: Expected cost and return.
+2. Data: Quality of necessary input data.
+3. Users: Key people who must approve the work.
 
-## 6. Spec and the hard stop (stage 6)
+If any check fails, the agent reports the issue and stops so you can fix it early.
 
+## Step 6: Write the Specification (Spec)
+
+Ask the agent:
 > Run kineti-spec
 
-Typed shapes, pass/fail acceptance criteria, out-of-scope list. Then the
-run stops until you explicitly approve. Nothing under `src/` exists yet.
+The agent writes clear data types, pass/fail test rules, and a list of what will not be built.
 
-## 7. Build → Review → QA → Security → Ship (stages 7–11)
+The agent stops here and waits for your approval. No code is written in `src/` until you approve.
 
+## Step 7: Build, Review, and Ship (Build → QA → Ship)
+
+Once you approve the spec, tell the agent:
 > Approve the spec. Run kineti-build.
 
-Watch `.kineti/saga.jsonl` grow one undo step per change, and progress
-commits carry decisions plus failed approaches. Then run review, qa
-(real browser, three widths, regression test per bug), security, and ship.
-Ship refuses stale proofs — edit a file after qa and see it block.
+1. **Build**: Code is written in small steps. Every file change registers an undo action in `.kineti/saga.jsonl`.
+2. **Review**: The agent checks for logic errors and edge cases.
+3. **QA**: The agent runs tests in a real browser at mobile, tablet, and desktop widths.
+4. **Security**: The agent runs standard security checks.
+5. **Ship**: The agent checks that all tests passed recently and creates the pull request or commit.
 
-## 8. Watch and retro (stages 12–13)
+## Step 8: Monitor and Learn (Watch and Review)
 
-After deploy: baseline, poll, alerts land in `~/.kineti/alerts.log`.
-Weekly: `Run kineti-retro` turns the week into dated lessons that stages
-1–5 quote automatically next time.
-
-That is the whole loop. Everything else — memory jobs, audits, second
-opinions — serves these thirteen stages.
+After deployment:
+- **Watch**: Check for errors or slow response times. Alerts go to `~/.kineti/alerts.log`.
+- **Review**: At the end of each week, run `kineti-retro` to record lessons learned so future tasks use them.
