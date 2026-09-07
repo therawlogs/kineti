@@ -1,8 +1,8 @@
 {
-  "name": "kineti-os",
-  "version": "3.0.0",
-  "private": true,
-  "description": "Kineti OS harness: six enforcement programs",
+  "name": "kineti",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
   "bin": {
     "kineti": "./bin/kineti.ts"
   },
