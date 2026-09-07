@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { appendJsonl, die, machineDir, nowIso, ok, readJson, readJsonl, sha256, writeJson } from "./lib.ts";
+import { appendJsonl, computeDelimitedHash, die, machineDir, nowIso, ok, readJson, readJsonl, sha256, writeJson } from "./lib.ts";
 
 interface Receipt {
   seq: number; at: string; host: string; description: string;
@@ -12,6 +12,10 @@ function file(): string { return path.join(machineDir(), "egress.jsonl"); }
 function stateFile(): string { return path.join(machineDir(), "egress.state.json"); }
 
 function computeHash(r: Omit<Receipt, "hash">): string {
+  return computeDelimitedHash([String(r.seq), r.at, r.host, r.description, r.prev_hash]);
+}
+
+function computeHashLegacy(r: Omit<Receipt, "hash">): string {
   return sha256(`${r.seq}|${r.at}|${r.host}|${r.description}|${r.prev_hash}`);
 }
 
@@ -41,7 +45,7 @@ function main() {
     let prev = "GENESIS";
     for (const r of chain) {
       if (r.prev_hash !== prev) { console.error(`kineti: TAMPER at receipt ${r.seq}: broken parent link`); process.exit(3); }
-      if (computeHash(r) !== r.hash) { console.error(`kineti: TAMPER at receipt ${r.seq}: content hash mismatch`); process.exit(3); }
+      if (computeHash(r) !== r.hash && computeHashLegacy(r) !== r.hash) { console.error(`kineti: TAMPER at receipt ${r.seq}: content hash mismatch`); process.exit(3); }
       prev = r.hash;
     }
     if (state && (state.count !== chain.length || (chain.length > 0 && state.last_hash !== chain[chain.length - 1].hash))) {

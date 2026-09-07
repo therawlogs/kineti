@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { die, nowIso, ok, readJsonl, sha256 } from "./lib.ts";
+import { computeDelimitedHash, die, nowIso, ok, readJsonl, sha256 } from "./lib.ts";
 
 interface Link {
   word: string;
@@ -45,9 +45,8 @@ function save(dir: string, recs: Rec[]): void {
   fs.writeFileSync(journalFile(dir), body);
 }
 
-// Canonicalization ported from src/memory/journal.rs: recursively key-sorted
-// JSON; stable=true converts every finite number to fixed 6-decimal strings
-// (compute_hash) while false keeps raw numbers (legacy compute_hash_v1).
+// Canonicalization: recursively key-sorted JSON; stable=true converts
+// every finite number to fixed 6-decimal strings while false keeps raw numbers.
 function canonStable(v: any, stable: boolean): string {
   const norm = (x: any): any => {
     if (x === null || typeof x !== "object") {
@@ -62,6 +61,10 @@ function canonStable(v: any, stable: boolean): string {
 }
 
 function recordHash(r: Rec, stable: boolean): string {
+  return computeDelimitedHash([r.prev_hash ?? "", r.at, r.id, canonStable(r.data, stable)]);
+}
+
+function recordHashLegacy(r: Rec, stable: boolean): string {
   return sha256(`${r.prev_hash}${r.at}${r.id}${canonStable(r.data, stable)}`);
 }
 
@@ -95,9 +98,8 @@ function main() {
   }
 
   if (cmd === "verify-chain") {
-    // Mirror src/memory/journal.rs::verify(): ONE chain over ALL record
-    // types in file order, float-stable canonicalization, with legacy
-    // (pre-float-stable) hash acceptance for day<3 journals.
+    // ONE chain over ALL record types in file order, float-stable
+    // canonicalization, with legacy hash acceptance for old journals.
     const chain = load(dir);
     let prev = "GENESIS";
     for (const r of chain) {
@@ -109,7 +111,7 @@ function main() {
         console.error(`kineti: CHAIN BROKEN at ${r.id}: expected prev ${prev.slice(0, 8)}, found ${r.prev_hash.slice(0, 8)}`);
         process.exit(3);
       }
-      if (recordHash(r, true) !== r.hash && recordHash(r, false) !== r.hash) {
+      if (recordHash(r, true) !== r.hash && recordHash(r, false) !== r.hash && recordHashLegacy(r, true) !== r.hash && recordHashLegacy(r, false) !== r.hash) {
         console.error(`kineti: TAMPER at ${r.id}: content hash mismatch`);
         process.exit(3);
       }

@@ -45,6 +45,11 @@ function generateAuthToken(): string {
 
 const AUTH_TOKEN = generateAuthToken();
 
+function isAuthorized(req: Request): boolean {
+  const header = req.headers.get("authorization");
+  return header === `Bearer ${AUTH_TOKEN}`;
+}
+
 export interface ActivityEvent {
   timestamp: string;
   badge: "START" | "GOAL" | "TASK" | "STEP" | "CHECK" | "PASS" | "FAIL" | "CHANGE";
@@ -509,10 +514,12 @@ function getFleetStatus() {
 }
 
 function renderHtmlDashboard(): string {
+  const tokenScript = `<script>window.KINETI_TOKEN=${JSON.stringify(AUTH_TOKEN)};</script>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  ${tokenScript}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kineti OS — Visual Companion Canvas</title>
   <style>
@@ -2230,7 +2237,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/gate", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
           body: JSON.stringify({ gate: activeGateId, status: "pass" }),
         });
         if (res.ok) {
@@ -2243,8 +2250,13 @@ function renderHtmlDashboard(): string {
     }
 
     async function resetBreaker() {
+      if (!confirm("Reset spend cap? This needs a human confirm.")) return;
       try {
-        const res = await fetch("/api/spend/reset", { method: "POST" });
+        const res = await fetch("/api/spend/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+          body: JSON.stringify({ i_am_human: true }),
+        });
         if (res.ok) {
           fetchStatus();
           fetchFleet();
@@ -2352,6 +2364,12 @@ function startServer(port: number = PORT) {
       }
 
       if (url.pathname === "/api/gate" && req.method === "POST") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         return req.json().then((body: any) => {
           const { gate, status } = body;
           if (!gate || (status !== "pass" && status !== "fail" && status !== "pending")) {
@@ -2365,9 +2383,28 @@ function startServer(port: number = PORT) {
       }
 
       if (url.pathname === "/api/spend/reset" && req.method === "POST") {
-        const res = Bun.spawnSync(["bun", path.join(REPO_ROOT, "bin", "kineti-spend.ts"), "reset", "--i-am-human"]);
-        return new Response(JSON.stringify({ success: res.exitCode === 0 }), {
-          headers: { "Content-Type": "application/json" },
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return req.json().then((body: any) => {
+          if (!body || body.i_am_human !== true) {
+            return new Response(JSON.stringify({ error: "Human confirm required: send {i_am_human:true}" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          const res = Bun.spawnSync(["bun", path.join(REPO_ROOT, "bin", "kineti-spend.ts"), "reset", "--i-am-human"]);
+          return new Response(JSON.stringify({ success: res.exitCode === 0 }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }).catch(() => {
+          return new Response(JSON.stringify({ error: "Human confirm required: send {i_am_human:true}" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
         });
       }
 

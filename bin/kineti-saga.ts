@@ -19,15 +19,33 @@ function openRun(runId: string): void {
   if (ls.some((l) => l.kind === "commit" && l.run_id === runId)) die(`run ${runId} already committed`, 2);
 }
 
+function ensureRun(runId: string): void {
+  const ls = lines();
+  const begin = ls.find((l) => l.kind === "begin" && l.run_id === runId);
+  if (!begin) {
+    appendJsonl(file(), { at: nowIso(), kind: "begin", run_id: runId } satisfies Line);
+    return;
+  }
+  if (ls.some((l) => l.kind === "commit" && l.run_id === runId)) die(`run ${runId} already committed`, 2);
+}
+
+function latestOpenRun(): string | null {
+  const ls = lines();
+  const committed = new Set(ls.filter((l) => l.kind === "commit").map((l) => l.run_id));
+  const begins = ls.filter((l) => l.kind === "begin" && !committed.has(l.run_id));
+  if (begins.length === 0) return null;
+  return begins[begins.length - 1].run_id;
+}
+
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   let runId = "", label = "", inverse = "";
+  const positional: string[] = [];
   for (let i = 0; i < rest.length; i++) {
-    switch (rest[i]) {
-      case "--run-id": runId = rest[++i] ?? ""; break;
-      case "--label": label = rest[++i] ?? ""; break;
-      case "--inverse": inverse = rest[++i] ?? ""; break;
-    }
+    if (rest[i] === "--run-id") runId = rest[++i] ?? "";
+    else if (rest[i] === "--label") label = rest[++i] ?? "";
+    else if (rest[i] === "--inverse") inverse = rest[++i] ?? "";
+    else positional.push(rest[i]);
   }
 
   if (cmd === "begin") {
@@ -52,30 +70,48 @@ function main() {
     return;
   }
 
+  if (cmd === "push") {
+    const targetRun = runId || "default";
+    let pLabel = label;
+    let pInverse = inverse;
+    if (!pLabel && positional.length >= 1) pLabel = positional[0];
+    if (!pInverse && positional.length >= 2) pInverse = positional[1];
+    if (!pInverse && positional.length === 1) {
+      pInverse = positional[0];
+      pLabel = `manual-${Date.now()}`;
+    }
+    if (!pLabel || !pInverse) die(`push requires <label> <undo-command> OR --label L --inverse "command"`);
+    ensureRun(targetRun);
+    appendJsonl(file(), { at: nowIso(), kind: "register", run_id: targetRun, label: pLabel, inverse: pInverse } satisfies Line);
+    ok(`undo step registered: ${pLabel}`);
+    return;
+  }
+
   if (cmd === "rollback") {
-    openRun(runId);
-    const regs = lines().filter((l) => l.kind === "register" && l.run_id === runId);
+    const targetRun = runId || latestOpenRun() || "default";
+    openRun(targetRun);
+    const regs = lines().filter((l) => l.kind === "register" && l.run_id === targetRun);
     const undone = new Set(
-      lines().filter((l) => l.kind === "rollback_step" && l.run_id === runId).map((l) => l.label),
+      lines().filter((l) => l.kind === "rollback_step" && l.run_id === targetRun).map((l) => l.label),
     );
     const pending = regs.filter((r) => !undone.has(r.label!)).reverse();
-    if (pending.length === 0) { ok(`nothing to roll back for ${runId}`); return; }
+    if (pending.length === 0) { ok(`nothing to roll back for ${targetRun}`); return; }
     for (const r of pending) {
       const res = spawnSync("bash", ["-lc", r.inverse!], { stdio: "pipe", encoding: "utf8" });
       const code = res.status ?? 1;
       appendJsonl(file(), {
-        at: nowIso(), kind: "rollback_step", run_id: runId,
+        at: nowIso(), kind: "rollback_step", run_id: targetRun,
         label: r.label, exit_code: code,
       } satisfies Line);
       if (code !== 0) console.error(`kineti: CRITICAL undo failed for "${r.label}" (exit ${code}); continuing`);
       else ok(`undone: ${r.label}`);
     }
-    appendJsonl(file(), { at: nowIso(), kind: "rollback_done", run_id: runId } satisfies Line);
-    ok(`rollback complete for ${runId} (${pending.length} steps, newest-first)`);
+    appendJsonl(file(), { at: nowIso(), kind: "rollback_done", run_id: targetRun } satisfies Line);
+    ok(`rollback complete for ${targetRun} (${pending.length} steps, newest-first)`);
     return;
   }
 
-  die(`unknown command: ${cmd}. Use begin | register | commit | rollback`, 2);
+  die(`unknown command: ${cmd}. Use begin | register | push | commit | rollback`, 2);
 }
 
 main();
