@@ -56,7 +56,7 @@ Links live in `links[]`:
 ```
 
 - Any relationship word is allowed at write time. Core words come from the
-  10XE schema: `caused triggers blocks enables requires supports indicates
+  Kineti causal schema: `caused triggers blocks enables requires supports indicates
   contributes_to remediates contradicts supersedes resolves duplicates`.
 - Status flow: `candidate → hypothesis → validated → rejected`.
 - A link reaches `validated` only when `proof_id` points at an existing

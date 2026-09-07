@@ -38,19 +38,21 @@ describe("kineti-memory-job", () => {
       at: iso(30), type: "run-record", state: "active", project: "p", id: "rr-001",
       data: { root_goal: "g" }, links: [], prev_hash: "GENESIS", hash: "",
     };
-    // hash computed the same way the program does
     const crypto = require("node:crypto");
-    r1.hash = crypto.createHash("sha256").update(`${r1.prev_hash}|${r1.at}|${r1.id}|${JSON.stringify(r1.data)}`).digest("hex");
+    r1.hash = crypto.createHash("sha256").update(`${r1.prev_hash}${r1.at}${r1.id}${JSON.stringify(r1.data)}`).digest("hex");
     const r2: any = {
       at: iso(1), type: "run-record", state: "active", project: "p", id: "rr-002",
       data: { root_goal: "g2" }, links: [], prev_hash: r1.hash, hash: "",
     };
-    r2.hash = crypto.createHash("sha256").update(`${r2.prev_hash}|${r2.at}|${r2.id}|${JSON.stringify(r2.data)}`).digest("hex");
-    const oldLearning = {
+    r2.hash = crypto.createHash("sha256").update(`${r2.prev_hash}${r2.at}${r2.id}${JSON.stringify(r2.data)}`).digest("hex");
+    const oldLearning: any = {
       at: iso(120), type: "learning", state: "active", project: "p", id: "lr-001",
-      data: { skill: "qa", trigger: "always", lesson: "old" }, links: [],
+      data: { lesson: "old", skill: "qa", trigger: "always" }, links: [],
       expires: iso(10),
+      prev_hash: r2.hash,
+      hash: "",
     };
+    oldLearning.hash = crypto.createHash("sha256").update(`${oldLearning.prev_hash}${oldLearning.at}${oldLearning.id}${JSON.stringify(oldLearning.data)}`).digest("hex");
     write(dir, [r1, r2, oldLearning]);
 
     expect(run(["verify-chain", "--dir", dir]).status).toBe(0);

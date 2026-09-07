@@ -9,7 +9,7 @@ interface RunState {
   root_goal: string | null;
   root_goal_locked_at: string | null;
   stage: number;
-  gates: Record<string, "pass" | "fail">;
+  gates: Record<string, "pass" | "fail" | "pending">;
   history: { at: string; event: string }[];
 }
 
@@ -70,7 +70,10 @@ function main() {
   if (cmd === "get") {
     const key = rest[0];
     if (!key) { console.log(JSON.stringify(s, null, 2)); return; }
-    const v = (s as any)[key];
+    let v = (s as any)[key];
+    if (v === undefined && key.startsWith("gate.")) {
+      v = (s.gates as any)?.[key.slice(5)];
+    }
     if (v === undefined) die(`unknown key: ${key}`, 2);
     console.log(typeof v === "string" ? v : JSON.stringify(v, null, 2));
     return;
@@ -94,7 +97,7 @@ function main() {
       s.stage = n;
     } else if (key.startsWith("gate.")) {
       const g = key.slice(5);
-      if (value !== "pass" && value !== "fail") die("gate value must be pass|fail", 2);
+      if (value !== "pass" && value !== "fail" && value !== "pending") die("gate value must be pass|fail|pending", 2);
       s.gates[g] = value;
       s.history.push({ at: nowIso(), event: `gate ${g}=${value}` });
     } else {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { appendJsonl, die, nowIso, ok, projectKdir, readJsonl, sha256 } from "./lib.ts";
+import { appendJsonl, computeDelimitedHash, die, nowIso, ok, projectKdir, readJsonl, sha256 } from "./lib.ts";
 
 interface Record {
   at: string; label: string; cmd: string; exit_code: number | null;
@@ -33,13 +33,13 @@ export function fingerprint(root: string = process.cwd()): string {
           const st = fs.statSync(full);
           if (st.size > MAX_FILE_BYTES) continue;
           const rel = path.relative(root, full);
-          parts.push(`${rel}:${sha256(fs.readFileSync(full))}`);
+          parts.push(rel, sha256(fs.readFileSync(full)));
         } catch { /* unreadable: skip */ }
       }
     }
   };
   walk(root);
-  return sha256(parts.join("\n"));
+  return parts.length ? computeDelimitedHash(parts) : sha256("EMPTY_WORKSPACE");
 }
 
 function records(): Record[] { return readJsonl<Record>(file()); }
@@ -98,4 +98,4 @@ function main() {
   die(`unknown command: ${cmd0}. Use fingerprint | run | check`, 2);
 }
 
-main();
+if (import.meta.main) main();

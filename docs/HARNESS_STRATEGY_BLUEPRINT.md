@@ -582,44 +582,44 @@ exec "$@"
 
 ---
 
-### 2.3 Microsecond-Level Local Loop Latency Budget Breakdown (< 10ms)
+### 2.3 Local Loop Latency Budget & Physical Limits (P95 < 35ms, Hot Path < 10ms)
 
-In autonomous agent operations, latency is cumulative: an agent executing a 30-step task experiences 30 roundtrips through the governance harness. If harness evaluation takes 500ms per step, the developer experiences a crippling 15-second delay. Kineti OS establishes a strict **sub-10ms local loop guarantee**, with typical execution resolving in **under 4.5 milliseconds**.
+In autonomous agent operations, latency is cumulative: an agent executing a 30-step task experiences 30 roundtrips through the governance harness. If harness evaluation takes 500ms per step, the developer experiences a crippling 15-second delay. Kineti OS establishes a strict **P95 < 35ms local loop guarantee** under cold/IPC execution, with in-memory cached hot-path execution resolving in **under 5.5 milliseconds**.
 
 ```
 +----------------------------------------------------------------------------------------------------+
-|                         MICROSECOND-LEVEL LOCAL LOOP LATENCY BUDGET                                |
+|                      LOCAL LOOP LATENCY BUDGET (HOT-PATH CACHE VS COLD IPC P95)                     |
 +-------------------------------------------------------------+-------------------+------------------+
-| Execution Step & Processing Subsystem                       | Min Latency (μs)  | Max Latency (μs) |
+| Execution Step & Processing Subsystem                       | Hot Path (Cache)  | Cold IPC (P95)   |
 +-------------------------------------------------------------+-------------------+------------------+
 | 1. Ingress & Frame Decoding                                 |                   |                  |
-|    - UNIX Socket Read / Stdio JSON-RPC Parser               | 350 μs            | 550 μs           |
-|    - Session Token & Capability Verification                | 210 μs            | 290 μs           |
-|    *Subtotal: Step 1*                                       | *560 μs*          | *840 μs*         |
+|    - UNIX Socket Read / Stdio JSON-RPC Parser               | 450 μs            | 3,200 μs         |
+|    - HMAC Session Token & Capability Verification           | 250 μs            | 850 μs           |
+|    *Subtotal: Step 1*                                       | *700 μs*          | *4,050 μs*       |
 +-------------------------------------------------------------+-------------------+------------------+
 | 2. Context Integrity & Stage Gate Evaluation                |                   |                  |
-|    - SQLite WAL Index Query (`gates`, `stage`)              | 620 μs            | 980 μs           |
-|    - 13-Stage Linear Pipeline Invariant Check               | 180 μs            | 280 μs           |
-|    - OWASP ASI Egress Rule Match                            | 380 μs            | 520 μs           |
-|    *Subtotal: Step 2*                                       | *1,180 μs*        | *1,780 μs*       |
+|    - SQLite WAL Index Query (`gates`, `stage`)              | 820 μs            | 4,500 μs         |
+|    - 13-Stage Linear Pipeline Invariant Check               | 220 μs            | 1,200 μs         |
+|    - OWASP ASI Egress Rule Match                            | 450 μs            | 2,100 μs         |
+|    *Subtotal: Step 2*                                       | *1,490 μs*        | *7,800 μs*       |
 +-------------------------------------------------------------+-------------------+------------------+
 | 3. Spend Circuit Breaker & Token Accounting                 |                   |                  |
-|    - Real-Time Dollar Limit Check (< $50.00)                | 140 μs            | 220 μs           |
-|    - Atomic Spend Counter Increment                         | 180 μs            | 260 μs           |
-|    *Subtotal: Step 3*                                       | *320 μs*          | *480 μs*         |
+|    - Real-Time Dollar Limit Check (< $50.00 / micro-cents)  | 160 μs            | 750 μs           |
+|    - Atomic Spend Counter Increment                         | 210 μs            | 950 μs           |
+|    *Subtotal: Step 3*                                       | *370 μs*          | *1,700 μs*       |
 +-------------------------------------------------------------+-------------------+------------------+
 | 4. Storage Transaction & Merkle DAG Node Commit             |                   |                  |
-|    - SQLite WAL Append (`causal_nodes`, `saga_stack`)       | 650 μs            | 920 μs           |
-|    - In-Memory SHA-256 Merkle Leaf Hash Calculation         | 340 μs            | 510 μs           |
-|    *Subtotal: Step 4*                                       | *990 μs*          | *1,430 μs*       |
+|    - SQLite WAL Append (`causal_nodes`, `saga_stack`)       | 950 μs            | 8,500 μs         |
+|    - RFC 8785 Canonical Serialization & Merkle Leaf Hash   | 520 μs            | 2,400 μs         |
+|    *Subtotal: Step 4*                                       | *1,470 μs*        | *10,900 μs*      |
 +-------------------------------------------------------------+-------------------+------------------+
 | 5. Response Egress & Telemetry Push                         |                   |                  |
-|    - Outbound JSON-RPC Frame Serialization                  | 240 μs            | 380 μs           |
-|    - WebSocket Broadcast to Visual Sidecar (`:8788`)        | 280 μs            | 450 μs           |
-|    *Subtotal: Step 5*                                       | *520 μs*          | *830 μs*         |
+|    - Outbound JSON-RPC Frame Serialization                  | 290 μs            | 1,800 μs         |
+|    - Authenticated WebSocket Push to Sidecar (`:8788`)      | 350 μs            | 3,500 μs         |
+|    *Subtotal: Step 5*                                       | *640 μs*          | *5,300 μs*       |
 +-------------------------------------------------------------+-------------------+------------------+
-| **TOTAL LOCAL LOOP ROUNDTRIP LATENCY**                      | **3,570 μs**      | **5,360 μs**     |
-|                                                             | **(3.57 ms)**     | **(5.36 ms)**    |
+| **TOTAL LOCAL LOOP ROUNDTRIP LATENCY**                      | **4,670 μs**      | **29,750 μs**    |
+|                                                             | **(4.67 ms)**     | **(< 30 ms P95)**|
 +-------------------------------------------------------------+-------------------+------------------+
 ```
 
@@ -689,6 +689,12 @@ Built strictly adhering to the **Kineti Master Design System**: Tailwind CSS, Lu
 ### 2.6 Reactive Telemetry, Approval Gate Protocol & Wire Formats
 
 Communication between Plane 1 and Plane 2 is mediated by framed JSON-RPC 2.0 over local WebSockets (`ws://127.0.0.1:8788`).
+
+> [!IMPORTANT]
+> **Hardened Local WebSocket Security (CSWSH Defense):**
+> 1. **Loopback-Only Binding:** The daemon binds strictly to `127.0.0.1` and `::1`. It rejects any external network interface requests.
+> 2. **Ephemeral HMAC Bearer Token Handshake:** At daemon startup, a cryptographically random 256-bit token is generated and written with restricted 0600 permissions to `.kineti/auth_token`. WebSocket connections must present this token via query parameter (`ws://127.0.0.1:8788?token=...`) or `Authorization: Bearer <TOKEN>` header.
+> 3. **Strict Origin Validation:** The server validates the HTTP `Origin` header during the HTTP upgrade handshake. Requests with origins other than `http://localhost:*`, `http://127.0.0.1:*`, or verified desktop webview protocols (`vscode-webview://`, `tauri://`) are rejected with HTTP 403 Forbidden, neutralizing Cross-Site WebSocket Hijacking (CSWSH) attacks from malicious browser tabs.
 
 #### Event 1: Gate Approval Requested (`kineti.gate.approval_requested`)
 Emitted by the daemon when an agent reaches a gated boundary (Stage 6 Spec, Stage 11 Ship, or destructive file operations):
@@ -906,7 +912,8 @@ CREATE TABLE causal_edges (
     status VARCHAR(16) NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'hypothesis', 'validated', 'rejected')),
     weight NUMERIC(5,4) NOT NULL DEFAULT 1.0000,
     proof_id UUID REFERENCES causal_nodes(node_id),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    CONSTRAINT chk_no_self_loops CHECK (source_node_id <> target_node_id)
 );
 
 -- Trigger strictly enforcing cross-node chronological causal order (source.created_at <= target.created_at)
@@ -1752,8 +1759,17 @@ The Kineti OS pricing architecture aligns directly with developer value and orga
 - **Core Conversion Catalyst:** The **Aside-Style Visual Companion Canvas**. Developers running multi-step agent loops cannot easily parse hundreds of terminal JSONL lines. The Pro canvas delivers real-time Merkle DAG rendering, interactive 1-click human approval modals, spend gauges, and interactive time-travel replay scrubbers.
 - **Multi-Project Causal Synchronization:** End-to-end encrypted synchronization of causal learnings and run-records across desktop and laptop environments.
 
-#### Tier 3: Enterprise Compliance Tier ($250+/seat/mo — The Risk Governance Standard)
-- **Pricing & Terms:** $250 per seat/month ($3,000/seat/year), sold with a strict 10-seat contract minimum ($30,000 Annual Contract Value / ACV baseline).
+#### Tier 3: Team Tier ($79–$129/seat/mo, 3–25 seats — The Mid-Market Bridge)
+- **Target Audience:** Engineering squads and high-growth startups (3 to 25 engineers) needing shared governance without enterprise procurement cycles.
+- **Core Conversion Catalyst:** Self-serve credit card billing that bridges the cliff between $39/mo individual subscriptions and $30k/yr enterprise contracts.
+- **Team Governance Primitives:**
+  1. **Shared Spend Pools & Fleet Limits:** Centralized spend alerts and shared dollar ceilings across all team agent sessions.
+  2. **Team Causal Graph Sync:** Distributed DAG merging across multiple developers working on the same repository.
+  3. **Centralized Pull Request Gate:** GitHub Action PR status checks for the organization with shared policy enforcement.
+  4. **Team Management Dashboard:** Multi-seat seat assignment, role-based access control, and team-wide spend analytics.
+
+#### Tier 4: Enterprise Compliance Tier ($250+/seat/mo — The Risk Governance Standard)
+- **Pricing & Terms:** $250 per seat/month ($3,000/seat/year), sold with a 10-seat contract minimum ($30,000 Annual Contract Value / ACV baseline).
 - **Core Value Driver:** VPs of Engineering and CISOs cannot allow autonomous agents to push code to production without deterministic policy enforcement and non-repudiable auditability.
 - **Enterprise Primitives:**
   1. **Cryptographically Dual-Signed OVTs:** Outcome Verification Tickets signed by both the local developer agent session key and the Kineti Enterprise Attestation Authority using Ed25519 cryptography.
@@ -1792,10 +1808,14 @@ To preserve enterprise pricing power and prevent cloud hyperscalers from commodi
 |                                    | Interactive Replay Scrubber, Multi-Repo E2EE      | ELv2 — Sentry model| binary download          |
 |                                    | Causal Memory Sync.                               | converts in 36 mo) |                          |
 +------------------------------------+---------------------------------------------------+--------------------+--------------------------+
-| Layer C: Enterprise ($250+/seat/mo)| Central Attestation Authority (Ed25519 OVT signer)| Proprietary        | Private Docker Registry, |
+| Layer C: Commercial Team ($79/mo)  | Shared Team Spend Pools, Multi-Repo DAG Sync,     | Business Source    | getkineti.com Team self- |
+|                                    | Centralized PR Status Checks (up to 25 seats),    | License (BSL 1.1)  | serve credit card billing|
+|                                    | Team Dashboard & Shared Quality Gate Templates.   |                    |                          |
++------------------------------------+---------------------------------------------------+--------------------+--------------------------+
+| Layer D: Enterprise ($250+/seat/mo)| Central Attestation Authority (Ed25519 OVT signer)| Proprietary        | Private Docker Registry, |
 |                                    | ISO SQL/PGQ Causal Property Graph Cluster, Fleet  | Commercial         | VPC Helm Chart, Kineti   |
 |                                    | Budget Pools, CI/CD Gate GitHub Action, Turnkey   | (Annual Contracts) | Hosted Cloud Gateway     |
-|                                    | SOC 2 / ISO 27001 / HIPAA Audit Packages.         |                    |                          |
+|                                    | SOC 2 / ISO 27001 / HIPAA Audit Packages, SLA.    |                    |                          |
 +------------------------------------+---------------------------------------------------+--------------------+--------------------------+
 ```
 
@@ -2082,14 +2102,13 @@ As a solo founder, paid advertising and outbound sales forces are unviable. Grow
    - Automatically injects configuration into `claude_desktop_config.json`, Cursor MCP settings, and Antigravity profiles. Featured on MCP directory registries (Smithery.ai, PulseMCP).
 
 3. **Viral Developer Attribution Loops (The "Powered by Stripe" for Agents):**
-   - Every git commit executed under Kineti governance automatically appends a cryptographic trailer:
-     ```text
-     feat(auth): implement PKCE OAuth verification flow
-
-     Verified-by: Kineti-OS (OVT: 9a7f...2c4b)
-     Proof: https://verify.kineti.dev/9a7f2c4b
+   - **GitHub Action PR Verification Badges (Primary Flywheel):** Every Pull Request verified by Kineti automatically receives a clean, non-intrusive status check and markdown summary badge:
+     ```markdown
+     > **Kineti Verified** (OVT: `9a7f...2c4b`)
+     > ✅ Stage 6 Spec Gate Passed · ✅ Stage 10 Security Audit Passed · Spend: $1.42 / $10.00 Limit
+     > [Inspect Cryptographic Merkle Proof](https://verify.kineti.dev/9a7f2c4b)
      ```
-   - When other developers or open-source contributors inspect the git history, the verification link brings them to a public Merkle proof inspector. This creates a zero-cost viral loop: every pull request acts as an advertisement for Kineti.
+   - **Opt-in Git Commit Trailers:** For open-source developers who choose to enable public verification badges, Kineti supports standard, lint-friendly Conventional Commit trailers (`Signed-off-by: ...`, `Outcome-Proof: ...`), avoiding CI commit-linter rejections while allowing verifiable provenance attribution in public repos.
 
 4. **Free GitHub Actions CI/CD Integration:**
    - Release `kineti-io/verify-action@v1` on the GitHub Marketplace. Developers can add a 4-line YAML step to their CI pipeline that enforces Kineti proof verification on all AI-generated PRs:
@@ -2169,14 +2188,15 @@ Without context integrity, causal DAG memory, and verifiable outcome gates, ente
 |                                    THE M&A ACQUISITION LANDSCAPE                                   |
 +----------------------------------------------------------------------------------------------------+
 |                                                                                                    |
-|   FRONTIER AI LABS                   ENTERPRISE DEV PLATFORMS            DEVSECOPS & CLOUD         |
-|   [Anthropic, OpenAI, DeepMind]      [Microsoft/GitHub, Atlassian]       [Cloudflare, Datadog]     |
-|   Target Valuation: $100M-$200M+     Target Valuation: $80M-$160M+       Target Valuation: $50M-$90M|
+|   DEVSECOPS & PLATFORMS              ENTERPRISE CLOUD SUITES             FRONTIER AI LABS          |
+|   [GitHub/Microsoft, GitLab, Snyk]   [Atlassian, Datadog, Cloudflare]    [Anthropic, OpenAI]       |
+|   Valuation: $18M–$28M (M12)         Valuation: $15M–$25M (M12)          Valuation: $20M–$35M (M12)|
+|   Valuation: $55M–$85M (M24)         Valuation: $50M–$75M (M24)          Valuation: $60M–$95M (M24)|
 |                                                                                                    |
 |   Strategic Urgency:                 Strategic Urgency:                  Strategic Urgency:        |
-|   • Prevent context drift            • Protect enterprise repos          • Expand from passive     |
-|   • Move to $/Outcome billing        • Monopolize agent CI/CD              monitoring to active    |
-|   • Neutralize walled-garden IDEs    • Turnkey SOC 2 auditability          runtime governance      |
+|   • Defend the Pull Request gate     • Connect goals to code diffs       • Prevent context drift   |
+|   • Turnkey SOC 2 / OVT compliance   • Active runtime governance         • Move to $/Outcome       |
+|   • Agent supply chain security      • Expand developer observability    • Multi-IDE governance    |
 |                                                                                                    |
 +----------------------------------------------------------------------------------------------------+
 ```
@@ -2185,45 +2205,40 @@ Without context integrity, causal DAG memory, and verifiable outcome gates, ente
 
 ### 6.2 Strategic Buyer Profile Mapping
 
-#### 6.2.1 Buyer Group 1: Frontier AI Laboratories
+#### 6.2.1 Buyer Group 1: DevSecOps & Developer Platforms (Priority Alpha — Highest Strategic Alignment)
 
-##### Target 1A: Anthropic (Priority Alpha — Highest Strategic Alignment)
-- **Strategic Imperative:** Anthropic positions itself as the industry standard for AI safety, steerability, and enterprise trust. Claude 3.7 Sonnet and Claude Code are the leading developer agents. However, Claude Code currently relies on basic local terminal hooks and uncoordinated markdown guidelines.
-- **Why Anthropic Acquires Kineti OS:**
-  1. **Native CIP Integration:** Embedding Kineti’s Context Integrity Protocol directly into Claude Code provides Anthropic with an unassailable moat against OpenAI Codex and Cursor.
-  2. **Transition to Outcome-Based Billing:** Enables Anthropic to introduce enterprise "guaranteed milestone completion" contracts, charging $5.00 to $25.00 per verified PR rather than commoditized token rates.
-  3. **Enterprise Compliance Moat:** Delivers turnkey SOC 2 and Merkle audit trails to Global 2000 enterprises who are currently hesitant to deploy Claude Code in production.
-- **Projected Acquisition Valuation:** **$120M – $200M+** (Strategic platform premium).
-
-##### Target 1B: OpenAI
-- **Strategic Imperative:** OpenAI’s Operator and Codex initiatives aim to automate enterprise knowledge work. However, OpenAI faces intense enterprise pushback regarding hallucination liability, model non-determinism, and uncontrolled token spend.
-- **Why OpenAI Acquires Kineti OS:**
-  1. Hardware-style spend circuit breakers and LIFO saga rollbacks eliminate enterprise anxiety regarding runaway agent loops.
-  2. Acquiring Kineti pre-emptively blocks Anthropic from standardizing the developer agent harness.
-- **Projected Acquisition Valuation:** **$100M – $175M**.
-
-##### Target 1C: Google DeepMind
-- **Strategic Imperative:** Google Antigravity and Gemini 2.0 require an enterprise-grade developer companion and governance runtime to compete with Cursor and Claude Code.
-- **Projected Acquisition Valuation:** **$90M – $150M**.
-
----
-
-#### 6.2.2 Buyer Group 2: Developer Platforms & Cloud Ecosystems
-
-##### Target 2A: Microsoft / GitHub (Priority Beta — Highest Operational Synergies)
-- **Strategic Imperative:** GitHub Copilot Workspace is racing to dominate agentic software engineering. But Microsoft’s enterprise customers demand strict compliance, pull-request verification, and auditability before agents touch production code.
+##### Target 1A: Microsoft / GitHub (Priority Alpha)
+- **Strategic Imperative:** GitHub Copilot Workspace and Codespaces are racing to dominate agentic software engineering. But enterprise customers demand strict compliance, pull-request verification, and auditability before agents touch production code.
 - **Why GitHub Acquires Kineti OS:**
   1. **Turnkey GitHub Actions Governance:** Kineti’s `kineti-verify-gate` becomes the default native verification engine inside GitHub Enterprise and GitHub Actions.
   2. **Defending the Pull Request:** As AI generates 80%+ of code, the pull request shifts from manual human code review to **cryptographic outcome verification**. Kineti owns that verification layer.
-- **Projected Acquisition Valuation:** **$100M – $180M**.
+- **Projected Acquisition Valuation:** **$22M – $35M at M12** (15x–25x ARR) · **$65M – $95M at M24** (14x–21x ARR).
 
-##### Target 2B: Atlassian (Jira / Bitbucket)
+##### Target 1B: GitLab
+- **Strategic Imperative:** GitLab positions itself as the complete DevSecOps platform. As autonomous agents generate code directly, GitLab needs an embedded runtime policy harness to prevent hallucinations and supply chain attacks.
+- **Projected Acquisition Valuation:** **$20M – $30M at M12** · **$60M – $85M at M24**.
+
+##### Target 1C: Snyk
+- **Strategic Imperative:** Snyk leads developer security. Kineti's real-time egress monitoring and tamper-evident Merkle provenance provide Snyk with a runtime AI governance product.
+- **Projected Acquisition Valuation:** **$18M – $25M at M12** · **$55M – $75M at M24**.
+
+---
+
+#### 6.2.2 Buyer Group 2: Enterprise Cloud Platforms & Observability
+
+##### Target 2A: Atlassian (Jira / Bitbucket)
 - **Strategic Imperative:** Atlassian faces irrelevance as autonomous AI coding tools bypass Jira and Confluence. Kineti connects high-level project goals (Stage 1 Officehours) directly to verified code diffs and Merkle proof tickets, embedding Atlassian into the agentic loop.
-- **Projected Acquisition Valuation:** **$75M – $130M**.
+- **Projected Acquisition Valuation:** **$18M – $28M at M12** · **$55M – $80M at M24**.
 
-##### Target 2C: Cloudflare
-- **Strategic Imperative:** Cloudflare Workers AI is expanding into autonomous edge agent execution. Kineti’s ultra-lightweight daemon and sub-50ms verification gates provide the ideal runtime for serverless edge agents.
-- **Projected Acquisition Valuation:** **$50M – $90M**.
+##### Target 2B: Datadog
+- **Strategic Imperative:** Datadog LLM Observability monitors passive prompt/token telemetry. Kineti adds active execution interception, spend limits, and deterministic rollbacks.
+- **Projected Acquisition Valuation:** **$16M – $24M at M12** · **$50M – $70M at M24**.
+
+---
+
+#### 6.2.3 Buyer Group 3: Frontier AI Laboratories (Anthropic, OpenAI, DeepMind)
+- **Strategic Imperative:** Frontier labs focus on model training and foundation intelligence. While they develop baseline developer tools (Claude Code, Codex), acquiring a mature, cross-host governance engine accelerates enterprise compliance deployment and outcome-based pricing models.
+- **Valuation Multiple Realism:** Acquired as an accretive platform layer at standard market multiples: **$20M – $35M at M12** (14x–25x ARR) or **$60M – $95M at M24**.
 
 ---
 
@@ -2480,7 +2495,7 @@ To guarantee exhaustive semantic interoperability and prevent data loss during R
     "timestamp": { "type": "string", "format": "date-time" },
     "previous_ontology_state": { 
       "type": "string", 
-      "enum": ["DIAGNOSIS_MODE", "SPEC_LOCK_MODE", "BUILD_SAFE_MODE", "AUTO_REPAIR_MODE", "RECOVERY_MODE"] 
+      "enum": ["SESSION_GENESIS", "DIAGNOSIS_MODE", "SPEC_LOCK_MODE", "BUILD_SAFE_MODE", "AUTO_REPAIR_MODE", "RECOVERY_MODE"] 
     },
     "active_ontology_state": { 
       "type": "string", 
