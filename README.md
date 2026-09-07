@@ -27,16 +27,25 @@ Target one host only: `./setup.sh --host opencode`
 Remove everything Kineti installed: `./setup.sh --uninstall` (touches only `kineti-*` files)
 Re-running is always safe: it overwrites its own copies and nothing else.
 
-## Use
+## Use (Zero-Touch Governance)
 
-Open any project in your agent tool and run the first skill:
+**No slash commands required.** When you open a repository in Claude Code, Cursor, Google Antigravity, or Codex, the agent automatically reads its native root directives (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/kineti.mdc`, `CODEX.md`).
 
+Simply prompt your agent in plain English:
+```text
+"Let's build the customer billing webhook."
 ```
-Load kineti. Run /kineti-officehours
-```
 
-Then follow the loop in WORKFLOWS.md. Three gates stop for you:
-feasibility (stage 5), spec approval (stage 6), ship (stage 11).
+The agent automatically:
+1. Reads `.kineti/state.json` to identify the active pipeline stage.
+2. Conducts intake, design, and architecture first.
+3. Hard stops at Stage 6 (Spec approval) before generating any application code.
+4. Records test proofs and tracks spend transparently in the background.
+
+Three gates stop for your explicit approval:
+- **Feasibility** (Stage 5): Money, data, and boundary check
+- **Spec Approval** (Stage 6): Pass/fail contracts and typed shapes approved by you
+- **Ship Gate** (Stage 11): Fresh test proofs and security checklist verified
 
 ## Universal Host Integration & Visual Companion
 
