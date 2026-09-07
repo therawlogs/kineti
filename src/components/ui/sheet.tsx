@@ -1,5 +1,5 @@
 // src/components/ui/sheet.tsx
-// Archetype A: Modern Technical SaaS (Linear / Vercel style)
+// Apple HIG Slide-out Drawer Panel & Sheet
 
 export interface SheetProps {
   id: string;
@@ -26,15 +26,15 @@ export function Sheet({
   }[side];
 
   return `
-    <div id="${id}" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm transition-opacity">
-      <div class="fixed ${sidePositions} border-zinc-800 bg-zinc-900 p-6 shadow-2xl flex flex-col justify-between">
+    <div id="${id}" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-xl transition-opacity">
+      <div class="fixed ${sidePositions} border-zinc-800 bg-[#1C1C1E]/95 p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_48px_rgba(0,0,0,0.6)] backdrop-blur-3xl flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between pb-4 border-b border-zinc-800 mb-4">
             <div>
               <h3 class="text-base font-semibold text-white tracking-tight">${title}</h3>
               ${description ? `<p class="text-xs text-zinc-400 mt-1">${description}</p>` : ""}
             </div>
-            <button onclick="document.getElementById('${id}').classList.add('hidden')" class="rounded-md p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 focus:outline-none">
+            <button onclick="document.getElementById('${id}').classList.add('hidden')" class="rounded-full p-1.5 text-zinc-400 hover:text-white hover:bg-white/10 transition-colors focus:outline-none cursor-pointer">
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>

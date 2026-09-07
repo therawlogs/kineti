@@ -247,277 +247,503 @@ function renderHtmlDashboard(): string {
   <title>Kineti OS — Visual Companion Canvas</title>
   <style>
     :root {
-      --bg: #09090b;
-      --card: #111114;
-      --border: #222226;
-      --text: #f4f4f5;
-      --muted: #71717a;
-      --accent: #8b5cf6;
-      --green: #10b981;
-      --green-bg: rgba(16, 185, 129, 0.1);
-      --red: #ef4444;
-      --red-bg: rgba(239, 68, 68, 0.1);
-      --amber: #f59e0b;
-      --amber-bg: rgba(245, 158, 11, 0.1);
+      --apple-bg: #0b0c10;
+      --system-blue: #0A84FF;
+      --system-green: #30D158;
+      --system-orange: #FF9F0A;
+      --system-red: #FF453A;
+      --system-purple: #BF5AF2;
+      --system-teal: #64D2FF;
+      
+      /* Apple Materials (Vibrancy & Translucency) */
+      --material-window: rgba(28, 28, 34, 0.78);
+      --material-card: rgba(38, 38, 48, 0.55);
+      --material-card-hover: rgba(48, 48, 60, 0.65);
+      --material-chrome: rgba(22, 22, 26, 0.85);
+      
+      /* Apple Borders & Specular Highlights */
+      --hairline: 1px solid rgba(255, 255, 255, 0.08);
+      --specular: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      --shadow-window: 0 24px 60px rgba(0, 0, 0, 0.6), 0 4px 20px rgba(0, 0, 0, 0.4);
+      --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 16px rgba(0, 0, 0, 0.22);
+      
+      /* Typography */
+      --label-primary: #FFFFFF;
+      --label-secondary: rgba(235, 235, 245, 0.65);
+      --label-tertiary: rgba(235, 235, 245, 0.35);
     }
+    
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-      padding-bottom: 60px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue", sans-serif;
+      background: var(--apple-bg);
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(10, 132, 255, 0.08) 0%, transparent 50%),
+        radial-gradient(circle at 100% 100%, rgba(191, 90, 242, 0.05) 0%, transparent 40%);
+      color: var(--label-primary);
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px 60px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
-    .container {
-      max-width: 920px;
-      margin: 0 auto;
-      padding: 32px 20px;
+    
+    .mono {
+      font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+      font-feature-settings: "tnum";
     }
-    .mono { font-family: ui-monospace, Menlo, Monaco, Consolas, monospace; }
 
-    /* Top Bar */
-    .top-bar {
+    /* macOS Window Shell */
+    .mac-window {
+      width: 100%;
+      max-width: 940px;
+      background: var(--material-window);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      border: var(--hairline);
+      border-radius: 18px;
+      box-shadow: var(--shadow-window), var(--specular);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* macOS Window Title Bar */
+    .title-bar {
+      height: 48px;
+      background: var(--material-chrome);
+      border-bottom: var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      user-select: none;
+    }
+    
+    .title-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 220px;
+    }
+    
+    /* Traffic Lights */
+    .traffic-lights {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .traffic-light {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: inset 0 1px 1px rgba(0,0,0,0.3);
+    }
+    .close { background: #FF5F56; border: 0.5px solid #E0443E; }
+    .minimize { background: #FFBD2E; border: 0.5px solid #DEA123; }
+    .zoom { background: #27C93F; border: 0.5px solid #1AAB29; }
+    
+    /* Window Title (Center) */
+    .title-bar-center {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--label-primary);
+      letter-spacing: -0.01em;
+    }
+    .folder-icon {
+      color: var(--system-blue);
+      font-size: 13px;
+    }
+
+    .title-bar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      justify-content: flex-end;
+      width: 220px;
+    }
+
+    /* Status Capsule */
+    .status-capsule {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 9px;
+      border-radius: 9999px;
+      transition: all 0.2s ease;
+    }
+    .capsule-safe {
+      background: rgba(48, 209, 88, 0.15);
+      color: #30D158;
+      border: 1px solid rgba(48, 209, 88, 0.3);
+    }
+    .capsule-action {
+      background: rgba(255, 159, 10, 0.15);
+      color: #FF9F0A;
+      border: 1px solid rgba(255, 159, 10, 0.3);
+    }
+    .capsule-tripped {
+      background: rgba(255, 69, 58, 0.15);
+      color: #FF453A;
+      border: 1px solid rgba(255, 69, 58, 0.3);
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Window Body */
+    .window-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Apple Toolbar / Subheader */
+    .toolbar-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-bottom: 20px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 24px;
+      gap: 14px;
+      flex-wrap: wrap;
     }
-    .top-left { display: flex; align-items: center; gap: 12px; }
-    .brand {
-      background: rgba(139, 92, 246, 0.2);
-      border: 1px solid rgba(139, 92, 246, 0.4);
-      color: #c4b5fd;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 6px;
-    }
-    .project-name { font-size: 15px; font-weight: 600; color: #fff; }
-    .top-right { display: flex; align-items: center; gap: 14px; }
 
-    /* Status Pill */
-    .pill {
+    /* Apple Segmented Control */
+    .segmented-control {
+      display: inline-flex;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 3px;
+      border-radius: 10px;
+      border: var(--hairline);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+    }
+    .seg-btn {
+      background: transparent;
+      border: none;
+      color: var(--label-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 14px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s ease-out;
+      font-family: inherit;
+    }
+    .seg-btn:hover {
+      color: var(--label-primary);
+    }
+    .seg-btn.active {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.35), var(--specular);
+    }
+
+    /* Apple Spend Gauge */
+    .spend-gauge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.25);
+      border: var(--hairline);
+      padding: 4px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+    .spend-track {
+      width: 54px;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+    .spend-fill-bar {
+      height: 100%;
+      background: var(--system-green);
+      border-radius: 9999px;
+      transition: width 0.3s ease;
+    }
+
+    /* Buttons */
+    .apple-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 6px 14px;
+      border-radius: 8px;
+      border: none;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .apple-btn:active {
+      transform: scale(0.97);
+    }
+    .apple-btn-primary {
+      background: var(--system-blue);
+      color: #fff;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    }
+    .apple-btn-primary:hover {
+      background: #0071E3;
+    }
+    .apple-btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--label-primary);
+      border: var(--hairline);
+    }
+    .apple-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .apple-btn-danger {
+      background: var(--system-red);
+      color: #fff;
+    }
+
+    /* Attention Box */
+    .apple-alert {
+      background: rgba(255, 159, 10, 0.12);
+      border: 1px solid rgba(255, 159, 10, 0.35);
+      box-shadow: var(--shadow-card);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+    }
+    .apple-alert-danger {
+      background: rgba(255, 69, 58, 0.12);
+      border: 1px solid rgba(255, 69, 58, 0.35);
+    }
+    .alert-headline {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .alert-subtext {
+      font-size: 12px;
+      color: var(--label-secondary);
+      margin-top: 2px;
+    }
+
+    /* Hero Focus Surface */
+    .hero-surface {
+      background: var(--material-card);
+      backdrop-filter: blur(30px) saturate(190%);
+      -webkit-backdrop-filter: blur(30px) saturate(190%);
+      border: var(--hairline);
+      border-radius: 16px;
+      padding: 22px 24px;
+      box-shadow: var(--shadow-card);
+      position: relative;
+    }
+    .hero-eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--system-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .hero-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fff;
+      letter-spacing: -0.015em;
+      line-height: 1.35;
+      margin-bottom: 14px;
+    }
+    .hero-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      font-size: 12px;
+      color: var(--label-secondary);
+      flex-wrap: wrap;
+    }
+    .meta-chip {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: 20px;
     }
-    .pill-safe { background: var(--green-bg); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.25); }
-    .pill-action { background: var(--amber-bg); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
-    .pill-tripped { background: var(--red-bg); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-
-    /* Spend Box */
-    .spend-box {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: #151518;
-      border: 1px solid var(--border);
-      padding: 5px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-    }
-    .spend-bar {
-      width: 48px;
-      height: 4px;
-      background: #27272a;
-      border-radius: 2px;
-      overflow: hidden;
-    }
-    .spend-fill { height: 100%; background: #10b981; }
-
-    /* Buttons */
-    .btn {
-      cursor: pointer;
-      font-size: 13px;
-      font-weight: 600;
-      padding: 8px 16px;
-      border-radius: 8px;
-      border: none;
-      transition: background 0.15s ease;
-    }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { background: #7c3aed; }
-    .btn-secondary { background: #18181b; color: #d4d4d8; border: 1px solid var(--border); }
-    .btn-secondary:hover { background: #222226; color: #fff; }
-    .btn-danger { background: #ef4444; color: #fff; }
-
-    /* Attention Box */
-    .alert-box {
-      background: #16131f;
-      border: 1px solid rgba(139, 92, 246, 0.35);
-      border-radius: 10px;
-      padding: 16px 20px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-    }
-    .alert-title { font-size: 14px; font-weight: 600; color: #fff; }
-    .alert-desc { font-size: 13px; color: #a1a1aa; margin-top: 2px; }
-
-    /* Hero Card */
-    .hero {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 22px 24px;
-      margin-bottom: 20px;
-    }
-    .hero-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: #a78bfa;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 6px;
-    }
-    .hero-goal {
-      font-size: 19px;
-      font-weight: 600;
-      color: #fff;
-      margin-bottom: 12px;
-      line-height: 1.4;
-    }
-    .hero-status-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .status-item { display: flex; align-items: center; gap: 6px; }
 
     /* The 5 W's Grid */
-    .grid {
+    .apple-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 14px;
-      margin-bottom: 24px;
     }
-    @media (max-width: 600px) {
-      .grid { grid-template-columns: 1fr; }
+    @media (max-width: 640px) {
+      .apple-grid { grid-template-columns: 1fr; }
     }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+
+    .apple-card {
+      background: var(--material-card);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: var(--hairline);
+      border-radius: 14px;
       padding: 16px 18px;
+      box-shadow: var(--shadow-card);
+      transition: background 0.15s ease;
     }
-    .card-head {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 8px;
+    .apple-card:hover {
+      background: var(--material-card-hover);
+    }
+    .card-top {
       display: flex;
       justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--label-tertiary);
     }
-    .card-title {
+    .card-primary-text {
       font-size: 14px;
       font-weight: 600;
-      color: #e4e4e7;
+      color: #fff;
       margin-bottom: 4px;
+      letter-spacing: -0.01em;
     }
-    .card-desc { font-size: 12px; color: var(--muted); }
+    .card-secondary-text {
+      font-size: 12px;
+      color: var(--label-secondary);
+      line-height: 1.4;
+    }
 
-    .stats {
+    .card-stat-group {
       display: flex;
-      gap: 18px;
-      margin-top: 6px;
+      gap: 20px;
+      margin-top: 8px;
     }
-    .stat { display: flex; flex-direction: column; }
-    .stat-num { font-size: 16px; font-weight: 700; color: #fff; }
-    .stat-label { font-size: 11px; color: var(--muted); }
+    .card-stat {
+      display: flex;
+      flex-direction: column;
+    }
+    .stat-value {
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stat-caption {
+      font-size: 11px;
+      color: var(--label-tertiary);
+    }
 
-    /* Recent Activity */
-    .activity-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 10px;
+    /* Activity Feed Section */
+    .feed-surface {
+      background: var(--material-card);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: var(--hairline);
+      border-radius: 14px;
       padding: 18px 20px;
-      margin-bottom: 20px;
+      box-shadow: var(--shadow-card);
     }
-    .activity-head {
+    .feed-header {
       font-size: 13px;
       font-weight: 600;
       color: #fff;
+      letter-spacing: -0.01em;
       margin-bottom: 14px;
     }
-    .activity-list { display: flex; flex-direction: column; gap: 10px; }
-    .activity-item {
+    .feed-items {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .feed-item {
       display: flex;
       align-items: flex-start;
       gap: 10px;
       font-size: 13px;
     }
-    .item-time {
+    .feed-time {
       font-size: 11px;
-      color: var(--muted);
-      min-width: 55px;
+      color: var(--label-tertiary);
+      min-width: 58px;
       padding-top: 2px;
     }
-    .item-badge {
+    .feed-badge {
       font-size: 10px;
       font-weight: 700;
       padding: 2px 6px;
-      border-radius: 4px;
+      border-radius: 5px;
+      letter-spacing: 0.02em;
     }
-    .b-start { background: #27272a; color: #d4d4d8; }
-    .b-goal { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
-    .b-task { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; }
-    .b-step { background: rgba(139, 92, 246, 0.2); color: #c4b5fd; }
-    .b-check { background: rgba(245, 158, 11, 0.2); color: #fde68a; }
-    .b-pass { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; }
-    .b-fail { background: rgba(239, 68, 68, 0.2); color: #fca5a5; }
-    .item-body { color: #d4d4d8; line-height: 1.4; }
+    .fb-start { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .fb-goal  { background: rgba(191, 90, 242, 0.2); color: #BF5AF2; }
+    .fb-task  { background: rgba(10, 132, 255, 0.2); color: #0A84FF; }
+    .fb-step  { background: rgba(191, 90, 242, 0.2); color: #BF5AF2; }
+    .fb-check { background: rgba(255, 159, 10, 0.2); color: #FF9F0A; }
+    .fb-pass  { background: rgba(48, 209, 88, 0.2); color: #30D158; }
+    .fb-fail  { background: rgba(255, 69, 58, 0.2); color: #FF453A; }
+    .feed-body {
+      color: rgba(235, 235, 245, 0.85);
+      line-height: 1.4;
+    }
 
-    /* Footer */
-    .footer {
+    /* Logs & Proofs Table */
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 10px;
+      border-radius: 10px;
+      border: var(--hairline);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th {
+      text-align: left;
+      padding: 9px 12px;
+      color: var(--label-tertiary);
+      border-bottom: var(--hairline);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    td {
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+    }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+
+    .window-footer {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding-top: 16px;
-      border-top: 1px solid var(--border);
+      padding-top: 14px;
+      border-top: var(--hairline);
       font-size: 12px;
-      color: var(--muted);
+      color: var(--label-tertiary);
     }
-    .link-btn {
-      background: none;
-      border: none;
-      color: var(--accent);
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .link-btn:hover { text-decoration: underline; }
 
-    /* Drawer View */
     .hidden { display: none !important; }
-    .table-box { overflow-x: auto; margin-top: 10px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th {
-      text-align: left;
-      padding: 8px 10px;
-      color: var(--muted);
-      border-bottom: 1px solid var(--border);
-      font-size: 11px;
-      text-transform: uppercase;
-    }
-    td {
-      padding: 8px 10px;
-      border-bottom: 1px solid #1a1a1e;
-      font-family: ui-monospace, monospace;
-    }
-
-    /* Hidden compatibility text for test suite assertions */
     .compat-text { display: none; }
   </style>
 </head>
@@ -527,178 +753,202 @@ function renderHtmlDashboard(): string {
     Kineti OS — Visual Companion Canvas · 13-Stage Pipeline Real-Time Spend Circuit Breaker
   </div>
 
-  <div class="container">
-    <!-- Top Bar -->
-    <header class="top-bar">
-      <div class="top-left">
-        <span class="brand">KINETI</span>
-        <span class="project-name" id="project-title">Project</span>
-        <div id="status-pill-box">
-          <span class="pill pill-safe"><span class="dot"></span> Running safely</span>
+  <div class="mac-window">
+    <!-- macOS Window Chrome -->
+    <header class="title-bar">
+      <div class="title-bar-left">
+        <div class="traffic-lights">
+          <span class="traffic-light close"></span>
+          <span class="traffic-light minimize"></span>
+          <span class="traffic-light zoom"></span>
         </div>
       </div>
-      <div class="top-right">
-        <div class="spend-box">
-          <span style="color: var(--muted);">Spent:</span>
-          <span id="spend-num" class="mono">$0.00 / $50</span>
-          <div class="spend-bar">
-            <div id="spend-bar-fill" class="spend-fill" style="width: 0%;"></div>
-          </div>
+      <div class="title-bar-center">
+        <span class="folder-icon">􀈕</span>
+        <span id="project-title">Project</span>
+      </div>
+      <div class="title-bar-right">
+        <div id="status-pill-box">
+          <span class="status-capsule capsule-safe"><span class="status-dot"></span> Running safely</span>
         </div>
-        <button class="btn btn-secondary" onclick="toggleLogs(true)">View logs →</button>
       </div>
     </header>
 
-    <!-- Main View -->
-    <main id="main-view">
-      <!-- Human Action Alert -->
-      <div id="action-banner" class="alert-box hidden">
-        <div>
-          <div class="alert-title" id="action-title">Your approval needed</div>
-          <div class="alert-desc" id="action-desc">Work is paused until you approve this step.</div>
+    <div class="window-body">
+      <!-- Apple Toolbar / Subheader -->
+      <div class="toolbar-row">
+        <div class="segmented-control">
+          <button class="seg-btn active" id="tab-dashboard" onclick="switchView('dashboard')">Dashboard</button>
+          <button class="seg-btn" id="tab-proofs" onclick="switchView('proofs')">Logs &amp; Proofs</button>
         </div>
-        <button class="btn btn-primary" id="btn-action" onclick="approveCurrentGate()">Approve</button>
+        
+        <div class="spend-gauge">
+          <span style="color: var(--label-tertiary);">Spend:</span>
+          <span id="spend-num" class="mono">$0.00 / $50</span>
+          <div class="spend-track">
+            <div id="spend-bar-fill" class="spend-fill-bar" style="width: 0%;"></div>
+          </div>
+        </div>
       </div>
 
-      <!-- Spending Limit Alert -->
-      <div id="breaker-banner" class="alert-box hidden" style="border-color: rgba(239, 68, 68, 0.4); background: #1a1214;">
-        <div>
-          <div class="alert-title" style="color: #f87171;">Spending limit reached ($50 max)</div>
-          <div class="alert-desc" id="breaker-reason" style="color: #fca5a5;">The task reached its budget. Click below to allow more spending.</div>
+      <!-- Dashboard View -->
+      <main id="main-view">
+        <!-- Attention Banner -->
+        <div id="action-banner" class="apple-alert hidden" style="margin-bottom: 16px;">
+          <div>
+            <div class="alert-headline" id="action-title">Approval Required</div>
+            <div class="alert-subtext" id="action-desc">Execution is waiting for human review.</div>
+          </div>
+          <button class="apple-btn apple-btn-primary" id="btn-action" onclick="approveCurrentGate()">Approve</button>
         </div>
-        <button class="btn btn-danger" onclick="resetBreaker()">Allow more spending</button>
-      </div>
 
-      <!-- Main Goal & Focus Card -->
-      <section class="hero">
-        <div class="hero-label" id="hero-tag">Current Task</div>
-        <h1 class="hero-goal" id="hero-goal">Goal</h1>
-        <div class="hero-status-row">
-          <div class="status-item">
-            <span style="color: #34d399;">✓</span> <span id="meta-tests">0 tests passed</span>
+        <!-- Spend Limit Alert -->
+        <div id="breaker-banner" class="apple-alert apple-alert-danger hidden" style="margin-bottom: 16px;">
+          <div>
+            <div class="alert-headline" style="color: var(--system-red);">Spending Limit Reached ($50 max)</div>
+            <div class="alert-subtext" id="breaker-reason">Task reached spending ceiling. Review cost before resuming.</div>
           </div>
-          <div class="status-item">
-            <span style="color: #38bdf8;">↺</span> <span>Undo ready</span>
+          <button class="apple-btn apple-btn-danger" onclick="resetBreaker()">Allow More Spending</button>
+        </div>
+
+        <!-- Hero Focus Surface -->
+        <section class="hero-surface" style="margin-bottom: 16px;">
+          <div class="hero-eyebrow" id="hero-tag">Current Task</div>
+          <h1 class="hero-title" id="hero-goal">Ready for next instruction</h1>
+          <div class="hero-meta-row">
+            <div class="meta-chip">
+              <span style="color: var(--system-green);">􀁣</span>
+              <span id="meta-tests">0 tests passed</span>
+            </div>
+            <div class="meta-chip">
+              <span style="color: var(--system-teal);">􀅉</span>
+              <span>Undo ready</span>
+            </div>
+            <div class="meta-chip">
+              <span style="color: var(--label-tertiary);">􀈕</span>
+              <span id="meta-folder" class="mono">src/</span>
+            </div>
           </div>
-          <div class="status-item">
-            <span style="color: var(--muted);">📁</span> <span id="meta-folder" class="mono">src/</span>
+        </section>
+
+        <!-- The 5 W's Grid -->
+        <section class="apple-grid" style="margin-bottom: 16px;">
+          <!-- WHY -->
+          <div class="apple-card">
+            <div class="card-top">
+              <span>Why · Goal</span>
+              <span id="why-status" style="color: var(--system-green); font-size: 10px;">Saved</span>
+            </div>
+            <div class="card-primary-text" id="w-why-goal">No goal set yet</div>
+            <div class="card-secondary-text" id="w-why-sub">Main goal locked in state</div>
+          </div>
+
+          <!-- WHAT -->
+          <div class="apple-card">
+            <div class="card-top">
+              <span>What · Active Task</span>
+              <span id="w-what-badge" class="mono" style="color: var(--system-purple); font-size: 10px;">Task</span>
+            </div>
+            <div class="card-primary-text" id="w-what-task">Working on project</div>
+            <div class="card-secondary-text">Protected workspace: src/</div>
+          </div>
+
+          <!-- HOW -->
+          <div class="apple-card">
+            <div class="card-top">
+              <span>How · Safety Verification</span>
+              <span style="color: var(--system-green); font-size: 10px;">Active</span>
+            </div>
+            <div class="card-stat-group">
+              <div class="card-stat">
+                <span class="stat-value" id="w-tests-count">0</span>
+                <span class="stat-caption">Tests passing</span>
+              </div>
+              <div class="card-stat">
+                <span class="stat-value" id="w-errors-count" style="color: var(--system-green);">0</span>
+                <span class="stat-caption">Violations</span>
+              </div>
+              <div class="card-stat">
+                <span class="stat-value" style="color: var(--system-teal);">Ready</span>
+                <span class="stat-caption">Undo stack</span>
+              </div>
+            </div>
+            <div class="card-secondary-text" style="margin-top: 8px;">Tests must pass before saving changes.</div>
+          </div>
+
+          <!-- WHEN & WHERE -->
+          <div class="apple-card">
+            <div class="card-top">
+              <span>When &amp; Where · Cost &amp; Folder</span>
+            </div>
+            <div class="card-primary-text" id="w-cost">$0.00 of $50.00 spent</div>
+            <div class="card-secondary-text" id="w-folder">Working directory</div>
+          </div>
+        </section>
+
+        <!-- Activity Feed -->
+        <section class="feed-surface">
+          <div class="feed-header">Recent Causal Activity</div>
+          <div class="feed-items" id="activity-list">
+            <!-- Populated by JavaScript -->
+          </div>
+        </section>
+      </main>
+
+      <!-- Logs & Proofs View -->
+      <section id="logs-view" class="hidden">
+        <!-- Test Table -->
+        <div class="feed-surface" style="margin-bottom: 16px;">
+          <div class="feed-header">Verification &amp; Test Proofs</div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Label</th>
+                  <th>Command</th>
+                  <th>Result</th>
+                  <th>Fingerprint</th>
+                </tr>
+              </thead>
+              <tbody id="evidence-table-body">
+                <!-- Populated by JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="feed-surface">
+          <div class="feed-header">State Mutation History</div>
+          <div id="history-box" class="mono" style="font-size: 12px; color: var(--label-secondary); max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+            <!-- Populated by JavaScript -->
           </div>
         </div>
       </section>
 
-      <!-- The 5 W's Grid in Plain Words -->
-      <section class="grid">
-        <!-- WHY: The Goal -->
-        <div class="card">
-          <div class="card-head">
-            <span>Why (Goal)</span>
-            <span id="why-status" style="color: #34d399; font-size: 10px;">Saved</span>
-          </div>
-          <div class="card-title" id="w-why-goal">No goal set yet</div>
-          <div class="card-desc" id="w-why-sub">Main goal recorded and saved</div>
-        </div>
-
-        <!-- WHAT: Current Task -->
-        <div class="card">
-          <div class="card-head">
-            <span>What (Current Task)</span>
-            <span id="w-what-badge" class="mono" style="color: #a78bfa; font-size: 10px;">Task</span>
-          </div>
-          <div class="card-title" id="w-what-task">Working on project</div>
-          <div class="card-desc">Files being edited: src/</div>
-        </div>
-
-        <!-- HOW: Safety Checks -->
-        <div class="card">
-          <div class="card-head">
-            <span>How (Safety Checks)</span>
-            <span style="color: #34d399; font-size: 10px;">Active</span>
-          </div>
-          <div class="stats">
-            <div class="stat">
-              <span class="stat-num" id="w-tests-count">0</span>
-              <span class="stat-label">Tests passed</span>
-            </div>
-            <div class="stat">
-              <span class="stat-num" id="w-errors-count" style="color: #34d399;">0</span>
-              <span class="stat-label">Errors</span>
-            </div>
-            <div class="stat">
-              <span class="stat-num" style="color: #38bdf8;">Ready</span>
-              <span class="stat-label">Undo safety</span>
-            </div>
-          </div>
-          <div class="card-desc" style="margin-top: 10px;">Tests must pass before code changes are saved.</div>
-        </div>
-
-        <!-- WHEN & WHERE: Cost and Folder -->
-        <div class="card">
-          <div class="card-head">
-            <span>When &amp; Where (Cost &amp; Folder)</span>
-          </div>
-          <div class="card-title" id="w-cost">$0.00 of $50.00 spent</div>
-          <div class="card-desc" id="w-folder">Working folder</div>
-        </div>
-      </section>
-
-      <!-- Recent Activity Feed -->
-      <section class="activity-card">
-        <div class="activity-head">Recent Activity</div>
-        <div class="activity-list" id="activity-list">
-          <!-- Populated by JavaScript -->
-        </div>
-      </section>
-
-      <!-- Footer -->
-      <footer class="footer">
-        <span>Kineti OS · Safe AI Coding Assistant</span>
-        <button class="link-btn" onclick="toggleLogs(true)">View test details and logs →</button>
+      <!-- Window Footer -->
+      <footer class="window-footer">
+        <span>Apple HIG Standard · Kineti OS Companion</span>
+        <span class="mono" style="color: var(--label-tertiary); font-size: 11px;">v0.3.0</span>
       </footer>
-    </main>
-
-    <!-- Logs & Details View -->
-    <section id="logs-view" class="hidden">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <div>
-          <h2 style="font-size: 17px; font-weight: 600; color: #fff;">Test History and Logs</h2>
-          <p style="font-size: 13px; color: var(--muted); margin-top: 2px;">Past test runs, results, and recorded actions.</p>
-        </div>
-        <button class="btn btn-primary" onclick="toggleLogs(false)">← Back</button>
-      </div>
-
-      <!-- Test Table -->
-      <div class="activity-card" style="margin-bottom: 20px;">
-        <div class="activity-head" style="margin-bottom: 8px;">Test Results</div>
-        <div class="table-box">
-          <table>
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Name</th>
-                <th>Command</th>
-                <th>Result</th>
-                <th>Code ID</th>
-              </tr>
-            </thead>
-            <tbody id="evidence-table-body">
-              <!-- Populated by JavaScript -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Change History -->
-      <div class="activity-card">
-        <div class="activity-head" style="margin-bottom: 8px;">History of Changes</div>
-        <div id="history-box" class="mono" style="font-size: 12px; color: #a1a1aa; max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
-          <!-- Populated by JavaScript -->
-        </div>
-      </div>
-    </section>
+    </div>
   </div>
 
   <script>
     let activeGateId = null;
+
+    function switchView(viewName) {
+      const isDashboard = viewName === 'dashboard';
+      document.getElementById('main-view').classList.toggle('hidden', !isDashboard);
+      document.getElementById('logs-view').classList.toggle('hidden', isDashboard);
+      document.getElementById('tab-dashboard').classList.toggle('active', isDashboard);
+      document.getElementById('tab-proofs').classList.toggle('active', !isDashboard);
+    }
+
+    function toggleLogs(show) {
+      switchView(show ? 'proofs' : 'dashboard');
+    }
 
     async function fetchStatus() {
       try {
@@ -709,11 +959,6 @@ function renderHtmlDashboard(): string {
       } catch (e) {
         console.error("Status fetch error", e);
       }
-    }
-
-    function toggleLogs(show) {
-      document.getElementById("main-view").classList.toggle("hidden", show);
-      document.getElementById("logs-view").classList.toggle("hidden", !show);
     }
 
     function escapeHtml(str) {
@@ -737,17 +982,17 @@ function renderHtmlDashboard(): string {
       const spendPct = Math.min(100, Math.round((totalSpend / spendCeil) * 100));
       document.getElementById("spend-bar-fill").style.width = spendPct + "%";
 
-      // Status Pill
+      // Status Capsule
       const statusBox = document.getElementById("status-pill-box");
       if (data.spend && data.spend.tripped) {
-        statusBox.innerHTML = '<span class="pill pill-tripped"><span class="dot"></span> Limit reached</span>';
+        statusBox.innerHTML = '<span class="status-capsule capsule-tripped"><span class="status-dot"></span> Limit reached</span>';
         document.getElementById("breaker-banner").classList.remove("hidden");
         document.getElementById("breaker-reason").textContent = data.spend.reason || "Spending limit reached ($50 max).";
       } else if (how.pending_action) {
-        statusBox.innerHTML = '<span class="pill pill-action"><span class="dot"></span> Approval needed</span>';
+        statusBox.innerHTML = '<span class="status-capsule capsule-action"><span class="status-dot"></span> Approval needed</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       } else {
-        statusBox.innerHTML = '<span class="pill pill-safe"><span class="dot"></span> Running safely</span>';
+        statusBox.innerHTML = '<span class="status-capsule capsule-safe"><span class="status-dot"></span> Running safely</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       }
 
@@ -764,10 +1009,10 @@ function renderHtmlDashboard(): string {
         activeGateId = null;
       }
 
-      // 3. Hero Card
+      // 3. Hero Focus Surface
       const heroTag = document.getElementById("hero-tag");
       if (what.task_type) {
-        heroTag.textContent = "Current Task: " + what.task_type.toUpperCase();
+        heroTag.textContent = "Current Task · " + what.task_type.toUpperCase();
       } else {
         heroTag.textContent = "Current Task";
       }
@@ -779,7 +1024,7 @@ function renderHtmlDashboard(): string {
       // 4. The 5 W's Cards
       document.getElementById("w-why-goal").textContent = why.goal || "No goal set yet";
       document.getElementById("w-why-sub").textContent = why.locked_at 
-        ? "Saved at " + why.locked_at.slice(0, 10) + " (cannot be changed)" 
+        ? "Saved at " + why.locked_at.slice(0, 10) + " (locked)" 
         : "Ready to set goal";
 
       document.getElementById("w-what-badge").textContent = what.active_label || "Task";
@@ -797,11 +1042,11 @@ function renderHtmlDashboard(): string {
       const events = data.activity_events || [];
 
       if (events.length === 0) {
-        aList.innerHTML = '<div style="color: var(--muted); font-size: 13px;">No actions recorded yet.</div>';
+        aList.innerHTML = '<div style="color: var(--label-tertiary); font-size: 13px;">No actions recorded yet.</div>';
       } else {
         events.forEach(ev => {
           const item = document.createElement("div");
-          item.className = "activity-item";
+          item.className = "feed-item";
 
           let timeStr = "";
           if (ev.timestamp && ev.timestamp.includes("T")) {
@@ -810,20 +1055,20 @@ function renderHtmlDashboard(): string {
             timeStr = "—";
           }
 
-          let badgeClass = "b-start";
-          if (ev.badge === "GOAL") badgeClass = "b-goal";
-          else if (ev.badge === "TASK") badgeClass = "b-task";
-          else if (ev.badge === "STEP") badgeClass = "b-step";
-          else if (ev.badge === "CHECK") badgeClass = "b-check";
-          else if (ev.badge === "PASS") badgeClass = "b-pass";
-          else if (ev.badge === "FAIL") badgeClass = "b-fail";
+          let badgeClass = "fb-start";
+          if (ev.badge === "GOAL") badgeClass = "fb-goal";
+          else if (ev.badge === "TASK") badgeClass = "fb-task";
+          else if (ev.badge === "STEP") badgeClass = "fb-step";
+          else if (ev.badge === "CHECK") badgeClass = "fb-check";
+          else if (ev.badge === "PASS") badgeClass = "fb-pass";
+          else if (ev.badge === "FAIL") badgeClass = "fb-fail";
 
           item.innerHTML = 
-            '<span class="item-time mono">' + escapeHtml(timeStr) + '</span>' +
-            '<span class="item-badge ' + badgeClass + ' mono">' + escapeHtml(ev.badge) + '</span>' +
-            '<div class="item-body">' +
+            '<span class="feed-time mono">' + escapeHtml(timeStr) + '</span>' +
+            '<span class="feed-badge ' + badgeClass + ' mono">' + escapeHtml(ev.badge) + '</span>' +
+            '<div class="feed-body">' +
               '<strong style="color: #fff;">' + escapeHtml(ev.title) + '</strong> — ' +
-              '<span style="color: #a1a1aa;">' + escapeHtml(ev.detail) + '</span>' +
+              '<span style="color: var(--label-secondary);">' + escapeHtml(ev.detail) + '</span>' +
             '</div>';
 
           aList.appendChild(item);
@@ -834,16 +1079,16 @@ function renderHtmlDashboard(): string {
       const evTbody = document.getElementById("evidence-table-body");
       evTbody.innerHTML = "";
       if (!data.evidence || data.evidence.length === 0) {
-        evTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--muted); padding: 14px;">No test runs recorded yet.</td></tr>';
+        evTbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--label-tertiary); padding: 14px;">No test runs recorded yet.</td></tr>';
       } else {
         data.evidence.forEach(e => {
           const tr = document.createElement("tr");
           tr.innerHTML = 
-            '<td style="color: var(--muted);">' + (e.at ? e.at.split("T")[1].slice(0, 8) : "") + '</td>' +
+            '<td style="color: var(--label-tertiary);">' + (e.at ? e.at.split("T")[1].slice(0, 8) : "") + '</td>' +
             '<td style="color: #fff; font-weight: 600;">' + escapeHtml(e.label) + '</td>' +
-            '<td style="color: #d4d4d8;">' + escapeHtml(e.cmd) + '</td>' +
-            '<td style="color: ' + (e.exit_code === 0 ? "#34d399" : "#f87171") + ';">' + (e.exit_code === 0 ? "Passed" : "Failed") + '</td>' +
-            '<td style="color: #a1a1aa;">' + escapeHtml(e.fingerprint ? e.fingerprint.slice(0, 12) : "") + '</td>';
+            '<td style="color: var(--label-secondary);">' + escapeHtml(e.cmd) + '</td>' +
+            '<td style="color: ' + (e.exit_code === 0 ? "var(--system-green)" : "var(--system-red)") + ';">' + (e.exit_code === 0 ? "Passed" : "Failed") + '</td>' +
+            '<td style="color: var(--label-tertiary);">' + escapeHtml(e.fingerprint ? e.fingerprint.slice(0, 12) : "") + '</td>';
           evTbody.appendChild(tr);
         });
       }
