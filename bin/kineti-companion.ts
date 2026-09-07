@@ -52,7 +52,251 @@ export interface ActivityEvent {
   detail: string;
 }
 
-function getHarnessStatus() {
+export interface FleetRepo {
+  id: string;
+  name: string;
+  path: string;
+  owner: string;
+  branch: string;
+  status: "active" | "idle" | "action_needed" | "limit_reached";
+  active_task: string;
+  spend_usd: number;
+  ceiling_usd: number;
+  tests_passing: number;
+  ide: string;
+  is_local: boolean;
+}
+
+export interface CompanionSettings {
+  github: {
+    connected: boolean;
+    account: string;
+    repo_count: number;
+    webhook_status: "active" | "inactive";
+  };
+  ides: {
+    cursor: boolean;
+    claude_code: boolean;
+    antigravity: boolean;
+    codex: boolean;
+  };
+  team_members: Array<{
+    name: string;
+    email: string;
+    role: string;
+  }>;
+  repo_budgets: Record<string, number>;
+  repo_owners: Record<string, string>;
+}
+
+const defaultRepoName = readJson<any>(path.join(projectKdir(), "state.json"))?.project || path.basename(REPO_ROOT) || "kineti-local-harness";
+let activeRepoId = defaultRepoName;
+
+let fleetRepos: FleetRepo[] = [
+  {
+    id: defaultRepoName,
+    name: defaultRepoName,
+    path: REPO_ROOT,
+    owner: "Solo Engineer",
+    branch: "main",
+    status: "active",
+    active_task: "Build universal agent harness with cryptographic verification",
+    spend_usd: 0.0,
+    ceiling_usd: 50.0,
+    tests_passing: 69,
+    ide: "Antigravity",
+    is_local: true,
+  },
+  {
+    id: "payment-service",
+    name: "payment-service",
+    path: "/workspace/payment-service",
+    owner: "Sarah Lin",
+    branch: "feat/stripe-v2",
+    status: "action_needed",
+    active_task: "Migrate webhook signatures to HMAC-SHA256",
+    spend_usd: 12.4,
+    ceiling_usd: 50.0,
+    tests_passing: 42,
+    ide: "Claude Code",
+    is_local: false,
+  },
+  {
+    id: "auth-api",
+    name: "auth-api",
+    path: "/workspace/auth-api",
+    owner: "David Kim",
+    branch: "main",
+    status: "active",
+    active_task: "Implement PKCE OAuth flow and token rotation",
+    spend_usd: 4.15,
+    ceiling_usd: 30.0,
+    tests_passing: 89,
+    ide: "Cursor",
+    is_local: false,
+  },
+  {
+    id: "mobile-client",
+    name: "mobile-client",
+    path: "/workspace/mobile-client",
+    owner: "Solo Engineer",
+    branch: "main",
+    status: "idle",
+    active_task: "Idle — waiting for next instruction",
+    spend_usd: 0.0,
+    ceiling_usd: 25.0,
+    tests_passing: 118,
+    ide: "Codex",
+    is_local: false,
+  },
+];
+
+let companionSettings: CompanionSettings = {
+  github: {
+    connected: true,
+    account: "praveen",
+    repo_count: 4,
+    webhook_status: "active",
+  },
+  ides: {
+    cursor: true,
+    claude_code: true,
+    antigravity: true,
+    codex: true,
+  },
+  team_members: [
+    { name: "Praveen", email: "praveen@kineti.dev", role: "CTO / Founder" },
+    { name: "Sarah Lin", email: "sarah@kineti.dev", role: "Senior Engineer" },
+    { name: "David Kim", email: "david@kineti.dev", role: "Platform Engineer" },
+    { name: "Solo Engineer", email: "dev@kineti.dev", role: "Developer" },
+  ],
+  repo_budgets: {
+    [defaultRepoName]: 50.0,
+    "payment-service": 50.0,
+    "auth-api": 30.0,
+    "mobile-client": 25.0,
+  },
+  repo_owners: {
+    [defaultRepoName]: "Solo Engineer",
+    "payment-service": "Sarah Lin",
+    "auth-api": "David Kim",
+    "mobile-client": "Solo Engineer",
+  },
+};
+
+function getHarnessStatus(targetRepoId?: string) {
+  const currentId = targetRepoId || activeRepoId;
+  const isLocal = currentId === defaultRepoName || currentId === "kineti-local-harness" || currentId === path.basename(REPO_ROOT) || currentId === "local";
+
+  // If viewing a non-local repository in the fleet
+  if (!isLocal) {
+    const r = fleetRepos.find((item) => item.id === currentId) || fleetRepos[0];
+    const isActionNeeded = r.status === "action_needed";
+    const isTripped = r.status === "limit_reached";
+
+    const syntheticEvents: ActivityEvent[] = [
+      {
+        timestamp: "2026-09-07T12:00:00Z",
+        badge: "GOAL",
+        title: "Repository connected",
+        detail: `Governed under Kineti OS for ${r.owner}`,
+      },
+      {
+        timestamp: "2026-09-07T12:05:00Z",
+        badge: "TASK",
+        title: "Active task updated",
+        detail: r.active_task,
+      },
+      {
+        timestamp: "2026-09-07T12:10:00Z",
+        badge: isActionNeeded ? "CHECK" : "PASS",
+        title: isActionNeeded ? "Approval pending" : "Verification passed",
+        detail: isActionNeeded ? "Security gate check required" : `${r.tests_passing} tests passing cleanly`,
+      },
+    ];
+
+    const pendingAction = isActionNeeded
+      ? { gate: "security", title: "Security Review Required", prompt: "Review and approve webhook signature migration." }
+      : null;
+
+    return {
+      project: r.name,
+      root_goal: r.active_task,
+      root_goal_locked_at: "2026-09-07T10:00:00Z",
+      stage: 7,
+      stage_label: "Build",
+      task: { name: r.active_task, type: "feature" },
+      stages: STAGES.map((s) => ({
+        ...s,
+        is_current: s.id === 7,
+        is_past: s.id < 7,
+        gate_status: s.gate ? (s.id < 7 ? "pass" : isActionNeeded && s.gate === "security" ? "pending" : null) : null,
+      })),
+      gates: isActionNeeded ? { spec: "pass", security: "pending" } : { spec: "pass", ship: "pass" },
+      spend: {
+        total_usd: r.spend_usd,
+        total_microcents: Math.round(r.spend_usd * 100_000_000),
+        ceiling_usd: r.ceiling_usd,
+        safety_factor: 0.95,
+        tripped: isTripped,
+        reason: isTripped ? "Spending limit reached ($50 max)" : null,
+        by_stage: { build: r.spend_usd },
+        entries: 4,
+      },
+      evidence: Array.from({ length: r.tests_passing }, (_, i) => ({
+        at: "2026-09-07T12:10:00Z",
+        label: `test-suite-pass-${i + 1}`,
+        cmd: "bun test",
+        exit_code: 0,
+        fingerprint: `proof-${i + 1}`,
+      })),
+      activity_events: syntheticEvents,
+      analytics: {
+        why: {
+          title: "Why (Goal)",
+          goal: r.active_task,
+          locked_at: "2026-09-07T10:00:00Z",
+          immutable: true,
+        },
+        what: {
+          title: "What (Current Task)",
+          task_type: "feature",
+          task_name: r.active_task,
+          active_label: "Build",
+          is_standard_stage: true,
+          target_paths: r.path,
+        },
+        how: {
+          title: "How (Safety Checks)",
+          status: isTripped ? "Spending limit reached" : pendingAction ? "Your approval needed" : "Running safely",
+          evidence_count: r.tests_passing,
+          policy_violations: isTripped ? 1 : 0,
+          saga_rollback_armed: true,
+          pending_action: pendingAction,
+        },
+        when: {
+          title: "When (Time & Spend)",
+          started_at: "2026-09-07T10:00:00Z",
+          last_activity: "2026-09-07T12:10:00Z",
+          spend_usd: r.spend_usd,
+          spend_limit_usd: r.ceiling_usd,
+          spend_pct: Math.min(100, Math.round((r.spend_usd / r.ceiling_usd) * 100)),
+        },
+        where: {
+          title: "Where (Folder)",
+          project: r.name,
+          working_dir: r.path,
+        },
+      },
+      history: [
+        { at: "2026-09-07T10:00:00Z", event: `init project=${r.name}` },
+        { at: "2026-09-07T10:05:00Z", event: "goal locked" },
+        { at: "2026-09-07T11:00:00Z", event: "stage 1 -> 7" },
+      ],
+    };
+  }
+
+  // Local repository status read from .kineti/
   const statePath = path.join(projectKdir(), "state.json");
   const spendPath = path.join(projectKdir(), "spend.json");
   const evidencePath = path.join(projectKdir(), "evidence.jsonl");
@@ -238,6 +482,32 @@ function getHarnessStatus() {
   };
 }
 
+function getFleetStatus() {
+  const localRepo = fleetRepos.find((r) => r.is_local);
+  if (localRepo) {
+    const localState = readJson<any>(path.join(projectKdir(), "state.json"));
+    const localSpend = readJson<any>(path.join(projectKdir(), "spend.json"));
+    const localEvidence = readJsonl<any>(path.join(projectKdir(), "evidence.jsonl"));
+    if (localState?.root_goal) localRepo.active_task = localState.root_goal;
+    if (localSpend) localRepo.spend_usd = localSpend.total_usd || 0;
+    if (localEvidence) localRepo.tests_passing = localEvidence.length;
+    if (localSpend?.tripped) localRepo.status = "limit_reached";
+    else if (localState?.gates?.spec === "pending" || localState?.gates?.security === "pending") localRepo.status = "action_needed";
+    else localRepo.status = "active";
+  }
+
+  const totalSpend = fleetRepos.reduce((sum, r) => sum + r.spend_usd, 0);
+  const totalBudget = fleetRepos.reduce((sum, r) => sum + r.ceiling_usd, 0);
+
+  return {
+    active_repo_id: activeRepoId,
+    repos: fleetRepos,
+    settings: companionSettings,
+    total_fleet_spend: Number(totalSpend.toFixed(2)),
+    total_fleet_budget: Number(totalBudget.toFixed(2)),
+  };
+}
+
 function renderHtmlDashboard(): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -256,14 +526,15 @@ function renderHtmlDashboard(): string {
       --system-teal: #64D2FF;
       
       /* Apple Materials (Vibrancy & Translucency) */
-      --material-nav: rgba(20, 20, 24, 0.75);
+      --material-nav: rgba(20, 20, 24, 0.78);
       --material-card: rgba(28, 28, 34, 0.65);
-      --material-card-hover: rgba(36, 36, 44, 0.75);
+      --material-card-hover: rgba(36, 36, 44, 0.85);
+      --material-sheet: rgba(24, 24, 30, 0.95);
       
       /* Apple Borders & Specular Highlights */
-      --hairline: 1px solid rgba(255, 255, 255, 0.08);
-      --specular: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-      --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 16px rgba(0, 0, 0, 0.25);
+      --hairline: 1px solid rgba(255, 255, 255, 0.09);
+      --specular: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      --shadow-card: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 16px rgba(0, 0, 0, 0.3);
       
       /* Typography */
       --label-primary: #FFFFFF;
@@ -277,8 +548,8 @@ function renderHtmlDashboard(): string {
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue", sans-serif;
       background: var(--apple-bg);
       background-image: 
-        radial-gradient(circle at 50% 0%, rgba(10, 132, 255, 0.07) 0%, transparent 60%),
-        radial-gradient(circle at 80% 100%, rgba(191, 90, 242, 0.04) 0%, transparent 50%);
+        radial-gradient(circle at 50% 0%, rgba(10, 132, 255, 0.08) 0%, transparent 60%),
+        radial-gradient(circle at 85% 100%, rgba(191, 90, 242, 0.05) 0%, transparent 50%);
       color: var(--label-primary);
       line-height: 1.45;
       min-height: 100vh;
@@ -298,14 +569,14 @@ function renderHtmlDashboard(): string {
       z-index: 50;
       height: 52px;
       background: var(--material-nav);
-      backdrop-filter: blur(25px) saturate(190%);
-      -webkit-backdrop-filter: blur(25px) saturate(190%);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
       border-bottom: var(--hairline);
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
     }
 
     .nav-inner {
-      max-width: 1040px;
+      max-width: 1080px;
       height: 100%;
       margin: 0 auto;
       padding: 0 20px;
@@ -343,11 +614,137 @@ function renderHtmlDashboard(): string {
       font-size: 13px;
     }
 
-    .project-name {
-      font-size: 13px;
+    /* Repo Switcher Dropdown */
+    .repo-dropdown-wrapper {
+      position: relative;
+    }
+    .repo-capsule-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255, 255, 255, 0.08);
+      border: var(--hairline);
+      padding: 4px 12px;
+      border-radius: 9px;
+      font-size: 12px;
       font-weight: 600;
+      color: var(--label-primary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .repo-capsule-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+    .repo-icon {
+      font-size: 12px;
+      color: var(--system-blue);
+    }
+    .chevron {
+      font-size: 9px;
+      color: var(--label-tertiary);
+      margin-left: 2px;
+    }
+
+    .repo-dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      width: 300px;
+      background: rgba(24, 24, 30, 0.96);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      border: var(--hairline);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), var(--specular);
+      border-radius: 12px;
+      z-index: 100;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .menu-search-input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: var(--hairline);
+      border-radius: 7px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: #fff;
+      outline: none;
+      font-family: inherit;
+      margin-bottom: 4px;
+    }
+    .menu-search-input::placeholder {
+      color: var(--label-tertiary);
+    }
+    .menu-items-list {
+      max-height: 220px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.1s ease;
+      color: var(--label-primary);
+    }
+    .menu-item:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .menu-item.active {
+      background: rgba(10, 132, 255, 0.2);
+      color: #fff;
+      font-weight: 600;
+    }
+    .menu-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .menu-item-name {
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .menu-item-meta {
+      font-size: 11px;
       color: var(--label-secondary);
-      letter-spacing: -0.01em;
+    }
+    .menu-badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .menu-footer {
+      border-top: var(--hairline);
+      margin-top: 4px;
+      padding-top: 6px;
+    }
+    .menu-action-link {
+      background: none;
+      border: none;
+      color: var(--system-blue);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+    }
+    .menu-action-link:hover {
+      background: rgba(10, 132, 255, 0.1);
     }
 
     .nav-right {
@@ -419,6 +816,27 @@ function renderHtmlDashboard(): string {
       box-shadow: 0 1px 2px rgba(0,0,0,0.3), var(--specular);
     }
 
+    /* Apple Nav Button (Settings) */
+    .apple-nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border: var(--hairline);
+      padding: 4px 12px;
+      border-radius: 9px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--label-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .apple-nav-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+    }
+
     /* Apple Spend Gauge */
     .spend-gauge {
       display: inline-flex;
@@ -446,7 +864,7 @@ function renderHtmlDashboard(): string {
 
     /* Main Page Content Flow */
     .page-content {
-      max-width: 1040px;
+      max-width: 1080px;
       margin: 0 auto;
       padding: 28px 20px 80px;
       display: flex;
@@ -566,7 +984,7 @@ function renderHtmlDashboard(): string {
       grid-template-columns: repeat(2, 1fr);
       gap: 14px;
     }
-    @media (max-width: 640px) {
+    @media (max-width: 680px) {
       .apple-grid { grid-template-columns: 1fr; }
     }
 
@@ -624,6 +1042,284 @@ function renderHtmlDashboard(): string {
     .stat-caption {
       font-size: 11px;
       color: var(--label-tertiary);
+    }
+
+    /* Fleet View Grid */
+    .fleet-summary-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 768px) {
+      .fleet-summary-bar { grid-template-columns: repeat(2, 1fr); }
+    }
+    .fleet-stat-card {
+      background: var(--material-card);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: var(--hairline);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: var(--shadow-card);
+    }
+    .fleet-stat-title {
+      font-size: 11px;
+      color: var(--label-tertiary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    .fleet-stat-num {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .fleet-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .fleet-grid { grid-template-columns: 1fr; }
+    }
+    .fleet-card {
+      background: var(--material-card);
+      backdrop-filter: blur(25px) saturate(180%);
+      -webkit-backdrop-filter: blur(25px) saturate(180%);
+      border: var(--hairline);
+      border-radius: 14px;
+      padding: 18px 20px;
+      box-shadow: var(--shadow-card);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: all 0.15s ease;
+    }
+    .fleet-card:hover {
+      background: var(--material-card-hover);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+    .fleet-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .fleet-card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .fleet-card-tags {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tag-pill {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 5px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--label-secondary);
+    }
+    .tag-ide {
+      background: rgba(10, 132, 255, 0.15);
+      color: var(--system-blue);
+      border: 1px solid rgba(10, 132, 255, 0.25);
+    }
+    .fleet-card-task {
+      font-size: 13px;
+      color: var(--label-secondary);
+      line-height: 1.4;
+      flex: 1;
+    }
+    .fleet-card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 10px;
+      border-top: var(--hairline);
+    }
+    .fleet-card-metrics {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 12px;
+      color: var(--label-secondary);
+    }
+
+    /* Settings Slide-Out Sheet */
+    .sheet-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .sheet-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sheet-panel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 480px;
+      max-width: 100vw;
+      background: var(--material-sheet);
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      border-left: var(--hairline);
+      box-shadow: -10px 0 40px rgba(0, 0, 0, 0.6);
+      z-index: 201;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .sheet-panel.open {
+      transform: translateX(0);
+    }
+    .sheet-header {
+      padding: 18px 22px;
+      border-bottom: var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sheet-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sheet-close-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: var(--label-secondary);
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.15s ease;
+    }
+    .sheet-close-btn:hover {
+      background: rgba(255, 255, 255, 0.16);
+      color: #fff;
+    }
+    .sheet-nav-tabs {
+      padding: 12px 22px 0;
+    }
+    .sheet-body {
+      padding: 20px 22px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .sheet-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .sheet-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--label-tertiary);
+    }
+    .sheet-footer {
+      padding: 16px 22px;
+      border-top: var(--hairline);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(18, 18, 22, 0.6);
+    }
+
+    /* Settings Control Rows */
+    .settings-row {
+      background: rgba(255, 255, 255, 0.04);
+      border: var(--hairline);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .settings-row-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .settings-row-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #fff;
+    }
+    .settings-row-desc {
+      font-size: 11px;
+      color: var(--label-secondary);
+    }
+
+    /* Apple Switch Toggle */
+    .apple-switch {
+      position: relative;
+      display: inline-block;
+      width: 42px;
+      height: 24px;
+    }
+    .apple-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .apple-switch-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(255, 255, 255, 0.16);
+      transition: .2s;
+      border-radius: 24px;
+    }
+    .apple-switch-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 2px;
+      bottom: 2px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    input:checked + .apple-switch-slider {
+      background-color: var(--system-green);
+    }
+    input:checked + .apple-switch-slider:before {
+      transform: translateX(18px);
     }
 
     /* Activity Feed Section */
@@ -723,14 +1419,44 @@ function renderHtmlDashboard(): string {
     <div class="nav-inner">
       <div class="nav-left">
         <span class="apple-brand"><span class="brand-glyph"></span> Kineti</span>
-        <span id="project-title" style="display: none;"></span>
+        <span class="nav-divider">|</span>
+        
+        <!-- Repo Switcher Dropdown -->
+        <div class="repo-dropdown-wrapper">
+          <button id="btn-repo-switcher" class="repo-capsule-btn" onclick="toggleRepoDropdown(event)">
+            <span class="repo-icon">􀈕</span>
+            <span id="nav-active-repo-name">${defaultRepoName}</span>
+            <span class="chevron">▾</span>
+          </button>
+          
+          <div id="repo-dropdown-menu" class="repo-dropdown-menu hidden">
+            <input type="text" id="repo-search-input" class="menu-search-input" placeholder="Search repositories..." oninput="filterRepos(this.value)" />
+            <div id="repo-menu-list" class="menu-items-list">
+              <!-- Populated by JS -->
+            </div>
+            <div class="menu-footer">
+              <button class="menu-action-link" onclick="openSettingsWithTab('github')">+ Connect GitHub Repo</button>
+            </div>
+          </div>
+        </div>
+
         <div id="status-pill-box"></div>
       </div>
+
       <div class="nav-right">
+        <!-- 3-Tab Segmented Switcher -->
         <div class="segmented-control">
           <button class="seg-btn active" id="tab-dashboard" onclick="switchView('dashboard')">Dashboard</button>
+          <button class="seg-btn" id="tab-fleet" onclick="switchView('fleet')">Fleet View</button>
           <button class="seg-btn" id="tab-proofs" onclick="switchView('proofs')">Logs &amp; Proofs</button>
         </div>
+
+        <!-- Settings Button -->
+        <button id="btn-settings" class="apple-nav-btn" onclick="toggleSettingsSheet(true)" title="Settings &amp; Integrations">
+          <span>􀍟</span> Settings
+        </button>
+
+        <!-- Spend Gauge -->
         <div class="spend-gauge">
           <span style="color: var(--label-tertiary);">Spend</span>
           <span id="spend-num" class="mono">$0.00 / $50</span>
@@ -742,9 +1468,10 @@ function renderHtmlDashboard(): string {
     </div>
   </nav>
 
-  <!-- Main View Container -->
+  <!-- Main Page Content Flow -->
   <div class="page-content">
-    <!-- Dashboard View -->
+    
+    <!-- 1. Single-Repo Dashboard View -->
     <main id="main-view">
       <!-- Attention Banner -->
       <div id="action-banner" class="apple-alert hidden" style="margin-bottom: 16px;">
@@ -841,14 +1568,42 @@ function renderHtmlDashboard(): string {
 
       <!-- Activity Feed -->
       <section class="feed-surface">
-        <div class="feed-header">Recent Causal Activity</div>
+        <div class="feed-header">Recent Activity</div>
         <div class="feed-items" id="activity-list">
           <!-- Populated by JavaScript -->
         </div>
       </section>
     </main>
 
-    <!-- Logs & Proofs View -->
+    <!-- 2. Fleet View (Multi-Repo Grid) -->
+    <section id="fleet-view" class="hidden">
+      <!-- Fleet Summary Bar -->
+      <div class="fleet-summary-bar">
+        <div class="fleet-stat-card">
+          <div class="fleet-stat-title">Connected Repos</div>
+          <div class="fleet-stat-num mono" id="fleet-stat-count">4</div>
+        </div>
+        <div class="fleet-stat-card">
+          <div class="fleet-stat-title">Total Spend</div>
+          <div class="fleet-stat-num mono" id="fleet-stat-spend">$16.55</div>
+        </div>
+        <div class="fleet-stat-card">
+          <div class="fleet-stat-title">Active Tasks</div>
+          <div class="fleet-stat-num mono" id="fleet-stat-active">3</div>
+        </div>
+        <div class="fleet-stat-card">
+          <div class="fleet-stat-title">Verified Tests</div>
+          <div class="fleet-stat-num mono" id="fleet-stat-tests" style="color: var(--system-green);">318</div>
+        </div>
+      </div>
+
+      <!-- Fleet Repo Grid -->
+      <div class="fleet-grid" id="fleet-repo-grid">
+        <!-- Populated by JavaScript -->
+      </div>
+    </section>
+
+    <!-- 3. Logs & Proofs View -->
     <section id="logs-view" class="hidden">
       <!-- Test Table -->
       <div class="feed-surface" style="margin-bottom: 16px;">
@@ -881,19 +1636,441 @@ function renderHtmlDashboard(): string {
     </section>
   </div>
 
+  <!-- 4. Settings & Integrations Slide-Out Sheet -->
+  <div id="sheet-backdrop" class="sheet-backdrop" onclick="toggleSettingsSheet(false)"></div>
+  <div id="settings-sheet" class="sheet-panel">
+    <div class="sheet-header">
+      <div class="sheet-title">
+        <span>􀍟</span> Settings &amp; Integrations
+      </div>
+      <button class="sheet-close-btn" onclick="toggleSettingsSheet(false)">✕</button>
+    </div>
+
+    <!-- Sheet Segmented Switcher -->
+    <div class="sheet-nav-tabs">
+      <div class="segmented-control" style="width: 100%; display: flex;">
+        <button class="seg-btn active" id="sheet-tab-btn-github" style="flex: 1;" onclick="switchSettingsTab('github')">GitHub</button>
+        <button class="seg-btn" id="sheet-tab-btn-ides" style="flex: 1;" onclick="switchSettingsTab('ides')">Agent IDEs</button>
+        <button class="seg-btn" id="sheet-tab-btn-team" style="flex: 1;" onclick="switchSettingsTab('team')">Team &amp; Budgets</button>
+      </div>
+    </div>
+
+    <div class="sheet-body">
+      <!-- Tab 1: GitHub Integration -->
+      <div id="sheet-tab-github" class="sheet-section">
+        <div class="sheet-section-title">GitHub Marketplace Integration</div>
+        
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">Connected GitHub Account</div>
+            <div class="settings-row-desc" id="settings-gh-account">@praveen · 4 repos authorized</div>
+          </div>
+          <span class="status-capsule capsule-safe"><span class="status-dot"></span> Active</span>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">Automatic Repo Latching</div>
+            <div class="settings-row-desc">Automatically protect every repository connected on GitHub</div>
+          </div>
+          <label class="apple-switch">
+            <input type="checkbox" id="set-auto-latch" checked onchange="saveSettingsState()" />
+            <span class="apple-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">Webhook Delivery Health</div>
+            <div class="settings-row-desc">Sub-50ms audit verification triggers on git push</div>
+          </div>
+          <span style="font-size: 11px; color: var(--system-green); font-weight: 600;">Healthy</span>
+        </div>
+
+        <button class="apple-btn apple-btn-secondary" style="margin-top: 8px;" onclick="window.open('https://github.com/apps/kineti', '_blank')">
+          Manage Authorized Repos on GitHub ↗
+        </button>
+      </div>
+
+      <!-- Tab 2: Agent IDEs Auto-Latch -->
+      <div id="sheet-tab-ides" class="sheet-section hidden">
+        <div class="sheet-section-title">Agent Ecosystem Auto-Latching</div>
+        <p style="font-size: 12px; color: var(--label-secondary); margin-bottom: 4px;">
+          Kineti automatically latches onto developer coding sessions in these environments:
+        </p>
+
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">Cursor</div>
+            <div class="settings-row-desc">Watches .cursor rules and terminal commands</div>
+          </div>
+          <label class="apple-switch">
+            <input type="checkbox" id="set-ide-cursor" checked onchange="saveSettingsState()" />
+            <span class="apple-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">Anthropic Claude Code</div>
+            <div class="settings-row-desc">Watches Claude CLI hooks and tool execution</div>
+          </div>
+          <label class="apple-switch">
+            <input type="checkbox" id="set-ide-claude" checked onchange="saveSettingsState()" />
+            <span class="apple-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">Google Antigravity</div>
+            <div class="settings-row-desc">Sidecar MCP integration and causal state sync</div>
+          </div>
+          <label class="apple-switch">
+            <input type="checkbox" id="set-ide-antigravity" checked onchange="saveSettingsState()" />
+            <span class="apple-switch-slider"></span>
+          </label>
+        </div>
+
+        <div class="settings-row">
+          <div class="settings-row-text">
+            <div class="settings-row-title">OpenAI Codex / Operator</div>
+            <div class="settings-row-desc">Listens on local loop proxy and MCP socket</div>
+          </div>
+          <label class="apple-switch">
+            <input type="checkbox" id="set-ide-codex" checked onchange="saveSettingsState()" />
+            <span class="apple-switch-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Tab 3: Team & Budgets -->
+      <div id="sheet-tab-team" class="sheet-section hidden">
+        <div class="sheet-section-title">Team Members &amp; Repo Owners</div>
+        <div id="team-members-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="sheet-section-title" style="margin-top: 10px;">Repository Budget Ceilings</div>
+        <div id="repo-budgets-list" style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <div class="sheet-footer">
+      <span id="save-status-indicator" style="font-size: 11px; color: var(--label-tertiary);">Auto-saved locally</span>
+      <button class="apple-btn apple-btn-primary" onclick="toggleSettingsSheet(false)">Done</button>
+    </div>
+  </div>
+
   <script>
     let activeGateId = null;
+    let currentFleetData = null;
+    let currentSettings = null;
 
+    // 1. Navigation & View Switching
     function switchView(viewName) {
       const isDashboard = viewName === 'dashboard';
+      const isFleet = viewName === 'fleet';
+      const isProofs = viewName === 'proofs';
+
       document.getElementById('main-view').classList.toggle('hidden', !isDashboard);
-      document.getElementById('logs-view').classList.toggle('hidden', isDashboard);
+      document.getElementById('fleet-view').classList.toggle('hidden', !isFleet);
+      document.getElementById('logs-view').classList.toggle('hidden', !isProofs);
+
       document.getElementById('tab-dashboard').classList.toggle('active', isDashboard);
-      document.getElementById('tab-proofs').classList.toggle('active', !isDashboard);
+      document.getElementById('tab-fleet').classList.toggle('active', isFleet);
+      document.getElementById('tab-proofs').classList.toggle('active', isProofs);
+
+      if (isFleet) fetchFleet();
     }
 
-    function toggleLogs(show) {
-      switchView(show ? 'proofs' : 'dashboard');
+    // 2. Repo Switcher Dropdown
+    function toggleRepoDropdown(event) {
+      if (event) event.stopPropagation();
+      const menu = document.getElementById('repo-dropdown-menu');
+      menu.classList.toggle('hidden');
+      if (!menu.classList.contains('hidden')) {
+        document.getElementById('repo-search-input').focus();
+      }
+    }
+
+    document.addEventListener('click', function(e) {
+      const wrapper = document.querySelector('.repo-dropdown-wrapper');
+      if (wrapper && !wrapper.contains(e.target)) {
+        document.getElementById('repo-dropdown-menu').classList.add('hidden');
+      }
+    });
+
+    function filterRepos(query) {
+      const q = (query || "").toLowerCase();
+      const items = document.querySelectorAll('.menu-item');
+      items.forEach(it => {
+        const name = it.getAttribute('data-repo-name') || '';
+        it.style.display = name.toLowerCase().includes(q) ? 'flex' : 'none';
+      });
+    }
+
+    async function selectRepo(repoId) {
+      try {
+        const res = await fetch("/api/fleet/select", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repo_id: repoId }),
+        });
+        if (res.ok) {
+          document.getElementById('repo-dropdown-menu').classList.add('hidden');
+          await fetchStatus();
+          await fetchFleet();
+          switchView('dashboard');
+        }
+      } catch (e) {
+        console.error("Select repo error", e);
+      }
+    }
+
+    // 3. Settings Slide-Out Sheet
+    function toggleSettingsSheet(show) {
+      const sheet = document.getElementById('settings-sheet');
+      const backdrop = document.getElementById('sheet-backdrop');
+      sheet.classList.toggle('open', show);
+      backdrop.classList.toggle('open', show);
+    }
+
+    function switchSettingsTab(tabName) {
+      ['github', 'ides', 'team'].forEach(t => {
+        const isActive = t === tabName;
+        document.getElementById('sheet-tab-' + t).classList.toggle('hidden', !isActive);
+        document.getElementById('sheet-tab-btn-' + t).classList.toggle('active', isActive);
+      });
+    }
+
+    function openSettingsWithTab(tabName) {
+      document.getElementById('repo-dropdown-menu').classList.add('hidden');
+      toggleSettingsSheet(true);
+      switchSettingsTab(tabName);
+    }
+
+    async function saveSettingsState() {
+      const cursor = document.getElementById('set-ide-cursor').checked;
+      const claude = document.getElementById('set-ide-claude').checked;
+      const agy = document.getElementById('set-ide-antigravity').checked;
+      const codex = document.getElementById('set-ide-codex').checked;
+
+      const payload = {
+        ides: { cursor, claude_code: claude, antigravity: agy, codex },
+      };
+
+      try {
+        const res = await fetch("/api/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const ind = document.getElementById('save-status-indicator');
+          ind.textContent = "Saved";
+          ind.style.color = "var(--system-green)";
+          setTimeout(() => {
+            ind.textContent = "Auto-saved locally";
+            ind.style.color = "var(--label-tertiary)";
+          }, 2000);
+        }
+      } catch (e) {
+        console.error("Save settings error", e);
+      }
+    }
+
+    async function updateRepoBudget(repoId, newBudget) {
+      const budgetNum = Number(newBudget);
+      if (isNaN(budgetNum) || budgetNum <= 0) return;
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_budgets: { [repoId]: budgetNum } }),
+      });
+      fetchFleet();
+      fetchStatus();
+    }
+
+    async function updateRepoOwner(repoId, newOwner) {
+      if (!newOwner) return;
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_owners: { [repoId]: newOwner } }),
+      });
+      fetchFleet();
+    }
+
+    // 4. Fetch Fleet and Status
+    async function fetchFleet() {
+      try {
+        const res = await fetch("/api/fleet");
+        if (!res.ok) return;
+        const data = await res.json();
+        currentFleetData = data;
+        renderFleet(data);
+      } catch (e) {
+        console.error("Fleet fetch error", e);
+      }
+    }
+
+    function renderFleet(data) {
+      const repos = data.repos || [];
+      const activeId = data.active_repo_id;
+
+      // Update Nav active repo label
+      const activeRepo = repos.find(r => r.id === activeId);
+      if (activeRepo) {
+        document.getElementById('nav-active-repo-name').textContent = activeRepo.name;
+      }
+
+      // Update Summary Bar
+      document.getElementById('fleet-stat-count').textContent = repos.length;
+      document.getElementById('fleet-stat-spend').textContent = "$" + data.total_fleet_spend.toFixed(2);
+      document.getElementById('fleet-stat-active').textContent = repos.filter(r => r.status === 'active' || r.status === 'action_needed').length;
+      const totalTests = repos.reduce((acc, r) => acc + r.tests_passing, 0);
+      document.getElementById('fleet-stat-tests').textContent = totalTests;
+
+      // Update Dropdown List
+      const menuList = document.getElementById('repo-menu-list');
+      menuList.innerHTML = '';
+      repos.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'menu-item' + (r.id === activeId ? ' active' : '');
+        item.setAttribute('data-repo-name', r.name);
+        item.onclick = () => selectRepo(r.id);
+
+        item.innerHTML = 
+          '<div class="menu-item-info">' +
+            '<div class="menu-item-name">' +
+              escapeHtml(r.name) +
+              (r.is_local ? ' <span class="menu-badge">Local</span>' : '') +
+            '</div>' +
+            '<div class="menu-item-meta">' + escapeHtml(r.owner) + ' · ' + escapeHtml(r.branch) + '</div>' +
+          '</div>' +
+          (r.id === activeId ? '<span style="color: var(--system-blue); font-weight: bold;">✓</span>' : '');
+        menuList.appendChild(item);
+      });
+
+      // Update Fleet Grid Cards
+      const grid = document.getElementById('fleet-repo-grid');
+      grid.innerHTML = '';
+      repos.forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'fleet-card';
+
+        let statusClass = 'capsule-safe';
+        let statusLabel = 'Active';
+        if (r.status === 'action_needed') {
+          statusClass = 'capsule-action';
+          statusLabel = 'Needs Review';
+        } else if (r.status === 'limit_reached') {
+          statusClass = 'capsule-tripped';
+          statusLabel = 'Limit Reached';
+        } else if (r.status === 'idle') {
+          statusClass = 'capsule-safe';
+          statusLabel = 'Idle';
+        }
+
+        const spendPct = Math.min(100, Math.round((r.spend_usd / r.ceiling_usd) * 100));
+
+        card.innerHTML = 
+          '<div class="fleet-card-header">' +
+            '<div>' +
+              '<div class="fleet-card-title">' +
+                escapeHtml(r.name) +
+                (r.is_local ? '<span class="menu-badge">Local</span>' : '<span class="menu-badge">GitHub</span>') +
+              '</div>' +
+              '<div class="fleet-card-tags" style="margin-top: 5px;">' +
+                '<span class="tag-pill mono">' + escapeHtml(r.branch) + '</span>' +
+                '<span class="tag-pill tag-ide">' + escapeHtml(r.ide) + '</span>' +
+                '<span class="tag-pill">' + escapeHtml(r.owner) + '</span>' +
+              '</div>' +
+            '</div>' +
+            '<span class="status-capsule ' + statusClass + '"><span class="status-dot"></span> ' + statusLabel + '</span>' +
+          '</div>' +
+          '<div class="fleet-card-task">' + escapeHtml(r.active_task) + '</div>' +
+          '<div>' +
+            '<div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px;">' +
+              '<span style="color: var(--label-tertiary);">Spend Ceiling</span>' +
+              '<span class="mono">$' + r.spend_usd.toFixed(2) + ' / $' + r.ceiling_usd.toFixed(0) + '</span>' +
+            '</div>' +
+            '<div class="spend-track" style="width: 100%;">' +
+              '<div class="spend-fill-bar" style="width: ' + spendPct + '%;"></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="fleet-card-footer">' +
+            '<div class="fleet-card-metrics">' +
+              '<span style="color: var(--system-green);">✓ ' + r.tests_passing + ' tests</span>' +
+            '</div>' +
+            '<button class="apple-btn apple-btn-secondary" onclick="selectRepo(\\'' + r.id + '\\')">Open Dashboard →</button>' +
+          '</div>';
+
+        grid.appendChild(card);
+      });
+
+      // Update Settings: Team and Budgets
+      renderSettings(data.settings, repos);
+    }
+
+    function renderSettings(settings, repos) {
+      if (!settings) return;
+      currentSettings = settings;
+
+      // IDE toggles
+      if (settings.ides) {
+        document.getElementById('set-ide-cursor').checked = !!settings.ides.cursor;
+        document.getElementById('set-ide-claude').checked = !!settings.ides.claude_code;
+        document.getElementById('set-ide-antigravity').checked = !!settings.ides.antigravity;
+        document.getElementById('set-ide-codex').checked = !!settings.ides.codex;
+      }
+
+      // Team members
+      const teamList = document.getElementById('team-members-list');
+      teamList.innerHTML = '';
+      (settings.team_members || []).forEach(m => {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+        row.innerHTML = 
+          '<div class="settings-row-text">' +
+            '<div class="settings-row-title">' + escapeHtml(m.name) + '</div>' +
+            '<div class="settings-row-desc">' + escapeHtml(m.email) + ' · ' + escapeHtml(m.role) + '</div>' +
+          '</div>' +
+          '<span class="tag-pill">' + escapeHtml(m.role) + '</span>';
+        teamList.appendChild(row);
+      });
+
+      // Repo budgets & owners
+      const budgetList = document.getElementById('repo-budgets-list');
+      budgetList.innerHTML = '';
+      repos.forEach(r => {
+        const row = document.createElement('div');
+        row.className = 'settings-row';
+        row.style.alignItems = 'center';
+
+        const owners = settings.team_members || [];
+        let ownerOptions = owners.map(o => 
+          '<option value="' + escapeHtml(o.name) + '" ' + (o.name === r.owner ? 'selected' : '') + '>' + escapeHtml(o.name) + '</option>'
+        ).join('');
+
+        row.innerHTML = 
+          '<div class="settings-row-text" style="min-width: 120px;">' +
+            '<div class="settings-row-title">' + escapeHtml(r.name) + '</div>' +
+            '<div class="settings-row-desc">Owner: ' +
+              '<select style="background: rgba(255,255,255,0.1); color: #fff; border: var(--hairline); border-radius: 4px; padding: 1px 4px; font-size: 11px; font-family: inherit;" onchange="updateRepoOwner(\\'' + r.id + '\\', this.value)">' +
+                ownerOptions +
+              '</select>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display: flex; align-items: center; gap: 6px;">' +
+            '<span style="font-size: 11px; color: var(--label-tertiary);">$</span>' +
+            '<input type="number" value="' + r.ceiling_usd + '" style="width: 55px; background: rgba(255,255,255,0.08); border: var(--hairline); border-radius: 6px; padding: 4px 6px; color: #fff; font-size: 12px; font-family: inherit;" onchange="updateRepoBudget(\\'' + r.id + '\\', this.value)" />' +
+          '</div>';
+        budgetList.appendChild(row);
+      });
     }
 
     async function fetchStatus() {
@@ -1056,7 +2233,10 @@ function renderHtmlDashboard(): string {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ gate: activeGateId, status: "pass" }),
         });
-        if (res.ok) fetchStatus();
+        if (res.ok) {
+          fetchStatus();
+          fetchFleet();
+        }
       } catch (e) {
         console.error("Gate approval error", e);
       }
@@ -1065,14 +2245,24 @@ function renderHtmlDashboard(): string {
     async function resetBreaker() {
       try {
         const res = await fetch("/api/spend/reset", { method: "POST" });
-        if (res.ok) fetchStatus();
+        if (res.ok) {
+          fetchStatus();
+          fetchFleet();
+        }
       } catch (e) {
         console.error("Reset error", e);
       }
     }
 
+    // Initial setup
     fetchStatus();
-    setInterval(fetchStatus, 2500);
+    fetchFleet();
+    setInterval(() => {
+      fetchStatus();
+      if (!document.getElementById('fleet-view').classList.contains('hidden')) {
+        fetchFleet();
+      }
+    }, 2500);
   </script>
 </body>
 </html>`;
@@ -1100,6 +2290,65 @@ function startServer(port: number = PORT) {
         return new Response(JSON.stringify(getHarnessStatus()), {
           headers: { "Content-Type": "application/json" },
         });
+      }
+
+      if (url.pathname === "/api/fleet") {
+        return new Response(JSON.stringify(getFleetStatus()), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      if (url.pathname === "/api/fleet/select" && req.method === "POST") {
+        return req.json().then((body: any) => {
+          const { repo_id } = body;
+          const found = fleetRepos.find((r) =>
+            r.id === repo_id ||
+            r.name === repo_id ||
+            (r.is_local && (repo_id === "local" || repo_id === "kineti-local-harness" || repo_id === defaultRepoName || repo_id === path.basename(REPO_ROOT)))
+          );
+          if (!found) {
+            return new Response(JSON.stringify({ error: `Repo not found: ${repo_id}` }), {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          activeRepoId = found.id;
+          return new Response(JSON.stringify({ success: true, active_repo_id: activeRepoId }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        });
+      }
+
+      if (url.pathname === "/api/settings") {
+        if (req.method === "GET") {
+          return new Response(JSON.stringify(companionSettings), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        if (req.method === "POST") {
+          return req.json().then((body: any) => {
+            if (body.github) companionSettings.github = { ...companionSettings.github, ...body.github };
+            if (body.ides) companionSettings.ides = { ...companionSettings.ides, ...body.ides };
+            if (body.team_members) companionSettings.team_members = body.team_members;
+            if (body.repo_budgets) {
+              companionSettings.repo_budgets = { ...companionSettings.repo_budgets, ...body.repo_budgets };
+              for (const [id, budget] of Object.entries(body.repo_budgets)) {
+                const r = fleetRepos.find((repo) => repo.id === id);
+                if (r && typeof budget === "number") r.ceiling_usd = budget;
+              }
+            }
+            if (body.repo_owners) {
+              companionSettings.repo_owners = { ...companionSettings.repo_owners, ...body.repo_owners };
+              for (const [id, owner] of Object.entries(body.repo_owners)) {
+                const r = fleetRepos.find((repo) => repo.id === id);
+                if (r && typeof owner === "string") r.owner = owner;
+              }
+            }
+            return new Response(JSON.stringify({ success: true, settings: companionSettings }), {
+              headers: { "Content-Type": "application/json" },
+            });
+          });
+        }
       }
 
       if (url.pathname === "/api/gate" && req.method === "POST") {
@@ -1134,4 +2383,4 @@ if (import.meta.main) {
   startServer(PORT);
 }
 
-export { startServer, getHarnessStatus, renderHtmlDashboard };
+export { startServer, getHarnessStatus, getFleetStatus, fleetRepos, companionSettings, renderHtmlDashboard };
