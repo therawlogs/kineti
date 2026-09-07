@@ -5,3 +5,5 @@ dist/
 .agents/
 *.log
 .env
+*.bun-build
+.*.bun-build
