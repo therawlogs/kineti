@@ -11,10 +11,22 @@ Kineti keeps your AI coding safe and governed by doing five simple things:
 
 ## Installation (30 seconds)
 
-Requirements: `git` and `bash`.
+Choose any method:
 
 ```sh
-git clone <this-repo> ~/kineti && cd ~/kineti && ./setup.sh
+# Method 1: Standalone installer (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/therawlogs/kineti/main/install.sh | bash
+
+# Method 2: Global npm package
+npm install -g kineti
+
+# Method 3: From source
+git clone https://github.com/therawlogs/kineti.git ~/kineti && cd ~/kineti && ./setup.sh
+```
+
+Then initialize your project:
+```sh
+kineti init
 ```
 
 The setup script detects your tools and adds Kineti skills automatically:
@@ -23,7 +35,7 @@ The setup script detects your tools and adds Kineti skills automatically:
 - Gemini / Antigravity (`~/.gemini/config/skills/kineti-*`)
 - Codex (`~/.codex/skills/kineti-*`)
 
-To uninstall at any time: `./setup.sh --uninstall`
+To uninstall at any time: `kineti init --uninstall` (or `./setup.sh --uninstall`)
 
 ## How to Use
 
@@ -44,7 +56,7 @@ The AI agent will:
 Open the Apple HIG companion dashboard in your browser to view active tasks, costs, multi-repo fleet status, and settings:
 
 ```sh
-bun run companion
+kineti companion
 ```
 Open `http://127.0.0.1:8788` in your browser.
 
@@ -57,11 +69,8 @@ Open `http://127.0.0.1:8788` in your browser.
 Connect any tool that supports the Model Context Protocol (MCP):
 
 ```sh
-# Set up Cursor (.cursor/mcp.json)
-bun run mcp:init
-
 # Start the MCP server
-bun run mcp
+kineti mcp
 ```
 
 ## Agent Swarm Coordination
@@ -69,14 +78,14 @@ bun run mcp
 Run multi-agent swarms with cryptographic identity and outcome verification tickets:
 
 ```sh
-bun bin/kineti-swarm.ts run "Build auth service"
+kineti swarm "Build auth service"
 ```
 
 ## Pull Request Check (CI)
 
 Run the automated verification check locally:
 ```sh
-bun run ci
+kineti ci
 ```
 
 ## What lives where
