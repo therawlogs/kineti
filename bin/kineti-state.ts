@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { die, ok, nowIso, projectKdir, readJson, writeJson } from "./lib.ts";
+import { die, ok, nowIso, projectKdir, readJson, writeJson, scaffoldRootHooks } from "./lib.ts";
 
 interface RunState {
   version: 1;
@@ -60,7 +60,9 @@ function main() {
       history: [{ at: nowIso(), event: `init project=${project}` }],
     };
     writeJson(f, s);
-    ok(goal ? `state created; goal locked` : `state created; set the goal with: set root_goal "..."`);
+    const hooked = scaffoldRootHooks();
+    const hookMsg = hooked.length ? ` (installed root platform hooks: ${hooked.join(", ")})` : "";
+    ok((goal ? `state created; goal locked` : `state created; set the goal with: set root_goal "..."`) + hookMsg);
     return;
   }
 

@@ -6,16 +6,18 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="kineti-"
 ONLY_HOST=""
+INSTALL_ROOT=""
 UNINSTALL=0
 
 usage() {
-  echo "Usage: ./setup.sh [--host opencode|claude|gemini|codex] [--uninstall]"
+  echo "Usage: ./setup.sh [--host opencode|claude|gemini|codex] [--install-root [DIR]] [--uninstall]"
   exit 1
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --host) ONLY_HOST="${2:-}"; shift 2 ;;
+    --install-root) INSTALL_ROOT="${2:-$(pwd)}"; shift 2 ;;
     --uninstall) UNINSTALL=1; shift ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1"; usage ;;
@@ -68,6 +70,80 @@ uninstall() {
   echo "Note: hook text blocks in host settings are comments; remove them by hand if desired."
 }
 
+install_root_files() {
+  local target="${1:-$(pwd)}"
+  echo "Installing zero-touch root platform hooks into: $target"
+
+  # 1. CLAUDE.md
+  if [[ ! -f "$target/CLAUDE.md" ]]; then
+    cat << 'EOF' > "$target/CLAUDE.md"
+# Kineti OS — Autonomous Directives for Claude Code
+
+This repository is governed by Kineti OS v3. You operate under standing governance rules without requiring the user to manually type slash commands.
+
+## Automatic Operational Protocol
+1. Plain English and numbered options (1, 2, 3).
+2. Inspect .kineti/state.json to track the active stage (1 to 13). Do NOT skip stages.
+3. Hard gate: Do NOT write application code in src/ before Stage 6 (Spec) approval.
+4. Check spend status before heavy tasks ($50.00 limit).
+5. Record test proofs via bun bin/kineti-evidence.ts run.
+EOF
+    echo "  + CLAUDE.md"
+  fi
+
+  # 2. AGENTS.md
+  if [[ ! -f "$target/AGENTS.md" ]]; then
+    cat << 'EOF' > "$target/AGENTS.md"
+# Kineti OS — Universal Agent Standing Directives
+
+You are operating inside a repository governed by the Kineti OS v3 Runtime. You do NOT require the operator to invoke manual slash commands; governance is automated from the platform root.
+
+## Rules
+1. Plain English interaction with numbered choices.
+2. Read .kineti/state.json. Stages 1-6 are design/spec; Stage 6 gate blocks code.
+3. Verify test proofs with code fingerprints.
+4. Pause if spend reaches $50 USD.
+EOF
+    echo "  + AGENTS.md"
+  fi
+
+  # 3. .cursor/rules/kineti.mdc
+  mkdir -p "$target/.cursor/rules"
+  if [[ ! -f "$target/.cursor/rules/kineti.mdc" ]]; then
+    cat << 'EOF' > "$target/.cursor/rules/kineti.mdc"
+---
+description: Kineti OS Autonomous Runtime Governance
+globs: *
+alwaysApply: true
+---
+
+# Kineti OS — Cursor Autonomous Governance
+
+You are governed by the Kineti OS v3 Runtime. Do not wait for manual slash commands.
+
+- Inspect .kineti/state.json on every task.
+- No code before Stage 6 (Spec approval).
+- Use registered kineti_* MCP tools.
+- Respect spend circuit breaker ($50 ceiling).
+EOF
+    echo "  + .cursor/rules/kineti.mdc"
+  fi
+
+  # 4. CODEX.md
+  if [[ ! -f "$target/CODEX.md" ]]; then
+    cat << 'EOF' > "$target/CODEX.md"
+# Kineti OS — Autonomous Directives for OpenAI Codex
+
+Governed by Kineti OS v3.
+
+1. Plain English and numbered options.
+2. Read .kineti/state.json. Do not write code before Stage 6.
+3. Verify evidence with code fingerprints.
+EOF
+    echo "  + CODEX.md"
+  fi
+}
+
 install() {
   load_hosts
   if [[ ${#HOST_NAMES[@]} -eq 0 ]]; then
@@ -113,6 +189,10 @@ install() {
     echo "No agent host folders were found on this machine."
     echo "Create one (for example install opencode) or force a target:"
     echo "  ./setup.sh --host <opencode|claude|gemini|codex>"
+  fi
+  if [[ -n "$INSTALL_ROOT" ]]; then
+    echo ""
+    install_root_files "$INSTALL_ROOT"
   fi
 }
 

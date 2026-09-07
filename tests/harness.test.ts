@@ -220,5 +220,22 @@ describe("hardening-cryptography-and-units", () => {
 
     fs.rmSync(c.root, { recursive: true, force: true });
   });
+
+  test("scaffoldRootHooks generates zero-touch root files for Claude, Antigravity, Cursor, and Codex", async () => {
+    const { scaffoldRootHooks } = await import("../bin/lib.ts");
+    const c = makeCtx();
+    const installed = scaffoldRootHooks(c.cwd);
+    expect(installed).toContain("CLAUDE.md");
+    expect(installed).toContain("AGENTS.md");
+    expect(installed).toContain(".cursor/rules/kineti.mdc");
+    expect(installed).toContain("CODEX.md");
+
+    expect(fs.existsSync(path.join(c.cwd, "CLAUDE.md"))).toBe(true);
+    expect(fs.existsSync(path.join(c.cwd, "AGENTS.md"))).toBe(true);
+    expect(fs.existsSync(path.join(c.cwd, ".cursor", "rules", "kineti.mdc"))).toBe(true);
+    expect(fs.existsSync(path.join(c.cwd, "CODEX.md"))).toBe(true);
+
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
 });
 

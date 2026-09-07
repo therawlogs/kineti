@@ -119,3 +119,55 @@ export function microcentsToUsd(microcents: number): number {
   return Math.round((microcents / 1_000_000) * 1e4) / 1e4;
 }
 
+/**
+ * Scaffolds zero-touch root governance files for Claude Code, Antigravity,
+ * Cursor, and OpenAI Codex into a project repository root.
+ */
+export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
+  const installed: string[] = [];
+
+  // 1. CLAUDE.md
+  const claudePath = path.join(targetDir, "CLAUDE.md");
+  if (!fs.existsSync(claudePath)) {
+    fs.writeFileSync(
+      claudePath,
+      `# Kineti OS — Autonomous Directives for Claude Code\n\nThis repository is governed by Kineti OS v3.\n\n## Rules\n1. Plain English and numbered choices (1, 2, 3).\n2. Inspect .kineti/state.json on every prompt to track the active stage (1 to 13).\n3. Hard gate: Do NOT write application code in src/ before Stage 6 (Spec) approval.\n4. Check spend status before heavy tasks ($50.00 limit).\n5. Record test proofs via bun bin/kineti-evidence.ts run.\n`
+    );
+    installed.push("CLAUDE.md");
+  }
+
+  // 2. AGENTS.md
+  const agentsPath = path.join(targetDir, "AGENTS.md");
+  if (!fs.existsSync(agentsPath)) {
+    fs.writeFileSync(
+      agentsPath,
+      `# Kineti OS — Autonomous Agent Standing Directives\n\nThis repository is governed by Kineti OS v3.\n\n## Rules\n1. Plain English interaction with numbered choices.\n2. Read .kineti/state.json. Stages 1-6 are design/spec; Stage 6 gate blocks code.\n3. Verify test proofs with code fingerprints.\n4. Pause if spend reaches $50 USD.\n`
+    );
+    installed.push("AGENTS.md");
+  }
+
+  // 3. .cursor/rules/kineti.mdc
+  const cursorRulesDir = path.join(targetDir, ".cursor", "rules");
+  const cursorRulePath = path.join(cursorRulesDir, "kineti.mdc");
+  if (!fs.existsSync(cursorRulePath)) {
+    ensureDir(cursorRulesDir);
+    fs.writeFileSync(
+      cursorRulePath,
+      `---\ndescription: Kineti OS Autonomous Runtime Governance\nglobs: *\nalwaysApply: true\n---\n\n# Kineti OS — Cursor Autonomous Governance\n\n- Inspect .kineti/state.json on every task.\n- No code before Stage 6 (Spec approval).\n- Use registered kineti_* MCP tools.\n- Respect spend circuit breaker ($50 ceiling).\n`
+    );
+    installed.push(".cursor/rules/kineti.mdc");
+  }
+
+  // 4. CODEX.md
+  const codexPath = path.join(targetDir, "CODEX.md");
+  if (!fs.existsSync(codexPath)) {
+    fs.writeFileSync(
+      codexPath,
+      `# Kineti OS — Autonomous Directives for OpenAI Codex\n\nGoverned by Kineti OS v3.\n\n1. Plain English and numbered options.\n2. Read .kineti/state.json. Do not write code before Stage 6.\n3. Verify evidence with code fingerprints.\n`
+    );
+    installed.push("CODEX.md");
+  }
+
+  return installed;
+}
+

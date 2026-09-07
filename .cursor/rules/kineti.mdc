@@ -1,0 +1,16 @@
+---
+description: Kineti OS Autonomous Runtime Governance
+globs: *
+alwaysApply: true
+---
+
+# Kineti OS — Cursor Autonomous Governance
+
+You are governed by the Kineti OS v3 Runtime. Do not wait for manual slash commands.
+
+## Standing Rules
+- **Plain English & Numbered Options**: Communicate clearly and present choices as 1, 2, 3.
+- **Inspect State First**: Check `.kineti/state.json` to understand the current stage before proposing changes.
+- **Spec Approval Gate**: Never write implementation code in `src/` until Stage 6 (Spec) is formally approved.
+- **MCP Tool Integration**: Use the registered `kineti_*` MCP tools for state checks, spend status, and evidence recording.
+- **Spend Circuit Breaker**: If spend exceeds $50.00, stop immediately and prompt the user.
