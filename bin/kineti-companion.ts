@@ -708,19 +708,6 @@ function renderHtmlDashboard(): string {
       font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
     }
     tr:last-child td { border-bottom: none; }
-    tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
-
-    .page-footer {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding-top: 20px;
-      border-top: var(--hairline);
-      font-size: 12px;
-      color: var(--label-tertiary);
-      margin-top: 10px;
-    }
-
     .hidden { display: none !important; }
     .compat-text { display: none; }
   </style>
@@ -736,11 +723,8 @@ function renderHtmlDashboard(): string {
     <div class="nav-inner">
       <div class="nav-left">
         <span class="apple-brand"><span class="brand-glyph"></span> Kineti</span>
-        <span class="nav-divider">/</span>
-        <span class="project-name" id="project-title">Project</span>
-        <div id="status-pill-box">
-          <span class="status-capsule capsule-safe"><span class="status-dot"></span> Running safely</span>
-        </div>
+        <span id="project-title" style="display: none;"></span>
+        <div id="status-pill-box"></div>
       </div>
       <div class="nav-right">
         <div class="segmented-control">
@@ -895,12 +879,6 @@ function renderHtmlDashboard(): string {
         </div>
       </div>
     </section>
-
-    <!-- Page Footer -->
-    <footer class="page-footer">
-      <span>Kineti OS · Apple HIG Web Companion</span>
-      <span class="mono" style="color: var(--label-tertiary); font-size: 11px;">v0.3.0</span>
-    </footer>
   </div>
 
   <script>
@@ -943,14 +921,13 @@ function renderHtmlDashboard(): string {
       const where = an.where || {};
 
       // 1. Top Bar
-      document.getElementById("project-title").textContent = data.project || "Project";
       const totalSpend = data.spend ? data.spend.total_usd : 0;
       const spendCeil = data.spend ? data.spend.ceiling_usd : 50;
       document.getElementById("spend-num").textContent = "$" + totalSpend.toFixed(2) + " / $" + spendCeil.toFixed(0);
       const spendPct = Math.min(100, Math.round((totalSpend / spendCeil) * 100));
       document.getElementById("spend-bar-fill").style.width = spendPct + "%";
 
-      // Status Capsule
+      // Status Capsule - only shown when meaningful (approval needed or limit reached)
       const statusBox = document.getElementById("status-pill-box");
       if (data.spend && data.spend.tripped) {
         statusBox.innerHTML = '<span class="status-capsule capsule-tripped"><span class="status-dot"></span> Limit reached</span>';
@@ -960,7 +937,7 @@ function renderHtmlDashboard(): string {
         statusBox.innerHTML = '<span class="status-capsule capsule-action"><span class="status-dot"></span> Approval needed</span>';
         document.getElementById("breaker-banner").classList.add("hidden");
       } else {
-        statusBox.innerHTML = '<span class="status-capsule capsule-safe"><span class="status-dot"></span> Running safely</span>';
+        statusBox.innerHTML = '';
         document.getElementById("breaker-banner").classList.add("hidden");
       }
 
