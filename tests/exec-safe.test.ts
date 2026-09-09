@@ -84,9 +84,13 @@ describe("0.1 shell removal", () => {
     const s = (a: string[]) => run("kineti-saga.ts", a, c);
     expect(s(["begin", "--run-id", "evil"]).status).toBe(0);
     expect(s(["register", "--run-id", "evil", "--label", "bad", "--inverse", "echo hi; rm -rf /"]).status).toBe(0);
-    const rb = s(["rollback", "--run-id", "evil"]);
+    // Without --yes (non-TTY): refuses before running anything.
+    const noYes = s(["rollback", "--run-id", "evil"]);
+    expect(noYes.status).toBe(2);
+    expect(noYes.err).toContain("needs a human");
+    // With --yes: runs, shell inverse blocked by safe exec, reported as failed.
+    const rb = s(["rollback", "--run-id", "evil", "--yes"]);
     expect(rb.status).toBe(0);
-    // Blocked step exits non-zero, reported as failed, continues.
     expect(rb.err).toContain("CRITICAL undo failed");
     expect(rb.err).toContain("blocked");
     fs.rmSync(c.root, { recursive: true, force: true });
