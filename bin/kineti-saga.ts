@@ -1,7 +1,6 @@
 #!/usr/bin/env bun
-import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { appendJsonl, die, nowIso, ok, projectKdir, readJsonl } from "./lib.ts";
+import { appendJsonl, die, loadVerifyCommand, nowIso, ok, projectKdir, readJsonl, runSafeCommand, splitLegacyCommand } from "./lib.ts";
 
 interface Line {
   at: string; kind: "begin" | "register" | "commit" | "rollback_step" | "rollback_done";
@@ -40,11 +39,13 @@ function latestOpenRun(): string | null {
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   let runId = "", label = "", inverse = "";
+  let allowShell = false;
   const positional: string[] = [];
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] === "--run-id") runId = rest[++i] ?? "";
     else if (rest[i] === "--label") label = rest[++i] ?? "";
     else if (rest[i] === "--inverse") inverse = rest[++i] ?? "";
+    else if (rest[i] === "--allow-shell") allowShell = true;
     else positional.push(rest[i]);
   }
 
@@ -96,9 +97,13 @@ function main() {
     );
     const pending = regs.filter((r) => !undone.has(r.label!)).reverse();
     if (pending.length === 0) { ok(`nothing to roll back for ${targetRun}`); return; }
+    const verifyCmd = loadVerifyCommand();
     for (const r of pending) {
-      const res = spawnSync("bash", ["-lc", r.inverse!], { stdio: "pipe", encoding: "utf8" });
-      const code = res.status ?? 1;
+      const cmdArgv = splitLegacyCommand(r.inverse || "");
+      const res = runSafeCommand(cmdArgv, { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: 60000, allowShell, verifyCmd });
+      if (res.stdout) process.stdout.write(res.stdout);
+      if (res.stderr) process.stderr.write(res.stderr + (res.stderr.endsWith("\n") ? "" : "\n"));
+      const code = res.exitCode;
       appendJsonl(file(), {
         at: nowIso(), kind: "rollback_step", run_id: targetRun,
         label: r.label, exit_code: code,
@@ -111,7 +116,7 @@ function main() {
     return;
   }
 
-  die(`unknown command: ${cmd}. Use begin | register | push | commit | rollback`, 2);
+  die(`unknown command: ${cmd}. Use begin | register | push | commit | rollback [--allow-shell]`, 2);
 }
 
 main();

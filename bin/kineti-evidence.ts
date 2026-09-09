@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { appendJsonl, computeDelimitedHash, die, nowIso, ok, projectKdir, readJsonl, sha256 } from "./lib.ts";
+import { appendJsonl, computeDelimitedHash, die, loadVerifyCommand, nowIso, ok, projectKdir, readJsonl, runSafeCommand, sha256 } from "./lib.ts";
 
 interface Record {
   at: string; label: string; cmd: string; exit_code: number | null;
@@ -55,13 +55,21 @@ function main() {
 
   if (cmd0 === "run") {
     let label = "";
+    let allowShell = false;
     const dd = argv.indexOf("--");
-    if (dd === -1) die("run requires: run --label L -- <command...>");
-    for (let i = 1; i < dd; i++) if (argv[i] === "--label") label = argv[i + 1] ?? "";
-    const command = argv.slice(dd + 1).join(" ");
-    if (!label || command.length === 0) die("run requires --label and a command after --");
+    if (dd === -1) die("run requires: run --label L [--allow-shell] -- <command...>");
+    for (let i = 1; i < dd; i++) {
+      if (argv[i] === "--label") label = argv[i + 1] ?? "";
+      if (argv[i] === "--allow-shell") allowShell = true;
+    }
+    const cmdArgv = argv.slice(dd + 1);
+    const command = cmdArgv.join(" ");
+    if (!label || cmdArgv.length === 0) die("run requires --label and a command after --");
     const fpBefore = fingerprint();
-    const res = Bun.spawnSync(["bash", "-lc", command], { stdout: "pipe", stderr: "pipe" });
+    const verifyCmd = loadVerifyCommand();
+    const res = runSafeCommand(cmdArgv, { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: 60000, allowShell, verifyCmd });
+    if (res.stdout) process.stdout.write(res.stdout);
+    if (res.stderr) process.stderr.write(res.stderr + (res.stderr.endsWith("\n") ? "" : "\n"));
     const code = res.exitCode;
     const fpAfter = fingerprint();
     appendJsonl(file(), {
