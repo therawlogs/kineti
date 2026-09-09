@@ -120,6 +120,169 @@ export function microcentsToUsd(microcents: number): number {
 }
 
 /**
+ * Phase 0.1 — Safe execution without shell.
+ * Plain words: run commands directly, no shell, unless human allows it.
+ */
+
+export const SAFE_EXEC_ALLOWLIST_BINARIES = new Set([
+  "bun", "npm", "npx", "pytest", "python", "python3", "node",
+  "true", "false", "echo", "sleep", "git", "rm", "touch", "ls", "cat",
+]);
+
+const SHELL_META_CHARS = [";", "&", "|", ">", "<", "$", "`", "\\", "'", '"', "*", "?", "~", "#", "(", ")", "{", "}", "[", "]", "!", "\n", "\r"];
+
+export function hasShellMetachars(argv: string[]): boolean {
+  const joined = argv.join(" ");
+  for (const c of SHELL_META_CHARS) {
+    if (joined.includes(c)) return true;
+  }
+  return false;
+}
+
+export function isAllowlistedExec(argv: string[], verifyCmd: string | null = null): boolean {
+  if (argv.length === 0) return false;
+  const bin = argv[0].split("/").pop() || argv[0];
+  if (!SAFE_EXEC_ALLOWLIST_BINARIES.has(bin)) {
+    // Allow project verify command binary as well
+    if (verifyCmd) {
+      const vBin = verifyCmd.trim().split(/\s+/)[0]?.split("/").pop();
+      if (vBin && bin === vBin) return true;
+    }
+    return false;
+  }
+  // bun: allow test, run, x, --version etc. Block bun -e with shell chars unless explicitly allowed.
+  // For now allow bun, npm, pytest family; metachar check happens separately.
+  return true;
+}
+
+export interface SafeExecResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  blocked?: boolean;
+  reason?: string;
+}
+
+export function jailCwdToWorkspace(cwd: string, workspaceRoot: string): string {
+  const resolvedRoot = path.resolve(workspaceRoot);
+  const resolvedCwd = path.resolve(cwd);
+  // cwd must be inside workspace root. If not, force to root.
+  if (resolvedCwd !== resolvedRoot && !resolvedCwd.startsWith(resolvedRoot + path.sep)) {
+    return resolvedRoot;
+  }
+  return resolvedCwd;
+}
+
+function appendExecToEgressLedger(argv: string[], cwd: string): void {
+  try {
+    const mDir = machineDir();
+    const ledgerFile = path.join(mDir, "egress.jsonl");
+    const stateFile = path.join(mDir, "egress.state.json");
+    let chain: any[] = [];
+    try {
+      if (fs.existsSync(ledgerFile)) {
+        const text = fs.readFileSync(ledgerFile, "utf8");
+        chain = text.split("\n").filter((l) => l.trim().length > 0).map((l) => JSON.parse(l));
+      }
+    } catch { chain = []; }
+    const prev = chain.length > 0 ? chain[chain.length - 1].hash : "GENESIS";
+    const at = nowIso();
+    const host = `local-exec:${argv[0]?.split("/").pop() || "unknown"}`;
+    const description = `exec: ${argv.join(" ")} in ${cwd}`.slice(0, 500);
+    const seq = chain.length;
+    const hash = computeDelimitedHash([String(seq), at, host, description, prev]);
+    const receipt = { seq, at, host, description, prev_hash: prev, hash };
+    ensureDir(mDir);
+    fs.appendFileSync(ledgerFile, JSON.stringify(receipt) + "\n");
+    try {
+      fs.writeFileSync(stateFile, JSON.stringify({ count: chain.length + 1, last_hash: hash }));
+    } catch {}
+  } catch {
+    // Ledger write must never break exec.
+  }
+}
+
+/**
+ * Run a command array directly with no shell.
+ * - Blocks shell metachars unless allowShell + TTY.
+ * - Blocks non-allowlisted binaries unless allowShell + TTY.
+ * - 60s timeout, cwd jailed to workspaceRoot.
+ * - Every run is appended to the egress ledger.
+ */
+export function runSafeCommand(
+  argv: string[],
+  opts: { cwd?: string; workspaceRoot?: string; timeoutMs?: number; allowShell?: boolean; verifyCmd?: string | null } = {},
+): SafeExecResult {
+  const workspaceRoot = opts.workspaceRoot ? path.resolve(opts.workspaceRoot) : process.cwd();
+  const cwd = jailCwdToWorkspace(opts.cwd || workspaceRoot, workspaceRoot);
+  const timeoutMs = opts.timeoutMs ?? 60000;
+  const allowShell = opts.allowShell ?? false;
+
+  if (argv.length === 0) {
+    return { exitCode: 2, stdout: "", stderr: "kineti: blocked: empty command", blocked: true, reason: "empty" };
+  }
+
+  const meta = hasShellMetachars(argv);
+  const allowlisted = isAllowlistedExec(argv, opts.verifyCmd ?? null);
+
+  if ((meta || !allowlisted) && !allowShell) {
+    const reason = meta ? `shell metachars detected in: ${argv.join(" ")}` : `binary not in allowlist: ${argv[0]}`;
+    return { exitCode: 2, stdout: "", stderr: `kineti: blocked: ${reason}. Use --allow-shell in a human TTY to run it.`, blocked: true, reason };
+  }
+
+  if (allowShell) {
+    const isTTY = !!process.stdin.isTTY;
+    if (!isTTY) {
+      return { exitCode: 2, stdout: "", stderr: "kineti: blocked: --allow-shell needs a human TTY. Refused.", blocked: true, reason: "no-tty" };
+    }
+  }
+
+  // Log before run
+  appendExecToEgressLedger(argv, cwd);
+
+  try {
+    // Use node spawnSync with no shell, timeout 60s.
+    // Dynamic import to avoid top-level cycle.
+    const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
+    const res = spawnSync(argv[0], argv.slice(1), {
+      cwd,
+      encoding: "utf8",
+      timeout: timeoutMs,
+      killSignal: "SIGKILL",
+      shell: false,
+    } as any);
+    let exitCode = res.status ?? 1;
+    let stderr = res.stderr?.toString() ?? "";
+    const stdout = res.stdout?.toString() ?? "";
+    // Timeout detection: node sets error with ETIMEDOUT and status null
+    if ((res as any).error && String((res as any).error).includes("ETIMEDOUT")) {
+      stderr = (stderr ? stderr + "\n" : "") + `kineti: timeout after ${timeoutMs}ms`;
+      exitCode = 124;
+    }
+    if (res.signal) {
+      stderr = (stderr ? stderr + "\n" : "") + `kineti: killed by ${res.signal}`;
+      if (exitCode === 0) exitCode = 124;
+    }
+    return { exitCode, stdout, stderr };
+  } catch (err: any) {
+    return { exitCode: 1, stdout: "", stderr: `kineti: exec failed: ${err?.message || err}` };
+  }
+}
+
+/**
+ * Split a legacy single-string command into argv without shell.
+ * Simple whitespace split. Callers should prefer arrays.
+ * If the string contains shell metachars, it will be blocked downstream
+ * unless --allow-shell + TTY is given.
+ */
+export function splitLegacyCommand(cmd: string): string[] {
+  const trimmed = cmd.trim();
+  if (!trimmed) return [];
+  // Simple split on whitespace. No quote handling — quotes are metachars and will block.
+  return trimmed.split(/\s+/);
+}
+
+/**
  * Scaffolds zero-touch root governance files for Claude Code, Antigravity,
  * Cursor, and OpenAI Codex into a project repository root.
  */

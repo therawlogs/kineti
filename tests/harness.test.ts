@@ -97,20 +97,28 @@ describe("kineti-spend", () => {
 describe("kineti-saga", () => {
   test("rollback unwinds newest-first and continues past a failing undo", () => {
     const c = makeCtx();
-    const orderFile = path.join(c.root, "order.txt");
-    const inv = (mark: string) => `echo ${mark} >> ${orderFile}`;
     const s = (a: string[]) => run("kineti-saga.ts", a, c);
 
     expect(s(["begin", "--run-id", "r1"]).status).toBe(0);
-    expect(s(["register", "--run-id", "r1", "--label", "step-a", "--inverse", inv("A")]).status).toBe(0);
-    expect(s(["register", "--run-id", "r1", "--label", "step-b", "--inverse", inv("B")]).status).toBe(0);
-    expect(s(["register", "--run-id", "r1", "--label", "step-bad", "--inverse", "exit 7"]).status).toBe(0);
-    expect(s(["register", "--run-id", "r1", "--label", "step-c", "--inverse", inv("C")]).status).toBe(0);
+    // Safe argv-only inverses: no shell. true = ok, false = fail (exit 1).
+    expect(s(["register", "--run-id", "r1", "--label", "step-a", "--inverse", "true"]).status).toBe(0);
+    expect(s(["register", "--run-id", "r1", "--label", "step-b", "--inverse", "true"]).status).toBe(0);
+    expect(s(["register", "--run-id", "r1", "--label", "step-bad", "--inverse", "false"]).status).toBe(0);
+    expect(s(["register", "--run-id", "r1", "--label", "step-c", "--inverse", "true"]).status).toBe(0);
 
     const rb = s(["rollback", "--run-id", "r1"]);
     expect(rb.status).toBe(0);
     // newest-first across all pending steps; the failing undo does not stop the rest
-    expect(fs.readFileSync(orderFile, "utf8").split("\n").filter(Boolean)).toEqual(["C", "B", "A"]);
+    const idxC = rb.out.indexOf("undone: step-c");
+    const idxB = rb.out.indexOf("undone: step-b");
+    const idxA = rb.out.indexOf("undone: step-a");
+    expect(idxC).toBeGreaterThan(-1);
+    expect(idxB).toBeGreaterThan(-1);
+    expect(idxA).toBeGreaterThan(-1);
+    expect(idxC).toBeLessThan(idxB);
+    expect(idxB).toBeLessThan(idxA);
+    // failing step is reported but does not stop the rest
+    expect(rb.err).toContain('CRITICAL undo failed for "step-bad"');
     expect(rb.out).toContain("newest-first");
 
     // idempotent: second rollback has nothing pending

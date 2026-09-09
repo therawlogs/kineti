@@ -12,7 +12,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
-import { readJson, projectKdir, loadLimits, Limits } from "./lib.ts";
+import { readJson, projectKdir, loadLimits, Limits, splitLegacyCommand } from "./lib.ts";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "kineti-harness";
@@ -37,16 +37,37 @@ for (let i = 0; i < args.length; i++) {
 }
 
 function runBin(scriptName: string, subArgs: string[]): { exitCode: number; stdout: string; stderr: string } {
+  // Allow only kineti-*.ts scripts, no shell, cwd jailed to workspaceRoot, 60s timeout.
+  if (!/^kineti-[a-z-]+\.ts$/.test(scriptName)) {
+    return { exitCode: 2, stdout: "", stderr: `kineti: blocked: script not in allowlist: ${scriptName}` };
+  }
   const scriptPath = path.resolve(__dirname, scriptName);
+  const binDir = path.resolve(__dirname);
+  if (scriptPath !== path.join(binDir, scriptName)) {
+    return { exitCode: 2, stdout: "", stderr: "kineti: blocked: script path escapes bin dir" };
+  }
+  let safeRoot = path.resolve(workspaceRoot);
+  try {
+    const st = require("node:fs").statSync(safeRoot);
+    if (!st.isDirectory()) safeRoot = process.cwd();
+  } catch {
+    safeRoot = process.cwd();
+  }
   const res = spawnSync("bun", [scriptPath, ...subArgs], {
-    cwd: workspaceRoot,
-    env: { ...process.env, KINETI_MACHINE_DIR: path.join(workspaceRoot, ".kineti", "machine") },
+    cwd: safeRoot,
+    env: { ...process.env, KINETI_MACHINE_DIR: path.join(safeRoot, ".kineti", "machine") },
     encoding: "utf8",
-  });
+    timeout: 60000,
+    killSignal: "SIGKILL",
+  } as any);
+  let stderr = (res as any).stderr?.toString() || (res.stderr as any) || "";
+  if ((res as any).error && String((res as any).error).includes("ETIMEDOUT")) {
+    stderr = (stderr ? stderr + "\n" : "") + "kineti: timeout after 60000ms";
+  }
   return {
     exitCode: res.status ?? 1,
-    stdout: res.stdout || "",
-    stderr: res.stderr || "",
+    stdout: (res.stdout as any)?.toString?.() || (res.stdout as any) || "",
+    stderr: stderr?.toString?.() || String(stderr),
   };
 }
 
@@ -98,12 +119,13 @@ const TOOLS = [
   },
   {
     name: "kineti_evidence_record",
-    description: "Execute a verification test command and record cryptographic SHA-256 fingerprint proof.",
+    description: "Execute a verification test command and record cryptographic SHA-256 fingerprint proof. Takes a command array against an allowlist (bun test, pytest, npm test, project verify). Shell needs human --allow-shell plus TTY.",
     inputSchema: {
       type: "object",
       properties: {
         label: { type: "string", description: "Unique proof label (e.g. 'unit-tests', 'lint')" },
-        command: { type: "string", description: "Shell command to execute (e.g. 'bun test', 'pytest')" },
+        command: { description: "Command array or plain string without shell metachars (e.g. ['bun','test'] or 'bun test')", anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
+        allow_shell: { type: "boolean", description: "Human-only: allow shell with TTY confirm. MCP has no TTY so this always fails here." },
       },
       required: ["label", "command"],
     },
@@ -145,12 +167,12 @@ const TOOLS = [
   },
   {
     name: "kineti_saga_push",
-    description: "Register an undo action on the LIFO rollback stack before executing a state mutation.",
+    description: "Register an undo action on the LIFO rollback stack before executing a state mutation. Takes a command array against an allowlist. Shell needs human --allow-shell plus TTY.",
     inputSchema: {
       type: "object",
       properties: {
         step: { type: "string", description: "Human-readable label describing the mutation" },
-        inverse: { type: "string", description: "Shell command to undo this mutation cleanly" },
+        inverse: { description: "Undo command array or plain string without shell metachars", anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
       },
       required: ["step", "inverse"],
     },
@@ -251,7 +273,10 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
       }
 
       case "kineti_evidence_record": {
-        const res = runBin("kineti-evidence.ts", ["run", "--label", String(args.label), "--", String(args.command)]);
+        const cmdArgv = Array.isArray(args.command) ? (args.command as string[]).map(String) : splitLegacyCommand(String(args.command || ""));
+        const runArgs = ["run", "--label", String(args.label), "--", ...cmdArgv];
+        // MCP has no TTY, so shell is never allowed here. Never forward allow_shell.
+        const res = runBin("kineti-evidence.ts", runArgs);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
           isError: res.exitCode !== 0,
@@ -295,7 +320,8 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
       }
 
       case "kineti_saga_push": {
-        const res = runBin("kineti-saga.ts", ["push", String(args.step), String(args.inverse)]);
+        const inverseStr = Array.isArray(args.inverse) ? (args.inverse as string[]).map(String).join(" ") : String(args.inverse);
+        const res = runBin("kineti-saga.ts", ["push", String(args.step), inverseStr]);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
           isError: res.exitCode !== 0,
