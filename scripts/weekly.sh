@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Kineti weekly memory job.
-# Scans KINETI_PROJECTS (space-separated) for .kineti/journal.jsonl and runs
+# Scans KINETI_PROJECTS (colon-separated) for .kineti/journal.jsonl and runs
 # the four maintenance commands on each. Safe on empty projects: skipped.
 #
-# Cron example (Monday 09:00):
-#   0 9 * * 1 KINETI_PROJECTS="$HOME/Documents/Products" $HOME/Documents/Products/Kineti/scripts/weekly.sh >> $HOME/.kineti/weekly.log 2>&1
+# Cron example (Monday 09:00). Quote the repo path — it may contain spaces:
+#   0 9 * * 1 KINETI_PROJECTS="$HOME/projects/a:$HOME/projects/b" "/path/to/kineti/scripts/weekly.sh" >> "$HOME/.kineti/weekly.log" 2>&1
 set -euo pipefail
 
 REPO_FILE="$HOME/.kineti/repo"

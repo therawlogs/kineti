@@ -6,16 +6,16 @@ This document lists future planned improvements and completed capabilities.
 
 | Feature | Requirement | First Step |
 |---|---|---|
-| **Similarity Search** | Requires an embedding API key. Keyword search works today. | Configure an embedding provider in `gbrain`. |
-| **Second Opinion Skill** | Requires a second command-line tool installed (such as `codex` or `gemini`). | Install a second CLI and test `kineti-second-opinion`. |
+| **Similarity Search** | Requires an embedding API key. Keyword search works today (`gbrain search`, external binary, not shipped here). | Configure an embedding provider in `gbrain`. |
+| **Second Opinion Skill** | Requires a second command-line tool installed (such as `codex` or `gemini`). No `bin/kineti-second-opinion.*` — use `skills/second-opinion/SKILL.md` via `codex exec` / `gemini -p`. | Install a second CLI and test the skill. |
 | **Gemini Integration Test** | Confirm tool detection in Gemini. | Run an interactive session in Gemini and verify memory commands. |
 
 ## Future Considerations
 
 | Improvement | Purpose | Next Step |
 |---|---|---|
-| **Automated Output Quality Evaluation** | Evaluate generated responses against verified human examples. | Collect 50 example pairs in `.kineti/golden.jsonl` and create `bin/kineti-eval.ts`. |
-| **Native Graph Storage** | Store cause-and-effect records directly in a graph database. | Add link scoring to `kineti-memory-job` before changing databases. |
+| **Automated Output Quality Evaluation** | Evaluate generated responses against verified human examples. | Collect 50 example pairs in `.kineti/golden.jsonl` (gitignored) and create `bin/kineti-eval.ts` (does not exist yet). |
+| **Native Graph Storage** | Store cause-and-effect records directly in a graph database. | Add link scoring to `bin/kineti-memory-job.ts` before changing databases. |
 | **Team Mode** | Allow multiple team members to share memory securely. | Add workspace permissions to memory storage. |
 
 ## Completed in Version 3.1

@@ -133,4 +133,67 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     expect(report.stageNumber).toBe(0);
     expect(report.markdownSummary).toContain("bugfix");
   });
+
+  it("blocks when security gate failed", () => {
+    writeJson(path.join(kinetiDir, "state.json"), {
+      version: 1,
+      current_stage: 7,
+      root_goal: {
+        description: "Build feature",
+        locked_at: new Date().toISOString(),
+        hash: "d".repeat(64),
+      },
+      gates: { security: "fail" },
+    });
+    writeJson(path.join(kinetiDir, "spend.json"), {
+      total_microcents: 1000000,
+      tripped: false,
+      limit_microcents: 50000000,
+    });
+    const report = generateCIReport(tmpDir);
+    expect(report.verified).toBe(false);
+    expect(report.failures.some((f) => f.includes("Security gate failed"))).toBe(true);
+  });
+
+  it("blocks ship without security pass", () => {
+    writeJson(path.join(kinetiDir, "state.json"), {
+      version: 1,
+      current_stage: 11,
+      root_goal: {
+        description: "Ship release",
+        locked_at: new Date().toISOString(),
+        hash: "e".repeat(64),
+      },
+      gates: { spec: "pass" },
+    });
+    writeJson(path.join(kinetiDir, "spend.json"), {
+      total_microcents: 1000000,
+      tripped: false,
+      limit_microcents: 50000000,
+    });
+    const report = generateCIReport(tmpDir);
+    expect(report.verified).toBe(false);
+    expect(report.failures.some((f) => f.includes("Security gate must pass before ship"))).toBe(true);
+  });
+
+  it("blocks ship without evidence records", () => {
+    writeJson(path.join(kinetiDir, "state.json"), {
+      version: 1,
+      current_stage: 11,
+      root_goal: {
+        description: "Ship release",
+        locked_at: new Date().toISOString(),
+        hash: "f".repeat(64),
+      },
+      gates: { security: "pass", spec: "pass" },
+    });
+    writeJson(path.join(kinetiDir, "spend.json"), {
+      total_microcents: 1000000,
+      tripped: false,
+      limit_microcents: 50000000,
+    });
+    const report = generateCIReport(tmpDir);
+    expect(report.verified).toBe(false);
+    expect(report.failures.some((f) => f.includes("No evidence records"))).toBe(true);
+  });
 });

@@ -13,7 +13,7 @@ This guide shows how to run and maintain Kineti.
    - For a full project: `Load kineti-officehours. My idea: ...`
 
 You can start at any step or follow the full sequence:
-`officehours` → `diagnose` → `design` → `architecture` → `feasibility` → `spec` → `build` → `review` → `qa` → `security` → `ship`.
+`officehours` → `diagnose` → `design` → `architecture` → `feasibility` → `spec` → `build` → `review` → `qa` → `security` → `ship` → `watch` → `retro`.
 
 ## Resume Saved Work
 
@@ -24,14 +24,14 @@ Ask the agent:
 
 ## Check Money Spent
 
-Check the current cost:
+Check the current cost (use `check` to enforce the cap; `status` is view-only):
 ```sh
-bun "$(cat ~/.kineti/repo)/bin/kineti-spend.ts" status
+bun "$(cat "$HOME/.kineti/repo")/bin/kineti-spend.ts" check
 ```
 
-If spending reached the $50 limit, the run stops. Only a human can reset it:
+Limits: $50 global, $10 per stage, breaker trips at 95% (~$47.50). If tripped, the run stops. Only a human can reset it:
 ```sh
-bun "$(cat ~/.kineti/repo)/bin/kineti-spend.ts" reset --i-am-human
+bun "$(cat "$HOME/.kineti/repo")/bin/kineti-spend.ts" reset --i-am-human
 ```
 
 ## Undo Changes
@@ -47,19 +47,19 @@ Undo steps run newest first. If one undo step fails, the remaining steps still r
 
 Run tests and save proof:
 ```sh
-K=$(cat ~/.kineti/repo)/bin
-bun $K/kineti-evidence.ts run --label qa -- -- bun test
-bun $K/kineti-evidence.ts check --label qa
+KIN="$(cat "$HOME/.kineti/repo")/bin"
+bun "$KIN/kineti-evidence.ts" run --label qa -- bun test
+bun "$KIN/kineti-evidence.ts" check --label qa
 ```
 
-Shipping requires recent passing test proof.
+Shipping requires recent passing test proof. Ship is blocked until `security` gate is `pass` and evidence is fresh.
 
 ## Weekly Maintenance
 
-Run the weekly check:
+Run the weekly check (colon-separated list, quoted for spaces in paths):
 ```sh
-KINETI_PROJECTS="$HOME/projects/a $HOME/projects/b" \
-  $(cat ~/.kineti/repo)/scripts/weekly.sh
+KINETI_PROJECTS="$HOME/projects/a:$HOME/projects/b" \
+  "$(cat "$HOME/.kineti/repo")/scripts/weekly.sh"
 ```
 
 This script:

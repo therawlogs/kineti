@@ -5,5 +5,11 @@ dist/
 .agents/
 *.log
 .env
-*.bun-build
-.*.bun-build
+.env.*
+*.pem
+*.key
+*.p12
+coverage/
+*.tgz
+.cursor/mcp.json
+.kineti/fleet.local.json

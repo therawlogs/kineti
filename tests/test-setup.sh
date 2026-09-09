@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test for setup.sh using a fake HOME. Touches nothing real.
+# Run by hand: ./tests/test-setup.sh (not part of `bun test`).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TMP="$(mktemp -d)"
@@ -28,9 +29,11 @@ run --uninstall >/dev/null
 [[ ! -d "$TMP/home/.opencode/skills/kineti-qa" ]] || { echo "FAIL: uninstall left files"; exit 1; }
 [[ -d "$TMP/home/.gemini/config/skills" ]] || { echo "FAIL: uninstalled too much"; exit 1; }
 
-# 5. Force flag creates a missing host
+# 5. Force flag creates a missing host (including cursor)
 run --host claude >/dev/null
 [[ -f "$TMP/home/.claude/skills/kineti-spec/SKILL.md" ]] || { echo "FAIL: force install"; exit 1; }
+run --host cursor >/dev/null
+[[ -f "$TMP/home/.cursor/skills/kineti-spec/SKILL.md" ]] || { echo "FAIL: cursor force install"; exit 1; }
 run --uninstall >/dev/null
 
-echo "PASS: installer smoke test (5 checks)"
+echo "PASS: installer smoke test (6 checks)"

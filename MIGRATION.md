@@ -1,6 +1,6 @@
-# Migration Guide
+# Migration Guide (v2 → v3.1.0)
 
-This document lists changes between version 2 and version 3.
+This document lists changes between version 2 and version 3. Current version: `3.1.0` (`package.json`, `kineti.config.json`). Skill packs are versioned separately (`0.2.x`).
 
 ## Skill Changes
 
@@ -14,12 +14,13 @@ This document lists changes between version 2 and version 3.
 | `skills/qa.md` | `skills/qa` + `skills/review` + `skills/security` | Multi-screen testing, code review, and security checks |
 | `skills/ship.md` | `skills/ship` + `skills/watch` + `skills/retro` + `skills/learn` | Verified commits, monitoring, and weekly reviews |
 
-Old version 2 files are preserved in `legacy/v2-skills/`.
+Old version 2 files were preserved in `legacy/v2-skills/` at migration time (not shipped in this repo).
 
-## Local Configuration Updates
+## Local Configuration Updates (what setup.sh actually does)
 
-- **OpenCode Skills**: Old skills in `~/.opencode/skills/` were removed so only current `kineti-*` skills appear. Backups are saved in `~/.kineti/backups/`.
-- **OpenCode Config**: Removed duplicate slash commands from `~/.config/opencode/opencode.jsonc`. Agents use skills directly.
-- **Gemini / Antigravity Skills**: Kept in sync in `~/.gemini/config/skills/`.
-- **Core Directives**: `ETHOS.md`, `WORKFLOWS.md`, and `MEMORY.md` are copied to `~/.gemini/config/` for Antigravity.
+- **Skills install**: Copies `skills/*/SKILL.md` to each detected host as `kineti-*`. No backups are made — back up `~/.claude/skills/kineti-*` etc by hand if you customized them.
+- **OpenCode Config**: `setup.sh` does not edit `~/.config/opencode/opencode.jsonc`. Remove duplicates by hand if needed.
+- **Gemini / Antigravity Skills**: Kept in sync in `~/.gemini/config/skills/` when that folder exists.
+- **Core Directives**: `ETHOS.md`, `WORKFLOWS.md`, `MEMORY.md` stay in the repo. Copy them to `~/.gemini/config/` by hand if you want them global.
 - **Antigravity Cache**: Antigravity runtime files in `~/.gemini/antigravity/` remain unchanged.
+- **Cursor**: New in 3.1. Skills go to `~/.cursor/skills/kineti-*`, project hook to `.cursor/rules/kineti.mdc`. MCP example in `.cursor/mcp.example.json`.

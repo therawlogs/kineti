@@ -35,7 +35,10 @@ jobs:
         run: bun run typecheck
 
       - name: Run Unit & Gate Test Suite
-        run: bun test
+        run: bun test tests/
+
+      - name: Run Installer Smoke Test
+        run: ./tests/test-setup.sh
 
       - name: Verify Kineti State & Evidence Gate
         id: kineti_gate

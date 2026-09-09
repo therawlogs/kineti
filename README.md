@@ -3,9 +3,9 @@
 A safe coding assistant runtime that works inside your existing AI tools (Claude Code, Cursor, Antigravity, OpenCode, and Codex).
 
 Kineti keeps your AI coding safe and governed by doing five simple things:
-1. **Tracks spending**: Pauses work if token costs reach your spending limit ($50.00 default).
+1. **Tracks spending**: Pauses work if token costs reach your spending limit ($50 global, $10 per stage, trips at 95%).
 2. **Saves undo steps**: Lets you undo any file changes cleanly.
-3. **Runs tests**: Checks that tests actually pass before saving work.
+3. **Runs tests**: Checks that tests actually pass before saving work. Ship needs `security:pass` + fresh evidence.
 4. **Governs multi-repo fleets**: Switch between repositories and monitor team projects from one unified screen.
 5. **Coordinates agent swarms**: Assigns cryptographic keys to agents to stop goal drift and verify outcomes.
 
@@ -27,6 +27,8 @@ git clone https://github.com/therawlogs/kineti.git ~/kineti && cd ~/kineti && ./
 Then initialize your project:
 ```sh
 kineti init
+# init installs skills. To start task state in a project, separately run:
+# bun bin/kineti-state.ts init --project <name> --goal "<goal>"
 ```
 
 The setup script detects your tools and adds Kineti skills automatically:
@@ -34,8 +36,10 @@ The setup script detects your tools and adds Kineti skills automatically:
 - OpenCode (`~/.opencode/skills/kineti-*`)
 - Gemini / Antigravity (`~/.gemini/config/skills/kineti-*`)
 - Codex (`~/.codex/skills/kineti-*`)
+- Cursor (`~/.cursor/skills/kineti-*`, plus `.cursor/rules/kineti.mdc` in your project)
 
-To uninstall at any time: `kineti init --uninstall` (or `./setup.sh --uninstall`)
+To add root hooks to a project: `./setup.sh --install-root <project-dir>`.
+To uninstall at any time: `./setup.sh --uninstall` (removes `kineti-*` skills; hook text and `~/.kineti/repo` are kept — delete by hand if needed).
 
 ## How to Use
 
@@ -58,11 +62,11 @@ Open the Apple HIG companion dashboard in your browser to view active tasks, cos
 ```sh
 kineti companion
 ```
-Open `http://127.0.0.1:8788` in your browser.
+Open `http://127.0.0.1:8788` in your browser (`KINETI_COMPANION_PORT` overrides the port).
 
-- **Repository Switcher**: Quickly switch between local and remote projects from the top navigation bar.
-- **Fleet View**: Monitor all connected repositories, developer owners, active tasks, and spend meters on one screen.
-- **Settings Drawer**: Manage GitHub integration, toggle agent tool auto-latching (Cursor, Claude Code, Antigravity, Codex), and assign budget ceilings.
+- **Repository Switcher**: Quickly switch between local and your own fleet projects (add them in `.kineti/fleet.local.json`, gitignored) from the top bar.
+- **Fleet View**: Monitor connected repositories, owners, active tasks, and spend meters on one screen.
+- **Settings Drawer**: Manage GitHub integration, toggle agent tool auto-latching (Cursor, Claude Code, Antigravity, Codex), and assign budget ceilings. Mutating APIs require `Authorization: Bearer <token from .kineti/auth_token>`.
 
 ## Tool Integration (MCP)
 
@@ -75,10 +79,11 @@ kineti mcp
 
 ## Agent Swarm Coordination
 
-Run multi-agent swarms with cryptographic identity and outcome verification tickets:
+Run the local swarm simulation with cryptographic identity and outcome verification tickets:
 
 ```sh
 kineti swarm "Build auth service"
+# Runs bin/kineti-swarm.ts demo with your goal as root goal. Without args it runs the fixed demo.
 ```
 
 ## Pull Request Check (CI)
