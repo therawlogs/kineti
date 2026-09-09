@@ -2011,7 +2011,7 @@ function renderHtmlDashboard(): string {
             '<div class="fleet-card-metrics">' +
               '<span style="color: var(--system-green);">✓ ' + r.tests_passing + ' tests</span>' +
             '</div>' +
-            '<button class="apple-btn apple-btn-secondary" onclick="selectRepo(\\'' + r.id + '\\')">Open Dashboard →</button>' +
+            '<button class="apple-btn apple-btn-secondary" onclick="selectRepo(\\'' + String(r.id).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + '\\')">Open Dashboard →</button>' +
           '</div>';
 
         grid.appendChild(card);
@@ -2091,7 +2091,7 @@ function renderHtmlDashboard(): string {
 
     function escapeHtml(str) {
       if (!str) return "";
-      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
 
     function render(data) {
@@ -2281,13 +2281,23 @@ function renderHtmlDashboard(): string {
 function startServer(port: number = PORT) {
   const server = Bun.serve({
     port,
+    hostname: "127.0.0.1",
     fetch(req) {
       const url = new URL(req.url);
 
-      // CORS & Host check (CSWSH defense)
+      // CORS & Host check (CSWSH defense). Match the exact hostname so
+      // lookalikes like http://localhost.evil.com do not pass.
       const origin = req.headers.get("origin");
-      if (origin && !origin.startsWith("http://localhost") && !origin.startsWith("http://127.0.0.1")) {
-        return new Response("Forbidden", { status: 403 });
+      if (origin) {
+        let originHost = "";
+        try {
+          originHost = new URL(origin).hostname;
+        } catch {
+          originHost = "";
+        }
+        if (originHost !== "localhost" && originHost !== "127.0.0.1") {
+          return new Response("Forbidden", { status: 403 });
+        }
       }
 
       if (url.pathname === "/" || url.pathname === "/dashboard") {
@@ -2356,7 +2366,7 @@ function startServer(port: number = PORT) {
               companionSettings.repo_budgets = { ...companionSettings.repo_budgets, ...body.repo_budgets };
               for (const [id, budget] of Object.entries(body.repo_budgets)) {
                 const r = fleetRepos.find((repo) => repo.id === id);
-                if (r && typeof budget === "number") r.ceiling_usd = budget;
+                if (r && typeof budget === "number" && Number.isFinite(budget) && budget > 0) r.ceiling_usd = budget;
               }
             }
             if (body.repo_owners) {
