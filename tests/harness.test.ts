@@ -106,8 +106,10 @@ describe("kineti-saga", () => {
     expect(s(["register", "--run-id", "r1", "--label", "step-bad", "--inverse", "false"]).status).toBe(0);
     expect(s(["register", "--run-id", "r1", "--label", "step-c", "--inverse", "true"]).status).toBe(0);
 
-    const rb = s(["rollback", "--run-id", "r1"]);
+    const rb = s(["rollback", "--run-id", "r1", "--yes"]);
     expect(rb.status).toBe(0);
+    // Prints each inverse with its hash before running
+    expect(rb.out).toContain("hash:");
     // newest-first across all pending steps; the failing undo does not stop the rest
     const idxC = rb.out.indexOf("undone: step-c");
     const idxB = rb.out.indexOf("undone: step-b");
@@ -122,7 +124,53 @@ describe("kineti-saga", () => {
     expect(rb.out).toContain("newest-first");
 
     // idempotent: second rollback has nothing pending
-    expect(s(["rollback", "--run-id", "r1"]).out).toContain("nothing to roll back");
+    expect(s(["rollback", "--run-id", "r1", "--yes"]).out).toContain("nothing to roll back");
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("rollback without --yes in non-TTY refuses and runs nothing", () => {
+    const c = makeCtx();
+    const s = (a: string[]) => run("kineti-saga.ts", a, c);
+    const canary = path.join(c.cwd, "canary.txt");
+
+    expect(s(["begin", "--run-id", "r2"]).status).toBe(0);
+    expect(s(["register", "--run-id", "r2", "--label", "mk", "--inverse", `touch ${canary}`]).status).toBe(0);
+
+    const rb = s(["rollback", "--run-id", "r2"]);
+    expect(rb.status).toBe(2);
+    expect(rb.err).toContain("needs a human");
+    expect(fs.existsSync(canary)).toBe(false);
+
+    // Nothing was undone: --yes still sees the pending step
+    const rb2 = s(["rollback", "--run-id", "r2", "--yes"]);
+    expect(rb2.status).toBe(0);
+    expect(fs.existsSync(canary)).toBe(true);
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("planted rm inverse never runs: guard catches direct file edits", () => {
+    const c = makeCtx();
+    const s = (a: string[]) => run("kineti-saga.ts", a, c);
+    const canary = path.join(c.cwd, "keep.txt");
+    fs.writeFileSync(canary, "keep\n");
+
+    expect(s(["begin", "--run-id", "evil"]).status).toBe(0);
+    expect(s(["register", "--run-id", "evil", "--label", "good", "--inverse", "true"]).status).toBe(0);
+
+    // Attacker plants an entry by editing saga.jsonl directly (bypasses push, guard goes stale).
+    const sagaFile = path.join(c.cwd, ".kineti", "saga.jsonl");
+    fs.appendFileSync(sagaFile, JSON.stringify({ at: new Date().toISOString(), kind: "register", run_id: "evil", label: "pwn", inverse: `rm -f ${canary}` }) + "\n");
+
+    // Even WITH --yes, guard mismatch refuses before running anything.
+    const rb = s(["rollback", "--run-id", "evil", "--yes"]);
+    expect(rb.status).toBe(3);
+    expect(rb.err).toContain("changed outside push");
+    expect(fs.existsSync(canary)).toBe(true);
+
+    // Without --yes also refuses (guard first), never silent.
+    const rb2 = s(["rollback", "--run-id", "evil"]);
+    expect(rb2.status).toBe(3);
+    expect(fs.existsSync(canary)).toBe(true);
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 });
@@ -149,38 +197,64 @@ describe("kineti-evidence", () => {
 });
 
 describe("kineti-verify-gate", () => {
-  test("untrusted blocks (9); trusted failing blocks (1); trusted passing opens (0)", () => {
+  test("untrusted blocks (9); trusted failing blocks (1); trusted passing opens (0)", async () => {
     const c = makeCtx();
+    const { sha256 } = await import("../bin/lib.ts");
     const cfg = path.join(c.cwd, "kineti.config.json");
     const writeCfg = (cmd: string) =>
       fs.writeFileSync(cfg, JSON.stringify({ settings: { verify_command: cmd } }));
+    const writeTrust = (cmd: string) => {
+      const trustFile = path.join(c.machine, "trust.json");
+      const h = sha256(cmd);
+      const at = new Date().toISOString();
+      // macOS /var vs /private/var: child process.cwd() may resolve symlinks
+      // differently than the test's tmp path, so store both forms.
+      const keys = new Set([c.cwd]);
+      try { keys.add(fs.realpathSync(c.cwd)); } catch {}
+      const trust: Record<string, { cmd_hash: string; at: string }> = {};
+      for (const k of keys) trust[k] = { cmd_hash: h, at };
+      fs.writeFileSync(trustFile, JSON.stringify(trust));
+    };
 
     writeCfg("exit 1");
     expect(run("kineti-verify-gate.ts", [], c).status).toBe(9);
-    expect(run("kineti-verify-gate.ts", ["--trust"], c).status).toBe(0);
+    // Simulate prior human trust (TTY + typed hash) by writing trust file directly.
+    writeTrust("exit 1");
     expect(run("kineti-verify-gate.ts", [], c).status).toBe(1);
 
     writeCfg("true");
     expect(run("kineti-verify-gate.ts", [], c).status).toBe(9);
-    run("kineti-verify-gate.ts", ["--trust"], c);
+    writeTrust("true");
     expect(run("kineti-verify-gate.ts", [], c).status).toBe(0);
     expect(run("kineti-verify-gate.ts", ["--status"], c).out).toContain("trusted and current");
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 
-  test("verify-gate --trust rejects non-interactive execution without confirmation token", () => {
+  test("verify-gate --trust rejects non-TTY and ignores env bypass", () => {
     const c = makeCtx();
     const cfg = path.join(c.cwd, "kineti.config.json");
     fs.writeFileSync(cfg, JSON.stringify({ settings: { verify_command: "true" } }));
-    const p = Bun.spawnSync({
-      cmd: ["bun", path.join(REPO, "bin", "kineti-verify-gate.ts"), "--trust"],
-      cwd: c.cwd,
-      env: { ...process.env, KINETI_MACHINE_DIR: c.machine, KINETI_TRUST_CONFIRMED: "" },
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    expect(p.exitCode).toBe(2);
-    expect(p.stderr.toString()).toContain("interactively in a human TTY session");
+    for (const token of ["", "1"]) {
+      const p = Bun.spawnSync({
+        cmd: ["bun", path.join(REPO, "bin", "kineti-verify-gate.ts"), "--trust"],
+        cwd: c.cwd,
+        env: { ...process.env, KINETI_MACHINE_DIR: c.machine, KINETI_TRUST_CONFIRMED: token },
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      expect(p.exitCode).toBe(2);
+      expect(p.stderr.toString()).toContain("human TTY");
+    }
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("verify-gate fails closed on empty verify_command", () => {
+    const c = makeCtx();
+    const cfg = path.join(c.cwd, "kineti.config.json");
+    fs.writeFileSync(cfg, JSON.stringify({ settings: { verify_command: "" } }));
+    expect(run("kineti-verify-gate.ts", [], c).status).toBe(9);
+    expect(run("kineti-verify-gate.ts", ["--status"], c).status).toBe(9);
+    expect(run("kineti-verify-gate.ts", ["--trust"], c).status).toBe(2);
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 });

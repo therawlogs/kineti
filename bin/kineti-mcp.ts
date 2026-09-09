@@ -179,7 +179,7 @@ const TOOLS = [
   },
   {
     name: "kineti_saga_rollback",
-    description: "Rollback uncommitted actions on the LIFO saga stack in reverse order of creation.",
+    description: "Rollback uncommitted actions on the LIFO saga stack. Human-only: needs a TTY y/N or explicit --yes; MCP calls fail closed with instructions.",
     inputSchema: {
       type: "object",
       properties: {},
