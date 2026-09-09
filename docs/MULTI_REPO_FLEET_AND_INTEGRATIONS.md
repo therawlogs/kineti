@@ -14,10 +14,10 @@ Kineti supports two main ways of working:
 
 ## 2. Founder & Engineering Lead Flow
 
-### Step 1: Connect GitHub
-1. Install Kineti from the GitHub Marketplace.
-2. Log into Kineti using your GitHub account or team credentials.
-3. Kineti automatically detects and latches onto every repository you authorize.
+### Step 1: Connect GitHub (optional, local-first)
+1. Open the companion dashboard at `http://127.0.0.1:8788` (`KINETI_COMPANION_PORT` overrides the port).
+2. Click **Settings** → **GitHub** tab. Paste your account name to track it locally.
+3. No Marketplace login is required for the local harness. Team data stays in `.kineti/fleet.local.json` (gitignored) — never committed.
 
 ### Step 2: Set Up Team and Spending Limits
 1. Open the companion dashboard at `http://127.0.0.1:8788`.
@@ -81,7 +81,13 @@ When auto-latching is enabled, any developer on your team who starts a session i
 
 ### Fleet View Grid
 - **Summary Cards**: Displays total repositories, total fleet spend, active tasks, and total verified tests across all projects.
-- **Repository Cards**: Clean frosted glass cards showing status tags (Active, Needs Review, Limit Reached, or Idle), spend bars, test counts, and quick inspection buttons.
+- **Repository Cards**: Clean frosted glass cards showing status tags (`active`, `idle`, `action_needed`, or `limit_reached`), spend bars, test counts, and quick inspection buttons.
+- **Local-first defaults**: Fresh installs show only the local repo with owner `Local Owner`. Add your own repos in `.kineti/fleet.local.json` (see `bin/kineti-companion.ts:loadLocalFleetOverrides`). Example:
+```json
+{
+  "repos": [{ "id": "my-api", "name": "my-api", "path": "/path/to/my-api", "owner": "Team Member", "branch": "main", "status": "active", "active_task": "Task", "spend_usd": 0, "ceiling_usd": 50, "tests_passing": 0, "ide": "Cursor", "is_local": false }]
+}
+```
 
 ### Settings Slide-Out Sheet
 - **GitHub Tab**: View connected GitHub account, toggle automatic repository latching, and check webhook delivery health.
@@ -97,7 +103,7 @@ The local companion daemon provides HTTP JSON endpoints on port `8788`:
 ### `GET /api/fleet`
 Returns the list of all repositories in the fleet, total fleet spending, and settings.
 
-**Response Example:**
+**Response Example (local-only defaults):**
 ```json
 {
   "active_repo_id": "kineti-local-harness",
@@ -105,31 +111,31 @@ Returns the list of all repositories in the fleet, total fleet spending, and set
     {
       "id": "kineti-local-harness",
       "name": "kineti-local-harness",
-      "path": "/workspace/kineti-local-harness",
-      "owner": "Solo Engineer",
+      "path": "/path/to/kineti",
+      "owner": "Local Owner",
       "branch": "main",
       "status": "active",
-      "active_task": "Build universal agent harness with cryptographic verification",
+      "active_task": "Local tasks governed by Kineti OS",
       "spend_usd": 0.0,
       "ceiling_usd": 50.0,
-      "tests_passing": 73,
-      "ide": "Antigravity",
+      "tests_passing": 0,
+      "ide": "Local IDE",
       "is_local": true
     }
   ],
-  "total_fleet_spend": 16.55,
-  "total_fleet_budget": 155.0,
+  "total_fleet_spend": 0.0,
+  "total_fleet_budget": 50.0,
   "settings": { ... }
 }
 ```
 
 ### `POST /api/fleet/select`
-Switches the active repository displayed on the main dashboard.
+Switches the active repository displayed on the main dashboard. Requires `Authorization: Bearer <token from .kineti/auth_token>`.
 
 **Request Body:**
 ```json
 {
-  "repo_id": "payment-service"
+  "repo_id": "kineti-local-harness"
 }
 ```
 
@@ -137,7 +143,7 @@ Switches the active repository displayed on the main dashboard.
 ```json
 {
   "success": true,
-  "active_repo_id": "payment-service"
+  "active_repo_id": "kineti-local-harness"
 }
 ```
 
@@ -145,13 +151,12 @@ Switches the active repository displayed on the main dashboard.
 Returns current GitHub, IDE, team, and budget configurations.
 
 ### `POST /api/settings`
-Updates settings, repository owners, or budget ceilings.
+Updates settings, repository owners, or budget ceilings. Requires `Authorization: Bearer <token>`.
 
 **Request Body:**
 ```json
 {
   "ides": { "cursor": true, "claude_code": true },
-  "repo_budgets": { "payment-service": 60.0 },
-  "repo_owners": { "payment-service": "Sarah Lin" }
+  "repo_budgets": { "kineti-local-harness": 60.0 }
 }
 ```

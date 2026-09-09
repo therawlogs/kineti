@@ -56,11 +56,13 @@ Kineti uses Apple's standard system palette:
 
 ## 6. How to Use in Code
 
-Import design tokens directly:
+Inside this repo, import design tokens directly:
 
 ```ts
 import { AppleColors, AppleMaterials, AppleRadii } from "./src/design/apple-design-tokens";
 ```
+
+If you copy components into your own project, adjust the relative path (e.g. `../kineti/src/...` or copy `src/design/` + `src/components/ui/` into your repo first).
 
 Or use the pre-built UI components:
 

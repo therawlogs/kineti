@@ -8,16 +8,19 @@ PREFIX="kineti-"
 ONLY_HOST=""
 INSTALL_ROOT=""
 UNINSTALL=0
+HOST_NAMES=()
+HOST_DIRS=()
+HOST_CONFS=()
 
 usage() {
-  echo "Usage: ./setup.sh [--host opencode|claude|gemini|codex] [--install-root [DIR]] [--uninstall]"
+  echo "Usage: ./setup.sh [--host opencode|claude|gemini|codex|cursor] [--install-root [DIR]] [--uninstall]"
   exit 1
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --host) ONLY_HOST="${2:-}"; shift 2 ;;
-    --install-root) INSTALL_ROOT="${2:-$(pwd)}"; shift 2 ;;
+    --host) [[ $# -lt 2 ]] && { echo "Missing value for --host"; usage; }; ONLY_HOST="${2:-}"; shift 2 ;;
+    --install-root) if [[ $# -ge 2 && "$2" != --* ]]; then INSTALL_ROOT="$2"; shift 2; else INSTALL_ROOT="$(pwd)"; shift 1; fi ;;
     --uninstall) UNINSTALL=1; shift ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1"; usage ;;
@@ -59,6 +62,9 @@ uninstall() {
   local i dir removed=0
   for i in "${!HOST_NAMES[@]}"; do
     dir="${HOST_DIRS[$i]}"
+    # Safety: never delete outside $HOME, never delete empty/root paths.
+    [[ -z "$dir" || "$dir" == "/" || "$dir" == "$HOME" ]] && continue
+    case "$dir" in "$HOME"/*) ;; *) continue ;; esac
     [[ -d "$dir" ]] || continue
     for d in "$dir/${PREFIX}"*; do
       [[ -e "$d" ]] || continue
@@ -68,6 +74,7 @@ uninstall() {
   done
   echo "Kineti uninstalled. Removed $removed skill folders."
   echo "Note: hook text blocks in host settings are comments; remove them by hand if desired."
+  echo "Note: ~/.kineti/repo pointer and ~/.kineti/alerts.log are kept. Delete by hand if needed."
 }
 
 install_root_files() {
@@ -85,8 +92,8 @@ This repository is governed by Kineti OS v3. You operate under standing governan
 1. Plain English and numbered options (1, 2, 3).
 2. Inspect .kineti/state.json to track the active stage (1 to 13). Do NOT skip stages.
 3. Hard gate: Do NOT write application code in src/ before Stage 6 (Spec) approval.
-4. Check spend status before heavy tasks ($50.00 limit).
-5. Record test proofs via bun bin/kineti-evidence.ts run.
+4. Check spend with bun bin/kineti-spend.ts check before heavy tasks ($50.00 global, $10 per stage).
+5. Record test proofs via bun bin/kineti-evidence.ts run --label <name> -- <command>.
 EOF
     echo "  + CLAUDE.md"
   fi
@@ -148,7 +155,7 @@ install() {
   load_hosts
   if [[ ${#HOST_NAMES[@]} -eq 0 ]]; then
     echo "No matching host found. Installed hosts are auto-detected;"
-    echo "force one with: ./setup.sh --host <opencode|claude|gemini|codex>"
+    echo "force one with: ./setup.sh --host <opencode|claude|gemini|codex|cursor>"
     exit 1
   fi
   local i name dir skill dest count total=0 skipped=0
@@ -183,12 +190,15 @@ install() {
   for i in "${!HOST_DIRS[@]}"; do [[ -d "${HOST_DIRS[$i]}" ]] && installed_hosts=$((installed_hosts+1)); done
   echo ""
   echo "Done. $total skill copies across $installed_hosts host(s). Re-run any time."
+  if [[ -f "$HOME/.kineti/repo" ]]; then
+    cp "$HOME/.kineti/repo" "$HOME/.kineti/repo.bak" 2>/dev/null || true
+  fi
   printf '%s\n' "$HERE" > "$HOME/.kineti/repo"
   echo "Repository pointer written: $HOME/.kineti/repo -> $HERE"
   if [[ $total -eq 0 ]]; then
     echo "No agent host folders were found on this machine."
     echo "Create one (for example install opencode) or force a target:"
-    echo "  ./setup.sh --host <opencode|claude|gemini|codex>"
+    echo "  ./setup.sh --host <opencode|claude|gemini|codex|cursor>"
   fi
   if [[ -n "$INSTALL_ROOT" ]]; then
     echo ""

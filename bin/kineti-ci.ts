@@ -140,6 +140,24 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
     failures.push(`Spend circuit breaker is tripped: $${spendUsd.toFixed(4)} exceeds limit`);
   }
 
+  // 2b. Check gates — security blocks ship (kineti.config.json: security blocks ship,
+  // ship requires evidence_fresh + security_pass). Stage-agnostic tasks (stageNum 0)
+  // skip the "must be pass" requirement but an explicit fail always blocks.
+  const gates = state?.gates ?? {};
+  const securityGate = (gates as Record<string, string>)["security"];
+  const specGate = (gates as Record<string, string>)["spec"];
+  if (securityGate === "fail") {
+    failures.push("Security gate failed: fix all serious flaws before ship");
+  }
+  if (specGate === "fail" && stageNum >= 7 && stageNum !== 0) {
+    failures.push("Spec gate failed: plan approval required before build");
+  }
+  if (stageNum >= 11) {
+    if (securityGate !== "pass") {
+      failures.push(`Security gate must pass before ship (current: ${securityGate ?? "missing"})`);
+    }
+  }
+
   // 3. Check evidence and workspace fingerprint
   const currentFp = fingerprint(workspaceRoot);
   const evidencePath = path.join(kdir, "evidence.jsonl");
@@ -156,6 +174,10 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
       evidenceFresh = false;
       failures.push(`Workspace fingerprint mismatch: code modified since last verification record`);
     }
+  } else if (stageNum >= 11) {
+    // Ship and later require fresh proof. Earlier stages may have no evidence yet.
+    evidenceFresh = false;
+    failures.push("No evidence records: run tests before ship");
   }
 
   const verified = failures.length === 0;

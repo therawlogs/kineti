@@ -12,13 +12,13 @@ import {
 } from "../src/swarm/coordinator.ts";
 import { ok } from "./lib.ts";
 
-function runSwarmSimulation() {
+function runSwarmSimulation(rootGoalOverride?: string) {
   console.log("\n=======================================================");
   console.log("  Kineti OS — Multi-Agent Swarm & Identity Simulation");
   console.log("=======================================================\n");
 
-  // Step 1: Define Immutable Root Goal
-  const rootGoal = "Refactor database query layer to support connection pooling and sub-5ms latency";
+  // Step 1: Define Immutable Root Goal (pass as first CLI arg to customize)
+  const rootGoal = rootGoalOverride?.trim() || "Refactor database query layer to support connection pooling and sub-5ms latency";
   console.log(`Locked Root Goal: "${rootGoal}"`);
 
   // Step 2: Register Swarm Agents with isolated Ed25519 Keypairs
@@ -79,7 +79,10 @@ function runSwarmSimulation() {
 }
 
 if (import.meta.main) {
-  runSwarmSimulation();
+  const customGoal = process.argv.slice(2).join(" ").trim() || undefined;
+  if (customGoal) console.log(`Using custom goal from CLI args.`);
+  else console.log(`No goal arg given — running fixed demo. Usage: kineti swarm "Your goal here"`);
+  runSwarmSimulation(customGoal);
 }
 
 export { runSwarmSimulation };

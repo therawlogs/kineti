@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "3.1.0",
   "name": "Kineti OS",
   "description": "Closed-loop software factory: skills propose, programs enforce, memory remembers",
   "pipeline": [
@@ -44,5 +44,5 @@
     "qa_screenshots": "design/screenshots/",
     "run_state": ".kineti/"
   },
-  "hosts": ["opencode", "claude", "gemini", "codex"]
+  "hosts": ["opencode", "claude", "gemini", "codex", "cursor"]
 }

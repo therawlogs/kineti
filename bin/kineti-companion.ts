@@ -102,66 +102,24 @@ let fleetRepos: FleetRepo[] = [
     id: defaultRepoName,
     name: defaultRepoName,
     path: REPO_ROOT,
-    owner: "Solo Engineer",
+    owner: "Local Owner",
     branch: "main",
     status: "active",
-    active_task: "Build universal agent harness with cryptographic verification",
+    active_task: "Local tasks governed by Kineti OS",
     spend_usd: 0.0,
     ceiling_usd: 50.0,
-    tests_passing: 69,
-    ide: "Antigravity",
+    tests_passing: 0,
+    ide: "Local IDE",
     is_local: true,
-  },
-  {
-    id: "payment-service",
-    name: "payment-service",
-    path: "/workspace/payment-service",
-    owner: "Sarah Lin",
-    branch: "feat/stripe-v2",
-    status: "action_needed",
-    active_task: "Migrate webhook signatures to HMAC-SHA256",
-    spend_usd: 12.4,
-    ceiling_usd: 50.0,
-    tests_passing: 42,
-    ide: "Claude Code",
-    is_local: false,
-  },
-  {
-    id: "auth-api",
-    name: "auth-api",
-    path: "/workspace/auth-api",
-    owner: "David Kim",
-    branch: "main",
-    status: "active",
-    active_task: "Implement PKCE OAuth flow and token rotation",
-    spend_usd: 4.15,
-    ceiling_usd: 30.0,
-    tests_passing: 89,
-    ide: "Cursor",
-    is_local: false,
-  },
-  {
-    id: "mobile-client",
-    name: "mobile-client",
-    path: "/workspace/mobile-client",
-    owner: "Solo Engineer",
-    branch: "main",
-    status: "idle",
-    active_task: "Idle — waiting for next instruction",
-    spend_usd: 0.0,
-    ceiling_usd: 25.0,
-    tests_passing: 118,
-    ide: "Codex",
-    is_local: false,
   },
 ];
 
 let companionSettings: CompanionSettings = {
   github: {
-    connected: true,
-    account: "praveen",
-    repo_count: 4,
-    webhook_status: "active",
+    connected: false,
+    account: "",
+    repo_count: 1,
+    webhook_status: "inactive",
   },
   ides: {
     cursor: true,
@@ -169,25 +127,65 @@ let companionSettings: CompanionSettings = {
     antigravity: true,
     codex: true,
   },
-  team_members: [
-    { name: "Praveen", email: "praveen@kineti.dev", role: "CTO / Founder" },
-    { name: "Sarah Lin", email: "sarah@kineti.dev", role: "Senior Engineer" },
-    { name: "David Kim", email: "david@kineti.dev", role: "Platform Engineer" },
-    { name: "Solo Engineer", email: "dev@kineti.dev", role: "Developer" },
-  ],
+  team_members: [],
   repo_budgets: {
     [defaultRepoName]: 50.0,
-    "payment-service": 50.0,
-    "auth-api": 30.0,
-    "mobile-client": 25.0,
   },
   repo_owners: {
-    [defaultRepoName]: "Solo Engineer",
-    "payment-service": "Sarah Lin",
-    "auth-api": "David Kim",
-    "mobile-client": "Solo Engineer",
+    [defaultRepoName]: "Local Owner",
   },
 };
+
+// Optional local-only fleet overrides. Never commit personal names or paths.
+// Create `.kineti/fleet.local.json` (gitignored) with:
+// { "repos": [FleetRepo...], "settings": { "github": {...}, "team_members": [...] } }
+function loadLocalFleetOverrides(): void {
+  try {
+    const overridePath = path.join(projectKdir(), "fleet.local.json");
+    if (!fs.existsSync(overridePath)) return;
+    const data = readJson<any>(overridePath);
+    if (!data) return;
+    if (Array.isArray(data.repos)) {
+      for (const r of data.repos) {
+        if (!r || typeof r.id !== "string") continue;
+        if (r.is_local) continue; // local repo always comes from this project
+        const existing = fleetRepos.find((x) => x.id === r.id);
+        if (existing) Object.assign(existing, r);
+        else fleetRepos.push(r as FleetRepo);
+      }
+    }
+    if (data.settings && typeof data.settings === "object") {
+      const s = data.settings as Partial<CompanionSettings>;
+      if (s.github) companionSettings.github = { ...companionSettings.github, ...s.github };
+      if (s.ides) companionSettings.ides = { ...companionSettings.ides, ...s.ides };
+      if (Array.isArray(s.team_members)) companionSettings.team_members = s.team_members as CompanionSettings["team_members"];
+      if (s.repo_budgets) {
+        companionSettings.repo_budgets = { ...companionSettings.repo_budgets, ...s.repo_budgets };
+        for (const [id, budget] of Object.entries(s.repo_budgets)) {
+          const repo = fleetRepos.find((x) => x.id === id);
+          if (repo && typeof budget === "number") repo.ceiling_usd = budget;
+        }
+      }
+      if (s.repo_owners) {
+        companionSettings.repo_owners = { ...companionSettings.repo_owners, ...s.repo_owners };
+        for (const [id, owner] of Object.entries(s.repo_owners)) {
+          const repo = fleetRepos.find((x) => x.id === id);
+          if (repo && typeof owner === "string") repo.owner = owner;
+        }
+      }
+    }
+    const localOnly = fleetRepos.find((r) => r.is_local);
+    if (localOnly) {
+      companionSettings.repo_budgets[localOnly.id] ??= localOnly.ceiling_usd;
+      companionSettings.repo_owners[localOnly.id] ??= localOnly.owner;
+    }
+    companionSettings.github.repo_count = fleetRepos.length;
+  } catch {
+    // Ignore corrupt override file — dashboard still works with local repo only.
+  }
+}
+
+loadLocalFleetOverrides();
 
 function getHarnessStatus(targetRepoId?: string) {
   const currentId = targetRepoId || activeRepoId;
@@ -240,7 +238,7 @@ function getHarnessStatus(targetRepoId?: string) {
       gates: isActionNeeded ? { spec: "pass", security: "pending" } : { spec: "pass", ship: "pass" },
       spend: {
         total_usd: r.spend_usd,
-        total_microcents: Math.round(r.spend_usd * 100_000_000),
+        total_microcents: Math.round(r.spend_usd * 1_000_000),
         ceiling_usd: r.ceiling_usd,
         safety_factor: 0.95,
         tripped: isTripped,
@@ -1823,7 +1821,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/fleet/select", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
           body: JSON.stringify({ repo_id: repoId }),
         });
         if (res.ok) {
@@ -1872,7 +1870,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/settings", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -1894,7 +1892,7 @@ function renderHtmlDashboard(): string {
       if (isNaN(budgetNum) || budgetNum <= 0) return;
       await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
         body: JSON.stringify({ repo_budgets: { [repoId]: budgetNum } }),
       });
       fetchFleet();
@@ -1905,7 +1903,7 @@ function renderHtmlDashboard(): string {
       if (!newOwner) return;
       await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
         body: JSON.stringify({ repo_owners: { [repoId]: newOwner } }),
       });
       fetchFleet();
@@ -2311,6 +2309,12 @@ function startServer(port: number = PORT) {
       }
 
       if (url.pathname === "/api/fleet/select" && req.method === "POST") {
+        if (!isAuthorized(req)) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
         return req.json().then((body: any) => {
           const { repo_id } = body;
           const found = fleetRepos.find((r) =>
@@ -2338,6 +2342,12 @@ function startServer(port: number = PORT) {
           });
         }
         if (req.method === "POST") {
+          if (!isAuthorized(req)) {
+            return new Response(JSON.stringify({ error: "Unauthorized" }), {
+              status: 401,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
           return req.json().then((body: any) => {
             if (body.github) companionSettings.github = { ...companionSettings.github, ...body.github };
             if (body.ides) companionSettings.ides = { ...companionSettings.ides, ...body.ides };
@@ -2420,4 +2430,4 @@ if (import.meta.main) {
   startServer(PORT);
 }
 
-export { startServer, getHarnessStatus, getFleetStatus, fleetRepos, companionSettings, renderHtmlDashboard };
+export { startServer, getHarnessStatus, getFleetStatus, fleetRepos, companionSettings, renderHtmlDashboard, AUTH_TOKEN, isAuthorized };

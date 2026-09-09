@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { startServer, getHarnessStatus, getFleetStatus } from "../bin/kineti-companion.ts";
+import { startServer, getHarnessStatus, getFleetStatus, AUTH_TOKEN } from "../bin/kineti-companion.ts";
 
 describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   let server: any;
@@ -26,10 +26,15 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   test("getFleetStatus returns fleet repositories and budget totals", () => {
     const fleet = getFleetStatus();
     expect(fleet).toBeDefined();
-    expect(fleet.repos.length).toBeGreaterThanOrEqual(4);
+    // Default is local-only; extra repos come from .kineti/fleet.local.json (gitignored)
+    expect(fleet.repos.length).toBeGreaterThanOrEqual(1);
     expect(fleet.total_fleet_budget).toBeGreaterThan(0);
     expect(fleet.settings).toBeDefined();
     expect(fleet.settings.ides.cursor).toBe(true);
+    // No demo PII committed to source
+    const raw = JSON.stringify(fleet);
+    expect(raw).not.toContain("praveen@kineti.dev");
+    expect(raw).not.toContain("Sarah Lin");
   });
 
   test("GET / returns companion dashboard HTML with multi-repo components", async () => {
@@ -60,65 +65,84 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     const json = (await res.json()) as any;
     expect(json.active_repo_id).toBeDefined();
     expect(Array.isArray(json.repos)).toBe(true);
-    expect(json.repos.length).toBeGreaterThanOrEqual(4);
+    expect(json.repos.length).toBeGreaterThanOrEqual(1);
     expect(json.total_fleet_spend).toBeGreaterThanOrEqual(0);
     expect(json.settings).toBeDefined();
   });
 
   test("POST /api/fleet/select switches active repository context", async () => {
+    const auth = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const fleetRes = await server.fetch(new Request("http://localhost/api/fleet"));
+    const fleetJson = (await fleetRes.json()) as any;
+    const localId = fleetJson.repos.find((r: any) => r.is_local)?.id ?? fleetJson.active_repo_id;
     const selectRes = await server.fetch(
       new Request("http://localhost/api/fleet/select", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_id: "payment-service" }),
+        headers: auth,
+        body: JSON.stringify({ repo_id: localId }),
       }),
     );
     expect(selectRes.status).toBe(200);
     const selectJson = (await selectRes.json()) as any;
     expect(selectJson.success).toBe(true);
-    expect(selectJson.active_repo_id).toBe("payment-service");
 
-    // Status now reflects selected remote repository
-    const statusRes = await server.fetch(new Request("http://localhost/api/status"));
-    const statusJson = (await statusRes.json()) as any;
-    expect(statusJson.project).toBe("payment-service");
-    expect(statusJson.task.name).toContain("webhook signatures");
+    // Unknown repo is 404 (with auth)
+    const missingRes = await server.fetch(
+      new Request("http://localhost/api/fleet/select", {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ repo_id: "no-such-repo-xyz" }),
+      }),
+    );
+    expect(missingRes.status).toBe(404);
+  });
 
-    // Switch back to local repository
-    const resetRes = await server.fetch(
+  test("POST /api/fleet/select without token is 401", async () => {
+    const res = await server.fetch(
       new Request("http://localhost/api/fleet/select", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_id: "kineti-local-harness" }),
+        body: JSON.stringify({ repo_id: "local" }),
       }),
     );
-    expect(resetRes.status).toBe(200);
+    expect(res.status).toBe(401);
   });
 
   test("GET and POST /api/settings manages auto-latch and repo allocations", async () => {
+    const auth = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
     // GET settings
     const getRes = await server.fetch(new Request("http://localhost/api/settings"));
     expect(getRes.status).toBe(200);
     const settings = (await getRes.json()) as any;
-    expect(settings.github.connected).toBe(true);
     expect(settings.ides.antigravity).toBe(true);
 
-    // Update settings
-    const postRes = await server.fetch(
+    // POST without token is blocked
+    const unauthRes = await server.fetch(
       new Request("http://localhost/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_budgets: { "test-repo": 999 } }),
+      }),
+    );
+    expect(unauthRes.status).toBe(401);
+
+    // Update settings with generic test values (no PII)
+    const fleetRes = await server.fetch(new Request("http://localhost/api/fleet"));
+    const fleetJson = (await fleetRes.json()) as any;
+    const localId = fleetJson.repos.find((r: any) => r.is_local)?.id ?? fleetJson.active_repo_id;
+    const postRes = await server.fetch(
+      new Request("http://localhost/api/settings", {
+        method: "POST",
+        headers: auth,
         body: JSON.stringify({
-          repo_budgets: { "auth-api": 45.0 },
-          repo_owners: { "auth-api": "Sarah Lin" },
+          repo_budgets: { [localId]: 42.0 },
         }),
       }),
     );
     expect(postRes.status).toBe(200);
     const updated = (await postRes.json()) as any;
     expect(updated.success).toBe(true);
-    expect(updated.settings.repo_budgets["auth-api"]).toBe(45.0);
-    expect(updated.settings.repo_owners["auth-api"]).toBe("Sarah Lin");
+    expect(updated.settings.repo_budgets[localId]).toBe(42.0);
   });
 
   test("Rejects malicious external origins (CSWSH protection)", async () => {

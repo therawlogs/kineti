@@ -67,7 +67,7 @@ The agent writes clear data types, pass/fail test rules, and a list of what will
 
 The agent stops here and waits for your approval. No code is written in `src/` until you approve.
 
-## Step 7: Build, Review, and Ship (Build → QA → Ship)
+## Step 7: Build, Review, and Ship (Build → Review → QA → Security → Ship)
 
 Once you approve the spec, tell the agent:
 > Approve the spec. Run kineti-build.
