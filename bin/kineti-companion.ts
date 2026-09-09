@@ -512,12 +512,12 @@ function getFleetStatus() {
 }
 
 function renderHtmlDashboard(): string {
-  const tokenScript = `<script>window.KINETI_TOKEN=${JSON.stringify(AUTH_TOKEN)};</script>`;
+  // Token-free page. Frontend reads token from localStorage (set via login page).
+  // Never embed AUTH_TOKEN in HTML.
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  ${tokenScript}
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kineti OS — Visual Companion Canvas</title>
   <style>
@@ -1414,6 +1414,7 @@ function renderHtmlDashboard(): string {
   </style>
 </head>
 <body>
+  <script>try{if(!localStorage.getItem('kineti_token')){var t=prompt('Paste token from .kineti/auth_token to use the dashboard:');if(t)localStorage.setItem('kineti_token',t.trim());}}catch(e){}</script>
   <!-- Test compatibility text anchor -->
   <div class="compat-text" aria-hidden="true">
     Kineti OS — Visual Companion Canvas · 13-Stage Pipeline Real-Time Spend Circuit Breaker
@@ -1821,7 +1822,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/fleet/select", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (localStorage.getItem('kineti_token') || '') },
           body: JSON.stringify({ repo_id: repoId }),
         });
         if (res.ok) {
@@ -1870,7 +1871,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/settings", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (localStorage.getItem('kineti_token') || '') },
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -1892,7 +1893,7 @@ function renderHtmlDashboard(): string {
       if (isNaN(budgetNum) || budgetNum <= 0) return;
       await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (localStorage.getItem('kineti_token') || '') },
         body: JSON.stringify({ repo_budgets: { [repoId]: budgetNum } }),
       });
       fetchFleet();
@@ -1903,7 +1904,7 @@ function renderHtmlDashboard(): string {
       if (!newOwner) return;
       await fetch("/api/settings", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (localStorage.getItem('kineti_token') || '') },
         body: JSON.stringify({ repo_owners: { [repoId]: newOwner } }),
       });
       fetchFleet();
@@ -2235,7 +2236,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/gate", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (localStorage.getItem('kineti_token') || '') },
           body: JSON.stringify({ gate: activeGateId, status: "pass" }),
         });
         if (res.ok) {
@@ -2252,7 +2253,7 @@ function renderHtmlDashboard(): string {
       try {
         const res = await fetch("/api/spend/reset", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (window.KINETI_TOKEN || "") },
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + (localStorage.getItem('kineti_token') || '') },
           body: JSON.stringify({ i_am_human: true }),
         });
         if (res.ok) {
@@ -2278,6 +2279,75 @@ function renderHtmlDashboard(): string {
 </html>`;
 }
 
+function loginHtml(): string {
+  // Token-free login page. No AUTH_TOKEN here. User pastes token once,
+  // it is saved to localStorage, then dashboard is fetched with Bearer.
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Kineti OS — Sign in</title></head>
+<body style="font-family:-apple-system,sans-serif;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+<main style="max-width:380px;padding:24px;text-align:center;">
+<h1 style="font-size:18px;">Kineti OS — Sign in</h1>
+<p style="font-size:13px;opacity:0.7;">Paste the token from <code>.kineti/auth_token</code> in this project.</p>
+<input id="t" type="password" placeholder="Paste token" style="width:100%;padding:10px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;" />
+<button id="b" style="margin-top:12px;padding:8px 16px;border-radius:8px;border:none;background:#0A84FF;color:#fff;font-weight:600;">Sign in</button>
+<p id="e" style="font-size:12px;color:#FF453A;"></p>
+<script>
+document.getElementById('b').onclick = async () => {
+  const t = document.getElementById('t').value.trim();
+  if (!t) return;
+  try { localStorage.setItem('kineti_token', t); } catch (e) {}
+  const r = await fetch('/', { headers: { 'Authorization': 'Bearer ' + t } });
+  if (r.ok) { document.open(); document.write(await r.text()); document.close(); }
+  else { document.getElementById('e').textContent = 'Bad token (' + r.status + '). Try again.'; }
+};
+</script>
+</main>
+</body>
+</html>`;
+}
+
+function isTrustedHost(req: Request): boolean {
+  // Check URL hostname (Bun builds req.url from Host for real traffic,
+  // so rebinding shows up here) plus Host header when present.
+  // Host is a forbidden header for `new Request`, so server.fetch tests
+  // carry the hostname in the URL. Real network requests always have Host.
+  try {
+    const urlHost = new URL(req.url).hostname.trim().toLowerCase();
+    if (urlHost !== "localhost" && urlHost !== "127.0.0.1") return false;
+  } catch {
+    return false;
+  }
+  const host = req.headers.get("host");
+  if (host === null) return true; // server.fetch test path: no transport Host, URL already checked
+  const hostname = host.split(":")[0].trim().toLowerCase();
+  if (!hostname) return false; // empty Host: fail closed
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+function isTrustedOrigin(req: Request): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return true; // same-origin / non-browser (curl, server.fetch) has no Origin
+  let h = "";
+  try { h = new URL(origin).hostname.toLowerCase(); } catch { return false; }
+  return h === "localhost" || h === "127.0.0.1";
+}
+
+function withVary(headers: Record<string, string>): Record<string, string> {
+  return { "Vary": "Origin", ...headers };
+}
+
+function unauthorizedJson(): Response {
+  return new Response(JSON.stringify({ error: "Unauthorized" }), {
+    status: 401,
+    headers: withVary({ "Content-Type": "application/json" }),
+  });
+}
+
+function forbidden(msg = "Forbidden"): Response {
+  return new Response(msg, { status: 403, headers: withVary({ "Content-Type": "text/plain; charset=utf-8" }) });
+}
+
 function startServer(port: number = PORT) {
   const server = Bun.serve({
     port,
@@ -2285,45 +2355,56 @@ function startServer(port: number = PORT) {
     fetch(req) {
       const url = new URL(req.url);
 
-      // CORS & Host check (CSWSH defense). Match the exact hostname so
-      // lookalikes like http://localhost.evil.com do not pass.
-      const origin = req.headers.get("origin");
-      if (origin) {
-        let originHost = "";
-        try {
-          originHost = new URL(origin).hostname;
-        } catch {
-          originHost = "";
-        }
-        if (originHost !== "localhost" && originHost !== "127.0.0.1") {
-          return new Response("Forbidden", { status: 403 });
-        }
+      // 1. Host check first — kills DNS rebinding (evil.com, LAN IP, lookalikes).
+      if (!isTrustedHost(req)) {
+        return forbidden();
+      }
+
+      // 2. Origin check — deny-by-default, no ACAO sent. Vary: Origin on all.
+      if (!isTrustedOrigin(req)) {
+        return forbidden();
+      }
+
+      // 3. Preflight: explicit 204, Vary, no allow-origin (deny by default).
+      if (req.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: withVary({}) });
       }
 
       if (url.pathname === "/" || url.pathname === "/dashboard") {
+        if (!isAuthorized(req)) {
+          // 401 login page, token-free, no hex token in body.
+          return new Response(loginHtml(), {
+            status: 401,
+            headers: withVary({ "Content-Type": "text/html; charset=utf-8" }),
+          });
+        }
         return new Response(renderHtmlDashboard(), {
-          headers: { "Content-Type": "text/html; charset=utf-8" },
+          headers: withVary({ "Content-Type": "text/html; charset=utf-8" }),
         });
+      }
+
+      // All /api/* routes need auth, reads included.
+      if (url.pathname.startsWith("/api/")) {
+        if (!isAuthorized(req)) {
+          return unauthorizedJson();
+        }
       }
 
       if (url.pathname === "/api/status") {
         return new Response(JSON.stringify(getHarnessStatus()), {
-          headers: { "Content-Type": "application/json" },
+          headers: withVary({ "Content-Type": "application/json" }),
         });
       }
 
       if (url.pathname === "/api/fleet") {
         return new Response(JSON.stringify(getFleetStatus()), {
-          headers: { "Content-Type": "application/json" },
+          headers: withVary({ "Content-Type": "application/json" }),
         });
       }
 
       if (url.pathname === "/api/fleet/select" && req.method === "POST") {
         if (!isAuthorized(req)) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
+          return unauthorizedJson();
         }
         return req.json().then((body: any) => {
           const { repo_id } = body;
@@ -2335,12 +2416,12 @@ function startServer(port: number = PORT) {
           if (!found) {
             return new Response(JSON.stringify({ error: `Repo not found: ${repo_id}` }), {
               status: 404,
-              headers: { "Content-Type": "application/json" },
+              headers: withVary({ "Content-Type": "application/json" }),
             });
           }
           activeRepoId = found.id;
           return new Response(JSON.stringify({ success: true, active_repo_id: activeRepoId }), {
-            headers: { "Content-Type": "application/json" },
+            headers: withVary({ "Content-Type": "application/json" }),
           });
         });
       }
@@ -2348,15 +2429,12 @@ function startServer(port: number = PORT) {
       if (url.pathname === "/api/settings") {
         if (req.method === "GET") {
           return new Response(JSON.stringify(companionSettings), {
-            headers: { "Content-Type": "application/json" },
+            headers: withVary({ "Content-Type": "application/json" }),
           });
         }
         if (req.method === "POST") {
           if (!isAuthorized(req)) {
-            return new Response(JSON.stringify({ error: "Unauthorized" }), {
-              status: 401,
-              headers: { "Content-Type": "application/json" },
-            });
+            return unauthorizedJson();
           }
           return req.json().then((body: any) => {
             if (body.github) companionSettings.github = { ...companionSettings.github, ...body.github };
@@ -2377,7 +2455,7 @@ function startServer(port: number = PORT) {
               }
             }
             return new Response(JSON.stringify({ success: true, settings: companionSettings }), {
-              headers: { "Content-Type": "application/json" },
+              headers: withVary({ "Content-Type": "application/json" }),
             });
           });
         }
@@ -2385,50 +2463,44 @@ function startServer(port: number = PORT) {
 
       if (url.pathname === "/api/gate" && req.method === "POST") {
         if (!isAuthorized(req)) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
+          return unauthorizedJson();
         }
         return req.json().then((body: any) => {
           const { gate, status } = body;
           if (!gate || (status !== "pass" && status !== "fail" && status !== "pending")) {
-            return new Response(JSON.stringify({ error: "gate and valid status required" }), { status: 400 });
+            return new Response(JSON.stringify({ error: "gate and valid status required" }), { status: 400, headers: withVary({ "Content-Type": "application/json" }) });
           }
           const res = Bun.spawnSync(["bun", path.join(REPO_ROOT, "bin", "kineti-state.ts"), "set", `gate.${gate}`, status]);
           return new Response(JSON.stringify({ success: res.exitCode === 0 }), {
-            headers: { "Content-Type": "application/json" },
+            headers: withVary({ "Content-Type": "application/json" }),
           });
         });
       }
 
       if (url.pathname === "/api/spend/reset" && req.method === "POST") {
         if (!isAuthorized(req)) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
+          return unauthorizedJson();
         }
         return req.json().then((body: any) => {
           if (!body || body.i_am_human !== true) {
             return new Response(JSON.stringify({ error: "Human confirm required: send {i_am_human:true}" }), {
               status: 400,
-              headers: { "Content-Type": "application/json" },
+              headers: withVary({ "Content-Type": "application/json" }),
             });
           }
           const res = Bun.spawnSync(["bun", path.join(REPO_ROOT, "bin", "kineti-spend.ts"), "reset", "--i-am-human"]);
           return new Response(JSON.stringify({ success: res.exitCode === 0 }), {
-            headers: { "Content-Type": "application/json" },
+            headers: withVary({ "Content-Type": "application/json" }),
           });
         }).catch(() => {
           return new Response(JSON.stringify({ error: "Human confirm required: send {i_am_human:true}" }), {
             status: 400,
-            headers: { "Content-Type": "application/json" },
+            headers: withVary({ "Content-Type": "application/json" }),
           });
         });
       }
 
-      return new Response("Not Found", { status: 404 });
+      return new Response("Not Found", { status: 404, headers: withVary({}) });
     },
   });
 
@@ -2440,4 +2512,4 @@ if (import.meta.main) {
   startServer(PORT);
 }
 
-export { startServer, getHarnessStatus, getFleetStatus, fleetRepos, companionSettings, renderHtmlDashboard, AUTH_TOKEN, isAuthorized };
+export { startServer, getHarnessStatus, getFleetStatus, fleetRepos, companionSettings, renderHtmlDashboard, loginHtml, isTrustedHost, isTrustedOrigin, AUTH_TOKEN, isAuthorized };

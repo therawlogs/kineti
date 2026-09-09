@@ -37,8 +37,20 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(raw).not.toContain("Sarah Lin");
   });
 
-  test("GET / returns companion dashboard HTML with multi-repo components", async () => {
+  test("GET / without token is 401 with no hex token in body", async () => {
     const res = await server.fetch(new Request("http://localhost/"));
+    expect(res.status).toBe(401);
+    const html = await res.text();
+    expect(html).not.toContain(AUTH_TOKEN);
+    // No 64-hex token leak
+    expect(html).not.toMatch(/[0-9a-f]{64}/);
+    expect(res.headers.get("vary")).toContain("Origin");
+  });
+
+  test("GET / with token returns dashboard HTML token-free", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("Kineti OS — Visual Companion Canvas");
@@ -48,19 +60,32 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(html).toContain("btn-repo-switcher");
     expect(html).toContain("fleet-view");
     expect(html).toContain("settings-sheet");
+    // Token must not be embedded
+    expect(html).not.toContain(AUTH_TOKEN);
+    expect(html).not.toContain("KINETI_TOKEN");
+    expect(res.headers.get("vary")).toContain("Origin");
   });
 
-  test("GET /api/status returns JSON status", async () => {
-    const res = await server.fetch(new Request("http://localhost/api/status"));
+  test("GET /api/status without token is 401, with token is 200", async () => {
+    const unauth = await server.fetch(new Request("http://localhost/api/status"));
+    expect(unauth.status).toBe(401);
+    const res = await server.fetch(
+      new Request("http://localhost/api/status", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
     expect(json.stages).toBeDefined();
     expect(json.stages.length).toBe(13);
     expect(json.spend.total_usd).toBeDefined();
+    expect(res.headers.get("vary")).toContain("Origin");
   });
 
-  test("GET /api/fleet returns registered fleet repositories and summary", async () => {
-    const res = await server.fetch(new Request("http://localhost/api/fleet"));
+  test("GET /api/fleet without token is 401, with token returns fleet", async () => {
+    const unauth = await server.fetch(new Request("http://localhost/api/fleet"));
+    expect(unauth.status).toBe(401);
+    const res = await server.fetch(
+      new Request("http://localhost/api/fleet", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
     expect(json.active_repo_id).toBeDefined();
@@ -72,7 +97,9 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
 
   test("POST /api/fleet/select switches active repository context", async () => {
     const auth = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
-    const fleetRes = await server.fetch(new Request("http://localhost/api/fleet"));
+    const fleetRes = await server.fetch(
+      new Request("http://localhost/api/fleet", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
     const fleetJson = (await fleetRes.json()) as any;
     const localId = fleetJson.repos.find((r: any) => r.is_local)?.id ?? fleetJson.active_repo_id;
     const selectRes = await server.fetch(
@@ -108,10 +135,15 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(res.status).toBe(401);
   });
 
-  test("GET and POST /api/settings manages auto-latch and repo allocations", async () => {
+  test("GET and POST /api/settings need token; GET without token is 401", async () => {
     const auth = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
-    // GET settings
-    const getRes = await server.fetch(new Request("http://localhost/api/settings"));
+    // GET without token is blocked
+    const unauthGet = await server.fetch(new Request("http://localhost/api/settings"));
+    expect(unauthGet.status).toBe(401);
+    // GET settings with token
+    const getRes = await server.fetch(
+      new Request("http://localhost/api/settings", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
     expect(getRes.status).toBe(200);
     const settings = (await getRes.json()) as any;
     expect(settings.ides.antigravity).toBe(true);
@@ -127,7 +159,9 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(unauthRes.status).toBe(401);
 
     // Update settings with generic test values (no PII)
-    const fleetRes = await server.fetch(new Request("http://localhost/api/fleet"));
+    const fleetRes = await server.fetch(
+      new Request("http://localhost/api/fleet", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
     const fleetJson = (await fleetRes.json()) as any;
     const localId = fleetJson.repos.find((r: any) => r.is_local)?.id ?? fleetJson.active_repo_id;
     const postRes = await server.fetch(
@@ -150,10 +184,12 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
       new Request("http://localhost/", {
         headers: {
           Origin: "http://malicious-attacker-site.com",
+          Authorization: `Bearer ${AUTH_TOKEN}`,
         },
       }),
     );
     expect(res.status).toBe(403);
+    expect(res.headers.get("vary")).toContain("Origin");
   });
 
   test("Allows trusted localhost and 127.0.0.1 origins", async () => {
@@ -161,9 +197,56 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
       new Request("http://localhost/", {
         headers: {
           Origin: "http://localhost:3000",
+          Authorization: `Bearer ${AUTH_TOKEN}`,
         },
       }),
     );
     expect(res.status).toBe(200);
+  });
+
+  test("Rejects DNS rebinding Host (evil.com, lookalikes, LAN IP)", async () => {
+    // Use evil URLs: Bun builds req.url from Host for real traffic,
+    // and Host is a forbidden header for `new Request`, so URL carries it here.
+    for (const evilUrl of [
+      "http://evil.com/",
+      "http://localhost.evil.com/",
+      "http://127.0.0.1.evil.com/",
+      "http://192.168.1.9/",
+      "http://10.0.0.5/",
+    ]) {
+      const res = await server.fetch(
+        new Request(evilUrl, {
+          headers: { Authorization: `Bearer ${AUTH_TOKEN}` },
+        }),
+      );
+      expect(res.status).toBe(403);
+    }
+  });
+
+  test("Trusted Host localhost and 127.0.0.1 pass with token", async () => {
+    for (const goodUrl of [
+      "http://localhost/",
+      "http://127.0.0.1/",
+      "http://localhost:18788/",
+      "http://127.0.0.1:18788/",
+    ]) {
+      const res = await server.fetch(
+        new Request(goodUrl, {
+          headers: { Authorization: `Bearer ${AUTH_TOKEN}` },
+        }),
+      );
+      expect(res.status).toBe(200);
+    }
+  });
+
+  test("CORS is deny-by-default: no wildcard allow-origin", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/api/status", {
+        headers: { Origin: "http://localhost:3000", Authorization: `Bearer ${AUTH_TOKEN}` },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    expect(res.headers.get("vary")).toContain("Origin");
   });
 });
