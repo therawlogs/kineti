@@ -87,7 +87,7 @@ human-confirmed CLI path.
   protections; the Ed25519 identity code was not in the changed set and was
   reviewed by observation only.
 
-## Proposed accepted risks (need human sign-off)
+## Accepted risks (signed off by project owner, 2026-09-09)
 
 1. Read endpoints (`/`, `/api/status`, `/api/fleet`, `GET /api/settings`)
    need no token. Fine on loopback; anyone with local machine access can
