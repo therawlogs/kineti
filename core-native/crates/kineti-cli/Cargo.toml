@@ -1,0 +1,20 @@
+[package]
+name = "kineti-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Native CLI and server runner for Kineti AI assistant"
+
+[dependencies]
+kineti-core = { path = "../kineti-core" }
+kineti-reflex = { path = "../kineti-reflex" }
+kineti-memory = { path = "../kineti-memory" }
+kineti-connectors = { path = "../kineti-connectors" }
+kineti-actions = { path = "../kineti-actions" }
+kineti-gateway = { path = "../kineti-gateway" }
+
+[[bench]]
+name = "benchmarks"
+harness = false
+path = "../../benches/benchmarks.rs"

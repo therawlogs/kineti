@@ -80,12 +80,24 @@ export interface Limits {
 export function loadLimits(cwd: string = process.cwd()): Limits {
   const cfg = readJson<any>(path.join(cwd, "kineti.config.json"));
   const s = cfg?.settings?.spend_limit_usd ?? {};
-  return {
-    globalUsd: Number(s.global ?? 50),
-    perStageDefaultUsd: Number(s.per_stage_default ?? 10),
-    perStage: (s.per_stage ?? {}) as Record<string, number>,
-    safetyFactor: Number(s.safety_factor ?? 0.95),
-  };
+  // Clamp every limit to a positive-finite number, else fall back to defaults.
+  // Bad config must never disable the breaker (fail closed).
+  const rawGlobal = Number(s.global ?? 50);
+  const globalUsd = Number.isFinite(rawGlobal) && rawGlobal > 0 ? rawGlobal : 50;
+  const rawStageDefault = Number(s.per_stage_default ?? 10);
+  const perStageDefaultUsd = Number.isFinite(rawStageDefault) && rawStageDefault > 0 ? rawStageDefault : 10;
+  const perStage: Record<string, number> = {};
+  const rawPerStage = s.per_stage;
+  if (rawPerStage && typeof rawPerStage === "object" && !Array.isArray(rawPerStage)) {
+    for (const [k, v] of Object.entries(rawPerStage)) {
+      const n = Number(v);
+      if (Number.isFinite(n) && n > 0) perStage[k] = n;
+      // Non-finite or non-positive per-stage caps are dropped (falls back to default).
+    }
+  }
+  const rawSafety = Number(s.safety_factor ?? 0.95);
+  const safetyFactor = Number.isFinite(rawSafety) && rawSafety > 0 && rawSafety <= 1 ? rawSafety : 0.95;
+  return { globalUsd, perStageDefaultUsd, perStage, safetyFactor };
 }
 
 export function loadVerifyCommand(cwd: string = process.cwd()): string | null {
@@ -125,7 +137,7 @@ export function microcentsToUsd(microcents: number): number {
  */
 
 export const SAFE_EXEC_ALLOWLIST_BINARIES = new Set([
-  "bun", "npm", "npx", "pytest", "python", "python3", "node",
+  "cargo", "bun", "npm", "npx", "pytest", "python", "python3", "node",
   "true", "false", "echo", "sleep", "git", "rm", "touch", "ls", "cat",
 ]);
 

@@ -1,0 +1,12 @@
+[package]
+name = "kineti-actions"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Real-world actions: Headless price comparison, ticket search, and two-step confirmation safety gate"
+
+[dependencies]
+kineti-core = { path = "../kineti-core" }
+kineti-reflex = { path = "../kineti-reflex" }
+kineti-connectors = { path = "../kineti-connectors" }

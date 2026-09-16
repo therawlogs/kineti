@@ -1,0 +1,14 @@
+[package]
+name = "kineti-gateway"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "High-performance messaging gateway: WhatsApp Cloud API, macOS iMessage bridge, Web Auth & Settings API"
+
+[dependencies]
+kineti-core = { path = "../kineti-core" }
+kineti-reflex = { path = "../kineti-reflex" }
+kineti-memory = { path = "../kineti-memory" }
+kineti-connectors = { path = "../kineti-connectors" }
+kineti-actions = { path = "../kineti-actions" }

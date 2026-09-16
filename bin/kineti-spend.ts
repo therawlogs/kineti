@@ -41,13 +41,26 @@ function logFile(): string { return path.join(projectKdir(), "spend.log.jsonl");
 function load(): SpendState {
   const loaded = readJson<SpendState>(file());
   if (loaded) {
-    if (loaded.total_microcents === undefined) loaded.total_microcents = usdToMicrocents(loaded.total_usd);
-    if (!loaded.by_stage_microcents) {
+    // Sanitize stored numbers: non-finite ledger values fail closed to 0-based recovery.
+    if (!Number.isFinite(loaded.total_microcents)) {
+      loaded.total_microcents = Number.isFinite(loaded.total_usd) ? usdToMicrocents(loaded.total_usd) : 0;
+    }
+    if (!Number.isFinite(loaded.total_usd)) loaded.total_usd = 0;
+    if (!loaded.by_stage || typeof loaded.by_stage !== "object") loaded.by_stage = {};
+    if (!loaded.by_stage_microcents || typeof loaded.by_stage_microcents !== "object") {
       loaded.by_stage_microcents = {};
       for (const [stg, amt] of Object.entries(loaded.by_stage || {})) {
         loaded.by_stage_microcents[stg] = usdToMicrocents(amt);
       }
+    } else {
+      for (const [stg, v] of Object.entries(loaded.by_stage_microcents)) {
+        if (!Number.isFinite(v)) {
+          const fallback = (loaded.by_stage as Record<string, number>)?.[stg];
+          loaded.by_stage_microcents[stg] = Number.isFinite(fallback) ? usdToMicrocents(fallback as number) : 0;
+        }
+      }
     }
+    if (!Number.isFinite(loaded.entries)) loaded.entries = 0;
     return loaded;
   }
   return {
@@ -78,17 +91,23 @@ function main() {
 
   if (cmd === "log") {
     if (s.tripped) die(`breaker is tripped: ${s.reason}. Only a human may reset it.`, 3);
-    let stage = "", model = "default", tin = -1, tout = -1, usdOverride: number | null = null;
+    let stage = "", model = "default", tin = NaN, tout = NaN, usdOverride: number | null = null;
+    let usdGiven = false;
     for (let i = 0; i < rest.length; i++) {
       switch (rest[i]) {
         case "--stage": stage = rest[++i] ?? ""; break;
         case "--model": model = rest[++i] ?? "default"; break;
         case "--tokens-in": tin = Number(rest[++i]); break;
         case "--tokens-out": tout = Number(rest[++i]); break;
-        case "--usd": usdOverride = Number(rest[++i]); break;
+        case "--usd": usdOverride = Number(rest[++i]); usdGiven = true; break;
       }
     }
-    if (!stage || tin < 0 || tout < 0) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]");
+    if (!stage) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]", 2);
+    if (!Number.isFinite(tin) || tin < 0) die(`log requires finite --tokens-in >= 0 (got ${rest.join(" ")})`, 2);
+    if (!Number.isFinite(tout) || tout < 0) die(`log requires finite --tokens-out >= 0 (got ${rest.join(" ")})`, 2);
+    if (usdGiven && (usdOverride === null || !Number.isFinite(usdOverride) || (usdOverride as number) < 0)) {
+      die("log requires finite --usd >= 0", 2);
+    }
     const p = priceFor(model);
     const usd = usdOverride ?? (tin / 1e6) * p.in + (tout / 1e6) * p.out;
 

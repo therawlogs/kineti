@@ -9,7 +9,7 @@ interface Record {
 }
 
 const EXCLUDE_DIRS = new Set([
-  ".git", ".kineti", "node_modules", "dist", "build", ".next",
+  ".git", ".kineti", ".agents", "node_modules", "dist", "build", ".next",
   "coverage", "tmp", ".cache", "legacy",
 ]);
 const EXCLUDE_FILES = new Set([".DS_Store"]);

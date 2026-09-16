@@ -1,0 +1,10 @@
+[package]
+name = "kineti-reflex"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Sub-millisecond sensory triage, style analyzer, and reflex circuit router"
+
+[dependencies]
+kineti-core = { path = "../kineti-core" }
