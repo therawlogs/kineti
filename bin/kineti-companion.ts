@@ -698,7 +698,6 @@ function generateSettingsHtml(): string {
           <h2 class="section-title" style="margin: 0;">Trusted people</h2>
           <p class="section-desc" style="margin-bottom: 0;">Their Kineti can reach yours</p>
         </div>
-        <button class="btn btn-primary" onclick="openAddMeshModal()">+ Add Person</button>
       </div>
       <div id="mesh-trusted-list"></div>
 
@@ -715,10 +714,10 @@ function generateSettingsHtml(): string {
       <div class="item-row" style="border: none;">
         <div class="item-body">
           <div class="item-title" id="mesh-status-title">Connections active</div>
-          <div class="item-subtitle">Your Kineti can exchange messages with the Kinetis of the people you trust.</div>
+          <div class="item-subtitle">Your Kineti can exchange messages with the Kinetis of the people you trust. Handled through your chat.</div>
         </div>
         <div class="item-action">
-          <button class="btn" id="btn-mesh-pause" onclick="toggleMeshPause()">Pause connections</button>
+          <span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;">Synced from Chat</span>
         </div>
       </div>
     </div>
@@ -860,7 +859,7 @@ function generateSettingsHtml(): string {
       <h3 class="modal-title">Invite a friend</h3>
       <p class="modal-desc" id="invite-quota-desc">You have 3 of 3 invites remaining.</p>
       <label class="input-label">Referral Link</label>
-      <input type="text" id="invite-url-input" class="input-field" readonly value="https://getkineti.com/join/user?code=kineti_alpha">
+      <input type="text" id="invite-url-input" class="input-field" readonly value="https://getkineti.com/join/user?code=kineti_invite">
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-invite')">Done</button>
         <button class="btn" onclick="generateNewInviteLink()">Generate New</button>
@@ -959,27 +958,6 @@ function generateSettingsHtml(): string {
     </div>
   </div>
 
-  <!-- Add Person Modal -->
-  <div id="modal-add-mesh" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Add Trusted Person</h3>
-      <p class="modal-desc">Allow another person's Kineti agent to connect directly to yours.</p>
-      <label class="input-label">Agent ID or Handle</label>
-      <input type="text" id="mesh-add-id" class="input-field" placeholder="e.g. sarah_agent_01">
-      <label class="input-label">Display Name</label>
-      <input type="text" id="mesh-add-name" class="input-field" placeholder="e.g. Sarah Lin">
-      <label class="input-label">Trust Tier</label>
-      <select id="mesh-add-tier" class="input-field">
-        <option value="colleague" selected>Colleague (Standard Trust)</option>
-        <option value="inner_circle">Inner Circle (High Trust)</option>
-        <option value="service_agent">Service Agent (Sandboxed)</option>
-      </select>
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-add-mesh')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAddMesh()">+ Add Person</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Toast -->
   <div id="toast" class="toast"></div>
@@ -1455,53 +1433,7 @@ function generateSettingsHtml(): string {
       });
     }
 
-    // Mesh Actions
-    function openAddMeshModal() {
-      document.getElementById('mesh-add-id').value = '';
-      document.getElementById('mesh-add-name').value = '';
-      document.getElementById('modal-add-mesh').classList.add('open');
-    }
 
-    function submitAddMesh() {
-      const agentId = document.getElementById('mesh-add-id').value.trim();
-      const name = document.getElementById('mesh-add-name').value.trim();
-      const tier = document.getElementById('mesh-add-tier').value;
-
-      if (!agentId) { alert('Please enter an agent ID or handle'); return; }
-
-      fetch('/api/mesh/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentId, name, tier })
-      }).then(() => {
-        closeModal('modal-add-mesh');
-        refreshMeshUI();
-        showToast('Trusted person added');
-      });
-    }
-
-    function removeMeshPeer(agentId) {
-      if (!confirm('Are you sure you want to remove ' + agentId + ' from your trusted mesh?')) return;
-      fetch('/api/mesh/remove', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId })
-      }).then(() => {
-        refreshMeshUI();
-        showToast('Peer removed');
-      });
-    }
-
-    function unblockMeshPeer(agentId) {
-      fetch('/api/mesh/unblock', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId })
-      }).then(() => {
-        refreshMeshUI();
-        showToast('Peer unblocked');
-      });
-    }
 
     function copyTotp(idx, btn) {
       const code = document.getElementById('totp-code-' + idx)?.innerText.replace(/\s+/g, '');
@@ -1526,8 +1458,7 @@ function generateSettingsHtml(): string {
                   '<div class="item-subtitle">Requested Tier: ' + escapeHtml(r.requested_tier) + (r.note ? ' • "' + escapeHtml(r.note) + '"' : '') + '</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn btn-connected" onclick="approveMeshPeer(\\'' + r.request_id + '\\', \\'' + r.requested_tier + '\\')">✓ Approve</button>' +
-                  '<button class="btn btn-danger" onclick="blockMeshPeer(\\'' + r.requester_agent_id + '\\')">✕ Block</button>' +
+                  '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);">Pending via chat</span>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1536,16 +1467,16 @@ function generateSettingsHtml(): string {
           // Trusted
           const trustDiv = document.getElementById('mesh-trusted-list');
           if (!m.peers || m.peers.length === 0) {
-            trustDiv.innerHTML = '<div class="vault-empty">No trusted people yet. Click "+ Add Person" above.</div>';
+            trustDiv.innerHTML = '<div class="vault-empty">No trusted people yet</div>';
           } else {
             trustDiv.innerHTML = m.peers.map(p => 
               '<div class="item-row">' +
                 '<div class="item-body">' +
-                  '<div class="item-title">' + escapeHtml(p.name || p.agent_id) + '</div>' +
+                  '<div class="item-title">' + escapeHtml(p.display_name || p.name || p.peer_agent_id || p.agent_id) + '</div>' +
                   '<div class="item-subtitle">Tier: ' + escapeHtml(p.tier) + ' • Connected</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Remove trusted person" onclick="removeMeshPeer(\\'' + p.agent_id + '\\')">🗑️</button>' +
+                  '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;">Connected via chat</span>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1560,34 +1491,12 @@ function generateSettingsHtml(): string {
               '<div class="vault-item-row">' +
                 '<div>' + escapeHtml(b) + '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn btn-connected" style="font-size:11px;" onclick="unblockMeshPeer(\\'' + b + '\\')">✓ Unblock</button>' +
+                  '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#ffebee;color:var(--danger);border:1px solid #ffcdd2;">Blocked via chat</span>' +
                 '</div>' +
               '</div>'
             ).join('');
           }
         });
-    }
-
-    function approveMeshPeer(reqId, tier) {
-      fetch('/api/mesh/approve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: reqId, tier: tier || 'inner_circle' })
-      }).then(() => {
-        refreshMeshUI();
-        showToast('Peer approved');
-      });
-    }
-
-    function blockMeshPeer(agentId) {
-      fetch('/api/mesh/block', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId })
-      }).then(() => {
-        refreshMeshUI();
-        showToast('Peer blocked');
-      });
     }
 
     function handleLogout() {

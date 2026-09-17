@@ -16,7 +16,7 @@ import {
 
 describe("Multi-Agent Swarm Coordination & Identity", () => {
   it("registers agents with unique Ed25519 keypairs and assigned roles", () => {
-    const planner = registerAgent("Planner Alpha", "planner", ["plan"], 10.0);
+    const planner = registerAgent("Planner Prime", "planner", ["plan"], 10.0);
     const worker = registerAgent("Coder Beta", "worker", ["read", "write", "test"], 15.0);
     const reviewer = registerAgent("Reviewer Gamma", "reviewer", ["verify"], 5.0);
 
