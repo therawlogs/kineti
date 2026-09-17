@@ -14,6 +14,8 @@
 
 pub mod epistemic;
 pub mod graph;
+pub mod purge;
+pub mod spatial;
 pub mod storage;
 pub mod tombstone;
 pub mod vector;
@@ -25,6 +27,11 @@ pub use epistemic::{
     GapFillingDecision, GapFillingPolicy, HlcWindow, IngressTrustLevel, OutboundGatingRule,
     Perishability, PromotionDecision, PromotionSignalDetector, ProvenanceRecord,
     ResolvedAdvice, ResolvedPersonaView, RuleConstraintType,
+};
+pub use purge::{ExternalDataPurgeCoordinator, PurgeReceipt};
+pub use spatial::{
+    GeoCoordinate, GeofenceCategory, GeofenceTransition, NamedGeofence, ParkedLocation,
+    SpatialMemoryEngine,
 };
 
 use graph::UserPropertyGraph;
@@ -48,6 +55,10 @@ pub struct MemoryEngine {
     pub tombstones: TombstoneMask,
     /// High-performance Epistemic Persona Engine.
     pub epistemic: EpistemicEngine,
+    /// Geospatial memory engine.
+    pub spatial: SpatialMemoryEngine,
+    /// External data purge coordinator.
+    pub purge: ExternalDataPurgeCoordinator,
     /// Dynamic user style profiles.
     pub style_profiles: RwLock<HashMap<String, UserStyleProfile>>,
     style_analyzer: StyleAnalyzer,
@@ -61,6 +72,8 @@ impl MemoryEngine {
             property_graph: UserPropertyGraph::new(),
             tombstones: TombstoneMask::new(),
             epistemic: EpistemicEngine::new(),
+            spatial: SpatialMemoryEngine::new(),
+            purge: ExternalDataPurgeCoordinator::new(),
             style_profiles: RwLock::new(HashMap::new()),
             style_analyzer: StyleAnalyzer::new(),
         }

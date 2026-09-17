@@ -10,12 +10,14 @@
 
 pub mod confirmation;
 pub mod shopping;
+pub mod stripe_issuing;
 pub mod tickets;
 
 pub use confirmation::{
     ActionConfirmationGate, ConfirmationDecision, FinancialCheckoutConnector, PendingFinancialAction,
 };
 pub use shopping::{MerchantOffer, PriceComparisonEngine, PriceComparisonReport};
+pub use stripe_issuing::{StripeIssuingEngine, VirtualCard};
 pub use tickets::{TicketOption, TicketSearchEngine, TicketSearchParams};
 
 /// Prelude module for convenient access to kineti-actions types.

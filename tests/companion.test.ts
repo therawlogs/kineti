@@ -249,4 +249,38 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
     expect(res.headers.get("vary")).toContain("Origin");
   });
+
+  test("GET / with ?token=<token> returns 200 and sets session cookie", async () => {
+    const res = await server.fetch(new Request(`http://localhost/?token=${AUTH_TOKEN}`));
+    expect(res.status).toBe(200);
+    const setCookie = res.headers.get("set-cookie");
+    expect(setCookie).toBeDefined();
+    expect(setCookie).toContain(`kineti_token=${AUTH_TOKEN}`);
+    const html = await res.text();
+    expect(html).toContain("Kineti Settings");
+  });
+
+  test("GET / with session cookie returns 200", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/", {
+        headers: { Cookie: `kineti_token=${AUTH_TOKEN}` },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Kineti Settings");
+  });
+
+  test("GET /whatsapp-onboarding does not contain 650 numbers or Instinct", async () => {
+    const res = await server.fetch(new Request("http://localhost/whatsapp-onboarding?t=wa_demo"));
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("wa_demo");
+    expect(html).toContain("Connect WhatsApp");
+    expect(html).not.toContain("Instinct");
+    expect(html).not.toContain("650");
+    expect(html).not.toContain("870-2892");
+    expect(html).not.toContain("468-7388");
+  });
 });
+

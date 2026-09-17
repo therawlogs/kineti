@@ -12,12 +12,79 @@ use std::collections::BTreeMap;
 
 /// macOS iMessage Bridge Client.
 #[derive(Debug, Default, Clone)]
-pub struct IMessageBridge;
+pub struct IMessageBridge {
+    phone_number: Option<String>,
+}
 
 impl IMessageBridge {
     /// Creates a new iMessage bridge client.
     pub fn new() -> Self {
-        Self
+        Self { phone_number: None }
+    }
+
+    /// Sets the assigned iMessage phone number or email handle.
+    pub fn with_phone_number(mut self, number: impl Into<String>) -> Self {
+        self.phone_number = Some(number.into());
+        self
+    }
+
+    /// Returns the active configured iMessage number, checking environment override first.
+    pub fn phone_number(&self) -> String {
+        if let Ok(env_num) = std::env::var("KINETI_IMESSAGE_NUMBER") {
+            if !env_num.is_empty() {
+                return env_num;
+            }
+        }
+        if let Some(ref num) = self.phone_number {
+            num.clone()
+        } else {
+            "Not Configured".to_string()
+        }
+    }
+
+    /// Parses latitude and longitude coordinates from location URLs or raw coordinate strings.
+    pub fn extract_location_coordinates(text: &str) -> Option<(f64, f64)> {
+        // 1. Check for Apple Maps format: ?ll=lat,lon or ?q=lat,lon
+        if let Some(pos) = text.find("maps.apple.com/?ll=").or_else(|| text.find("maps.apple.com/?q=")) {
+            let rest = &text[pos..];
+            if let Some(eq_pos) = rest.find('=') {
+                let query_part = &rest[eq_pos + 1..];
+                let coords_str = query_part.split('&').next().unwrap_or("").trim();
+                return Self::parse_lat_lon_pair(coords_str);
+            }
+        }
+
+        // 2. Check for Google Maps format: maps.google.com/?q=lat,lon
+        if let Some(pos) = text.find("google.com/maps?q=").or_else(|| text.find("maps.google.com/?q=")) {
+            let rest = &text[pos..];
+            if let Some(eq_pos) = rest.find('=') {
+                let query_part = &rest[eq_pos + 1..];
+                let coords_str = query_part.split('&').next().unwrap_or("").trim();
+                return Self::parse_lat_lon_pair(coords_str);
+            }
+        }
+
+        // 3. Fallback: Parse explicit latitude/longitude pair (e.g. "37.7749, -122.4194")
+        for line in text.lines() {
+            let cleaned = line.trim().trim_start_matches("Location:").trim();
+            if let Some(coords) = Self::parse_lat_lon_pair(cleaned) {
+                return Some(coords);
+            }
+        }
+
+        None
+    }
+
+    fn parse_lat_lon_pair(s: &str) -> Option<(f64, f64)> {
+        let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
+        if parts.len() == 2 {
+            if let (Ok(lat), Ok(lon)) = (parts[0].parse::<f64>(), parts[1].parse::<f64>()) {
+                if (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon) {
+                    return Some((lat, lon));
+                }
+            }
+        }
+        None
     }
 
     /// Builds AppleScript command string to send a plain text message to a phone or email.
@@ -158,5 +225,38 @@ mod tests {
             replay.err(),
             Some(ConnectorProtocolError::TokenAlreadyConsumed)
         );
+    }
+
+    #[test]
+    fn test_imessage_configurable_phone_number() {
+        let bridge = IMessageBridge::new();
+        assert_eq!(bridge.phone_number(), "Not Configured");
+
+        let bridge_custom = IMessageBridge::new().with_phone_number("+1 (415) 555-0100");
+        assert_eq!(bridge_custom.phone_number(), "+1 (415) 555-0100");
+    }
+
+    #[test]
+    fn test_imessage_extract_location_coordinates() {
+        // Apple Maps link
+        let apple_link = "I parked here: https://maps.apple.com/?ll=37.774929,-122.419416&q=My%20Location";
+        let (lat, lon) = IMessageBridge::extract_location_coordinates(apple_link).unwrap();
+        assert!((lat - 37.774929).abs() < 1e-5);
+        assert!((lon - (-122.419416)).abs() < 1e-5);
+
+        // Google Maps link
+        let google_link = "Meeting spot: https://maps.google.com/?q=37.783333,-122.416667";
+        let (glat, glon) = IMessageBridge::extract_location_coordinates(google_link).unwrap();
+        assert!((glat - 37.783333).abs() < 1e-5);
+        assert!((glon - (-122.416667)).abs() < 1e-5);
+
+        // Plain text location
+        let plain = "Location: 37.7900, -122.4000";
+        let (plat, plon) = IMessageBridge::extract_location_coordinates(plain).unwrap();
+        assert!((plat - 37.7900).abs() < 1e-5);
+        assert!((plon - (-122.4000)).abs() < 1e-5);
+
+        // Non-location text returns None
+        assert!(IMessageBridge::extract_location_coordinates("Hey, what's up?").is_none());
     }
 }

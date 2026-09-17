@@ -65,6 +65,7 @@ pub enum OutboundWhatsAppPayload {
 #[derive(Debug, Clone)]
 pub struct WhatsAppGateway {
     verify_token: String,
+    phone_number: Option<String>,
 }
 
 impl WhatsAppGateway {
@@ -72,6 +73,54 @@ impl WhatsAppGateway {
     pub fn new(verify_token: impl Into<String>) -> Self {
         Self {
             verify_token: verify_token.into(),
+            phone_number: None,
+        }
+    }
+
+    /// Sets the assigned WhatsApp business phone number.
+    pub fn with_phone_number(mut self, number: impl Into<String>) -> Self {
+        self.phone_number = Some(number.into());
+        self
+    }
+
+    /// Returns the active configured WhatsApp number, checking environment override first.
+    pub fn phone_number(&self) -> String {
+        if let Ok(env_num) = std::env::var("KINETI_WHATSAPP_NUMBER") {
+            if !env_num.is_empty() {
+                return env_num;
+            }
+        }
+        if let Some(ref num) = self.phone_number {
+            num.clone()
+        } else {
+            "Not Configured".to_string()
+        }
+    }
+
+    /// Generates a secure WhatsApp onboarding pairing token for an unlinked user number.
+    pub fn generate_pairing_token(phone_number: &str, timestamp: u64) -> String {
+        let clean_phone = phone_number.replace(|c: char| !c.is_ascii_digit(), "");
+        let raw = format!("{}:{}:kineti_wa_pair_v1", clean_phone, timestamp);
+        let hash = kineti_core::kernel::hex_encode(&kineti_core::kernel::blake3(raw.as_bytes()));
+        format!("wa_{}_{}", &hash[..16], timestamp)
+    }
+
+    /// Generates the web pairing URL for WhatsApp onboarding.
+    pub fn generate_onboarding_url(pairing_token: &str) -> String {
+        format!("https://app.getkineti.com/whatsapp-onboarding?t={}", pairing_token)
+    }
+
+    /// Verifies a pairing token against an incoming phone number.
+    pub fn verify_pairing_token(token: &str, phone_number: &str) -> bool {
+        let parts: Vec<&str> = token.split('_').collect();
+        if parts.len() != 3 || parts[0] != "wa" {
+            return false;
+        }
+        if let Ok(timestamp) = parts[2].parse::<u64>() {
+            let expected = Self::generate_pairing_token(phone_number, timestamp);
+            token == expected
+        } else {
+            false
         }
     }
 
@@ -505,5 +554,30 @@ mod tests {
         // Reaction is operational -> succeeds without token
         let res = gw.execute("react_emoji", &payload, None);
         assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_whatsapp_configurable_phone_number() {
+        let gw = WhatsAppGateway::new("token");
+        assert_eq!(gw.phone_number(), "Not Configured");
+
+        let gw_custom = WhatsAppGateway::new("token").with_phone_number("+1 (415) 555-0199");
+        assert_eq!(gw_custom.phone_number(), "+1 (415) 555-0199");
+    }
+
+    #[test]
+    fn test_whatsapp_onboarding_pairing_token() {
+        let phone = "+14155552671";
+        let timestamp = 1710000000;
+        let token = WhatsAppGateway::generate_pairing_token(phone, timestamp);
+        assert!(token.starts_with("wa_"));
+
+        let url = WhatsAppGateway::generate_onboarding_url(&token);
+        assert!(url.starts_with("https://app.getkineti.com/whatsapp-onboarding?t="));
+        assert!(url.contains(&token));
+
+        assert!(WhatsAppGateway::verify_pairing_token(&token, phone));
+        assert!(!WhatsAppGateway::verify_pairing_token(&token, "+14155559999"));
+        assert!(!WhatsAppGateway::verify_pairing_token("invalid_token", phone));
     }
 }
