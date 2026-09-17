@@ -8,6 +8,7 @@ members = [
     "crates/kineti-actions",
     "crates/kineti-gateway",
     "crates/kineti-cli",
+    "crates/kineti-harness",
 ]
 
 [workspace.package]

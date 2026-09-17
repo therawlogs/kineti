@@ -16,7 +16,7 @@ import { readJson, projectKdir, loadLimits, Limits, splitLegacyCommand } from ".
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "kineti-harness";
-const SERVER_VERSION = "3.0.0";
+const SERVER_VERSION = "0.1.0";
 
 // Workspace root resolution
 let workspaceRoot = process.cwd();
@@ -207,6 +207,19 @@ const TOOLS = [
       required: ["host", "desc"],
     },
   },
+  {
+    name: "kineti_epistemic_eval",
+    description: "Evaluate a candidate action against the 360º Human Model (Rule-Exception hierarchies, Epistemic certainty, and Safety ceilings).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        item: { type: "string", description: "Candidate item or action to evaluate (e.g. 'Chicken Biryani')" },
+        tags: { type: "string", description: "Comma-separated tags (e.g. 'meat,chicken' or 'eggs')" },
+        scope: { type: "string", description: "Context scope (health, work, finance, schedule, taste)" },
+      },
+      required: ["item"],
+    },
+  },
 ];
 
 const STAGE_NAMES: Record<string, number> = {
@@ -346,6 +359,17 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
 
       case "kineti_egress_record": {
         const res = runBin("kineti-egress.ts", ["record", "--host", String(args.host), "--desc", String(args.desc)]);
+        return {
+          content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
+          isError: res.exitCode !== 0,
+        };
+      }
+
+      case "kineti_epistemic_eval": {
+        const subArgs = ["eval", "--item", String(args.item || "")];
+        if (args.tags) subArgs.push("--tags", String(args.tags));
+        if (args.scope) subArgs.push("--scope", String(args.scope));
+        const res = runBin("kineti-epistemic.ts", subArgs);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
           isError: res.exitCode !== 0,

@@ -8,6 +8,7 @@ members = [
     "core-native/crates/kineti-actions",
     "core-native/crates/kineti-gateway",
     "core-native/crates/kineti-cli",
+    "core-native/crates/kineti-harness",
 ]
 
 [workspace.package]

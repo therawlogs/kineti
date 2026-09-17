@@ -230,6 +230,43 @@ impl CortexOrchestrator {
             user_message: query.to_string(),
         }
     }
+
+    /// Builds context-hydrated system prompt and inference bundle from a resolved epistemic persona view.
+    pub fn build_inference_prompt_from_persona(
+        &self,
+        query: &str,
+        persona: &kineti_memory::ResolvedPersonaView,
+        style: &UserStyleProfile,
+    ) -> InferencePrompt {
+        let model = self.select_model(query);
+
+        let mut sys = String::from(
+            "You are Kineti, an ultra-fast, intelligent personal companion living in iMessage and WhatsApp.\n\
+             Rules:\n\
+             1. Answer directly and concisely. Zero fluff, no AI pleasantries.\n\
+             2. Never output complex markdown tables or broken code blocks; use clean spacing and short bullet points.\n"
+        );
+
+        // Inject tone and style directives
+        if style.lowercase_preference {
+            sys.push_str("3. Style rule: Use lowercase and a relaxed, fast conversational vibe matching the user.\n");
+        }
+        if style.formality >= 0.7 {
+            sys.push_str("3. Style rule: Maintain a polished, professional, executive tone.\n");
+        }
+
+        let directives = persona.compile_prompt_directives();
+        if !directives.is_empty() {
+            sys.push_str("\n--- RESOLVED USER PERSONA DIRECTIVES ---\n");
+            sys.push_str(&directives);
+        }
+
+        InferencePrompt {
+            model,
+            system_prompt: sys,
+            user_message: query.to_string(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -280,5 +317,37 @@ mod tests {
         assert!(headers.iter().any(|(k, v)| k == "Authorization" && v == "Bearer opencode_live_12345"));
         assert!(body.contains("opencode-go/claude-3-7-sonnet"));
         assert!(body.contains("What is my name?"));
+    }
+
+    #[test]
+    fn test_cortex_prompt_hydration_from_persona() {
+        use kineti_memory::{ContextScope, DomainKind, EpistemicCertainty, EpistemicFact, ResolvedPersonaView, RuleConstraintType};
+        let cortex = CortexOrchestrator::new();
+        let fact = EpistemicFact {
+            id: "ep_01".to_string(),
+            user_id: "u1".to_string(),
+            scope: ContextScope::Domain(DomainKind::Health),
+            attribute: "diet".to_string(),
+            claim: "Vegetarian".to_string(),
+            constraint_type: RuleConstraintType::BaselineRule,
+            certainty: EpistemicCertainty::DirectlyKnown,
+            valid_from: 1000,
+            valid_until: None,
+            contradiction_criteria: None,
+            consequence_level: kineti_memory::ConsequenceLevel::Operational,
+        };
+        let persona = ResolvedPersonaView {
+            baseline_rules: vec![fact],
+            exceptions: vec![],
+            preferences: vec![],
+            safety_ceilings: vec![],
+        };
+        let mut style = UserStyleProfile::default();
+        style.formality = 0.8;
+
+        let prompt = cortex.build_inference_prompt_from_persona("what should I order?", &persona, &style);
+        assert!(prompt.system_prompt.contains("RESOLVED USER PERSONA DIRECTIVES"));
+        assert!(prompt.system_prompt.contains("Vegetarian"));
+        assert!(prompt.system_prompt.contains("executive tone"));
     }
 }
