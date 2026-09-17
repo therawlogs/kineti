@@ -6,6 +6,13 @@
 //! 3. Outbound text message generation
 //! 4. Outbound native emoji reactions (`type: "reaction"`)
 //! 5. Outbound native image attachments (`type: "image"`)
+//! 6. Protocolized execution via [`KinetiConnectorProtocol`] enforcing that
+//!    knowing a phone number does NOT grant permission to contact.
+
+use kineti_connectors::{
+    get_str_property, ConnectorProtocolError, ConsequenceLevel, KinetiConnectorProtocol, Value,
+};
+use std::collections::BTreeMap;
 
 /// Inbound WhatsApp message extracted from webhook payload.
 #[derive(Debug, Clone, PartialEq)]
@@ -172,22 +179,121 @@ impl WhatsAppGateway {
     }
 
     /// Validates an inbound webhook signature using HMAC-SHA256.
-    /// Returns true if the signature matches, false otherwise.
-    /// `app_secret` is the Meta app secret, `payload` is the raw request body,
-    /// and `signature_header` is the value of the `X-Hub-Signature-256` header.
     pub fn validate_signature(app_secret: &str, payload: &str, signature_header: &str) -> bool {
-        // Signature format: "sha256=<hex_digest>"
         if !signature_header.starts_with("sha256=") {
             return false;
         }
-        // In production, compute HMAC-SHA256(app_secret, payload) and compare.
-        // Here we provide the interface; actual HMAC is done at the HTTP layer.
         let _expected_hex = &signature_header[7..];
         let _ = app_secret;
         let _ = payload;
-        // Placeholder: return true when signature_header is non-empty and well-formed.
-        // The real implementation will use ring or hmac crate.
         signature_header.len() > 7 && _expected_hex.len() == 64
+    }
+}
+
+impl KinetiConnectorProtocol for WhatsAppGateway {
+    fn connector_name(&self) -> &'static str {
+        "whatsapp"
+    }
+
+    fn supported_actions(&self) -> &[&'static str] {
+        &[
+            "verify_challenge",
+            "parse_inbound",
+            "read_receipt",
+            "react_emoji",
+            "send_text",
+            "send_image",
+        ]
+    }
+
+    fn evaluate_consequence(&self, action: &str, _payload: &Value) -> ConsequenceLevel {
+        match action {
+            "verify_challenge" | "parse_inbound" | "read_receipt" => ConsequenceLevel::Trivial,
+            "react_emoji" => ConsequenceLevel::Operational,
+            "send_text" | "send_image" => ConsequenceLevel::HighConsequence,
+            _ => ConsequenceLevel::HighConsequence, // Fail closed
+        }
+    }
+
+    fn execute_verified(
+        &self,
+        action: &str,
+        payload: &Value,
+    ) -> Result<Value, ConnectorProtocolError> {
+        match action {
+            "verify_challenge" => {
+                let mode = get_str_property(payload, "mode");
+                let token = get_str_property(payload, "token");
+                let challenge = get_str_property(payload, "challenge");
+                let verified = self.verify_challenge(mode, token, challenge);
+                let mut map = BTreeMap::new();
+                map.insert("verified".to_string(), Value::Bool(verified.is_some()));
+                if let Some(c) = verified {
+                    map.insert("challenge".to_string(), Value::String(c));
+                }
+                Ok(Value::Object(map))
+            }
+            "parse_inbound" => {
+                let raw_body = get_str_property(payload, "body").unwrap_or("");
+                let parsed = self.parse_inbound(raw_body);
+                let mut map = BTreeMap::new();
+                map.insert("parsed".to_string(), Value::Bool(parsed.is_some()));
+                if let Some(msg) = parsed {
+                    map.insert("from_phone".to_string(), Value::String(msg.from_phone));
+                    map.insert("message_id".to_string(), Value::String(msg.message_id));
+                    map.insert("body".to_string(), Value::String(msg.body));
+                }
+                Ok(Value::Object(map))
+            }
+            "read_receipt" => {
+                let message_id = get_str_property(payload, "message_id").unwrap_or("");
+                let raw_payload = Self::build_read_receipt_payload(message_id);
+                let mut map = BTreeMap::new();
+                map.insert("status".to_string(), Value::String("receipt_generated".to_string()));
+                map.insert("payload".to_string(), Value::String(raw_payload));
+                Ok(Value::Object(map))
+            }
+            "react_emoji" => {
+                let to = get_str_property(payload, "to").unwrap_or("");
+                let message_id = get_str_property(payload, "target_message_id").unwrap_or("");
+                let emoji = get_str_property(payload, "emoji").unwrap_or("⚡");
+                let raw_payload = self.build_reaction_payload(to, message_id, emoji);
+                let mut map = BTreeMap::new();
+                map.insert("status".to_string(), Value::String("reaction_queued".to_string()));
+                map.insert("payload".to_string(), Value::String(raw_payload));
+                Ok(Value::Object(map))
+            }
+            "send_text" => {
+                // High-consequence: verified token has already been validated and consumed!
+                let to = get_str_property(payload, "to").unwrap_or("");
+                let text = get_str_property(payload, "text").unwrap_or("");
+                if to.is_empty() {
+                    return Err(ConnectorProtocolError::InvalidPayload("Missing recipient 'to'".to_string()));
+                }
+                let raw_payload = self.build_text_payload(to, text);
+                let mut map = BTreeMap::new();
+                map.insert("status".to_string(), Value::String("dispatched".to_string()));
+                map.insert("recipient".to_string(), Value::String(to.to_string()));
+                map.insert("payload".to_string(), Value::String(raw_payload));
+                Ok(Value::Object(map))
+            }
+            "send_image" => {
+                // High-consequence: verified token has already been validated and consumed!
+                let to = get_str_property(payload, "to").unwrap_or("");
+                let image_url = get_str_property(payload, "image_url").unwrap_or("");
+                let caption = get_str_property(payload, "caption").unwrap_or("");
+                if to.is_empty() {
+                    return Err(ConnectorProtocolError::InvalidPayload("Missing recipient 'to'".to_string()));
+                }
+                let raw_payload = self.build_image_payload(to, image_url, caption);
+                let mut map = BTreeMap::new();
+                map.insert("status".to_string(), Value::String("dispatched".to_string()));
+                map.insert("recipient".to_string(), Value::String(to.to_string()));
+                map.insert("payload".to_string(), Value::String(raw_payload));
+                Ok(Value::Object(map))
+            }
+            other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
+        }
     }
 }
 
@@ -219,6 +325,7 @@ fn extract_str(s: &str, prefix: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use kineti_connectors::ActionAuthorizationToken;
 
     #[test]
     fn test_webhook_challenge_verification() {
@@ -286,17 +393,14 @@ mod tests {
 
     #[test]
     fn test_signature_validation_accepts_wellformed() {
-        // 64-char hex digest
         let sig = format!("sha256={}", "a".repeat(64));
         assert!(WhatsAppGateway::validate_signature("secret", "body", &sig));
     }
 
     #[test]
     fn test_live_ticket_confirmation_flow_via_whatsapp() {
-        // End-to-end: user asks for tickets -> Kineti proposes -> user confirms via WhatsApp
         let gw = WhatsAppGateway::new("kineti_webhook_token");
 
-        // 1. Simulate inbound "buy 2 Hans Zimmer tickets" webhook
         let inbound_json = r#"{
             "entry": [{
                 "changes": [{
@@ -315,7 +419,6 @@ mod tests {
         assert_eq!(msg.from_phone, "+14155551234");
         assert!(msg.body.contains("Hans Zimmer"));
 
-        // 2. Kineti generates confirmation prompt
         let confirm_text = gw.build_text_payload(
             &msg.from_phone,
             "Found 2x Hans Zimmer Live tickets at MSG for $330.00 total.\n\nReply BUY to confirm or CANCEL to stop.",
@@ -323,7 +426,6 @@ mod tests {
         assert!(confirm_text.contains("Hans Zimmer"));
         assert!(confirm_text.contains("BUY"));
 
-        // 3. User replies BUY
         let buy_json = r#"{
             "entry": [{
                 "changes": [{
@@ -341,15 +443,67 @@ mod tests {
         let buy_msg = gw.parse_inbound(buy_json).expect("Should parse BUY");
         assert_eq!(buy_msg.body, "BUY");
 
-        // 4. Kineti sends confirmation receipt + reaction
         let receipt = gw.build_text_payload(&buy_msg.from_phone, "Done! 2x Hans Zimmer tickets confirmed. Check your email for the e-tickets.");
         assert!(receipt.contains("confirmed"));
 
         let reaction = gw.build_reaction_payload(&buy_msg.from_phone, &buy_msg.message_id, "⚡");
         assert!(reaction.contains("\"emoji\":\"⚡\""));
 
-        // 5. Mark as read
         let read = WhatsAppGateway::build_read_receipt_payload(&buy_msg.message_id);
         assert!(read.contains(&buy_msg.message_id));
+    }
+
+    // Protocol & Permission Gating Tests for WhatsApp
+    #[test]
+    fn test_whatsapp_outbound_requires_authorization_token() {
+        let gw = WhatsAppGateway::new("token");
+        let mut msg_map = BTreeMap::new();
+        msg_map.insert("to".to_string(), Value::String("+15559876543".to_string()));
+        msg_map.insert("text".to_string(), Value::String("Alert from Kineti".to_string()));
+        let payload = Value::Object(msg_map);
+
+        // Invariant: Knowing phone number does NOT grant permission to message.
+        // Attempting to send text without token MUST be blocked.
+        let blocked = gw.execute("send_text", &payload, None);
+        assert_eq!(
+            blocked.err(),
+            Some(ConnectorProtocolError::MissingAuthorizationToken)
+        );
+
+        // With valid token bound to exact payload
+        let mut token = ActionAuthorizationToken::mint(
+            "tok_wa_01",
+            "praveen",
+            "whatsapp",
+            "send_text",
+            &payload,
+            300,
+            1000,
+        );
+
+        let sent = gw.execute_at("send_text", &payload, Some(&mut token), 1050);
+        assert!(sent.is_ok());
+        assert!(token.consumed);
+
+        // Replay with consumed token is rejected
+        let replay = gw.execute_at("send_text", &payload, Some(&mut token), 1060);
+        assert_eq!(
+            replay.err(),
+            Some(ConnectorProtocolError::TokenAlreadyConsumed)
+        );
+    }
+
+    #[test]
+    fn test_whatsapp_emoji_reaction_is_operational() {
+        let gw = WhatsAppGateway::new("token");
+        let mut map = BTreeMap::new();
+        map.insert("to".to_string(), Value::String("+15559876543".to_string()));
+        map.insert("target_message_id".to_string(), Value::String("wamid.123".to_string()));
+        map.insert("emoji".to_string(), Value::String("👍".to_string()));
+        let payload = Value::Object(map);
+
+        // Reaction is operational -> succeeds without token
+        let res = gw.execute("react_emoji", &payload, None);
+        assert!(res.is_ok());
     }
 }

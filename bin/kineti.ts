@@ -45,7 +45,7 @@ if (!subcommand || subcommand === "--help" || subcommand === "-h") {
 }
 
 if (subcommand === "--version" || subcommand === "-v") {
-  let version = "1.0.0";
+  let version = "0.1.0";
   try {
     const pkg = JSON.parse(fs.readFileSync(path.resolve(import.meta.dir, "../package.json"), "utf8"));
     if (pkg && pkg.version) version = pkg.version;

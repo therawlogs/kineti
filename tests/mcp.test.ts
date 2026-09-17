@@ -95,7 +95,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
 
       expect(listResp.result.tools).toBeDefined();
       const toolNames = listResp.result.tools.map((t: any) => t.name);
-      expect(toolNames.length).toBe(12);
+      expect(toolNames.length).toBe(13);
       expect(toolNames).toContain("kineti_status");
       expect(toolNames).toContain("kineti_lock_goal");
       expect(toolNames).toContain("kineti_set_stage");
@@ -108,6 +108,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
       expect(toolNames).toContain("kineti_saga_rollback");
       expect(toolNames).toContain("kineti_verify_gate_status");
       expect(toolNames).toContain("kineti_egress_record");
+      expect(toolNames).toContain("kineti_epistemic_eval");
     } finally {
       session.close();
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -262,6 +263,19 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
         },
       });
       expect(spendStatusResp.result.content[0].text).toContain("tripped=false");
+
+      // 5. Evaluate candidate action via epistemic tool
+      const epistemicResp = await session.sendRpc({
+        jsonrpc: "2.0",
+        id: 6,
+        method: "tools/call",
+        params: {
+          name: "kineti_epistemic_eval",
+          arguments: { item: "Chicken Biryani", tags: "meat,chicken" },
+        },
+      });
+      expect(epistemicResp.result.isError).toBeFalsy();
+      expect(epistemicResp.result.content[0].text).toContain("BlockedByRule");
     } finally {
       session.close();
       fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -16,6 +16,7 @@ pub mod conversation;
 pub mod gate;
 pub mod hlc;
 pub mod kernel;
+pub mod root_goal;
 pub mod snapshot;
 pub mod spend;
 
@@ -145,6 +146,12 @@ pub use spend::{
     HALT_EXIT_CODE, MICROCENTS_PER_USD,
 };
 
+// Verbatim Root Goal & Anti-Drift Engine
+pub use root_goal::{
+    DriftEvaluation, DriftInspector, FrictionResolution, FrictionType, ImmutableBoundaries,
+    VerbatimRootGoal,
+};
+
 /// Prelude module for convenient single-import access to essential types.
 pub mod prelude {
     pub use crate::gate::{CommitGate, CommitGateError, CommitReceipt, CommittedNode};
@@ -159,6 +166,10 @@ pub mod prelude {
         RollbackStep, SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
     };
     pub use crate::snapshot::{SnapshotEngine, SnapshotHandle, SnapshotNode};
+    pub use crate::root_goal::{
+        DriftEvaluation, DriftInspector, FrictionResolution, FrictionType, ImmutableBoundaries,
+        VerbatimRootGoal,
+    };
     pub use crate::spend::{
         microcents_to_usd, usd_to_microcents, Reservation, SpendCircuitBreaker, SpendError,
         DEFAULT_CEILING_MICROCENTS, DEFAULT_CEILING_USD, DEFAULT_SAFETY_FACTOR,
