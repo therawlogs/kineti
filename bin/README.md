@@ -14,3 +14,8 @@ These tools manage state, safety, and testing. Run any tool with `bun bin/<name>
 | `kineti-ci` | Runs all verification checks and builds reports |
 | `kineti-mcp` | Runs the Model Context Protocol (MCP) server |
 | `kineti-memory-job` | Runs weekly memory cleanups and integrity checks |
+| `kineti-epistemic` | Queries the Epistemic Engine and persona beliefs |
+| `kineti-invite` | Manages viral peer invites and vanity referral handles |
+| `kineti-privacy` | Manages privacy opt-outs and data deletion |
+| `kineti-stripe` | Manages virtual payment card issuance and checkout |
+| `kineti-swarm` | Coordinates multi-agent peer mesh connections |

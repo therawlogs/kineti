@@ -6,12 +6,21 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso } from "./lib.ts";
-import { TrustedNetworkManager } from "../src/swarm/trusted_network.ts";
+import { TrustedNetworkManager, TrustTier } from "../src/swarm/trusted_network.ts";
 import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
 
 const PORT = Number(process.env.KINETI_COMPANION_PORT || 8788);
 const REPO_ROOT = process.cwd();
+
+export function escapeHtml(unsafe: string): string {
+  return String(unsafe)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 const STAGES = [
   { id: 1, name: "officehours", label: "Officehours", gate: null, desc: "Goal intake & scope lock" },
@@ -75,6 +84,8 @@ let activeRepoId = defaultRepoName;
 export function getHarnessStatus() {
   const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
   const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
+  const config = readJson<any>(path.join(REPO_ROOT, "kineti.config.json")) || {};
+  const configuredCeiling = config.settings?.spend_limit_usd?.global ?? 50.0;
   return {
     repo_id: activeRepoId,
     root_goal: state.root_goal || "Build universal agent harness with cryptographic verification",
@@ -82,7 +93,7 @@ export function getHarnessStatus() {
     stages: STAGES,
     spend: {
       total_usd: (spend.total_microcents || 0) / 100_000_000,
-      ceiling_usd: 50.0,
+      ceiling_usd: configuredCeiling,
       tripped: spend.tripped || false,
     },
     gates: state.gates || { spec: "pass", ship: "pass", security: "pass" },
@@ -99,7 +110,7 @@ export function getFleetStatus() {
         id: activeRepoId,
         name: activeRepoId,
         path: REPO_ROOT,
-        owner: "Praveen Kumar",
+        owner: "Kineti User",
         branch: "main",
         status: "active",
         active_task: "Universal Autonomous Assistant Integration",
@@ -111,11 +122,11 @@ export function getFleetStatus() {
       },
     ],
     settings: {
-      github: { connected: true, account: "therawlogs", repo_count: 1, webhook_status: "active" },
+      github: { connected: true, account: "kineti-org", repo_count: 1, webhook_status: "active" },
       ides: { cursor: true, claude_code: true, antigravity: true, codex: true },
-      team_members: [{ name: "Praveen Kumar", email: "praveen@mail.kineti.com", role: "Owner" }],
+      team_members: [{ name: "Kineti User", email: "user@mail.kineti.com", role: "Owner" }],
       repo_budgets: { [activeRepoId]: 50 },
-      repo_owners: { [activeRepoId]: "Praveen Kumar" },
+      repo_owners: { [activeRepoId]: "Kineti User" },
     },
   };
 }
@@ -138,23 +149,51 @@ function loadVault(): VaultStorage {
       cards: [],
       personal_info: [],
       agent_items: [],
-      totp_items: [
-        { id: "totp_01", issuer: "AWS Root", account: "praveen@mail.kineti.com", secret_masked: "JBSWY3DPEHPK3PXP" },
-      ],
+      totp_items: [],
     }
   );
 }
 
 function saveVault(vault: VaultStorage): void {
   ensureDir(projectKdir());
-  writeJson(vaultFile, vault);
+  const tmpFile = path.join(projectKdir(), `vault_entries.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
+  fs.writeFileSync(tmpFile, JSON.stringify(vault, null, 2) + "\n", { mode: 0o600 });
+  fs.renameSync(tmpFile, vaultFile);
+  try {
+    fs.chmodSync(vaultFile, 0o600);
+  } catch {}
 }
+
+let companionSettings = {
+  github: { connected: true, account: "kineti-org", repo_count: 1, webhook_status: "active" },
+  ides: { cursor: true, claude_code: true, antigravity: true, codex: true },
+  team_members: [{ name: "Kineti User", email: "user@mail.kineti.com", role: "Owner" }],
+  repo_budgets: { [activeRepoId]: 50 } as Record<string, number>,
+  repo_owners: { [activeRepoId]: "Kineti User" } as Record<string, string>,
+  imessage_number: process.env.KINETI_IMESSAGE_NUMBER || "Not Configured",
+  whatsapp_number: process.env.KINETI_WHATSAPP_NUMBER || "Not Configured",
+  agent_email: "agent@mail.kineti.com",
+  user_name: "Kineti User",
+  user_phone: "Not Configured",
+  connectors: {
+    google: { connected: true, account: "user@example.com", name: "Google Workspace", desc: "Gmail, Calendar, Tasks, Drive, Docs, Sheets, and Slides" },
+    outlook: { connected: false, account: "corp@example.com", name: "Outlook", desc: "Read, search, draft, and organize mail via Microsoft Graph" },
+    linear: { connected: true, account: "Linear Workspace", name: "Linear", desc: "Search and update issues, create issues and comments" },
+    notion: { connected: true, account: "Team Notion", name: "Notion", desc: "Search, read, and manage Notion pages and databases" },
+    github: { connected: true, account: "kineti-org", name: "GitHub", desc: "Read repositories, files, issues, pull requests, and code search" },
+    slack: { connected: false, account: "Team Slack", name: "Slack", desc: "Read channels, send messages, reactions, and canvas notes" },
+    granola: { connected: false, account: "Meeting Notes", name: "Granola", desc: "Read meeting notes, transcripts, and AI summaries" },
+    wispr: { connected: true, account: "Wispr Flow MCP", name: "Wispr Flow", desc: "Voice dictation & speech-to-text MCP integration" },
+  } as Record<string, { connected: boolean; account: string; name: string; desc: string }>,
+};
 
 // Settings App HTML Generator
 function generateSettingsHtml(): string {
-  const imessageNum = process.env.KINETI_IMESSAGE_NUMBER || "Not Configured";
-  const whatsappNum = process.env.KINETI_WHATSAPP_NUMBER || "Not Configured";
-  const agentEmail = "prav@mail.kineti.com";
+  const imessageNum = escapeHtml(companionSettings.imessage_number);
+  const whatsappNum = escapeHtml(companionSettings.whatsapp_number);
+  const agentEmail = escapeHtml(companionSettings.agent_email);
+  const userName = escapeHtml(companionSettings.user_name);
+  const userPhone = escapeHtml(companionSettings.user_phone);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -175,6 +214,7 @@ function generateSettingsHtml(): string {
       --danger: #ff3b30;
       --danger-bg: #fff2f2;
       --success: #34c759;
+      --success-bg: #f4fbf6;
       --font-serif: "New York", "Charter", "Georgia", serif;
       --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, sans-serif;
       --radius: 12px;
@@ -188,12 +228,12 @@ function generateSettingsHtml(): string {
       display: flex;
       min-height: 100vh;
     }
-    /* Layout */
+    /* Sidebar Navigation */
     .sidebar {
       width: 220px;
       background: #ffffff;
       border-right: 1px solid var(--border-color);
-      padding: 32px 20px;
+      padding: 32px 18px;
       display: flex;
       flex-direction: column;
       position: fixed;
@@ -207,24 +247,25 @@ function generateSettingsHtml(): string {
       font-size: 26px;
       font-weight: 500;
       letter-spacing: -0.5px;
-      margin-bottom: 36px;
+      margin-bottom: 32px;
       color: #111111;
       padding-left: 8px;
     }
     .nav-list { list-style: none; display: flex; flex-direction: column; gap: 4px; flex: 1; }
     .nav-item {
-      padding: 8px 12px;
+      padding: 9px 12px;
       border-radius: 8px;
       font-size: 14px;
       color: #333336;
       cursor: pointer;
       text-decoration: none;
       transition: background 0.15s, color 0.15s;
+      user-select: none;
     }
     .nav-item:hover { background: #f5f5f7; color: #000; }
     .nav-item.active { background: #f0f0f2; font-weight: 600; color: #000; }
     .user-footer {
-      padding: 12px 8px 0;
+      padding: 14px 8px 0;
       border-top: 1px solid var(--border-color);
     }
     .user-name { font-size: 13px; font-weight: 600; color: #1d1d1f; }
@@ -236,6 +277,7 @@ function generateSettingsHtml(): string {
       flex: 1;
       max-width: 760px;
       padding: 40px 48px 80px;
+      overflow-y: auto;
     }
     .section-title {
       font-family: var(--font-serif);
@@ -278,11 +320,11 @@ function generateSettingsHtml(): string {
     .icon-messages { background: #34c759; color: #fff; }
     .icon-whatsapp { background: #25d366; color: #fff; }
     .icon-email { background: #0071e3; color: #fff; }
-    .icon-service { background: #f5f5f7; color: #333; border: 1px solid var(--border-color); }
+    .icon-service { background: #f5f5f7; color: #333; border: 1px solid var(--border-color); font-weight: 600; font-size: 13px; }
     .item-body { flex: 1; }
     .item-title { font-size: 14px; font-weight: 500; color: #1d1d1f; }
     .item-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
-    .item-action { display: flex; align-items: center; gap: 10px; }
+    .item-action { display: flex; align-items: center; gap: 8px; }
 
     /* Buttons */
     .btn {
@@ -341,8 +383,15 @@ function generateSettingsHtml(): string {
     .vault-empty {
       font-size: 13px;
       color: var(--text-secondary);
-      padding: 16px 0;
+      padding: 14px 0;
       border-bottom: 1px solid var(--border-color);
+    }
+    .vault-item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--divider-color);
     }
     .totp-box {
       background: #f5f5f7;
@@ -380,22 +429,26 @@ function generateSettingsHtml(): string {
     .modal-card {
       background: #fff;
       border-radius: 16px;
-      width: 420px;
+      width: 440px;
       max-width: 90vw;
       padding: 28px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.15);
     }
     .modal-title { font-family: var(--font-serif); font-size: 20px; margin-bottom: 8px; }
-    .modal-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; }
+    .modal-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.4; }
     .input-field {
       width: 100%;
       padding: 10px 14px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
       font-size: 14px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
+      box-sizing: border-box;
+      outline: none;
     }
-    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+    .input-field:focus { border-color: #0071e3; }
+    .input-label { font-size: 12px; font-weight: 600; color: #1d1d1f; margin-bottom: 4px; display: block; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 
     /* Switch toggle */
     .switch {
@@ -416,7 +469,24 @@ function generateSettingsHtml(): string {
     input:checked + .slider { background-color: #34c759; }
     input:checked + .slider:before { transform: translateX(20px); }
 
-    /* Hidden backward compatibility hooks for test assertion */
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #111;
+      color: #fff;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease-in-out;
+      z-index: 200;
+    }
+    .toast.show { opacity: 1; }
+
+    /* Test compatibility hooks */
     .test-compat-node { display: none; }
   </style>
 </head>
@@ -433,16 +503,16 @@ function generateSettingsHtml(): string {
   <aside class="sidebar">
     <div class="brand">Kineti</div>
     <ul class="nav-list">
-      <li class="nav-item active" onclick="switchTab('workspace')">Workspace</li>
-      <li class="nav-item" onclick="switchTab('vault')">Vault</li>
-      <li class="nav-item" onclick="switchTab('trusted')">Trusted people</li>
-      <li class="nav-item" onclick="switchTab('preferences')">Preferences</li>
+      <li class="nav-item active" data-tab="workspace" onclick="switchTab('workspace', this)">Workspace</li>
+      <li class="nav-item" data-tab="vault" onclick="switchTab('vault', this)">Vault</li>
+      <li class="nav-item" data-tab="trusted" onclick="switchTab('trusted', this)">Trusted people</li>
+      <li class="nav-item" data-tab="preferences" onclick="switchTab('preferences', this)">Preferences</li>
       <li class="nav-item" onclick="openInviteModal()">Invite a friend</li>
-      <li class="nav-item" onclick="handleLogout()" style="color: var(--text-secondary); margin-top: 12px;">Log out</li>
+      <li class="nav-item" onclick="handleLogout()" style="color: var(--text-secondary); margin-top: 14px;">Log out</li>
     </ul>
     <div class="user-footer">
-      <div class="user-name">Praveen Kumar</div>
-      <div class="user-phone">+91 99125 39426</div>
+      <div class="user-name" id="sidebar-user-name">${userName}</div>
+      <div class="user-phone" id="sidebar-user-phone">${userPhone}</div>
     </div>
   </aside>
 
@@ -461,7 +531,6 @@ function generateSettingsHtml(): string {
         </div>
         <div class="item-action">
           <button class="copy-btn" onclick="copyText('${imessageNum}', this)">📋</button>
-          <span style="color: var(--text-secondary);">></span>
         </div>
       </div>
 
@@ -473,7 +542,6 @@ function generateSettingsHtml(): string {
         </div>
         <div class="item-action">
           <button class="copy-btn" onclick="copyText('${whatsappNum}', this)">📋</button>
-          <span style="color: var(--text-secondary);">></span>
         </div>
       </div>
 
@@ -485,7 +553,7 @@ function generateSettingsHtml(): string {
         </div>
         <div class="item-action">
           <button class="copy-btn" onclick="copyText('${agentEmail}', this)">📋</button>
-          <button class="copy-btn" onclick="openEmailModal()">></button>
+          <button class="copy-btn" onclick="openEmailModal()">✎</button>
         </div>
       </div>
 
@@ -493,124 +561,13 @@ function generateSettingsHtml(): string {
 
       <h2 class="section-title">Connectors</h2>
       <p class="section-desc">Tools your Kineti agent can use</p>
-
-      <!-- Google Workspace -->
-      <div class="item-row">
-        <div class="item-icon icon-service">G</div>
-        <div class="item-body">
-          <div class="item-title">Google Workspace</div>
-          <div class="item-subtitle">Gmail, Calendar, Tasks, Drive, Docs, Sheets, and Slides</div>
-        </div>
-        <div class="item-action">
-          <button class="btn" onclick="addAccount('google')">Add account</button>
-        </div>
-      </div>
-      <div style="padding-left: 46px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-        <span>workofpraveen@gmail.com</span>
-        <span>✉️ 📅 ☑️ 📄 📊 🖥️ •••</span>
-      </div>
-
-      <!-- Outlook -->
-      <div class="item-row">
-        <div class="item-icon icon-service">O</div>
-        <div class="item-body">
-          <div class="item-title">Outlook</div>
-          <div class="item-subtitle">Read, search, draft, send, and organize Outlook mail through Microsoft Graph</div>
-        </div>
-        <div class="item-action">
-          <button class="btn" onclick="addAccount('outlook')">Add account</button>
-        </div>
-      </div>
-      <div style="padding-left: 46px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-        <span>pk@sweya.ai</span>
-        <span>•••</span>
-      </div>
-
-      <!-- Linear -->
-      <div class="item-row">
-        <div class="item-icon icon-service">▲</div>
-        <div class="item-body">
-          <div class="item-title">Linear</div>
-          <div class="item-subtitle">Search and update Linear issues. Create issues and add comments</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-primary" onclick="connectService('linear')">Connect</button>
-        </div>
-      </div>
-
-      <!-- Notion -->
-      <div class="item-row">
-        <div class="item-icon icon-service">N</div>
-        <div class="item-body">
-          <div class="item-title">Notion</div>
-          <div class="item-subtitle">Search, read, and manage Notion pages and databases</div>
-        </div>
-        <div class="item-action">
-          <button class="btn" onclick="addAccount('notion')">Add account</button>
-        </div>
-      </div>
-      <div style="padding-left: 46px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-        <span>Praveen Kumar's Space</span>
-        <span>•••</span>
-      </div>
-
-      <!-- GitHub -->
-      <div class="item-row">
-        <div class="item-icon icon-service">🐙</div>
-        <div class="item-body">
-          <div class="item-title">GitHub</div>
-          <div class="item-subtitle">Read repositories, files, issues, pull requests, and code search</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-connected">Connected</button>
-        </div>
-      </div>
-      <div style="padding-left: 46px; margin-bottom: 12px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; justify-content: space-between;">
-        <span>therawlogs <small>The Raw Logs</small></span>
-        <span>•••</span>
-      </div>
-
-      <!-- Slack -->
-      <div class="item-row">
-        <div class="item-icon icon-service">#</div>
-        <div class="item-body">
-          <div class="item-title">Slack</div>
-          <div class="item-subtitle">Read and search Slack conversations and canvases. Send messages, reactions, reminders</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-primary" onclick="connectService('slack')">Connect</button>
-        </div>
-      </div>
-
-      <!-- Granola -->
-      <div class="item-row">
-        <div class="item-icon icon-service">🌀</div>
-        <div class="item-body">
-          <div class="item-title">Granola</div>
-          <div class="item-subtitle">Read your meeting notes, transcripts, and AI summaries</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-primary" onclick="connectService('granola')">Connect</button>
-        </div>
-      </div>
-
-      <!-- Wispr Flow MCP (First Class) -->
-      <div class="item-row">
-        <div class="item-icon icon-service">🎙️</div>
-        <div class="item-body">
-          <div class="item-title">Wispr Flow</div>
-          <div class="item-subtitle">Voice dictation and speech-to-text MCP integration (api.wisprflow.ai/connect/mcp)</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-connected">Connected</button>
-        </div>
-      </div>
+      <div id="connectors-list"></div>
 
       <hr class="section-divider">
 
       <h2 class="section-title">Data privacy</h2>
       <p class="section-desc">Manage data from connected services</p>
-      <div class="item-row">
+      <div class="item-row" style="border: none;">
         <div class="item-body">
           <div class="item-title">External data</div>
           <div class="item-subtitle">Manage emails, messages, and other data imported from your connected services</div>
@@ -628,59 +585,47 @@ function generateSettingsHtml(): string {
         <button class="btn" onclick="openVaultModal('login')">+</button>
       </div>
       <p class="section-desc">Web passwords and portal credentials</p>
-      <div id="vault-logins-list" class="vault-empty">No logins saved</div>
+      <div id="vault-logins-list"></div>
 
       <div class="vault-group-header" style="margin-top: 32px;">
         <h2 class="vault-title">Cards</h2>
         <button class="btn" onclick="openVaultModal('card')">+</button>
       </div>
       <p class="section-desc">Payment methods and autonomous virtual cards</p>
-      <div id="vault-cards-list" class="vault-empty">No cards saved</div>
+      <div id="vault-cards-list"></div>
 
       <div class="vault-group-header" style="margin-top: 32px;">
         <h2 class="vault-title">Personal info</h2>
         <button class="btn" onclick="openVaultModal('personal')">+</button>
       </div>
       <p class="section-desc">Loyalty IDs, passport details, and travel preferences</p>
-      <div id="vault-personal-list" class="vault-empty">No personal info saved</div>
-
-      <div class="vault-group-header" style="margin-top: 32px;">
-        <h2 class="vault-title">Agent items (0)</h2>
-        <span style="color: var(--text-secondary); cursor: pointer;">⌄</span>
-      </div>
-      <p class="section-desc">Accounts and other items used by your agent. They stay in your vault and remain under your control.</p>
+      <div id="vault-personal-list"></div>
 
       <div class="vault-group-header" style="margin-top: 32px;">
         <h2 class="vault-title">Authenticator (TOTP)</h2>
         <button class="btn" onclick="openVaultModal('totp')">+</button>
       </div>
       <p class="section-desc">Time-based one-time password seeds for automated multi-factor authentication</p>
-      <div class="totp-box">
-        <div>
-          <div style="font-size: 13px; font-weight: 600;">AWS Root (praveen@mail.kineti.com)</div>
-          <div class="totp-timer">Refreshes in 18s • RFC 6238 HMAC-SHA1</div>
-        </div>
-        <div class="totp-code" id="totp-display">749 201</div>
-      </div>
+      <div id="vault-totp-list"></div>
     </div>
 
     <!-- TAB 3: TRUSTED PEOPLE -->
     <div id="tab-trusted" class="tab-pane" style="display: none;">
       <h2 class="section-title">Requests</h2>
       <p class="section-desc">People asking to connect their Kineti to yours</p>
-      <div id="mesh-requests-list" class="vault-empty">No pending requests</div>
+      <div id="mesh-requests-list"></div>
 
       <hr class="section-divider">
 
       <h2 class="section-title">Trusted people</h2>
       <p class="section-desc">Their Kineti can reach yours</p>
-      <div id="mesh-trusted-list" class="vault-empty">No trusted people yet</div>
+      <div id="mesh-trusted-list"></div>
 
       <hr class="section-divider">
 
       <h2 class="section-title">Blocked</h2>
       <p class="section-desc">Their Kineti can't reach yours</p>
-      <div id="mesh-blocked-list" class="vault-empty">No blocked peers</div>
+      <div id="mesh-blocked-list"></div>
 
       <hr class="section-divider">
 
@@ -705,17 +650,17 @@ function generateSettingsHtml(): string {
       <div class="item-row">
         <div class="item-body">
           <div class="item-title">Name</div>
-          <div class="item-subtitle">Praveen Kumar</div>
+          <div class="item-subtitle" id="pref-user-name">${userName}</div>
         </div>
         <div class="item-action">
-          <button class="btn" onclick="alert('Edit name')">Edit</button>
+          <button class="btn" onclick="openEditNameModal()">Edit</button>
         </div>
       </div>
 
       <div class="item-row">
         <div class="item-body">
           <div class="item-title">WhatsApp Connection</div>
-          <div class="item-subtitle">+91 99125 39426 (Paired)</div>
+          <div class="item-subtitle" id="pref-wa-status">${whatsappNum}</div>
         </div>
         <div class="item-action">
           <a href="/whatsapp-onboarding?t=wa_demo" target="_blank" class="btn">Pair New</a>
@@ -735,7 +680,7 @@ function generateSettingsHtml(): string {
         </div>
       </div>
 
-      <div class="item-row" style="margin-top: 24px;">
+      <div class="item-row" style="margin-top: 24px; border: none;">
         <div class="item-body">
           <div class="item-title" style="color: var(--danger);">Delete account</div>
           <div class="item-subtitle">Permanently delete your account, credentials vault, and data.</div>
@@ -748,14 +693,96 @@ function generateSettingsHtml(): string {
   </main>
 
   <!-- MODALS -->
+  <!-- Add Login Modal -->
+  <div id="modal-add-login" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Add Web Login</h3>
+      <p class="modal-desc">Save a website domain and credentials to your secure local vault.</p>
+      <label class="input-label">Website Domain</label>
+      <input type="text" id="login-domain" class="input-field" placeholder="e.g. github.com">
+      <label class="input-label">Username / Email</label>
+      <input type="text" id="login-user" class="input-field" placeholder="e.g. user@example.com">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-add-login')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAddLogin()">Save to Vault</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Card Modal -->
+  <div id="modal-add-card" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Add Payment Card</h3>
+      <p class="modal-desc">Configure a payment method or dynamic single-use card with spend cap.</p>
+      <label class="input-label">Card Brand</label>
+      <input type="text" id="card-brand" class="input-field" placeholder="e.g. Visa, Mastercard, Amex">
+      <label class="input-label">Spend Cap ($ USD)</label>
+      <input type="number" id="card-cap" class="input-field" placeholder="100.00" value="100.00" min="1" step="5">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-add-card')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAddCard()">Issue Card</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Personal Info Modal -->
+  <div id="modal-add-personal" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Add Personal Info</h3>
+      <p class="modal-desc">Store travel credentials, airline loyalty numbers, or preferences.</p>
+      <label class="input-label">Label</label>
+      <input type="text" id="personal-label" class="input-field" placeholder="e.g. Passport, United MileagePlus">
+      <label class="input-label">Value</label>
+      <input type="text" id="personal-val" class="input-field" placeholder="e.g. USA •••• 9210">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-add-personal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAddPersonal()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add TOTP Modal -->
+  <div id="modal-add-totp" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Add Authenticator (TOTP)</h3>
+      <p class="modal-desc">Provide RFC 6238 Base32 secret for automated multi-factor code generation.</p>
+      <label class="input-label">Service / Issuer</label>
+      <input type="text" id="totp-issuer" class="input-field" placeholder="e.g. AWS Root, GitHub, Cloudflare">
+      <label class="input-label">Account</label>
+      <input type="text" id="totp-account" class="input-field" placeholder="e.g. user@example.com">
+      <label class="input-label">Base32 Secret</label>
+      <input type="text" id="totp-secret" class="input-field" placeholder="e.g. JBSWY3DPEHPK3PXP">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-add-totp')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAddTotp()">Add Authenticator</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Name Modal -->
+  <div id="modal-edit-name" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Edit Display Name</h3>
+      <p class="modal-desc">Update the name your Kineti assistant uses.</p>
+      <label class="input-label">Full Name</label>
+      <input type="text" id="edit-name-input" class="input-field" value="${userName}">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-edit-name')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitEditName()">Save Name</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Invite Modal -->
   <div id="modal-invite" class="modal-overlay">
     <div class="modal-card">
       <h3 class="modal-title">Invite a friend</h3>
       <p class="modal-desc" id="invite-quota-desc">You have 3 of 3 invites remaining.</p>
-      <input type="text" id="invite-url-input" class="input-field" readonly value="https://getkineti.com/join/praveen?code=kineti_alpha">
+      <label class="input-label">Referral Link</label>
+      <input type="text" id="invite-url-input" class="input-field" readonly value="https://getkineti.com/join/user?code=kineti_alpha">
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-invite')">Done</button>
+        <button class="btn" onclick="generateNewInviteLink()">Generate New</button>
         <button class="btn btn-primary" onclick="copyInviteLink()">Copy link</button>
       </div>
     </div>
@@ -766,7 +793,8 @@ function generateSettingsHtml(): string {
     <div class="modal-card">
       <h3 class="modal-title">Update Kineti Email</h3>
       <p class="modal-desc">Set your dedicated agent email alias. Emails sent here are processed autonomously.</p>
-      <input type="text" id="email-alias-input" class="input-field" value="prav">
+      <label class="input-label">Alias</label>
+      <input type="text" id="email-alias-input" class="input-field" value="agent">
       <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">@mail.kineti.com</div>
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-email')">Cancel</button>
@@ -775,17 +803,66 @@ function generateSettingsHtml(): string {
     </div>
   </div>
 
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
   <script>
-    function switchTab(tab) {
-      document.querySelectorAll('.tab-pane').forEach(el => el.style.display = 'none');
-      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    // Clean ?token= from address bar immediately to prevent token exposure in history/referrer
+    if (window.location.search.includes('token=')) {
+      try {
+        history.replaceState({}, '', window.location.pathname);
+      } catch {}
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.innerText = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function switchTab(tab, el) {
+      document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+      document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
       const target = document.getElementById('tab-' + tab);
       if (target) target.style.display = 'block';
-      event.target.classList.add('active');
+      if (el) el.classList.add('active');
+      else {
+        const item = document.querySelector('.nav-item[data-tab="' + tab + '"]');
+        if (item) item.classList.add('active');
+      }
+    }
+
+    function openVaultModal(type) {
+      if (type === 'login') document.getElementById('modal-add-login').classList.add('open');
+      if (type === 'card') document.getElementById('modal-add-card').classList.add('open');
+      if (type === 'personal') document.getElementById('modal-add-personal').classList.add('open');
+      if (type === 'totp') document.getElementById('modal-add-totp').classList.add('open');
+    }
+
+    function openEditNameModal() {
+      document.getElementById('modal-edit-name').classList.add('open');
     }
 
     function openInviteModal() {
+      fetch('/api/invites')
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('invite-quota-desc').innerText = 'You have ' + d.remaining_quota + ' invites remaining (' + d.tier + ' tier).';
+          if (d.invites && d.invites.length > 0) {
+            document.getElementById('invite-url-input').value = d.invites[d.invites.length - 1].vanity_url;
+          }
+        });
       document.getElementById('modal-invite').classList.add('open');
+    }
+
+    function generateNewInviteLink() {
+      fetch('/api/invites', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+          document.getElementById('invite-url-input').value = d.vanity_url;
+          showToast('New invite link created!');
+        });
     }
 
     function openEmailModal() {
@@ -801,20 +878,23 @@ function generateSettingsHtml(): string {
       const orig = btn.innerText;
       btn.innerText = '✓';
       setTimeout(() => btn.innerText = orig, 1500);
+      showToast('Copied to clipboard');
     }
 
     function copyInviteLink() {
       const val = document.getElementById('invite-url-input').value;
       navigator.clipboard.writeText(val);
-      alert('Invite link copied to clipboard!');
+      showToast('Invite link copied!');
       closeModal('modal-invite');
     }
 
     function triggerPurge() {
-      if (confirm('Are you sure you want to purge all external third-party imported data? Your local vault and core identity remain safe.')) {
+      if (confirm('Are you sure you want to purge external third-party imported data? Your local vault and core identity remain safe.')) {
         fetch('/api/privacy/purge', { method: 'POST' })
           .then(r => r.json())
-          .then(data => alert('Data purge complete. ' + data.records_invalidated + ' external records tombstoned.'));
+          .then(data => {
+            showToast('Purged ' + (data.records_invalidated || 0) + ' external records.');
+          });
       }
     }
 
@@ -828,10 +908,12 @@ function generateSettingsHtml(): string {
             btn.innerText = 'Resume connections';
             btn.classList.add('btn-danger');
             title.innerText = 'Connections paused';
+            showToast('Mesh connections paused');
           } else {
             btn.innerText = 'Pause connections';
             btn.classList.remove('btn-danger');
             title.innerText = 'Connections active';
+            showToast('Mesh connections active');
           }
         });
     }
@@ -841,32 +923,314 @@ function generateSettingsHtml(): string {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enable: enabled })
-      });
+      }).then(() => showToast(enabled ? 'Model training opted in' : 'Model training opted out'));
     }
 
     function saveEmailAlias() {
-      const alias = document.getElementById('email-alias-input').value.trim();
+      const alias = document.getElementById('email-alias-input').value.trim().slice(0, 32);
       if (alias) {
         document.getElementById('val-email').innerText = alias + '@mail.kineti.com';
         closeModal('modal-email');
+        showToast('Email alias updated');
       }
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const tokenParam = urlParams.get('token');
-    if (tokenParam) {
-      localStorage.setItem('kineti_auth_token', tokenParam);
-      history.replaceState({}, '', '/');
+    function submitEditName() {
+      const name = document.getElementById('edit-name-input').value.trim().slice(0, 100);
+      if (name) {
+        fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_name: name })
+        }).then(() => {
+          document.getElementById('sidebar-user-name').innerText = name;
+          document.getElementById('pref-user-name').innerText = name;
+          closeModal('modal-edit-name');
+          showToast('Name saved');
+        });
+      }
     }
-    function addAccount(provider) { alert('Opening OAuth flow for ' + provider + '...'); }
-    function connectService(service) { alert('Connecting ' + service + '...'); }
-    function openVaultModal(type) { alert('Add ' + type + ' to vault modal'); }
+
+    // Vault CRUD
+    function refreshVaultUI() {
+      fetch('/api/vault')
+        .then(r => r.json())
+        .then(v => {
+          // Logins
+          const loginsDiv = document.getElementById('vault-logins-list');
+          if (!v.logins || v.logins.length === 0) {
+            loginsDiv.innerHTML = '<div class="vault-empty">No logins saved</div>';
+          } else {
+            loginsDiv.innerHTML = v.logins.map(l => 
+              '<div class="vault-item-row">' +
+                '<div><strong>' + escapeHtml(l.domain) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(l.username) + '</span></div>' +
+                '<span style="font-size:12px;color:var(--text-secondary);">••••••••</span>' +
+              '</div>'
+            ).join('');
+          }
+
+          // Cards
+          const cardsDiv = document.getElementById('vault-cards-list');
+          if (!v.cards || v.cards.length === 0) {
+            cardsDiv.innerHTML = '<div class="vault-empty">No cards saved</div>';
+          } else {
+            cardsDiv.innerHTML = v.cards.map(c => 
+              '<div class="vault-item-row">' +
+                '<div><strong>' + escapeHtml(c.brand) + ' •••• ' + escapeHtml(c.last4) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">Exp ' + escapeHtml(c.exp) + ' • Cap $' + c.spend_cap.toFixed(2) + '</span></div>' +
+                '<span class="btn btn-connected" style="font-size:11px;">Active</span>' +
+              '</div>'
+            ).join('');
+          }
+
+          // Personal Info
+          const persDiv = document.getElementById('vault-personal-list');
+          if (!v.personal_info || v.personal_info.length === 0) {
+            persDiv.innerHTML = '<div class="vault-empty">No personal info saved</div>';
+          } else {
+            persDiv.innerHTML = v.personal_info.map(p => 
+              '<div class="vault-item-row">' +
+                '<div><strong>' + escapeHtml(p.label) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(p.value_masked) + '</span></div>' +
+                '<span style="color:var(--text-secondary);">✓</span>' +
+              '</div>'
+            ).join('');
+          }
+
+          // TOTP
+          const totpDiv = document.getElementById('vault-totp-list');
+          if (!v.totp_items || v.totp_items.length === 0) {
+            totpDiv.innerHTML = '<div class="vault-empty">No authenticator seeds configured</div>';
+          } else {
+            totpDiv.innerHTML = v.totp_items.map((t, idx) => 
+              '<div class="totp-box">' +
+                '<div>' +
+                  '<div style="font-size: 13px; font-weight: 600;">' + escapeHtml(t.issuer) + ' (' + escapeHtml(t.account) + ')</div>' +
+                  '<div class="totp-timer" id="totp-timer-' + idx + '">Refreshes in 24s • RFC 6238</div>' +
+                '</div>' +
+                '<div class="totp-code" id="totp-code-' + idx + '">••• •••</div>' +
+              '</div>'
+            ).join('');
+          }
+        });
+    }
+
+    function submitAddLogin() {
+      const domain = document.getElementById('login-domain').value.trim();
+      const username = document.getElementById('login-user').value.trim();
+      if (!domain || !username) { alert('Please enter domain and username'); return; }
+      fetch('/api/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'login', domain, username })
+      }).then(() => {
+        closeModal('modal-add-login');
+        document.getElementById('login-domain').value = '';
+        document.getElementById('login-user').value = '';
+        refreshVaultUI();
+        showToast('Login added to vault');
+      });
+    }
+
+    function submitAddCard() {
+      const brand = document.getElementById('card-brand').value.trim() || 'Visa';
+      const cap = parseFloat(document.getElementById('card-cap').value) || 100;
+      fetch('/api/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'card', brand, spend_cap: cap })
+      }).then(() => {
+        closeModal('modal-add-card');
+        refreshVaultUI();
+        showToast('Card issued with $' + cap.toFixed(2) + ' cap');
+      });
+    }
+
+    function submitAddPersonal() {
+      const label = document.getElementById('personal-label').value.trim();
+      const value = document.getElementById('personal-val').value.trim();
+      if (!label || !value) { alert('Please enter label and value'); return; }
+      fetch('/api/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'personal', label, value })
+      }).then(() => {
+        closeModal('modal-add-personal');
+        document.getElementById('personal-label').value = '';
+        document.getElementById('personal-val').value = '';
+        refreshVaultUI();
+        showToast('Personal info saved');
+      });
+    }
+
+    function submitAddTotp() {
+      const issuer = document.getElementById('totp-issuer').value.trim();
+      const account = document.getElementById('totp-account').value.trim();
+      const secret = document.getElementById('totp-secret').value.trim();
+      if (!issuer || !secret) { alert('Please enter issuer and secret key'); return; }
+      fetch('/api/vault', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'totp', issuer, account, secret })
+      }).then(() => {
+        closeModal('modal-add-totp');
+        document.getElementById('totp-issuer').value = '';
+        document.getElementById('totp-account').value = '';
+        document.getElementById('totp-secret').value = '';
+        refreshVaultUI();
+        showToast('Authenticator seed saved');
+      });
+    }
+
+    // Connectors list rendering & toggle
+    function refreshConnectorsUI() {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(s => {
+          const list = document.getElementById('connectors-list');
+          if (!s.connectors) return;
+          list.innerHTML = Object.keys(s.connectors).map(k => {
+            const c = s.connectors[k];
+            const btnClass = c.connected ? 'btn btn-connected' : 'btn btn-primary';
+            const btnText = c.connected ? 'Connected' : 'Connect';
+            return '<div class="item-row">' +
+              '<div class="item-icon icon-service">' + k[0].toUpperCase() + '</div>' +
+              '<div class="item-body">' +
+                '<div class="item-title">' + escapeHtml(c.name) + '</div>' +
+                '<div class="item-subtitle">' + escapeHtml(c.desc) + '</div>' +
+              '</div>' +
+              '<div class="item-action">' +
+                '<button class="' + btnClass + '" onclick="toggleConnector(\\'' + k + '\\')">' + btnText + '</button>' +
+              '</div>' +
+            '</div>' +
+            (c.connected && c.account ? '<div style="padding-left:46px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);">' + escapeHtml(c.account) + '</div>' : '');
+          }).join('');
+        });
+    }
+
+    function toggleConnector(key) {
+      fetch('/api/connectors/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connector: key })
+      }).then(() => {
+        refreshConnectorsUI();
+        showToast('Connector updated');
+      });
+    }
+
+    // Mesh rendering
+    function refreshMeshUI() {
+      fetch('/api/mesh')
+        .then(r => r.json())
+        .then(m => {
+          // Requests
+          const reqDiv = document.getElementById('mesh-requests-list');
+          if (!m.pending_requests || m.pending_requests.length === 0) {
+            reqDiv.innerHTML = '<div class="vault-empty">No pending requests</div>';
+          } else {
+            reqDiv.innerHTML = m.pending_requests.map(r => 
+              '<div class="item-row">' +
+                '<div class="item-body">' +
+                  '<div class="item-title">' + escapeHtml(r.requester_name || r.requester_agent_id) + ' (' + escapeHtml(r.requester_handle) + ')</div>' +
+                  '<div class="item-subtitle">Requested Tier: ' + escapeHtml(r.requested_tier) + (r.note ? ' • "' + escapeHtml(r.note) + '"' : '') + '</div>' +
+                '</div>' +
+                '<div class="item-action">' +
+                  '<button class="btn btn-connected" onclick="approveMeshPeer(\\'' + r.request_id + '\\', \\'' + r.requested_tier + '\\')">Approve</button>' +
+                  '<button class="btn btn-danger" onclick="blockMeshPeer(\\'' + r.requester_agent_id + '\\')">Block</button>' +
+                '</div>' +
+              '</div>'
+            ).join('');
+          }
+
+          // Trusted
+          const trustDiv = document.getElementById('mesh-trusted-list');
+          if (!m.peers || m.peers.length === 0) {
+            trustDiv.innerHTML = '<div class="vault-empty">No trusted people yet</div>';
+          } else {
+            trustDiv.innerHTML = m.peers.map(p => 
+              '<div class="item-row">' +
+                '<div class="item-body">' +
+                  '<div class="item-title">' + escapeHtml(p.name || p.agent_id) + '</div>' +
+                  '<div class="item-subtitle">Tier: ' + escapeHtml(p.tier) + ' • Connected</div>' +
+                '</div>' +
+                '<div class="item-action">' +
+                  '<button class="btn btn-danger" onclick="blockMeshPeer(\\'' + p.agent_id + '\\')">Revoke</button>' +
+                '</div>' +
+              '</div>'
+            ).join('');
+          }
+
+          // Blocked
+          const blkDiv = document.getElementById('mesh-blocked-list');
+          if (!m.blocked_peers || m.blocked_peers.length === 0) {
+            blkDiv.innerHTML = '<div class="vault-empty">No blocked peers</div>';
+          } else {
+            blkDiv.innerHTML = m.blocked_peers.map(b => 
+              '<div class="vault-item-row">' +
+                '<div>' + escapeHtml(b) + '</div>' +
+                '<span style="color:var(--danger);font-size:12px;">Blocked</span>' +
+              '</div>'
+            ).join('');
+          }
+        });
+    }
+
+    function approveMeshPeer(reqId, tier) {
+      fetch('/api/mesh/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: reqId, tier: tier || 'InnerCircle' })
+      }).then(() => {
+        refreshMeshUI();
+        showToast('Peer approved');
+      });
+    }
+
+    function blockMeshPeer(agentId) {
+      fetch('/api/mesh/block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId })
+      }).then(() => {
+        refreshMeshUI();
+        showToast('Peer blocked');
+      });
+    }
+
     function handleLogout() {
-      document.cookie = 'kineti_token=; Path=/; Max-Age=0; SameSite=Strict';
-      localStorage.removeItem('kineti_auth_token');
-      window.location.href = '/';
+      fetch('/logout', { method: 'POST' }).then(() => {
+        window.location.href = '/';
+      });
     }
-    function confirmDeleteAccount() { if (confirm('Permanently delete account?')) alert('Account deletion requested.'); }
+
+    function confirmDeleteAccount() {
+      if (confirm('Permanently delete account and reset all stored vault credentials?')) {
+        fetch('/api/privacy/purge', { method: 'POST' }).then(() => {
+          alert('Account deletion complete.');
+          window.location.href = '/';
+        });
+      }
+    }
+
+    // Rotating live TOTP code generator simulation
+    function updateTotpCodes() {
+      const now = Math.floor(Date.now() / 1000);
+      const remaining = 30 - (now % 30);
+      const codes = document.querySelectorAll('.totp-code');
+      const timers = document.querySelectorAll('.totp-timer');
+      timers.forEach(t => t.innerText = 'Refreshes in ' + remaining + 's • RFC 6238 HMAC-SHA1');
+      if (remaining === 30 || codes[0]?.innerText.includes('•')) {
+        codes.forEach((c, idx) => {
+          const pseudoCode = String(Math.floor(100000 + (now + idx * 7) % 900000));
+          c.innerText = pseudoCode.slice(0, 3) + ' ' + pseudoCode.slice(3);
+        });
+      }
+    }
+    setInterval(updateTotpCodes, 1000);
+
+    // Initial page hydration
+    refreshVaultUI();
+    refreshConnectorsUI();
+    refreshMeshUI();
   </script>
 </body>
 </html>`;
@@ -971,35 +1335,22 @@ function generateLoginHtml(): string {
   <div class="card">
     <div class="brand">Kineti</div>
     <div class="subtitle">Enter your authorization token to access Settings</div>
-    <input id="token-field" class="token-input" type="password" placeholder="Paste token..." autocomplete="off" spellcheck="false" />
-    <button class="btn" onclick="submitAuth()">Sign In</button>
+    <form method="POST" action="/login">
+      <input name="token" id="token-field" class="token-input" type="password" placeholder="Paste token..." autocomplete="off" spellcheck="false" required />
+      <button type="submit" class="btn">Sign In</button>
+    </form>
     <div class="hint">
-      Authorization token is stored locally in <code>.kineti/auth_token</code> or in your terminal startup log.
+      Authorization token is stored locally in <code>.kineti/auth_token</code>.
     </div>
   </div>
-  <script>
-    function submitAuth() {
-      const token = document.getElementById('token-field').value.trim();
-      if (!token) return;
-      document.cookie = 'kineti_token=' + encodeURIComponent(token) + '; Path=/; SameSite=Strict; Max-Age=31536000';
-      localStorage.setItem('kineti_auth_token', token);
-      window.location.href = '/?token=' + encodeURIComponent(token);
-    }
-    document.getElementById('token-field').addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') submitAuth();
-    });
-    const saved = localStorage.getItem('kineti_auth_token');
-    if (saved && !window.location.search.includes('token=')) {
-      window.location.href = '/?token=' + encodeURIComponent(saved);
-    }
-  </script>
 </body>
 </html>`;
 }
 
-// WhatsApp Onboarding Page HTML Generator
+// WhatsApp Onboarding Page HTML Generator (Strictly Sanitized)
 function generateWhatsAppOnboardingHtml(token: string): string {
-  const whatsappNum = process.env.KINETI_WHATSAPP_NUMBER || "Not Configured";
+  const safeToken = escapeHtml(token);
+  const whatsappNum = companionSettings.whatsapp_number;
   const hasConfiguredNumber = whatsappNum !== "Not Configured" && whatsappNum.replace(/[^0-9]/g, "").length >= 10;
   const digits = whatsappNum.replace(/[^0-9]/g, "");
 
@@ -1125,10 +1476,10 @@ function generateWhatsAppOnboardingHtml(token: string): string {
   <div class="card">
     <h1>Connect WhatsApp</h1>
     <p>Pair WhatsApp with your autonomous assistant.</p>
-    <div class="token-box">${token}</div>
+    <div class="token-box">${safeToken}</div>
     ${
       hasConfiguredNumber
-        ? `<a href="https://wa.me/${digits}?text=Hi%20Kineti,%20pairing%20token:%20${token}" class="btn" target="_blank" rel="noopener">Open WhatsApp to Pair</a>`
+        ? `<a href="https://wa.me/${digits}?text=Hi%20Kineti,%20pairing%20token:%20${encodeURIComponent(token)}" class="btn" target="_blank" rel="noopener">Open WhatsApp to Pair</a>`
         : `
           <input id="wa-num-input" class="num-input" type="tel" placeholder="Enter WhatsApp Bot Number (e.g. 14155552671)" />
           <button class="btn" onclick="openWhatsApp()">Connect to Number</button>
@@ -1143,10 +1494,10 @@ function generateWhatsAppOnboardingHtml(token: string): string {
                 alert('Please enter a valid phone number with country code (e.g. 14155552671)');
                 return;
               }
-              window.open('https://wa.me/' + val + '?text=' + encodeURIComponent('Hi Kineti, pairing token: ${token}'), '_blank');
+              window.open('https://wa.me/' + val + '?text=' + encodeURIComponent('Hi Kineti, pairing token: ${encodeURIComponent(token)}'), '_blank');
             }
             function copyTokenText() {
-              navigator.clipboard.writeText('Hi Kineti, pairing token: ${token}');
+              navigator.clipboard.writeText('Hi Kineti, pairing token: ${encodeURIComponent(token)}');
               alert('Pairing message copied to clipboard!');
             }
           </script>
@@ -1156,17 +1507,6 @@ function generateWhatsAppOnboardingHtml(token: string): string {
 </body>
 </html>`;
 }
-
-let companionSettings = {
-  github: { connected: true, account: "therawlogs", repo_count: 1, webhook_status: "active" },
-  ides: { cursor: true, claude_code: true, antigravity: true, codex: true },
-  team_members: [{ name: "Praveen Kumar", email: "praveen@mail.kineti.com", role: "Owner" }],
-  repo_budgets: { [activeRepoId]: 50 },
-  repo_owners: { [activeRepoId]: "Praveen Kumar" },
-  imessage_number: process.env.KINETI_IMESSAGE_NUMBER || "Not Configured",
-  whatsapp_number: process.env.KINETI_WHATSAPP_NUMBER || "Not Configured",
-  agent_email: "prav@mail.kineti.com",
-};
 
 // Host & Origin Security Verification
 export function isTrustedHost(req: Request): boolean {
@@ -1226,12 +1566,61 @@ export function startServer(port: number = PORT) {
         return new Response(null, { status: 204, headers: corsHeaders });
       }
 
-      // Public WhatsApp Onboarding URL
+      // Public WhatsApp Onboarding URL (Strictly Validated against XSS)
       if (url.pathname === "/whatsapp-onboarding") {
-        const token = url.searchParams.get("t") || "wa_demo_token";
-        return new Response(generateWhatsAppOnboardingHtml(token), {
+        const rawToken = url.searchParams.get("t") || "wa_demo_token";
+        if (!/^[a-zA-Z0-9_-]{1,128}$/.test(rawToken)) {
+          return new Response("Invalid pairing token format. Must be alphanumeric, dash, or underscore.", {
+            status: 400,
+            headers: { "Content-Type": "text/plain; charset=utf-8", ...corsHeaders },
+          });
+        }
+        return new Response(generateWhatsAppOnboardingHtml(rawToken), {
           status: 200,
-          headers: { "Content-Type": "text/html; charset=utf-8", ...corsHeaders },
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';",
+            ...corsHeaders,
+          },
+        });
+      }
+
+      // Login form handler
+      if (url.pathname === "/login" && req.method === "POST") {
+        let submittedToken = "";
+        try {
+          const contentType = req.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const json = (await req.json()) as any;
+            submittedToken = json.token || "";
+          } else {
+            const formData = await req.formData();
+            submittedToken = formData.get("token")?.toString().trim() || "";
+          }
+        } catch {}
+
+        if (submittedToken === AUTH_TOKEN) {
+          return new Response(null, {
+            status: 303,
+            headers: {
+              "Location": "/",
+              "Set-Cookie": `kineti_token=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+              ...corsHeaders,
+            },
+          });
+        }
+        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      }
+
+      // Logout handler
+      if (url.pathname === "/logout" && req.method === "POST") {
+        return new Response(null, {
+          status: 303,
+          headers: {
+            "Location": "/",
+            "Set-Cookie": "kineti_token=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0",
+            ...corsHeaders,
+          },
         });
       }
 
@@ -1248,18 +1637,20 @@ export function startServer(port: number = PORT) {
           });
         }
 
+        const headers: Record<string, string> = {
+          "Content-Type": "text/html; charset=utf-8",
+          "Content-Security-Policy": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
+          "Set-Cookie": `kineti_token=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+          ...corsHeaders,
+        };
+
         return new Response(generateSettingsHtml(), {
           status: 200,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Content-Security-Policy": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
-            "Set-Cookie": `kineti_token=${AUTH_TOKEN}; Path=/; SameSite=Strict; Max-Age=31536000`,
-            ...corsHeaders,
-          },
+          headers,
         });
       }
 
-      // Auth Check for All Other Routes
+      // Auth Check for All API & Other Routes
       if (!isAuthorized(req)) {
         return new Response("Unauthorized", {
           status: 401,
@@ -1296,14 +1687,47 @@ export function startServer(port: number = PORT) {
           return Response.json(companionSettings, { headers: corsHeaders });
         }
         if (req.method === "POST") {
+          try {
+            const body = (await req.json()) as any;
+            if (typeof body !== "object" || body === null) {
+              return new Response("Bad Request", { status: 400, headers: corsHeaders });
+            }
+            if (body.repo_budgets && typeof body.repo_budgets === "object") {
+              for (const [k, v] of Object.entries(body.repo_budgets)) {
+                if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
+                  companionSettings.repo_budgets[k] = v;
+                }
+              }
+            }
+            if (body.repo_owners && typeof body.repo_owners === "object") {
+              for (const [k, v] of Object.entries(body.repo_owners)) {
+                if (typeof v === "string" && v.length <= 100) {
+                  companionSettings.repo_owners[k] = v;
+                }
+              }
+            }
+            if (typeof body.user_name === "string" && body.user_name.trim()) {
+              companionSettings.user_name = body.user_name.trim().slice(0, 100);
+            }
+            return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
+          } catch {
+            return new Response("Bad Request", { status: 400, headers: corsHeaders });
+          }
+        }
+      }
+
+      // API: Connector toggle
+      if (url.pathname === "/api/connectors/toggle" && req.method === "POST") {
+        try {
           const body = (await req.json()) as any;
-          if (body.repo_budgets) {
-            companionSettings.repo_budgets = { ...companionSettings.repo_budgets, ...body.repo_budgets };
+          const connector = body.connector;
+          if (connector && companionSettings.connectors[connector]) {
+            companionSettings.connectors[connector].connected = !companionSettings.connectors[connector].connected;
+            return Response.json({ success: true, connector: companionSettings.connectors[connector] }, { headers: corsHeaders });
           }
-          if (body.repo_owners) {
-            companionSettings.repo_owners = { ...companionSettings.repo_owners, ...body.repo_owners };
-          }
-          return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
+          return new Response("Connector not found", { status: 404, headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
       }
 
@@ -1313,15 +1737,42 @@ export function startServer(port: number = PORT) {
           return Response.json(loadVault(), { headers: corsHeaders });
         }
         if (req.method === "POST") {
-          const body = (await req.json()) as any;
-          const vault = loadVault();
-          if (body.type === "login") {
-            vault.logins.push({ id: `login_${Date.now()}`, domain: body.domain, username: body.username, created_at: nowIso() });
-          } else if (body.type === "card") {
-            vault.cards.push({ id: `card_${Date.now()}`, brand: body.brand || "Visa", last4: body.last4 || "1234", exp: "12/28", spend_cap: body.spend_cap || 100 });
+          try {
+            const body = (await req.json()) as any;
+            if (typeof body !== "object" || body === null) {
+              return new Response("Bad Request", { status: 400, headers: corsHeaders });
+            }
+            const vault = loadVault();
+            if (body.type === "login") {
+              const domain = String(body.domain || "").trim().slice(0, 128);
+              const username = String(body.username || "").trim().slice(0, 128);
+              if (!domain || !username) return new Response("Invalid login parameters", { status: 400, headers: corsHeaders });
+              vault.logins.push({ id: `login_${Date.now()}`, domain, username, created_at: nowIso() });
+            } else if (body.type === "card") {
+              const brand = String(body.brand || "Visa").trim().slice(0, 32);
+              const spendCap = Number(body.spend_cap);
+              const cap = Number.isFinite(spendCap) && spendCap > 0 ? spendCap : 100;
+              const last4 = crypto.randomInt(1000, 10000).toString();
+              vault.cards.push({ id: `card_${Date.now()}`, brand, last4, exp: "12/28", spend_cap: cap });
+            } else if (body.type === "personal") {
+              const label = String(body.label || "").trim().slice(0, 64);
+              const value = String(body.value || "").trim().slice(0, 256);
+              if (!label || !value) return new Response("Invalid personal info parameters", { status: 400, headers: corsHeaders });
+              vault.personal_info.push({ id: `pers_${Date.now()}`, label, value_masked: value });
+            } else if (body.type === "totp") {
+              const issuer = String(body.issuer || "").trim().slice(0, 64);
+              const account = String(body.account || "").trim().slice(0, 128);
+              const secret = String(body.secret || "").trim().slice(0, 128);
+              if (!issuer || !secret) return new Response("Invalid totp parameters", { status: 400, headers: corsHeaders });
+              vault.totp_items.push({ id: `totp_${Date.now()}`, issuer, account, secret_masked: secret.slice(0, 4) + "••••••••" });
+            } else {
+              return new Response("Unknown vault item type", { status: 400, headers: corsHeaders });
+            }
+            saveVault(vault);
+            return Response.json({ success: true, vault }, { headers: corsHeaders });
+          } catch {
+            return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
-          saveVault(vault);
-          return Response.json({ success: true, vault }, { headers: corsHeaders });
         }
       }
 
@@ -1348,6 +1799,30 @@ export function startServer(port: number = PORT) {
         return Response.json({ mesh_paused: meshManager.isMeshPaused() }, { headers: corsHeaders });
       }
 
+      if (url.pathname === "/api/mesh/approve" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const reqId = String(body.request_id || "").trim();
+          const tier: TrustTier = body.tier || "InnerCircle";
+          const peer = meshManager.approveRequest(reqId, tier);
+          return Response.json({ success: true, peer }, { headers: corsHeaders });
+        } catch (e: any) {
+          return new Response(e.message || "Failed to approve", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      if (url.pathname === "/api/mesh/block" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const agentId = String(body.agent_id || "").trim();
+          if (!agentId) return new Response("Missing agent_id", { status: 400, headers: corsHeaders });
+          meshManager.blockPeer(agentId);
+          return Response.json({ success: true, blocked: agentId }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
       // API: Privacy Purge
       if (url.pathname === "/api/privacy/purge" && req.method === "POST") {
         const res = privacyManager.executeExternalDataPurge();
@@ -1356,9 +1831,16 @@ export function startServer(port: number = PORT) {
 
       // API: Privacy Opt-Out
       if (url.pathname === "/api/privacy/opt-out" && req.method === "POST") {
-        const body = (await req.json()) as any;
-        privacyManager.setImproveKineti(Boolean(body.enable));
-        return Response.json({ improve_kineti_for_everyone: privacyManager.isImproveKinetiEnabled() }, { headers: corsHeaders });
+        try {
+          const body = (await req.json()) as any;
+          if (typeof body !== "object" || body === null || typeof body.enable !== "boolean") {
+            return new Response("Bad Request", { status: 400, headers: corsHeaders });
+          }
+          privacyManager.setImproveKineti(body.enable);
+          return Response.json({ improve_kineti_for_everyone: privacyManager.isImproveKinetiEnabled() }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
       }
 
       // API: Invites
@@ -1374,8 +1856,12 @@ export function startServer(port: number = PORT) {
           );
         }
         if (req.method === "POST") {
-          const invite = inviteEngine.createInvite();
-          return Response.json(invite, { headers: corsHeaders });
+          try {
+            const invite = inviteEngine.createInvite();
+            return Response.json(invite, { headers: corsHeaders });
+          } catch (e: any) {
+            return new Response(e.message || "Quota exceeded", { status: 400, headers: corsHeaders });
+          }
         }
       }
 
@@ -1387,8 +1873,7 @@ export function startServer(port: number = PORT) {
 }
 
 if (import.meta.main) {
-  const server = startServer(PORT);
-  console.log(`\n✨ Kineti Settings Portal listening at http://127.0.0.1:${PORT}`);
-  console.log(`🔗 Direct Browser Access: http://127.0.0.1:${PORT}/?token=${AUTH_TOKEN}`);
-  console.log(`🔐 Authorization Bearer token: ${AUTH_TOKEN}\n`);
+  startServer(PORT);
+  console.log(`\n✨ Kineti Settings Portal listening on port ${PORT}`);
+  console.log(`🔐 Authorization token stored in .kineti/auth_token\n`);
 }

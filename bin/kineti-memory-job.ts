@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { computeDelimitedHash, die, nowIso, ok, readJsonl, sha256 } from "./lib.ts";
+import { assertInsideProject, computeDelimitedHash, die, nowIso, ok, readJsonl, sha256 } from "./lib.ts";
 
 interface Link {
   word: string;
@@ -75,7 +75,8 @@ function ageDays(iso: string): number {
 function main() {
   const [cmd] = process.argv.slice(2);
   const di = process.argv.indexOf("--dir");
-  const dir = di > -1 ? path.resolve(process.argv[di + 1]) : process.cwd();
+  const rawDir = di > -1 ? path.resolve(process.argv[di + 1]) : process.cwd();
+  const dir = assertInsideProject(rawDir, process.env.KINETI_WORKSPACE_ROOT || process.cwd());
 
   if (cmd === "sweep") {
     const recs = load(dir);

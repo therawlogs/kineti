@@ -65,7 +65,10 @@ function main() {
     process.exit(9);
   }
 
-  const res = spawnSync("bash", ["-lc", declared], { stdio: "inherit" });
+  const parts = declared.trim().split(/\s+/);
+  const bin = parts[0];
+  const binArgs = parts.slice(1);
+  const res = spawnSync(bin, binArgs, { stdio: "inherit", cwd: process.cwd() });
   if ((res.status ?? 1) !== 0) {
     console.error("kineti: verify FAILED; session must not end on red.");
     process.exit(1);

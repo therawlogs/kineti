@@ -88,7 +88,7 @@ kineti ci
 ```text
 kineti/
 ├── core-native/                             # Pure Rust Nervous System Workspace
-│   ├── Cargo.toml                           # Workspace manifest (7 active crates)
+│   ├── Cargo.toml                           # Workspace manifest (8 active crates)
 │   └── crates/
 │       ├── kineti-core/                     # EBR Snapshots, HLC, Kernel, Gate, Root Goal
 │       ├── kineti-memory/                   # Epistemic Engine, Causal Graph, Vector Index
@@ -98,14 +98,15 @@ kineti/
 │       ├── kineti-gateway/                  # WhatsApp Webhooks & Apple iMessage Bridge
 │       ├── kineti-harness/                  # Outcome Verification Tickets (OVT) & Shadow Workspaces
 │       └── kineti-cli/                      # Native Binary CLI Entrypoint & Daemon
-├── bin/                                     # TypeScript Governance Control Plane
+├── bin/                                     # TypeScript Governance Control Plane (15 CLI tools)
 │   ├── kineti.ts                            # Main TypeScript CLI router
 │   ├── kineti-spend.ts                      # Hardware spend circuit breaker ($50 ceiling)
 │   ├── kineti-saga.ts                       # LIFO undo stack & transactional rollback
 │   ├── kineti-evidence.ts                   # Delimited SHA-256 test proofs
 │   ├── kineti-companion.ts                  # Apple HIG visual companion server
 │   ├── kineti-mcp.ts                        # Model Context Protocol (MCP) server
-│   └── kineti-ci.ts                         # Stage-agnostic CI verification
+│   ├── kineti-ci.ts                         # Stage-agnostic CI verification
+│   └── ...                                  # epistemic, invite, privacy, stripe, swarm, etc.
 ├── docs/                                    # Technical Documentation & Specifications
 │   ├── README.md                            # Documentation Index
 │   ├── CANONICAL_ARCHITECTURE_PLAN.md       # Canonical Production Architecture Spec
@@ -120,7 +121,7 @@ kineti/
 │   ├── paper_3_beyond_vector_search.md      # 20-Entity Active Kernel & Causal Graphs
 │   ├── paper_4_sensory_reflex_and_style.md  # Sub-1ms Sensory Triage & Style Profiling
 │   └── paper_5_outcome_engineering.md       # Outcome Engineering, OVTs & Spend Breaker
-├── tests/                                   # Governance & Benchmark Test Suites (83 tests)
+├── tests/                                   # Governance & Benchmark Test Suites (104 tests)
 └── kineti.config.json                       # Core System Configuration
 ```
 

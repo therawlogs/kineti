@@ -185,6 +185,15 @@ export function jailCwdToWorkspace(cwd: string, workspaceRoot: string): string {
   return resolvedCwd;
 }
 
+export function assertInsideProject(targetPath: string, rootDir: string = process.cwd()): string {
+  const resolvedRoot = path.resolve(rootDir);
+  const resolvedTarget = path.resolve(targetPath);
+  if (resolvedTarget !== resolvedRoot && !resolvedTarget.startsWith(resolvedRoot + path.sep)) {
+    die(`Path traversal rejected: '${targetPath}' is outside project root '${resolvedRoot}'`, 2);
+  }
+  return resolvedTarget;
+}
+
 function appendExecToEgressLedger(argv: string[], cwd: string): void {
   try {
     const mDir = machineDir();
