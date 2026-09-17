@@ -77,16 +77,52 @@ impl BraveSearchClient {
         Ok(hits)
     }
 
+    /// Executes a live web search against the Brave Search API.
+    pub fn search_live(&self, query: &str, count: usize) -> Result<Vec<SearchHit>, String> {
+        let (url, headers) = self.build_request(query, count);
+        let header_refs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let res = kineti_core::http_get(&url, &header_refs)
+            .map_err(|e| format!("Brave API network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Brave API HTTP error {}: {}", res.status, res.body));
+        }
+        self.parse_response(&res.body).map_err(|e| e.to_string())
+    }
+
     /// Builds a shopping-specific search request (adds "buy" + "price" to query).
     pub fn build_shopping_request(&self, product: &str, count: usize) -> (String, Vec<(&'static str, String)>) {
         let query = format!("{} buy price", product);
         self.build_request(&query, count)
     }
 
+    /// Executes a live shopping search against the Brave Search API.
+    pub fn search_shopping_live(&self, product: &str, count: usize) -> Result<Vec<SearchHit>, String> {
+        let (url, headers) = self.build_shopping_request(product, count);
+        let header_refs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let res = kineti_core::http_get(&url, &header_refs)
+            .map_err(|e| format!("Brave Shopping network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Brave Shopping HTTP error {}: {}", res.status, res.body));
+        }
+        self.parse_response(&res.body).map_err(|e| e.to_string())
+    }
+
     /// Builds a ticket-search request (adds "tickets" + "near me" to query).
     pub fn build_ticket_request(&self, event: &str, count: usize) -> (String, Vec<(&'static str, String)>) {
         let query = format!("{} tickets buy", event);
         self.build_request(&query, count)
+    }
+
+    /// Executes a live ticket search against the Brave Search API.
+    pub fn search_tickets_live(&self, event: &str, count: usize) -> Result<Vec<SearchHit>, String> {
+        let (url, headers) = self.build_ticket_request(event, count);
+        let header_refs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let res = kineti_core::http_get(&url, &header_refs)
+            .map_err(|e| format!("Brave Ticket search network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Brave Ticket search HTTP error {}: {}", res.status, res.body));
+        }
+        self.parse_response(&res.body).map_err(|e| e.to_string())
     }
 }
 
@@ -115,7 +151,8 @@ fn extract_value_after(s: &str, delimiter: &str) -> String {
     String::new()
 }
 
-fn url_encode(s: &str) -> String {
+/// Standard percent-encoding for query string parameters.
+pub fn url_encode(s: &str) -> String {
     let mut out = String::with_capacity(s.len() * 2);
     for b in s.bytes() {
         match b {

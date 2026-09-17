@@ -184,6 +184,34 @@ impl AgentEmailClient {
         }
         None
     }
+
+    /// Sends an email live using a webhook or transactional mail service endpoint.
+    pub fn send_email_live(
+        &self,
+        to: &str,
+        subject: &str,
+        body: &str,
+        endpoint: &str,
+        api_token: Option<&str>,
+    ) -> Result<String, String> {
+        let auth_header = api_token.map(|t| format!("Bearer {}", t));
+        let mut header_refs: Vec<(&str, &str)> = vec![("Content-Type", "application/json")];
+        if let Some(ref auth) = auth_header {
+            header_refs.push(("Authorization", auth.as_str()));
+        }
+        let from = format!("agent@{}", self.default_domain);
+        let escaped_body = body.replace('"', "\\\"").replace('\n', "\\n");
+        let payload = format!(
+            "{{\"from\":\"{}\",\"to\":\"{}\",\"subject\":\"{}\",\"text\":\"{}\"}}",
+            from, to, subject, escaped_body
+        );
+        let res = kineti_core::http_post_json(endpoint, &header_refs, &payload)
+            .map_err(|e| format!("Agent email network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Agent email HTTP error {}: {}", res.status, res.body));
+        }
+        Ok(res.body)
+    }
 }
 
 impl KinetiConnectorProtocol for AgentEmailClient {
@@ -283,12 +311,25 @@ impl KinetiConnectorProtocol for AgentEmailClient {
                 let to = get_str_property(payload, "to").unwrap_or("");
                 let subject = get_str_property(payload, "subject").unwrap_or("");
                 let body = get_str_property(payload, "body").unwrap_or("");
+                let endpoint = get_str_property(payload, "endpoint");
+                let api_token = get_str_property(payload, "api_token");
                 let mut map = BTreeMap::new();
                 map.insert("status".to_string(), Value::String("email_dispatched".to_string()));
                 map.insert("from".to_string(), Value::String(format!("agent@{}", self.default_domain)));
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
                 map.insert("body".to_string(), Value::String(body.to_string()));
+
+                if let Some(ep) = endpoint {
+                    match self.send_email_live(to, subject, body, ep, api_token) {
+                        Ok(resp) => {
+                            map.insert("response".to_string(), Value::String(resp));
+                        }
+                        Err(e) => {
+                            map.insert("note".to_string(), Value::String(e));
+                        }
+                    }
+                }
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),

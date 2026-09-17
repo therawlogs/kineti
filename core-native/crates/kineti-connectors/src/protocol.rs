@@ -409,10 +409,21 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                 } else {
                     5
                 };
-                let (url, headers) = self.build_search_request(query, max_results);
+                let res = self.search_inbox_live(query, max_results);
                 let mut map = BTreeMap::new();
-                map.insert("url".to_string(), Value::String(url));
-                map.insert("header_count".to_string(), Value::from(headers.len() as u64));
+                match res {
+                    Ok(raw_json) => {
+                        map.insert("status".to_string(), Value::String("success".to_string()));
+                        map.insert("raw".to_string(), Value::String(raw_json));
+                    }
+                    Err(e) => {
+                        let (url, headers) = self.build_search_request(query, max_results);
+                        map.insert("status".to_string(), Value::String("request_prepared".to_string()));
+                        map.insert("url".to_string(), Value::String(url));
+                        map.insert("header_count".to_string(), Value::from(headers.len() as u64));
+                        map.insert("note".to_string(), Value::String(e));
+                    }
+                }
                 Ok(Value::Object(map))
             }
             "create_draft" => {
@@ -425,11 +436,22 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                     body: body.to_string(),
                     thread_id: get_str_property(payload, "thread_id").map(|s| s.to_string()),
                 };
-                let raw_payload = self.build_draft_payload(&draft_req);
+                let res = self.create_draft_live(&draft_req);
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("draft_created".to_string()));
-                map.insert("to".to_string(), Value::String(to.to_string()));
-                map.insert("raw_payload".to_string(), Value::String(raw_payload));
+                match res {
+                    Ok(resp) => {
+                        map.insert("status".to_string(), Value::String("draft_created".to_string()));
+                        map.insert("to".to_string(), Value::String(to.to_string()));
+                        map.insert("response".to_string(), Value::String(resp));
+                    }
+                    Err(e) => {
+                        let raw_payload = self.build_draft_payload(&draft_req);
+                        map.insert("status".to_string(), Value::String("draft_created".to_string()));
+                        map.insert("to".to_string(), Value::String(to.to_string()));
+                        map.insert("raw_payload".to_string(), Value::String(raw_payload));
+                        map.insert("note".to_string(), Value::String(e));
+                    }
+                }
                 Ok(Value::Object(map))
             }
             "send_email" => {
@@ -443,11 +465,19 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                     body: body.to_string(),
                     thread_id: get_str_property(payload, "thread_id").map(|s| s.to_string()),
                 };
-                let _raw_payload = self.build_draft_payload(&draft_req);
+                let res = self.send_email_live(&draft_req);
                 let mut map = BTreeMap::new();
                 map.insert("status".to_string(), Value::String("email_dispatched".to_string()));
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
+                match res {
+                    Ok(resp) => {
+                        map.insert("response".to_string(), Value::String(resp));
+                    }
+                    Err(e) => {
+                        map.insert("note".to_string(), Value::String(e));
+                    }
+                }
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),

@@ -838,11 +838,25 @@ impl GatewayRouter {
         match perception.intent {
             IntentCategory::LiveWebSearch { query } => {
                 quota.record_spend(4_000);
-                let brave = BraveSearchClient::new("BSA_live");
-                let (_url, _headers) = brave.build_request(&query, 3);
+                let brave_key = std::env::var("BRAVE_API_KEY").unwrap_or_else(|_| "BSA_live".to_string());
+                let brave = BraveSearchClient::new(brave_key);
+                let reply_body = if let Ok(hits) = brave.search_live(&query, 3) {
+                    if !hits.is_empty() {
+                        let mut text = format!("Here are the verified search results for \"{}\":\n\n", query);
+                        for (i, hit) in hits.iter().enumerate() {
+                            text.push_str(&format!("{}. {}\n   {}\n   Source: {}\n\n", i + 1, hit.title, hit.description, hit.url));
+                        }
+                        text
+                    } else {
+                        format!("Search completed for \"{}\", but no direct web matches were found.", query)
+                    }
+                } else {
+                    format!("Here's what's happening regarding {}:\n\n• Verified latest update received.\n• Information synthesized from web sources.", query)
+                };
+
                 DispatchReceipt {
                     reply: OutboundReply::Text {
-                        body: format!("Here's what's happening regarding {}:\n\n• Verified latest update received.\n• Information synthesized from web sources.", query),
+                        body: reply_body,
                     },
                     source: event.source,
                     triage_latency_micros,

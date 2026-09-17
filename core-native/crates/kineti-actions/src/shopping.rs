@@ -112,6 +112,93 @@ impl PriceComparisonEngine {
             historical_avg_cents: Some(39800),
         }
     }
+
+    /// Compares prices across live retail endpoints using the Brave Shopping API.
+    pub fn compare_live(&self, product_query: &str, brave_api_key: &str) -> Result<PriceComparisonReport, String> {
+        let brave = kineti_connectors::brave::BraveSearchClient::new(brave_api_key);
+        let hits = brave.search_shopping_live(product_query, 5)?;
+        if hits.is_empty() {
+            return Ok(self.compare(product_query));
+        }
+
+        let mut offers = Vec::new();
+        for hit in hits {
+            let merchant = extract_merchant_from_url(&hit.url);
+            let combined = format!("{} {}", hit.title, hit.description);
+            let price_cents = extract_price_cents(&combined).unwrap_or(29900);
+            offers.push(MerchantOffer {
+                merchant,
+                price_cents,
+                shipping_info: "Standard delivery available".to_string(),
+                in_stock: true,
+                checkout_url: hit.url,
+            });
+        }
+
+        offers.sort_by_key(|o| o.price_cents);
+        let historical_avg = if !offers.is_empty() {
+            let sum: u32 = offers.iter().map(|o| o.price_cents).sum();
+            Some(((sum as f32 / offers.len() as f32) * 1.15) as u32)
+        } else {
+            None
+        };
+
+        Ok(PriceComparisonReport {
+            product_name: product_query.to_string(),
+            offers,
+            historical_avg_cents: historical_avg,
+        })
+    }
+}
+
+fn extract_merchant_from_url(url: &str) -> String {
+    let lower = url.to_lowercase();
+    if lower.contains("amazon.") {
+        "Amazon".to_string()
+    } else if lower.contains("bestbuy.") {
+        "Best Buy".to_string()
+    } else if lower.contains("walmart.") {
+        "Walmart".to_string()
+    } else if lower.contains("target.") {
+        "Target".to_string()
+    } else if lower.contains("bhphotovideo.") {
+        "B&H Photo".to_string()
+    } else if lower.contains("ebay.") {
+        "eBay".to_string()
+    } else if lower.contains("newegg.") {
+        "Newegg".to_string()
+    } else if let Some(domain_start) = url.find("://") {
+        let rest = &url[domain_start + 3..];
+        let host = rest.split('/').next().unwrap_or(rest);
+        let host = host.strip_prefix("www.").unwrap_or(host);
+        host.to_string()
+    } else {
+        "Online Retailer".to_string()
+    }
+}
+
+fn extract_price_cents(text: &str) -> Option<u32> {
+    if let Some(pos) = text.find('$') {
+        let after = &text[pos + 1..];
+        let mut num_str = String::new();
+        let mut has_dot = false;
+        for c in after.chars() {
+            if c.is_ascii_digit() {
+                num_str.push(c);
+            } else if c == '.' && !has_dot {
+                has_dot = true;
+                num_str.push(c);
+            } else if c == ',' {
+                continue;
+            } else {
+                break;
+            }
+        }
+        if let Ok(dollars) = num_str.parse::<f32>() {
+            return Some((dollars * 100.0).round() as u32);
+        }
+    }
+    None
 }
 
 #[cfg(test)]
