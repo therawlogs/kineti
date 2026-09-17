@@ -1,111 +1,140 @@
 # Kineti OS
 
-A safe coding assistant runtime that works inside your existing AI tools (Claude Code, Cursor, Antigravity, OpenCode, and Codex).
+**The Autonomous Nervous System & 360º Human Context Integrity Harness**
 
-Kineti keeps your AI coding safe and governed by doing five simple things:
-1. **Tracks spending**: Pauses work if token costs reach your spending limit ($50 global, $10 per stage, trips at 95%).
-2. **Saves undo steps**: Lets you undo any file changes cleanly.
-3. **Runs tests**: Checks that tests actually pass before saving work. Ship needs `security:pass` + fresh evidence.
-4. **Governs multi-repo fleets**: Switch between repositories and monitor team projects from one unified screen.
-5. **Coordinates agent swarms**: Assigns cryptographic keys to agents to stop goal drift and verify outcomes.
+Kineti OS is a dual-stack autonomous agent runtime engineered for personalized consumer assistants and multi-agent software engineering swarms. It combines a high-performance **Native Rust Nervous System** (`core-native/`) with a deterministic **TypeScript Governance Control Plane** (`bin/`, `src/`).
 
-## Installation (30 seconds)
+---
 
-Choose any method:
+## Key Pillars
 
-```sh
-# Method 1: Standalone installer (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/therawlogs/kineti/main/install.sh | bash
+### 1. The 360º Human Model & Epistemic Engine
+Personalized agents must understand the full human context without hallucinating, overriding user statements, or quietly mutating goals when third-party systems push back:
+- **Multi-Scope Context Isolation**: Strict context isolation across `Global`, `Domain` (Health, Work, Finance, Schedule, Taste), and `Relationship` (person-to-person) scopes. Scoped facts never leak into generic or un-scoped queries.
+- **Epistemic Certainty Tiers**: Enforces `DirectlyKnown` (explicit user ground truth) > `ObservedPattern` (behavioral patterns) > `Inferred` (hypotheses). Machine inferences are strictly blocked from overwriting explicit user statements.
+- **Rule-Exception Hierarchies**: Resolves complex user lifestyles unambiguously: `BaselineRule` (e.g. Vegetarian) $\to$ `PermittedException` (e.g. Eats eggs) $\to$ `Preference` (e.g. Prefers low dairy) $\to$ `SafetyCeiling` (e.g. Peanut allergy).
+- **Verbatim Root Goal & Anti-Drift Engine**: Anchors autonomous task chains to the exact, unmodified words uttered by the user and their explicit definition of "Done". Every step is inspected against the original ask, eliminating the multi-step "telephone game". Intermediate steps and tools are treated as expendable scaffolding.
+- **Friction Triage Ladder ("Clean No over Dirty Yes")**: Triages real-world obstacles through 3 levels:
+  1. *Noise*: Transient blips auto-retry with exponential backoff.
+  2. *Broken Surface*: Broken websites or portals silently reroute to alternatives.
+  3. *Real Constraint*: Hard third-party refusals escalate immediately with a clean impossibility report. Sunk costs are written off ($0 sunk-cost fallacy), and quiet compromises (such as accepting budget overruns) are strictly blocked.
+- **Commitment-Time Verification**: Re-checks perishable facts (fares, seat availability, stock levels, auth tokens) at the exact millisecond of external or financial commit, never trusting cached plan snapshots.
+- **Asymmetric Gap-Filling**: Cheap, reversible gaps are filled automatically and disclosed in audit evidence; expensive or irreversible gaps halt execution to ask the user.
+- **Reputation Gating & Ingress Defense**: Outbound communication is treated as a non-regenerating resource (knowing an identity does not equal permission to contact). Incoming external messages and webhooks arrive as untrusted data, never instructions.
 
-# Method 2: Global npm package
-npm install -g kineti
+### 2. Native Rust Nervous System Substrate (`core-native/`)
+- **Wait-Free Snapshots**: Epoch-Based Reclamation (EBR) and atomic pointer swapping delivering sub-100µs snapshot latencies under 80 concurrent writer threads with zero torn reads.
+- **Universal 20-Entity Provenance Kernel**: Content-addressed RFC 8785 JSON canonicalization with BLAKE3 and SHA-256 digests.
+- **Monotonic Hybrid Logical Clock (HLC)**: Nanosecond-accurate physical and logical causality tracking under clock skew.
+- **Sub-50ms 3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
+- **Sensory Reflex Triage**: Fast sensory classification with $p99 < 1.0\,\text{ms}$, dispatching sub-millisecond zero-token emoji reactions for low-information conversational stimuli.
+- **Protocolized Connectors**: Standard `KinetiConnectorProtocol` trait with consequence level gating (`Trivial`, `Operational`, `HighConsequence`) and single-use SHA-256 payload authorization tokens.
+- **Spend Circuit Breaker**: Deterministic trip at 95% of limit ($47.50 of $50.00 ceiling) with OS exit code 3 halt.
 
-# Method 3: From source
-git clone https://github.com/therawlogs/kineti.git ~/kineti && cd ~/kineti && ./setup.sh
+### 3. TypeScript Governance Control Plane (`bin/`, `src/`)
+- **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
+- **Transactional SAGA Undo Stack**: Guarantees LIFO file reversibility before every mutation.
+- **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact git tree hashes via `kineti-evidence.ts`.
+- **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (<12 KB payload, zero runtime JS frameworks).
+- **Universal Model Context Protocol (MCP)**: 12 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
+
+---
+
+## Quickstart
+
+### 1. Build and Run the Native Rust CLI
+
+```bash
+# Build the native Rust workspace
+cargo build --release --manifest-path core-native/Cargo.toml
+
+# Run the 360º Human Model Anti-Drift Engine Demo
+cargo run --package kineti-cli -- anti-drift
+
+# Run the Epistemic Persona Engine Demo
+cargo run --package kineti-cli -- epistemic
+
+# Start interactive local chat session (simulated iMessage/WhatsApp)
+cargo run --package kineti-cli -- chat
+
+# Run full native end-to-end test suite (170+ tests)
+cargo run --package kineti-cli -- test-all
 ```
 
-Then initialize your project:
-```sh
-kineti init
-# init installs skills. To start task state in a project, separately run:
-# bun bin/kineti-state.ts init --project <name> --goal "<goal>"
-```
+### 2. TypeScript Governance Commands
 
-The setup script detects your tools and adds Kineti skills automatically:
-- Claude Code (`~/.claude/skills/kineti-*`)
-- OpenCode (`~/.opencode/skills/kineti-*`)
-- Gemini / Antigravity (`~/.gemini/config/skills/kineti-*`)
-- Codex (`~/.codex/skills/kineti-*`)
-- Cursor (`~/.cursor/skills/kineti-*`, plus `.cursor/rules/kineti.mdc` in your project)
-
-To add root hooks to a project: `./setup.sh --install-root <project-dir>`.
-To uninstall at any time: `./setup.sh --uninstall` (removes `kineti-*` skills; hook text and `~/.kineti/repo` are kept — delete by hand if needed).
-
-## How to Use
-
-You do not need to learn special commands. Just open your project in your tool (like Claude Code or Cursor) and describe your task in plain English:
-
-```text
-"Fix the login redirect bug."
-```
-
-The AI agent will:
-1. Read `.kineti/state.json` to see the active task.
-2. For new features: write a plan and ask for your approval first.
-3. For bug fixes: fix the issue directly and run tests.
-4. Track spending and save undo commands in the background.
-
-## Visual Companion Dashboard
-
-Open the Apple HIG companion dashboard in your browser to view active tasks, costs, multi-repo fleet status, and settings:
-
-```sh
+```bash
+# Start the visual companion dashboard (Apple HIG)
 kineti companion
-```
-Open `http://127.0.0.1:8788` in your browser (`KINETI_COMPANION_PORT` overrides the port).
+# Open http://127.0.0.1:8788
 
-- **Repository Switcher**: Quickly switch between local and your own fleet projects (add them in `.kineti/fleet.local.json`, gitignored) from the top bar.
-- **Fleet View**: Monitor connected repositories, owners, active tasks, and spend meters on one screen.
-- **Settings Drawer**: Manage GitHub integration, toggle agent tool auto-latching (Cursor, Claude Code, Antigravity, Codex), and assign budget ceilings. Mutating APIs require `Authorization: Bearer <token from .kineti/auth_token>`.
-
-## Tool Integration (MCP)
-
-Connect any tool that supports the Model Context Protocol (MCP):
-
-```sh
-# Start the MCP server
+# Start the MCP governance server for IDEs
 kineti mcp
-```
 
-## Agent Swarm Coordination
+# Check spending circuit breaker status
+bun bin/kineti-spend.ts check
 
-Run the local swarm simulation with cryptographic identity and outcome verification tickets:
+# Check cryptographic test evidence freshness
+bun bin/kineti-evidence.ts check --label 360-human-model-resilience
 
-```sh
-kineti swarm "Build auth service"
-# Runs bin/kineti-swarm.ts demo with your goal as root goal. Without args it runs the fixed demo.
-```
-
-## Pull Request Check (CI)
-
-Run the automated verification check locally:
-```sh
+# Run PR continuous integration verification
 kineti ci
 ```
 
-## What lives where
+---
 
-- This folder: source code, scripts, UI components, and guides.
-- Your project folder: `.kineti/state.json` (current task), `.kineti/spend.json` (costs), `.kineti/evidence.jsonl` (test results).
-- Deleting this folder loses nothing permanent. You can re-clone and run setup again anytime.
+## Repository Structure
 
-## Guides and Documentation
+```text
+kineti/
+├── core-native/                             # Pure Rust Nervous System Workspace
+│   ├── Cargo.toml                           # Workspace manifest (7 active crates)
+│   └── crates/
+│       ├── kineti-core/                     # EBR Snapshots, HLC, Kernel, Gate, Root Goal
+│       ├── kineti-memory/                   # Epistemic Engine, Causal Graph, Vector Index
+│       ├── kineti-reflex/                   # Sensory Triage, Emoji Reflexes, Style Profiler
+│       ├── kineti-connectors/               # Protocolized Connectors & Permission Gating
+│       ├── kineti-actions/                  # Action Execution & Confirmation Gates
+│       ├── kineti-gateway/                  # WhatsApp Webhooks & Apple iMessage Bridge
+│       ├── kineti-harness/                  # Outcome Verification Tickets (OVT) & Shadow Workspaces
+│       └── kineti-cli/                      # Native Binary CLI Entrypoint & Daemon
+├── bin/                                     # TypeScript Governance Control Plane
+│   ├── kineti.ts                            # Main TypeScript CLI router
+│   ├── kineti-spend.ts                      # Hardware spend circuit breaker ($50 ceiling)
+│   ├── kineti-saga.ts                       # LIFO undo stack & transactional rollback
+│   ├── kineti-evidence.ts                   # Delimited SHA-256 test proofs
+│   ├── kineti-companion.ts                  # Apple HIG visual companion server
+│   ├── kineti-mcp.ts                        # Model Context Protocol (MCP) server
+│   └── kineti-ci.ts                         # Stage-agnostic CI verification
+├── docs/                                    # Technical Documentation & Specifications
+│   ├── README.md                            # Documentation Index
+│   ├── CANONICAL_ARCHITECTURE_PLAN.md       # Canonical Production Architecture Spec
+│   ├── ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md # Concurrency & Performance Benchmarks
+│   ├── APPLE_DESIGN_GUIDE.md                # Apple HIG UI & Design Standards
+│   ├── SECURITY_REPORT.md                   # Security Audit & Origin Gating Analysis
+│   ├── SWARM_COORDINATION_AND_IDENTITY.md   # Multi-Agent Swarm Topology & OVTs
+│   └── archive/                             # Archived historical notes
+├── research/                                # Foundational Research Treatise Series
+│   ├── paper_1_autonomous_nervous_system.md # 13-Stage Software Factory & SAGA Undo
+│   ├── paper_2_physics_of_context.md        # The Physics of Context & EBR Atomics
+│   ├── paper_3_beyond_vector_search.md      # 20-Entity Active Kernel & Causal Graphs
+│   ├── paper_4_sensory_reflex_and_style.md  # Sub-1ms Sensory Triage & Style Profiling
+│   └── paper_5_outcome_engineering.md       # Outcome Engineering, OVTs & Spend Breaker
+├── tests/                                   # Governance & Benchmark Test Suites (83 tests)
+└── kineti.config.json                       # Core System Configuration
+```
 
-- Multi-repo fleet & integrations: `docs/MULTI_REPO_FLEET_AND_INTEGRATIONS.md`
-- Apple design standards & materials: `docs/APPLE_DESIGN_GUIDE.md`
-- Swarm coordination & cryptographic identity: `docs/SWARM_COORDINATION_AND_IDENTITY.md`
-- First run tutorial: `docs/TUTORIAL-first-run.md`
-- Daily workflows: `docs/HOWTO-daily-loop.md`
-- Core rules: `ETHOS.md`
-- Workflows: `WORKFLOWS.md`
-- Product roadmap: `ROADMAP.md`
+---
+
+## Verification & Safety Guarantees
+
+1. **100% Safe Rust**: `#![forbid(unsafe_code)]` enforced across all critical crates.
+2. **Deterministic Spending Ceiling**: `$50.00` total spending cap; automatically halts with exit code 3 at 95% ($47.50).
+3. **Cryptographic Proof Binding**: All commits backed by git-tree SHA-256 evidence receipts.
+4. **Clean No over Dirty Yes**: Agents report genuine impossibilities clearly rather than silently violating budget or counterparty boundaries.
+
+---
+
+## Documentation
+
+For full architecture deep-dives and research treatises, refer to [**docs/README.md**](docs/README.md).
