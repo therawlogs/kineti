@@ -309,6 +309,10 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
 
   test("POST /api/connectors/toggle toggles connector status", async () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const getRes = await server.fetch(new Request("http://localhost/api/settings", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }));
+    const initialSettings = (await getRes.json()) as any;
+    const initialSlack = Boolean(initialSettings.connectors?.slack?.connected);
+
     const res = await server.fetch(
       new Request("http://localhost/api/connectors/toggle", {
         method: "POST",
@@ -319,7 +323,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
     expect(json.success).toBe(true);
-    expect(json.connector.connected).toBe(true);
+    expect(json.connector.connected).toBe(!initialSlack);
   });
 
   test("POST /api/vault creates logins and cards with input validation", async () => {
@@ -358,6 +362,197 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
       new Request("http://localhost/api/mesh", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
     );
     expect(meshRes.status).toBe(200);
+  });
+
+  test("GET /api/local-token returns token on localhost Host and rejects external", async () => {
+    const localRes = await server.fetch(
+      new Request("http://127.0.0.1:8788/api/local-token", {
+        headers: { Host: "127.0.0.1:8788" },
+      }),
+    );
+    expect(localRes.status).toBe(200);
+    const localJson = (await localRes.json()) as any;
+    expect(localJson.token).toBe(AUTH_TOKEN);
+
+    const extRes = await server.fetch(
+      new Request("http://evil.com/api/local-token", {
+        headers: { Host: "evil.com" },
+      }),
+    );
+    expect(extRes.status).toBe(403);
+  });
+
+  test("POST /api/connectors/add, configure, and delete manages connectors", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    
+    // Add custom connector
+    const addRes = await server.fetch(
+      new Request("http://localhost/api/connectors/add", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          key: "custom_crm",
+          name: "Custom CRM",
+          account: "sales@crm.example",
+          apiKey: "sec_12345",
+          desc: "Lead sync connector",
+        }),
+      }),
+    );
+    expect(addRes.status).toBe(200);
+    const addJson = (await addRes.json()) as any;
+    expect(addJson.success).toBe(true);
+    expect(addJson.connector.name).toBe("Custom CRM");
+
+    // Configure connector
+    const cfgRes = await server.fetch(
+      new Request("http://localhost/api/connectors/configure", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          connector: "custom_crm",
+          account: "updated@crm.example",
+          desc: "Updated description",
+        }),
+      }),
+    );
+    expect(cfgRes.status).toBe(200);
+    const cfgJson = (await cfgRes.json()) as any;
+    expect(cfgJson.connector.account).toBe("updated@crm.example");
+
+    // Delete custom connector
+    const delRes = await server.fetch(
+      new Request("http://localhost/api/connectors/delete", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ connector: "custom_crm" }),
+      }),
+    );
+    expect(delRes.status).toBe(200);
+    const delJson = (await delRes.json()) as any;
+    expect(delJson.success).toBe(true);
+
+    // Delete standard connector resets it
+    const delStdRes = await server.fetch(
+      new Request("http://localhost/api/connectors/delete", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ connector: "slack" }),
+      }),
+    );
+    expect(delStdRes.status).toBe(200);
+  });
+
+  test("POST /api/vault/delete removes entries by type and index", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    // First create a login to delete
+    await server.fetch(
+      new Request("http://localhost/api/vault", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ type: "login", domain: "delete-me.com", username: "temp_user" }),
+      }),
+    );
+
+    const delRes = await server.fetch(
+      new Request("http://localhost/api/vault/delete", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ type: "login", index: 0 }),
+      }),
+    );
+    expect(delRes.status).toBe(200);
+    const delJson = (await delRes.json()) as any;
+    expect(delJson.success).toBe(true);
+  });
+
+  test("POST /api/contact/update and /api/contact/test manage contact channels", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    
+    // Update contact
+    const updateRes = await server.fetch(
+      new Request("http://localhost/api/contact/update", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          imessage_number: "+15551234567",
+          whatsapp_number: "+15559876543",
+        }),
+      }),
+    );
+    expect(updateRes.status).toBe(200);
+    const updateJson = (await updateRes.json()) as any;
+    expect(updateJson.settings.imessage_number).toBe("+15551234567");
+    expect(updateJson.settings.whatsapp_number).toBe("+15559876543");
+
+    // Test ping
+    const testRes = await server.fetch(
+      new Request("http://localhost/api/contact/test", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          channel: "whatsapp",
+          recipient: "+15559876543",
+          message: "Ping from tests",
+        }),
+      }),
+    );
+    expect(testRes.status).toBe(200);
+    const testJson = (await testRes.json()) as any;
+    expect(testJson.success).toBe(true);
+    expect(testJson.dispatched).toBe(true);
+    expect(testJson.channel).toBe("whatsapp");
+  });
+
+  test("POST /api/mesh/add, remove, and unblock manage trusted network peers", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+
+    // Add peer
+    const addPeerRes = await server.fetch(
+      new Request("http://localhost/api/mesh/add", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({
+          agentId: "colleague_agent_test",
+          name: "Colleague Agent",
+          tier: "colleague",
+        }),
+      }),
+    );
+    expect(addPeerRes.status).toBe(200);
+    const addPeerJson = (await addPeerRes.json()) as any;
+    expect(addPeerJson.success).toBe(true);
+    expect(addPeerJson.peer.peer_agent_id).toBe("colleague_agent_test");
+
+    // Remove peer
+    const remPeerRes = await server.fetch(
+      new Request("http://localhost/api/mesh/remove", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ agentId: "colleague_agent_test" }),
+      }),
+    );
+    expect(remPeerRes.status).toBe(200);
+
+    // Block peer
+    const blkRes = await server.fetch(
+      new Request("http://localhost/api/mesh/block", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ agent_id: "colleague_agent_test" }),
+      }),
+    );
+    expect(blkRes.status).toBe(200);
+
+    // Unblock peer
+    const unblkRes = await server.fetch(
+      new Request("http://localhost/api/mesh/unblock", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ agentId: "colleague_agent_test" }),
+      }),
+    );
+    expect(unblkRes.status).toBe(200);
   });
 });
 
