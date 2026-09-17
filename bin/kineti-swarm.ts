@@ -23,7 +23,7 @@ function runSwarmSimulation(rootGoalOverride?: string) {
 
   // Step 2: Register Swarm Agents with isolated Ed25519 Keypairs
   console.log("\n[1] Registering Swarm Agents with Cryptographic Identities...");
-  const coordinator = registerAgent("Coordinator Alpha", "coordinator", ["delegate", "audit"], 25.0);
+  const coordinator = registerAgent("Coordinator Prime", "coordinator", ["delegate", "audit"], 25.0);
   const coder = registerAgent("Coder Beta", "worker", ["read", "write", "test"], 15.0);
   const reviewer = registerAgent("Reviewer Gamma", "reviewer", ["read", "verify"], 10.0);
 
