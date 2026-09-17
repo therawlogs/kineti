@@ -24,12 +24,18 @@ use kineti_connectors::{
     FluxClient, GmailClient, KinetiConnectorProtocol, OtpManager, Value,
 };
 use kineti_core::current_epoch_millis;
+use kineti_core::root_goal::{
+    DriftEvaluation, DriftInspector, FrictionResolution, FrictionType, ImmutableBoundaries,
+    VerbatimRootGoal,
+};
 use kineti_core::spend::UserSpendQuota;
 use kineti_memory::{
     ActionEvaluation, ContextScope, DomainKind, EpistemicCertainty, EpistemicFact, MemoryEngine,
     ResolvedAdvice, ResolvedPersonaView, RuleConstraintType,
 };
 use kineti_reflex::{IntentCategory, ReflexAction, ReflexCircuit, SensoryClassifier};
+use std::collections::HashMap;
+use std::sync::RwLock;
 use std::time::Instant;
 
 /// Incoming event source waking the dormant runtime from Stage 1 (Sleep).
@@ -62,6 +68,8 @@ pub struct IncomingStimulusEvent {
     pub candidate_payload: Option<Value>,
     /// Optional single-use authorization token for high-consequence operations.
     pub authorization_token: Option<ActionAuthorizationToken>,
+    /// Optional active Verbatim Root Goal anchoring the execution.
+    pub root_goal: Option<VerbatimRootGoal>,
 }
 
 impl IncomingStimulusEvent {
@@ -76,6 +84,7 @@ impl IncomingStimulusEvent {
             candidate_action: None,
             candidate_payload: None,
             authorization_token: None,
+            root_goal: None,
         }
     }
 
@@ -90,7 +99,13 @@ impl IncomingStimulusEvent {
             candidate_action: None,
             candidate_payload: None,
             authorization_token: None,
+            root_goal: None,
         }
+    }
+
+    /// Creates an inbound stimulus event originating from iMessage bridge.
+    pub fn imessage(user_id: impl Into<String>, text: impl Into<String>, media_url: Option<String>) -> Self {
+        Self::webhook(user_id, text, media_url)
     }
 
     /// Creates a scheduled trigger stimulus event.
@@ -104,6 +119,7 @@ impl IncomingStimulusEvent {
             candidate_action: None,
             candidate_payload: None,
             authorization_token: None,
+            root_goal: None,
         }
     }
 
@@ -116,6 +132,12 @@ impl IncomingStimulusEvent {
     /// Attaches an authorization token for high-consequence operations.
     pub fn with_token(mut self, token: ActionAuthorizationToken) -> Self {
         self.authorization_token = Some(token);
+        self
+    }
+
+    /// Attaches an active Verbatim Root Goal anchoring this event.
+    pub fn with_root_goal(mut self, goal: VerbatimRootGoal) -> Self {
+        self.root_goal = Some(goal);
         self
     }
 
@@ -166,6 +188,8 @@ pub struct DispatchReceipt {
     pub resolved_advice: Option<ResolvedAdvice>,
     /// Stage 4 action gate verification flag (true if verified or trivial/not required).
     pub action_gate_passed: bool,
+    /// Stage 4 anti-drift evaluation (if an active root goal exists).
+    pub drift_evaluation: Option<DriftEvaluation>,
     /// Stage 5 microcents spent during this execution cycle.
     pub microcents_spent: u64,
 }
@@ -197,6 +221,8 @@ pub struct GatewayRouter {
     pub brave_connector: BraveSearchClient,
     /// Protocolized FLUX image generation connector.
     pub flux_connector: FluxClient,
+    /// Active user root goals for autonomous drift validation.
+    pub active_goals: RwLock<HashMap<String, VerbatimRootGoal>>,
 }
 
 impl Default for GatewayRouter {
@@ -221,7 +247,26 @@ impl GatewayRouter {
             gmail_connector: GmailClient::new("mock_gmail_token"),
             brave_connector: BraveSearchClient::new("BSA_live"),
             flux_connector: FluxClient::new("BFL_live"),
+            active_goals: RwLock::new(HashMap::new()),
         }
+    }
+
+    /// Registers or locks an active Verbatim Root Goal for a user session.
+    pub fn set_active_root_goal(&self, user_id: &str, goal: VerbatimRootGoal) {
+        let mut lock = self.active_goals.write().unwrap();
+        lock.insert(user_id.to_string(), goal);
+    }
+
+    /// Retrieves the active Verbatim Root Goal for a user, if one exists.
+    pub fn get_active_root_goal(&self, user_id: &str) -> Option<VerbatimRootGoal> {
+        let lock = self.active_goals.read().unwrap();
+        lock.get(user_id).cloned()
+    }
+
+    /// Clears the active Verbatim Root Goal for a user session.
+    pub fn clear_active_root_goal(&self, user_id: &str) -> Option<VerbatimRootGoal> {
+        let mut lock = self.active_goals.write().unwrap();
+        lock.remove(user_id)
     }
 
     /// Dispatches an incoming event through the 5-stage pipeline and returns a full DispatchReceipt.
@@ -244,6 +289,65 @@ impl GatewayRouter {
         quota: &UserSpendQuota,
     ) -> DispatchReceipt {
         let now_ms = current_epoch_millis();
+
+        // If the event carries an explicit root goal, lock it for the user
+        if let Some(goal) = event.root_goal.take() {
+            self.set_active_root_goal(&event.user_id, goal);
+        }
+
+        // Check if text is a goal-locking or clearing command
+        let trimmed = event.text.trim();
+        let lower = trimmed.to_lowercase();
+        if lower.starts_with("goal:") || lower.starts_with("root goal:") {
+            let raw_ask = if lower.starts_with("root goal:") {
+                trimmed[10..].trim().to_string()
+            } else {
+                trimmed[5..].trim().to_string()
+            };
+            let max_spend = parse_spend_from_text(&raw_ask);
+            let counterparty = parse_counterparty_from_text(&raw_ask);
+            let goal = VerbatimRootGoal::new(
+                format!("goal_{}_{}", event.user_id, now_ms),
+                &raw_ask,
+                "Completed within user boundaries",
+                ImmutableBoundaries {
+                    max_spend_microcents: max_spend,
+                    counterparty,
+                    deadline_epoch_ms: None,
+                    reputation_protected: true,
+                },
+                now_ms,
+            );
+            self.set_active_root_goal(&event.user_id, goal);
+            return DispatchReceipt {
+                reply: OutboundReply::Text {
+                    body: format!("Locked Verbatim Root Goal: \"{}\". Anti-Drift Engine active.", raw_ask),
+                },
+                source: event.source,
+                triage_latency_micros: 50,
+                reflex_short_circuit: true,
+                resolved_scope: None,
+                resolved_advice: None,
+                action_gate_passed: true,
+                drift_evaluation: Some(DriftEvaluation::InBounds),
+                microcents_spent: 0,
+            };
+        } else if lower == "clear goal" || lower == "unlock goal" {
+            self.clear_active_root_goal(&event.user_id);
+            return DispatchReceipt {
+                reply: OutboundReply::Text {
+                    body: "Active root goal cleared.".to_string(),
+                },
+                source: event.source,
+                triage_latency_micros: 50,
+                reflex_short_circuit: true,
+                resolved_scope: None,
+                resolved_advice: None,
+                action_gate_passed: true,
+                drift_evaluation: None,
+                microcents_spent: 0,
+            };
+        }
 
         // -------------------------------------------------------------------
         // STAGE 2: SENSORY TRIAGE (< 1ms)
@@ -271,6 +375,7 @@ impl GatewayRouter {
                     resolved_scope: None,
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 100,
                 };
             }
@@ -285,6 +390,7 @@ impl GatewayRouter {
                     resolved_scope: None,
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 500,
                 };
             }
@@ -316,6 +422,7 @@ impl GatewayRouter {
                     resolved_scope: Some(ContextScope::Global),
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 1_000,
                 };
             }
@@ -334,6 +441,7 @@ impl GatewayRouter {
                 resolved_scope: None,
                 resolved_advice: None,
                 action_gate_passed: false,
+                drift_evaluation: None,
                 microcents_spent: 0,
             };
         }
@@ -342,6 +450,38 @@ impl GatewayRouter {
         let confirmation = self.confirmation_gate.evaluate_reply(&event.user_id, &event.text);
         match confirmation {
             ConfirmationDecision::Confirmed { action, mut token } => {
+                // If an active root goal is set, inspect against it
+                let active_goal = self.get_active_root_goal(&event.user_id);
+                let spend_microcents = (action.amount_cents as u64) * 10_000;
+                let drift_eval = active_goal.as_ref().map(|goal| {
+                    DriftInspector::inspect_step(
+                        goal,
+                        &action.description,
+                        Some(spend_microcents),
+                        Some(&action.merchant),
+                        now_ms,
+                    )
+                });
+
+                if let Some(DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask }) = &drift_eval {
+                    return DispatchReceipt {
+                        reply: OutboundReply::Text {
+                            body: format!(
+                                "Drift Engine Blocked Action: {} (Anchored to verbatim ask: \"{}\")",
+                                reason, verbatim_ask
+                            ),
+                        },
+                        source: event.source,
+                        triage_latency_micros,
+                        reflex_short_circuit: false,
+                        resolved_scope: Some(ContextScope::Domain(DomainKind::Finance)),
+                        resolved_advice: None,
+                        action_gate_passed: false,
+                        drift_evaluation: drift_eval,
+                        microcents_spent: 0,
+                    };
+                }
+
                 // STAGE 4: ACTION GATE for confirmed financial purchase
                 let payload = action.to_canonical_payload();
                 match self.financial_connector.execute("execute_purchase", &payload, Some(&mut token)) {
@@ -361,6 +501,7 @@ impl GatewayRouter {
                             resolved_scope: Some(ContextScope::Domain(DomainKind::Finance)),
                             resolved_advice: None,
                             action_gate_passed: true,
+                            drift_evaluation: drift_eval.or(Some(DriftEvaluation::InBounds)),
                             microcents_spent: 10_000,
                         };
                     }
@@ -375,6 +516,7 @@ impl GatewayRouter {
                             resolved_scope: Some(ContextScope::Domain(DomainKind::Finance)),
                             resolved_advice: None,
                             action_gate_passed: false,
+                            drift_evaluation: drift_eval,
                             microcents_spent: 0,
                         };
                     }
@@ -391,6 +533,7 @@ impl GatewayRouter {
                     resolved_scope: Some(ContextScope::Domain(DomainKind::Finance)),
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 0,
                 };
             }
@@ -405,6 +548,7 @@ impl GatewayRouter {
                     resolved_scope: Some(ContextScope::Domain(DomainKind::Finance)),
                     resolved_advice: None,
                     action_gate_passed: false,
+                    drift_evaluation: None,
                     microcents_spent: 0,
                 };
             }
@@ -442,6 +586,39 @@ impl GatewayRouter {
         // Path A: Explicit candidate action proposed via stimulus
         if let Some(ref action) = event.candidate_action {
             let payload = event.candidate_payload.clone().unwrap_or(Value::Null);
+            let active_goal = self.get_active_root_goal(&event.user_id);
+            let proposed_spend = extract_spend_from_payload(&payload);
+            let proposed_counterparty = extract_counterparty_from_payload(&payload);
+
+            let drift_eval = active_goal.as_ref().map(|goal| {
+                DriftInspector::inspect_step(
+                    goal,
+                    action,
+                    proposed_spend,
+                    proposed_counterparty.as_deref(),
+                    now_ms,
+                )
+            });
+
+            if let Some(DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask }) = &drift_eval {
+                return DispatchReceipt {
+                    reply: OutboundReply::Text {
+                        body: format!(
+                            "Drift Engine Blocked Action '{}': {} (Anchored to verbatim ask: \"{}\")",
+                            action, reason, verbatim_ask
+                        ),
+                    },
+                    source: event.source,
+                    triage_latency_micros,
+                    reflex_short_circuit: false,
+                    resolved_scope: Some(active_scope),
+                    resolved_advice,
+                    action_gate_passed: false,
+                    drift_evaluation: drift_eval,
+                    microcents_spent: 0,
+                };
+            }
+
             let (action_res, microcents) = self.dispatch_candidate_action(
                 action,
                 &payload,
@@ -462,6 +639,7 @@ impl GatewayRouter {
                         resolved_scope: Some(active_scope),
                         resolved_advice,
                         action_gate_passed: true,
+                        drift_evaluation: drift_eval.or(Some(DriftEvaluation::InBounds)),
                         microcents_spent: microcents,
                     };
                 }
@@ -476,6 +654,7 @@ impl GatewayRouter {
                         resolved_scope: Some(active_scope),
                         resolved_advice,
                         action_gate_passed: false,
+                        drift_evaluation: drift_eval,
                         microcents_spent: 0,
                     };
                 }
@@ -513,6 +692,7 @@ impl GatewayRouter {
                 resolved_scope: Some(active_scope),
                 resolved_advice: resolved_advice.clone(),
                 action_gate_passed: advice.is_permitted(),
+                drift_evaluation: None,
                 microcents_spent: 2_000,
             };
         }
@@ -533,6 +713,7 @@ impl GatewayRouter {
                     resolved_scope: Some(active_scope),
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 4_000,
                 }
             }
@@ -551,6 +732,7 @@ impl GatewayRouter {
                     resolved_scope: Some(active_scope),
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 20_000,
                 }
             }
@@ -568,6 +750,7 @@ impl GatewayRouter {
                         resolved_scope: Some(active_scope),
                         resolved_advice: None,
                         action_gate_passed: true,
+                        drift_evaluation: None,
                         microcents_spent: 5_000,
                     }
                 } else {
@@ -578,6 +761,32 @@ impl GatewayRouter {
                         max_price_usd: Some(180.0),
                     };
                     if let Some(ticket) = self.tickets.search(&params) {
+                        let active_goal = self.get_active_root_goal(&event.user_id);
+                        let ticket_spend_micro = (ticket.total_cents as u64) * 10_000;
+                        let drift_eval = active_goal.as_ref().map(|g| {
+                            DriftInspector::inspect_step(
+                                g,
+                                &format!("Ticket search for {}", ticket.event_name),
+                                Some(ticket_spend_micro),
+                                Some("Ticketmaster"),
+                                now_ms,
+                            )
+                        });
+                        if let Some(DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask }) = &drift_eval {
+                            return DispatchReceipt {
+                                reply: OutboundReply::Text {
+                                    body: format!("Drift Engine Blocked Proposal: {} (Anchored to verbatim ask: \"{}\")", reason, verbatim_ask),
+                                },
+                                source: event.source,
+                                triage_latency_micros,
+                                reflex_short_circuit: false,
+                                resolved_scope: Some(active_scope),
+                                resolved_advice: None,
+                                action_gate_passed: false,
+                                drift_evaluation: drift_eval,
+                                microcents_spent: 5_000,
+                            };
+                        }
                         self.confirmation_gate.propose_action(
                             &event.user_id,
                             "act_ticket_01",
@@ -595,6 +804,7 @@ impl GatewayRouter {
                             resolved_scope: Some(active_scope),
                             resolved_advice: None,
                             action_gate_passed: true,
+                            drift_evaluation: drift_eval.or(Some(DriftEvaluation::InBounds)),
                             microcents_spent: 5_000,
                         }
                     } else {
@@ -608,6 +818,7 @@ impl GatewayRouter {
                             resolved_scope: Some(active_scope),
                             resolved_advice: None,
                             action_gate_passed: true,
+                            drift_evaluation: None,
                             microcents_spent: 5_000,
                         }
                     }
@@ -626,6 +837,7 @@ impl GatewayRouter {
                     resolved_scope: Some(active_scope),
                     resolved_advice: None,
                     action_gate_passed: true,
+                    drift_evaluation: None,
                     microcents_spent: 8_000,
                 }
             }
@@ -683,6 +895,46 @@ impl GatewayRouter {
         current_time: u64,
     ) -> ResolvedAdvice {
         self.memory.resolve_advice_for_candidate(user_id, scope, candidate_item, candidate_tags, current_time)
+    }
+
+    /// Triages third-party friction against the active user root goal through the 3-level ladder.
+    pub fn triage_action_friction(
+        &self,
+        user_id: &str,
+        friction: FrictionType,
+        accumulated_debris_cost: u64,
+    ) -> FrictionResolution {
+        if let Some(goal) = self.get_active_root_goal(user_id) {
+            DriftInspector::triage_friction(&goal, friction, accumulated_debris_cost)
+        } else {
+            match friction {
+                FrictionType::Noise { .. } => FrictionResolution::RetryWithBackoff { delay_ms: 1000 },
+                FrictionType::BrokenSurface {
+                    alternative_surface: Some(alt),
+                    ..
+                } => FrictionResolution::SilentReroute {
+                    target_surface: alt,
+                    verbatim_goal: "Generic task".to_string(),
+                },
+                FrictionType::BrokenSurface {
+                    alternative_surface: None,
+                    surface_name,
+                } => FrictionResolution::EscalateCleanNo {
+                    clean_no_reason: format!("Surface '{}' is unavailable and no viable alternative exists", surface_name),
+                    banked_data: format!("Sunk cost of ${:.2} written off", accumulated_debris_cost as f64 / 1_000_000.0),
+                },
+                FrictionType::RealConstraint { obstacle, mutates_done_definition } => {
+                    if mutates_done_definition {
+                        FrictionResolution::EscalateCleanNo {
+                            clean_no_reason: format!("Third party refused terms ('{}'). Impossibility reported cleanly.", obstacle),
+                            banked_data: format!("Sunk cost of ${:.2} written off", accumulated_debris_cost as f64 / 1_000_000.0),
+                        }
+                    } else {
+                        FrictionResolution::RetryWithBackoff { delay_ms: 2000 }
+                    }
+                }
+            }
+        }
     }
 
     fn dispatch_candidate_action(
@@ -824,6 +1076,100 @@ fn extract_food_candidate(text: &str) -> Option<(&'static str, &'static [&'stati
     } else {
         None
     }
+}
+
+/// Helper function to parse a spending limit in microcents from natural user text.
+fn parse_spend_from_text(text: &str) -> Option<u64> {
+    let lower = text.to_lowercase();
+    // Check for $ followed by numbers e.g. "$350", "$350.00"
+    if let Some(pos) = text.find('$') {
+        let after = &text[pos + 1..];
+        let num_str: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        if let Ok(dollars) = num_str.parse::<f64>() {
+            return Some((dollars * 1_000_000.0) as u64);
+        }
+    }
+    // Check for patterns like "under 350", "max 350", "budget 350", "350 dollars"
+    let tokens: Vec<&str> = lower.split_whitespace().collect();
+    for (i, token) in tokens.iter().enumerate() {
+        if (*token == "under" || *token == "max" || *token == "budget" || *token == "ceiling" || *token == "limit")
+            && i + 1 < tokens.len()
+        {
+            let candidate = tokens[i + 1].trim_matches(|c: char| !c.is_ascii_digit() && c != '.');
+            if let Ok(val) = candidate.parse::<f64>() {
+                return Some((val * 1_000_000.0) as u64);
+            }
+        }
+        if (*token == "dollars" || *token == "usd" || *token == "bucks") && i > 0 {
+            let candidate = tokens[i - 1].trim_matches(|c: char| !c.is_ascii_digit() && c != '.');
+            if let Ok(val) = candidate.parse::<f64>() {
+                return Some((val * 1_000_000.0) as u64);
+            }
+        }
+    }
+    None
+}
+
+/// Helper function to parse an authorized counterparty from natural text.
+fn parse_counterparty_from_text(text: &str) -> Option<String> {
+    let lower = text.to_lowercase();
+    if lower.contains("ticketmaster") {
+        return Some("Ticketmaster".to_string());
+    }
+    if lower.contains("amazon") {
+        return Some("Amazon".to_string());
+    }
+    if lower.contains("stubhub") {
+        return Some("StubHub".to_string());
+    }
+    if lower.contains("ana") {
+        return Some("ANA".to_string());
+    }
+    // Patterns like "from Vendor", "with Vendor", "on Vendor", "via Vendor", "vendor: Vendor"
+    let tokens: Vec<&str> = text.split_whitespace().collect();
+    for (i, token) in tokens.iter().enumerate() {
+        let t_lower = token.to_lowercase();
+        if (t_lower == "from" || t_lower == "with" || t_lower == "on" || t_lower == "via" || t_lower == "vendor:")
+            && i + 1 < tokens.len()
+        {
+            let cp = tokens[i + 1].trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
+            if !cp.is_empty() && cp != "the" && cp != "a" && cp != "my" {
+                return Some(cp.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Helper function to extract spend microcents from a JSON payload.
+fn extract_spend_from_payload(payload: &Value) -> Option<u64> {
+    if let Value::Object(map) = payload {
+        if let Some(Value::Number(num)) = map.get("spend_microcents") {
+            return num.as_str().parse::<u64>().ok();
+        }
+        if let Some(Value::Number(num)) = map.get("amount_cents").or_else(|| map.get("price_cents")) {
+            return num.as_str().parse::<u64>().ok().map(|c| c * 10_000);
+        }
+        if let Some(Value::Number(num)) = map.get("amount").or_else(|| map.get("price")).or_else(|| map.get("usd")) {
+            return num.as_str().parse::<f64>().ok().map(|d| (d * 1_000_000.0) as u64);
+        }
+    }
+    None
+}
+
+/// Helper function to extract counterparty or vendor name from a JSON payload.
+fn extract_counterparty_from_payload(payload: &Value) -> Option<String> {
+    if let Value::Object(map) = payload {
+        for key in &["counterparty", "vendor", "recipient", "target", "to"] {
+            if let Some(Value::String(s)) = map.get(*key) {
+                return Some(s.clone());
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -1174,5 +1520,178 @@ mod tests {
         let r2 = router.dispatch_event(evt2, &quota);
         assert_eq!(r2.microcents_spent, 1000);
         assert_eq!(quota.spent_microcents(), 1100);
+    }
+
+    #[test]
+    fn test_root_goal_lifecycle_and_anti_drift_enforcement() {
+        let router = GatewayRouter::new();
+        let quota = UserSpendQuota::new("u_drift_user", UserTier::Pro.daily_quota_microcents());
+
+        // 1. Lock root goal via chat command
+        let lock_evt = IncomingStimulusEvent::webhook(
+            "u_drift_user",
+            "Goal: Buy 2 tickets for Hans Zimmer under $350 on Ticketmaster",
+            None,
+        );
+        let receipt = router.dispatch_event(lock_evt, &quota);
+        assert_eq!(receipt.drift_evaluation, Some(DriftEvaluation::InBounds));
+        if let OutboundReply::Text { body } = receipt.reply {
+            assert!(body.contains("Locked Verbatim Root Goal"));
+            assert!(body.contains("Anti-Drift Engine active"));
+        } else {
+            panic!("Expected text reply for goal lock");
+        }
+
+        let active_goal = router.get_active_root_goal("u_drift_user");
+        assert!(active_goal.is_some());
+        let goal = active_goal.unwrap();
+        assert_eq!(goal.boundaries.max_spend_microcents, Some(350_000_000));
+        assert_eq!(goal.boundaries.counterparty.as_deref(), Some("Ticketmaster"));
+
+        // 2. Step 1: In-bounds candidate action within budget and counterparty
+        let mut valid_payload = BTreeMap::new();
+        valid_payload.insert("spend_microcents".to_string(), Value::from(330_000_000u64));
+        valid_payload.insert("counterparty".to_string(), Value::String("Ticketmaster".to_string()));
+        let now_ms = current_epoch_millis();
+        let valid_token = ActionAuthorizationToken::mint(
+            "tok_drift_01",
+            "u_drift_user",
+            "financial_checkout",
+            "execute_purchase",
+            &Value::Object(valid_payload.clone()),
+            600,
+            now_ms,
+        );
+        let valid_step = IncomingStimulusEvent::webhook("u_drift_user", "Proceed with purchase", None)
+            .with_action("execute_purchase", Value::Object(valid_payload))
+            .with_token(valid_token);
+        let valid_receipt = router.dispatch_event(valid_step, &quota);
+        assert!(valid_receipt.action_gate_passed);
+        assert_eq!(valid_receipt.drift_evaluation, Some(DriftEvaluation::InBounds));
+
+        // 3. Step 2: Budget overrun (> $350) blocked by Anti-Drift Engine
+        let mut overrun_payload = BTreeMap::new();
+        overrun_payload.insert("spend_microcents".to_string(), Value::from(385_000_000u64)); // $385 (10% overrun)
+        overrun_payload.insert("counterparty".to_string(), Value::String("Ticketmaster".to_string()));
+        let overrun_token = ActionAuthorizationToken::mint(
+            "tok_drift_02",
+            "u_drift_user",
+            "financial_checkout",
+            "execute_purchase",
+            &Value::Object(overrun_payload.clone()),
+            600,
+            now_ms,
+        );
+        let overrun_step = IncomingStimulusEvent::webhook("u_drift_user", "Overrun purchase", None)
+            .with_action("execute_purchase", Value::Object(overrun_payload))
+            .with_token(overrun_token);
+        let overrun_receipt = router.dispatch_event(overrun_step, &quota);
+        assert!(!overrun_receipt.action_gate_passed);
+        assert!(matches!(
+            overrun_receipt.drift_evaluation,
+            Some(DriftEvaluation::GoalMutationBlocked { .. })
+        ));
+        if let OutboundReply::Text { body } = overrun_receipt.reply {
+            assert!(body.contains("Drift Engine Blocked Action"));
+            assert!(body.contains("overrun"));
+            assert!(body.contains("Buy 2 tickets for Hans Zimmer under $350 on Ticketmaster"));
+        } else {
+            panic!("Expected drift rejection reply");
+        }
+
+        // 4. Step 3: Counterparty drift blocked (e.g. ScalperHub instead of Ticketmaster)
+        let mut cp_drift_payload = BTreeMap::new();
+        cp_drift_payload.insert("spend_microcents".to_string(), Value::from(300_000_000u64));
+        cp_drift_payload.insert("counterparty".to_string(), Value::String("ScalperHub".to_string()));
+        let cp_token = ActionAuthorizationToken::mint(
+            "tok_drift_03",
+            "u_drift_user",
+            "financial_checkout",
+            "execute_purchase",
+            &Value::Object(cp_drift_payload.clone()),
+            600,
+            now_ms,
+        );
+        let cp_step = IncomingStimulusEvent::webhook("u_drift_user", "Unauthorized vendor purchase", None)
+            .with_action("execute_purchase", Value::Object(cp_drift_payload))
+            .with_token(cp_token);
+        let cp_receipt = router.dispatch_event(cp_step, &quota);
+        assert!(!cp_receipt.action_gate_passed);
+        assert!(matches!(
+            cp_receipt.drift_evaluation,
+            Some(DriftEvaluation::GoalMutationBlocked { .. })
+        ));
+        if let OutboundReply::Text { body } = cp_receipt.reply {
+            assert!(body.contains("does not match authorized counterparty"));
+        } else {
+            panic!("Expected counterparty drift rejection reply");
+        }
+
+        // 5. Unlock/clear goal
+        let clear_evt = IncomingStimulusEvent::webhook("u_drift_user", "clear goal", None);
+        let clear_receipt = router.dispatch_event(clear_evt, &quota);
+        assert!(clear_receipt.drift_evaluation.is_none());
+        assert!(router.get_active_root_goal("u_drift_user").is_none());
+    }
+
+    #[test]
+    fn test_friction_triage_ladder_in_router() {
+        let router = GatewayRouter::new();
+        let now_ms = current_epoch_millis();
+        let goal = VerbatimRootGoal::new(
+            "g_trip",
+            "Book flight to Tokyo under $1200 on ANA",
+            "Flight ticket booked",
+            ImmutableBoundaries {
+                max_spend_microcents: Some(1_200_000_000),
+                counterparty: Some("ANA".to_string()),
+                deadline_epoch_ms: None,
+                reputation_protected: true,
+            },
+            now_ms,
+        );
+        router.set_active_root_goal("u_traveler", goal);
+
+        // Ladder Level 1: Noise -> Retry with backoff
+        let res1 = router.triage_action_friction(
+            "u_traveler",
+            FrictionType::Noise { message: "503 Service Unavailable".to_string() },
+            0,
+        );
+        assert!(matches!(res1, FrictionResolution::RetryWithBackoff { delay_ms: 1000 }));
+
+        // Ladder Level 2: Broken Surface with fallback -> Silent reroute
+        let res2 = router.triage_action_friction(
+            "u_traveler",
+            FrictionType::BrokenSurface {
+                surface_name: "ANA Mobile Web".to_string(),
+                alternative_surface: Some("ANA Desktop API".to_string()),
+            },
+            5_000,
+        );
+        match res2 {
+            FrictionResolution::SilentReroute { target_surface, verbatim_goal } => {
+                assert_eq!(target_surface, "ANA Desktop API");
+                assert!(verbatim_goal.contains("Book flight to Tokyo"));
+            }
+            _ => panic!("Expected SilentReroute"),
+        }
+
+        // Ladder Level 3: Real Constraint mutating Done definition -> Escalate Clean No
+        let res3 = router.triage_action_friction(
+            "u_traveler",
+            FrictionType::RealConstraint {
+                obstacle: "Price jumped to $1450".to_string(),
+                mutates_done_definition: true,
+            },
+            20_000,
+        );
+        match res3 {
+            FrictionResolution::EscalateCleanNo { clean_no_reason, banked_data } => {
+                assert!(clean_no_reason.contains("Third party refused terms"));
+                assert!(banked_data.contains("zero goal mutation permitted"));
+            }
+            _ => panic!("Expected EscalateCleanNo"),
+        }
     }
 }

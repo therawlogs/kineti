@@ -8,6 +8,7 @@ use kineti_core::root_goal::{
     VerbatimRootGoal,
 };
 use kineti_core::spend::UserSpendQuota;
+use kineti_gateway::router::{DispatchReceipt, IncomingStimulusEvent};
 use kineti_gateway::{GatewayRouter, OutboundReply};
 use kineti_memory::{
     CommitmentTimeVerifier, ConsequenceLevel, GapFillingPolicy, Perishability,
@@ -69,7 +70,8 @@ fn run_interactive_chat() {
 
     println!("\n=======================================================");
     println!("  Kineti Native Chat Session (Simulated iMessage/WhatsApp)");
-    println!("  Type 'exit' to quit. Text naturally or try slangs!");
+    println!("  Type 'exit' to quit | '/memory' or '/profile' to inspect");
+    println!("  Try setting goals: 'Goal: Buy 2 tickets for Hans Zimmer under $350'");
     println!("=======================================================\n");
 
     let stdin = io::stdin();
@@ -96,8 +98,17 @@ fn run_interactive_chat() {
             continue;
         }
 
-        let reply = router.process_message(user_id, trimmed, None, &quota);
-        match reply {
+        if trimmed == "/profile" || trimmed == "/memory" {
+            print_profile_stats(&router, user_id, None);
+            println!();
+            print!("You > ");
+            stdout.flush().unwrap();
+            continue;
+        }
+
+        let event = IncomingStimulusEvent::cli(user_id, trimmed);
+        let receipt = router.dispatch_event(event, &quota);
+        match &receipt.reply {
             OutboundReply::Reaction { emoji } => {
                 println!("Kineti > [Reaction: {} attached to message bubble]", emoji);
             }
@@ -110,9 +121,61 @@ fn run_interactive_chat() {
         }
 
         println!();
+        print_profile_stats(&router, user_id, Some(&receipt));
+        println!();
         print!("You > ");
         stdout.flush().unwrap();
     }
+}
+
+fn print_profile_stats(
+    router: &GatewayRouter,
+    user_id: &str,
+    receipt: Option<&DispatchReceipt>,
+) {
+    let style = router.memory.get_user_style(user_id);
+    let facts = router.memory.query_facts(user_id, None);
+    let active_goal = router.get_active_root_goal(user_id);
+
+    println!("  ┌── [Memory & Persona Profile] ──────────────────────────────────────────────┐");
+    println!("  │ Socio-Linguistic Style: Formality: {:.0}% | Brevity: {:.0}% | Slang: {:.0}%",
+        style.formality * 100.0,
+        (1.0 - style.verbosity) * 100.0,
+        style.slang_affinity * 100.0,
+    );
+    println!("  │ Dialect: {:<12} Lowercase Pref: {:<5} Emoji Density: {:.0}%",
+        style.language_dialect,
+        style.lowercase_preference,
+        style.emoji_density * 100.0,
+    );
+    println!("  │ Epistemic Facts Ingested: {}", facts.len());
+    for f in facts.iter().take(3) {
+        println!("  │   • [{}] {}", f.key, f.value);
+    }
+    if let Some(goal) = active_goal {
+        let spend_str = goal.boundaries.max_spend_microcents
+            .map(|c| format!("${:.2}", c as f64 / 1_000_000.0))
+            .unwrap_or_else(|| "None".to_string());
+        let cp_str = goal.boundaries.counterparty.as_deref().unwrap_or("None");
+        println!("  │ Active Root Goal: \"{}\"", goal.raw_user_ask);
+        println!("  │ Boundaries: Spend Ceiling: {} | Counterparty: {}", spend_str, cp_str);
+    } else {
+        println!("  │ Active Root Goal: None (Set via 'Goal: <ask>')");
+    }
+    if let Some(r) = receipt {
+        let drift_str = match &r.drift_evaluation {
+            Some(DriftEvaluation::InBounds) => "InBounds (Compliant)",
+            Some(DriftEvaluation::PathReroutePermitted { .. }) => "Path Reroute Permitted",
+            Some(DriftEvaluation::GoalMutationBlocked { reason, .. }) => reason.as_str(),
+            None => "N/A (Reflex / Fast-Path)",
+        };
+        println!("  │ Last Cycle: Latency: {} µs | Spend: ${:.4} | Drift Status: {}",
+            r.triage_latency_micros,
+            r.microcents_spent as f64 / 1_000_000.0,
+            drift_str,
+        );
+    }
+    println!("  └─────────────────────────────────────────────────────────────────────────────┘");
 }
 
 fn run_test_suite() {
