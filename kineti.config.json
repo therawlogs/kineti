@@ -22,7 +22,7 @@
     "qa_max_self_repair_attempts": 5,
     "data_quality_threshold": 0.8,
     "hurdle_rate_min": 0.5,
-    "verify_command": "",
+    "verify_command": "bun test",
     "freeze_during": ["build", "review", "qa"]
   },
   "memory": {

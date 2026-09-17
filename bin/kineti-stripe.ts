@@ -55,17 +55,17 @@ if (command === "issue") {
       amount = parseFloat(args[i + 1]);
       i++;
     } else if (args[i] === "--merchant" && args[i + 1]) {
-      merchant = args[i + 1];
+      merchant = args[i + 1].trim().slice(0, 64).replace(/[^\w\s.-]/g, "") || "Generic Merchant";
       i++;
     }
   }
 
-  if (amount <= 0) {
-    die("Invalid amount: must be greater than 0");
+  if (!Number.isFinite(amount) || amount <= 0) {
+    die("Invalid amount: must be a finite number greater than 0");
   }
 
   const cardId = `ic_${crypto.randomBytes(8).toString("hex")}`;
-  const last4 = Math.floor(1000 + Math.random() * 9000).toString();
+  const last4 = crypto.randomInt(1000, 10000).toString();
   const card: VirtualCard = {
     card_id: cardId,
     masked_number: `•••• •••• •••• ${last4}`,
@@ -80,12 +80,13 @@ if (command === "issue") {
   state.cards[cardId] = card;
   saveState(state);
 
-  // Register SAGA rollback step so any failure unwinds by canceling this card!
+  // Register SAGA rollback step without shell invocation
   const sagaScript = path.join(__dirname, "kineti-saga.ts");
-  const cancelCmd = `bun ${sagaScript} push "bun ${path.join(__dirname, "kineti-stripe.ts")} cancel --card ${cardId}"`;
+  const stripeScript = path.join(__dirname, "kineti-stripe.ts");
+  const cancelInverse = `bun ${stripeScript} cancel --card ${cardId}`;
   try {
-    const { execSync } = require("node:child_process");
-    execSync(cancelCmd, { stdio: "ignore" });
+    const { spawnSync } = require("node:child_process");
+    spawnSync("bun", [sagaScript, "push", cancelInverse], { stdio: "ignore" });
   } catch {}
 
   console.log(JSON.stringify(card, null, 2));
@@ -94,12 +95,14 @@ if (command === "issue") {
   let cardId = "";
   for (let i = 1; i < args.length; i++) {
     if (args[i] === "--card" && args[i + 1]) {
-      cardId = args[i + 1];
+      cardId = args[i + 1].trim();
       i++;
     }
   }
 
-  if (!cardId) die("Missing --card <CARD_ID>");
+  if (!cardId || !/^ic_[a-f0-9]{16}$/.test(cardId)) {
+    die("Invalid or missing --card <CARD_ID>");
+  }
 
   const state = loadState();
   if (!state.cards[cardId]) {

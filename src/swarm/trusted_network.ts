@@ -149,21 +149,33 @@ export class TrustedNetworkManager {
     requestedTier: TrustTier,
     note: string,
   ): { status: "queued" | "blocked" | "paused"; requestId?: string } {
-    if (this.isPeerBlocked(requesterAgentId)) {
+    const cleanAgentId = (requesterAgentId || "").trim().slice(0, 64).replace(/[^\w-]/g, "");
+    if (!cleanAgentId) {
+      throw new Error("Invalid requesterAgentId: must be alphanumeric/dash/underscore");
+    }
+    const validTiers: TrustTier[] = ["inner_circle", "colleague", "service_agent"];
+    if (!validTiers.includes(requestedTier)) {
+      throw new Error(`Invalid requested tier: '${requestedTier}'`);
+    }
+    const cleanName = (requesterName || "").trim().slice(0, 100);
+    const cleanHandle = (requesterHandle || "").trim().slice(0, 50).replace(/[^\w@.-]/g, "");
+    const cleanNote = (note || "").trim().slice(0, 500);
+
+    if (this.isPeerBlocked(cleanAgentId)) {
       return { status: "blocked" };
     }
     if (this.state.mesh_paused) {
       return { status: "paused" };
     }
 
-    const requestId = `req_${requesterAgentId}_${Date.now()}`;
+    const requestId = `req_${cleanAgentId}_${Date.now()}`;
     const req: ConnectionRequest = {
       request_id: requestId,
-      requester_agent_id: requesterAgentId,
-      requester_name: requesterName,
-      requester_handle: requesterHandle,
+      requester_agent_id: cleanAgentId,
+      requester_name: cleanName,
+      requester_handle: cleanHandle,
       requested_tier: requestedTier,
-      note,
+      note: cleanNote,
       created_at: Date.now(),
       status: "pending",
     };

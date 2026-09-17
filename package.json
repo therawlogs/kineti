@@ -1,8 +1,8 @@
 {
   "name": "kineti",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "Proprietary",
-  "private": false,
+  "private": true,
   "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
   "bin": {
     "kineti": "bin/kineti.js"
@@ -13,6 +13,8 @@
     "test:bun": "bun test tests/",
     "test:setup": "./tests/test-setup.sh",
     "typecheck": "tsc --noEmit",
+    "lint": "bun run typecheck",
+    "build": "bun build bin/kineti.ts --outfile dist/kineti.js",
     "mcp": "bun bin/kineti-mcp.ts",
     "mcp:init": "bun bin/kineti-mcp.ts init",
     "companion": "bun bin/kineti-companion.ts",

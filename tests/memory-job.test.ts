@@ -9,6 +9,7 @@ function run(args: string[], cwd: string = REPO) {
   const p = Bun.spawnSync({
     cmd: ["bun", path.join(REPO, "bin", "kineti-memory-job.ts"), ...args],
     cwd,
+    env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO },
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -16,7 +17,9 @@ function run(args: string[], cwd: string = REPO) {
 }
 
 function makeProject(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kineti-mem-"));
+  const scratch = path.join(REPO, ".kineti", "scratch");
+  fs.mkdirSync(scratch, { recursive: true });
+  const dir = fs.mkdtempSync(path.join(scratch, "mem-test-"));
   fs.mkdirSync(path.join(dir, ".kineti"), { recursive: true });
   return dir;
 }
@@ -91,5 +94,11 @@ describe("kineti-memory-job", () => {
     expect(promo.status).toBe(0);
     expect(promo.out).toContain('"degraded"');
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("refuses --dir pointing outside project root (exit 2)", () => {
+    const res = run(["sweep", "--dir", "/tmp/forbidden-outside-dir"]);
+    expect(res.status).toBe(2);
+    expect(res.err).toContain("Path traversal rejected");
   });
 });

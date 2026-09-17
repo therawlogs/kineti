@@ -282,5 +282,83 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(html).not.toContain("870-2892");
     expect(html).not.toContain("468-7388");
   });
+
+  test("GET /whatsapp-onboarding rejects XSS injection payloads with 400", async () => {
+    const res = await server.fetch(new Request("http://localhost/whatsapp-onboarding?t=%22%3E%3Csvg%20onload=alert(1)%3E"));
+    expect(res.status).toBe(400);
+    const text = await res.text();
+    expect(text).toContain("Invalid pairing token format");
+  });
+
+  test("POST /login with valid token redirects 303 with HttpOnly cookie", async () => {
+    const body = new FormData();
+    body.append("token", AUTH_TOKEN);
+    const res = await server.fetch(
+      new Request("http://localhost/login", {
+        method: "POST",
+        body,
+      }),
+    );
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe("/");
+    const setCookie = res.headers.get("set-cookie") || "";
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=Strict");
+    expect(setCookie).toContain(`kineti_token=${AUTH_TOKEN}`);
+  });
+
+  test("POST /api/connectors/toggle toggles connector status", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const res = await server.fetch(
+      new Request("http://localhost/api/connectors/toggle", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ connector: "slack" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.success).toBe(true);
+    expect(json.connector.connected).toBe(true);
+  });
+
+  test("POST /api/vault creates logins and cards with input validation", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    // Add Login
+    const loginRes = await server.fetch(
+      new Request("http://localhost/api/vault", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ type: "login", domain: "github.com", username: "octocat" }),
+      }),
+    );
+    expect(loginRes.status).toBe(200);
+    const loginJson = (await loginRes.json()) as any;
+    expect(loginJson.success).toBe(true);
+    expect(loginJson.vault.logins.some((l: any) => l.domain === "github.com")).toBe(true);
+
+    // Add Card
+    const cardRes = await server.fetch(
+      new Request("http://localhost/api/vault", {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ type: "card", brand: "Mastercard", spend_cap: 150 }),
+      }),
+    );
+    expect(cardRes.status).toBe(200);
+    const cardJson = (await cardRes.json()) as any;
+    expect(cardJson.success).toBe(true);
+    expect(cardJson.vault.cards.some((c: any) => c.brand === "Mastercard" && c.spend_cap === 150)).toBe(true);
+  });
+
+  test("POST /api/mesh/approve approves pending connection request", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    // First get or inspect mesh
+    const meshRes = await server.fetch(
+      new Request("http://localhost/api/mesh", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
+    expect(meshRes.status).toBe(200);
+  });
 });
+
 

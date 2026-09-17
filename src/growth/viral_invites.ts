@@ -82,7 +82,8 @@ export class ViralInviteEngine {
   }
 
   public generateVanityUrl(code: string): string {
-    return `https://getkineti.com/join/${this.state.owner_handle}?code=${code}`;
+    const safeHandle = (this.state.owner_handle || "user").replace(/[^\w-]/g, "");
+    return `https://getkineti.com/join/${safeHandle}?code=${encodeURIComponent(code)}`;
   }
 
   public createInvite(recipient?: string): InviteRecord {
@@ -90,12 +91,16 @@ export class ViralInviteEngine {
       throw new Error(`Invite quota exceeded for tier '${this.state.tier}'. Upgrade for more invites.`);
     }
 
+    const cleanRecipient = recipient
+      ? recipient.trim().slice(0, 100).replace(/[^\w@.-]/g, "")
+      : undefined;
+
     const code = `kineti_${crypto.randomBytes(4).toString("hex")}`;
     const record: InviteRecord = {
       code,
       vanity_url: this.generateVanityUrl(code),
       created_at: Date.now(),
-      recipient,
+      recipient: cleanRecipient,
       status: "pending",
     };
 

@@ -12,11 +12,11 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
-import { readJson, projectKdir, loadLimits, Limits, splitLegacyCommand } from "./lib.ts";
+import { readJson, projectKdir, loadLimits, Limits, splitLegacyCommand, assertInsideProject } from "./lib.ts";
 
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "kineti-harness";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.0";
 
 // Workspace root resolution
 let workspaceRoot = process.cwd();
@@ -31,7 +31,7 @@ if (args[0] === "init") {
 // Parse --workspace-root if provided
 for (let i = 0; i < args.length; i++) {
   if (args[i] === "--workspace-root" && args[i + 1]) {
-    workspaceRoot = path.resolve(args[i + 1]);
+    workspaceRoot = assertInsideProject(path.resolve(args[i + 1]), process.env.KINETI_WORKSPACE_ROOT || process.cwd());
     i++;
   }
 }
@@ -465,7 +465,8 @@ function sendResponse(id: string | number | null, error: any, result: any) {
 }
 
 function handleInit(subArgs: string[]) {
-  const targetDir = subArgs[0] ? path.resolve(subArgs[0]) : process.cwd();
+  const rawTargetDir = subArgs[0] ? path.resolve(subArgs[0]) : process.cwd();
+  const targetDir = assertInsideProject(rawTargetDir, process.env.KINETI_WORKSPACE_ROOT || process.cwd());
   const cursorDir = path.join(targetDir, ".cursor");
   const cursorMcpFile = path.join(cursorDir, "mcp.json");
 

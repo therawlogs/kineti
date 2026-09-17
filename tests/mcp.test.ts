@@ -6,11 +6,17 @@ import * as path from "node:path";
 const REPO = path.resolve(import.meta.dir, "..");
 const MCP_SCRIPT = path.join(REPO, "bin", "kineti-mcp.ts");
 
+function makeTmpDir(prefix: string = "mcp-test-"): string {
+  const scratch = path.join(REPO, ".kineti", "scratch");
+  fs.mkdirSync(scratch, { recursive: true });
+  return fs.mkdtempSync(path.join(scratch, prefix));
+}
+
 function createMcpSession(cwd: string) {
   const proc = Bun.spawn({
     cmd: ["bun", MCP_SCRIPT, "--workspace-root", cwd],
     cwd,
-    env: { ...process.env, KINETI_TRUST_CONFIRMED: "1" },
+    env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO, KINETI_TRUST_CONFIRMED: "1" },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
@@ -50,7 +56,7 @@ function createMcpSession(cwd: string) {
 
 describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   test("initializes handshake and advertises tools capability", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
+    const tmpDir = makeTmpDir();
     const session = createMcpSession(tmpDir);
 
     try {
@@ -75,7 +81,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   });
 
   test("tools/list returns 12 core Kineti governance tools", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
+    const tmpDir = makeTmpDir();
     const session = createMcpSession(tmpDir);
 
     try {
@@ -116,7 +122,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   });
 
   test("executes state management tools via tools/call", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
+    const tmpDir = makeTmpDir();
     // Initialize kineti state in tmpDir
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
     Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
@@ -200,7 +206,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   });
 
   test("executes evidence and spend governance tools via tools/call", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-test-"));
+    const tmpDir = makeTmpDir();
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
     fs.writeFileSync(path.join(tmpDir, "index.ts"), "console.log('hello');");
     Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
@@ -283,9 +289,11 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   });
 
   test("CLI init command creates .cursor/mcp.json", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-init-test-"));
+    const tmpDir = makeTmpDir("mcp-init-test-");
     try {
-      const res = Bun.spawnSync(["bun", MCP_SCRIPT, "init", tmpDir]);
+      const res = Bun.spawnSync(["bun", MCP_SCRIPT, "init", tmpDir], {
+        env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO },
+      });
       expect(res.exitCode).toBe(0);
 
       const cursorMcpPath = path.join(tmpDir, ".cursor", "mcp.json");
@@ -297,5 +305,13 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  test("CLI init command refuses paths outside project root (exit 2)", () => {
+    const outsideDir = path.resolve(REPO, "..", "outside-mcp-init-dir");
+    const res = Bun.spawnSync(["bun", MCP_SCRIPT, "init", outsideDir], {
+      env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO },
+    });
+    expect(res.exitCode).toBe(2);
   });
 });
