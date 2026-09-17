@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso } from "./lib.ts";
-import { TrustedNetworkManager, TrustTier } from "../src/swarm/trusted_network.ts";
+import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
 import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
 
@@ -164,6 +164,8 @@ function saveVault(vault: VaultStorage): void {
   } catch {}
 }
 
+const COMPANION_SETTINGS_FILE = path.join(process.cwd(), ".kineti", "companion_settings.json");
+
 let companionSettings = {
   github: { connected: true, account: "kineti-org", repo_count: 1, webhook_status: "active" },
   ides: { cursor: true, claude_code: true, antigravity: true, codex: true },
@@ -182,10 +184,59 @@ let companionSettings = {
     notion: { connected: true, account: "Team Notion", name: "Notion", desc: "Search, read, and manage Notion pages and databases" },
     github: { connected: true, account: "kineti-org", name: "GitHub", desc: "Read repositories, files, issues, pull requests, and code search" },
     slack: { connected: false, account: "Team Slack", name: "Slack", desc: "Read channels, send messages, reactions, and canvas notes" },
+    brave: { connected: true, account: "Brave Search API", name: "Brave Search", desc: "Live web research, price discovery, and event ticketing" },
+    twilio: { connected: false, account: "Twilio Voice", name: "Twilio Telephony", desc: "Outbound and inbound telephone calls with IVR" },
     granola: { connected: false, account: "Meeting Notes", name: "Granola", desc: "Read meeting notes, transcripts, and AI summaries" },
     wispr: { connected: true, account: "Wispr Flow MCP", name: "Wispr Flow", desc: "Voice dictation & speech-to-text MCP integration" },
-  } as Record<string, { connected: boolean; account: string; name: string; desc: string }>,
+  } as Record<string, { connected: boolean; account: string; name: string; desc: string; apiKey?: string }>,
 };
+
+function loadCompanionSettings(): void {
+  try {
+    if (fs.existsSync(COMPANION_SETTINGS_FILE)) {
+      const disk = JSON.parse(fs.readFileSync(COMPANION_SETTINGS_FILE, "utf-8"));
+      companionSettings = {
+        ...companionSettings,
+        ...disk,
+        connectors: { ...companionSettings.connectors, ...(disk.connectors || {}) },
+      };
+    }
+  } catch {}
+}
+
+export function saveCompanionSettings(): void {
+  try {
+    ensureDir(path.dirname(COMPANION_SETTINGS_FILE));
+    fs.writeFileSync(COMPANION_SETTINGS_FILE, JSON.stringify(companionSettings, null, 2) + "\n", "utf-8");
+  } catch {}
+}
+
+loadCompanionSettings();
+
+export function renderConnectorsHtml(connectors: Record<string, any>): string {
+  return Object.keys(connectors).map(k => {
+    const c = connectors[k];
+    const btnClass = c.connected ? 'btn btn-connected' : 'btn btn-primary';
+    const btnText = c.connected ? 'Connected' : 'Connect';
+    const badgeHtml = c.connected
+      ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;margin-left:8px;">Active</span>'
+      : '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);margin-left:8px;">Off</span>';
+    
+    return `<div class="item-row" id="connector-row-${k}">
+      <div class="item-icon icon-service">${escapeHtml(k.slice(0, 2).toUpperCase())}</div>
+      <div class="item-body">
+        <div class="item-title">${escapeHtml(c.name)}${badgeHtml}</div>
+        <div class="item-subtitle">${escapeHtml(c.desc)}</div>
+        ${c.account ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Account: ${escapeHtml(c.account)}</div>` : ''}
+      </div>
+      <div class="item-action">
+        <button class="${btnClass}" onclick="toggleConnector('${k}')">${btnText}</button>
+        <button class="copy-btn" title="Configure credentials" onclick="openConfigConnectorModal('${k}', '${escapeHtml(c.name)}', '${escapeHtml(c.account || '')}')">✎</button>
+        <button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" onclick="deleteConnector('${k}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
 
 // Settings App HTML Generator
 function generateSettingsHtml(): string {
@@ -530,7 +581,9 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle" id="val-imessage">${imessageNum}</div>
         </div>
         <div class="item-action">
-          <button class="copy-btn" onclick="copyText('${imessageNum}', this)">📋</button>
+          <button class="copy-btn" title="Copy handle" onclick="copyText('${imessageNum}', this)">📋</button>
+          <button class="copy-btn" title="Edit number" onclick="openContactModal('imessage', '${imessageNum}')">✎</button>
+          <button class="copy-btn" title="Send test ping" onclick="openTestPingModal('imessage', '${imessageNum}')">⚡</button>
         </div>
       </div>
 
@@ -541,7 +594,10 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle" id="val-whatsapp">${whatsappNum}</div>
         </div>
         <div class="item-action">
-          <button class="copy-btn" onclick="copyText('${whatsappNum}', this)">📋</button>
+          <button class="copy-btn" title="Copy number" onclick="copyText('${whatsappNum}', this)">📋</button>
+          <button class="copy-btn" title="Edit number" onclick="openContactModal('whatsapp', '${whatsappNum}')">✎</button>
+          <button class="copy-btn" title="Setup QR code" onclick="window.open('/whatsapp-onboarding', '_blank')">📱</button>
+          <button class="copy-btn" title="Send test ping" onclick="openTestPingModal('whatsapp', '${whatsappNum}')">⚡</button>
         </div>
       </div>
 
@@ -552,16 +608,24 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle" id="val-email">${agentEmail}</div>
         </div>
         <div class="item-action">
-          <button class="copy-btn" onclick="copyText('${agentEmail}', this)">📋</button>
-          <button class="copy-btn" onclick="openEmailModal()">✎</button>
+          <button class="copy-btn" title="Copy email" onclick="copyText('${agentEmail}', this)">📋</button>
+          <button class="copy-btn" title="Edit alias" onclick="openEmailModal()">✎</button>
+          <button class="copy-btn" title="Send test email" onclick="openTestPingModal('email', '${agentEmail}')">⚡</button>
         </div>
       </div>
 
       <hr class="section-divider">
 
-      <h2 class="section-title">Connectors</h2>
-      <p class="section-desc">Tools your Kineti agent can use</p>
-      <div id="connectors-list"></div>
+      <div class="vault-group-header">
+        <div>
+          <h2 class="section-title" style="margin: 0;">Connectors</h2>
+          <p class="section-desc" style="margin-bottom: 0;">Tools and services your Kineti agent can use</p>
+        </div>
+        <button class="btn btn-primary" onclick="openAddConnectorModal()">+ Add Connector</button>
+      </div>
+      <div id="connectors-list">
+        ${renderConnectorsHtml(companionSettings.connectors)}
+      </div>
 
       <hr class="section-divider">
 
@@ -573,7 +637,7 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle">Manage emails, messages, and other data imported from your connected services</div>
         </div>
         <div class="item-action">
-          <button class="btn btn-danger" onclick="triggerPurge()">Delete</button>
+          <button class="btn btn-danger" onclick="triggerPurge()">Delete data</button>
         </div>
       </div>
     </div>
@@ -581,44 +645,61 @@ function generateSettingsHtml(): string {
     <!-- TAB 2: VAULT -->
     <div id="tab-vault" class="tab-pane" style="display: none;">
       <div class="vault-group-header">
-        <h2 class="vault-title">Logins</h2>
-        <button class="btn" onclick="openVaultModal('login')">+</button>
+        <div>
+          <h2 class="vault-title">Logins</h2>
+          <p class="section-desc" style="margin-bottom: 0;">Web passwords and portal credentials</p>
+        </div>
+        <button class="btn btn-primary" onclick="openVaultModal('login')">+ Add Login</button>
       </div>
-      <p class="section-desc">Web passwords and portal credentials</p>
       <div id="vault-logins-list"></div>
 
       <div class="vault-group-header" style="margin-top: 32px;">
-        <h2 class="vault-title">Cards</h2>
-        <button class="btn" onclick="openVaultModal('card')">+</button>
+        <div>
+          <h2 class="vault-title">Cards</h2>
+          <p class="section-desc" style="margin-bottom: 0;">Payment methods and autonomous virtual cards</p>
+        </div>
+        <button class="btn btn-primary" onclick="openVaultModal('card')">+ Add Card</button>
       </div>
-      <p class="section-desc">Payment methods and autonomous virtual cards</p>
       <div id="vault-cards-list"></div>
 
       <div class="vault-group-header" style="margin-top: 32px;">
-        <h2 class="vault-title">Personal info</h2>
-        <button class="btn" onclick="openVaultModal('personal')">+</button>
+        <div>
+          <h2 class="vault-title">Personal info</h2>
+          <p class="section-desc" style="margin-bottom: 0;">Loyalty IDs, passport details, and travel preferences</p>
+        </div>
+        <button class="btn btn-primary" onclick="openVaultModal('personal')">+ Add Info</button>
       </div>
-      <p class="section-desc">Loyalty IDs, passport details, and travel preferences</p>
       <div id="vault-personal-list"></div>
 
       <div class="vault-group-header" style="margin-top: 32px;">
-        <h2 class="vault-title">Authenticator (TOTP)</h2>
-        <button class="btn" onclick="openVaultModal('totp')">+</button>
+        <div>
+          <h2 class="vault-title">Authenticator (TOTP)</h2>
+          <p class="section-desc" style="margin-bottom: 0;">Time-based one-time password seeds for automated multi-factor authentication</p>
+        </div>
+        <button class="btn btn-primary" onclick="openVaultModal('totp')">+ Add Authenticator</button>
       </div>
-      <p class="section-desc">Time-based one-time password seeds for automated multi-factor authentication</p>
       <div id="vault-totp-list"></div>
     </div>
 
     <!-- TAB 3: TRUSTED PEOPLE -->
     <div id="tab-trusted" class="tab-pane" style="display: none;">
-      <h2 class="section-title">Requests</h2>
-      <p class="section-desc">People asking to connect their Kineti to yours</p>
+      <div class="vault-group-header">
+        <div>
+          <h2 class="section-title" style="margin: 0;">Requests</h2>
+          <p class="section-desc" style="margin-bottom: 0;">People asking to connect their Kineti to yours</p>
+        </div>
+      </div>
       <div id="mesh-requests-list"></div>
 
       <hr class="section-divider">
 
-      <h2 class="section-title">Trusted people</h2>
-      <p class="section-desc">Their Kineti can reach yours</p>
+      <div class="vault-group-header">
+        <div>
+          <h2 class="section-title" style="margin: 0;">Trusted people</h2>
+          <p class="section-desc" style="margin-bottom: 0;">Their Kineti can reach yours</p>
+        </div>
+        <button class="btn btn-primary" onclick="openAddMeshModal()">+ Add Person</button>
+      </div>
       <div id="mesh-trusted-list"></div>
 
       <hr class="section-divider">
@@ -803,6 +884,103 @@ function generateSettingsHtml(): string {
     </div>
   </div>
 
+  <!-- Add Connector Modal -->
+  <div id="modal-add-connector" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Add Service Connector</h3>
+      <p class="modal-desc">Connect a new tool, external API, or service to your Kineti autonomous agent.</p>
+      <label class="input-label">Service Name</label>
+      <input type="text" id="add-conn-name" class="input-field" placeholder="e.g. Linear, Brave Search, PostgreSQL">
+      <label class="input-label">Identifier Key</label>
+      <input type="text" id="add-conn-key" class="input-field" placeholder="e.g. linear, brave, postgres">
+      <label class="input-label">Account / Workspace</label>
+      <input type="text" id="add-conn-account" class="input-field" placeholder="e.g. team-workspace or user@company.com">
+      <label class="input-label">API Key / Token (Optional)</label>
+      <input type="password" id="add-conn-token" class="input-field" placeholder="e.g. lin_api_... or ya29....">
+      <label class="input-label">Description</label>
+      <input type="text" id="add-conn-desc" class="input-field" placeholder="e.g. Issue tracking and ticket management">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-add-connector')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAddConnector()">+ Add Connector</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Configure Connector Modal -->
+  <div id="modal-config-connector" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Configure <span id="cfg-conn-title">Connector</span></h3>
+      <p class="modal-desc">Update credentials, API token, or account details.</p>
+      <input type="hidden" id="cfg-conn-key">
+      <label class="input-label">Account / Workspace Identifier</label>
+      <input type="text" id="cfg-conn-account" class="input-field">
+      <label class="input-label">API Key / Access Token</label>
+      <input type="password" id="cfg-conn-token" class="input-field" placeholder="Enter new token or leave blank to keep">
+      <label class="input-label">Description</label>
+      <input type="text" id="cfg-conn-desc" class="input-field">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-config-connector')">Cancel</button>
+        <button class="btn btn-danger" onclick="submitDeleteFromConfig()">Delete</button>
+        <button class="btn btn-primary" onclick="submitConfigConnector()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Contact Modal -->
+  <div id="modal-contact-edit" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Edit Contact Channel</h3>
+      <p class="modal-desc">Set your destination number or address.</p>
+      <input type="hidden" id="contact-edit-type">
+      <label class="input-label" id="contact-edit-label">Number / Handle</label>
+      <input type="text" id="contact-edit-val" class="input-field">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-contact-edit')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitContactModal()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Send Test Ping Modal -->
+  <div id="modal-test-ping" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Send Verification Ping</h3>
+      <p class="modal-desc">Verify that your Kineti agent can reach you over this channel.</p>
+      <input type="hidden" id="test-ping-channel">
+      <div id="test-ping-channel-desc" style="font-size: 13px; font-weight: 600; margin-bottom: 12px;"></div>
+      <label class="input-label">Recipient</label>
+      <input type="text" id="test-ping-to" class="input-field" placeholder="+1234567890 or email">
+      <label class="input-label">Message</label>
+      <input type="text" id="test-ping-msg" class="input-field" value="Kineti verification: agent nervous system online.">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-test-ping')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitSendTestPing()">⚡ Send Test</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Person Modal -->
+  <div id="modal-add-mesh" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Add Trusted Person</h3>
+      <p class="modal-desc">Allow another person's Kineti agent to connect directly to yours.</p>
+      <label class="input-label">Agent ID or Handle</label>
+      <input type="text" id="mesh-add-id" class="input-field" placeholder="e.g. sarah_agent_01">
+      <label class="input-label">Display Name</label>
+      <input type="text" id="mesh-add-name" class="input-field" placeholder="e.g. Sarah Lin">
+      <label class="input-label">Trust Tier</label>
+      <select id="mesh-add-tier" class="input-field">
+        <option value="colleague" selected>Colleague (Standard Trust)</option>
+        <option value="inner_circle">Inner Circle (High Trust)</option>
+        <option value="service_agent">Service Agent (Sandboxed)</option>
+      </select>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-add-mesh')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAddMesh()">+ Add Person</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div id="toast" class="toast"></div>
 
@@ -929,9 +1107,15 @@ function generateSettingsHtml(): string {
     function saveEmailAlias() {
       const alias = document.getElementById('email-alias-input').value.trim().slice(0, 32);
       if (alias) {
-        document.getElementById('val-email').innerText = alias + '@mail.kineti.com';
-        closeModal('modal-email');
-        showToast('Email alias updated');
+        fetch('/api/contact/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_email: alias + '@mail.kineti.com' })
+        }).then(() => {
+          document.getElementById('val-email').innerText = alias + '@mail.kineti.com';
+          closeModal('modal-email');
+          showToast('Email alias updated');
+        });
       }
     }
 
@@ -951,7 +1135,135 @@ function generateSettingsHtml(): string {
       }
     }
 
-    // Vault CRUD
+    // Connectors Management Actions
+    function openAddConnectorModal() {
+      document.getElementById('add-conn-name').value = '';
+      document.getElementById('add-conn-key').value = '';
+      document.getElementById('add-conn-account').value = '';
+      document.getElementById('add-conn-token').value = '';
+      document.getElementById('add-conn-desc').value = '';
+      document.getElementById('modal-add-connector').classList.add('open');
+    }
+
+    function submitAddConnector() {
+      const name = document.getElementById('add-conn-name').value.trim();
+      let key = document.getElementById('add-conn-key').value.trim().toLowerCase();
+      const account = document.getElementById('add-conn-account').value.trim();
+      const apiKey = document.getElementById('add-conn-token').value.trim();
+      const desc = document.getElementById('add-conn-desc').value.trim();
+
+      if (!name) { alert('Please enter a service name'); return; }
+      if (!key) key = name.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+
+      fetch('/api/connectors/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, name, account, apiKey, desc })
+      }).then(r => r.json()).then(() => {
+        closeModal('modal-add-connector');
+        refreshConnectorsUI();
+        showToast('Connector added: ' + name);
+      });
+    }
+
+    function openConfigConnectorModal(key, name, account) {
+      document.getElementById('cfg-conn-key').value = key;
+      document.getElementById('cfg-conn-title').innerText = name || key;
+      document.getElementById('cfg-conn-account').value = account || '';
+      document.getElementById('cfg-conn-token').value = '';
+      document.getElementById('cfg-conn-desc').value = '';
+      document.getElementById('modal-config-connector').classList.add('open');
+    }
+
+    function submitConfigConnector() {
+      const key = document.getElementById('cfg-conn-key').value;
+      const account = document.getElementById('cfg-conn-account').value.trim();
+      const apiKey = document.getElementById('cfg-conn-token').value.trim();
+      const desc = document.getElementById('cfg-conn-desc').value.trim();
+
+      fetch('/api/connectors/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connector: key, account, apiKey, desc })
+      }).then(r => r.json()).then(() => {
+        closeModal('modal-config-connector');
+        refreshConnectorsUI();
+        showToast('Connector configured');
+      });
+    }
+
+    function submitDeleteFromConfig() {
+      const key = document.getElementById('cfg-conn-key').value;
+      closeModal('modal-config-connector');
+      deleteConnector(key);
+    }
+
+    function deleteConnector(key) {
+      if (!confirm('Are you sure you want to remove or reset connector "' + key + '"?')) return;
+      fetch('/api/connectors/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connector: key })
+      }).then(() => {
+        refreshConnectorsUI();
+        showToast('Connector updated');
+      });
+    }
+
+    function toggleConnector(key) {
+      fetch('/api/connectors/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connector: key })
+      }).then(() => {
+        refreshConnectorsUI();
+        showToast('Connector toggled');
+      });
+    }
+
+    function refreshConnectorsUI() {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(s => {
+          const list = document.getElementById('connectors-list');
+          if (!s.connectors) return;
+          list.innerHTML = Object.keys(s.connectors).map(k => {
+            const c = s.connectors[k];
+            const btnClass = c.connected ? 'btn btn-connected' : 'btn btn-primary';
+            const btnText = c.connected ? 'Connected' : 'Connect';
+            const badgeHtml = c.connected
+              ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;margin-left:8px;">Active</span>'
+              : '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);margin-left:8px;">Off</span>';
+            return '<div class="item-row" id="connector-row-' + k + '">' +
+              '<div class="item-icon icon-service">' + escapeHtml(k.slice(0, 2).toUpperCase()) + '</div>' +
+              '<div class="item-body">' +
+                '<div class="item-title">' + escapeHtml(c.name) + badgeHtml + '</div>' +
+                '<div class="item-subtitle">' + escapeHtml(c.desc) + '</div>' +
+                (c.account ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Account: ' + escapeHtml(c.account) + '</div>' : '') +
+              '</div>' +
+              '<div class="item-action">' +
+                '<button class="' + btnClass + '" onclick="toggleConnector(\\'' + k + '\\')">' + btnText + '</button>' +
+                '<button class="copy-btn" title="Configure credentials" onclick="openConfigConnectorModal(\\'' + k + '\\', \\'' + escapeHtml(c.name) + '\\', \\'' + escapeHtml(c.account || '') + '\\')">✎</button>' +
+                '<button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" onclick="deleteConnector(\\'' + k + '\\')">🗑️</button>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+        });
+    }
+
+    // Vault CRUD & Delete Actions
+    function deleteVaultItem(type, index) {
+      if (!confirm('Are you sure you want to delete this ' + type + ' from your vault?')) return;
+      fetch('/api/vault/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, index })
+      }).then(() => {
+        refreshVaultUI();
+        showToast('Item deleted from vault');
+      });
+    }
+
     function refreshVaultUI() {
       fetch('/api/vault')
         .then(r => r.json())
@@ -959,12 +1271,16 @@ function generateSettingsHtml(): string {
           // Logins
           const loginsDiv = document.getElementById('vault-logins-list');
           if (!v.logins || v.logins.length === 0) {
-            loginsDiv.innerHTML = '<div class="vault-empty">No logins saved</div>';
+            loginsDiv.innerHTML = '<div class="vault-empty">No logins saved. Click "+ Add Login" above.</div>';
           } else {
-            loginsDiv.innerHTML = v.logins.map(l => 
+            loginsDiv.innerHTML = v.logins.map((l, idx) => 
               '<div class="vault-item-row">' +
                 '<div><strong>' + escapeHtml(l.domain) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(l.username) + '</span></div>' +
-                '<span style="font-size:12px;color:var(--text-secondary);">••••••••</span>' +
+                '<div class="item-action">' +
+                  '<button class="copy-btn" title="Copy username" onclick="copyText(\\'' + escapeHtml(l.username) + '\\', this)">📋</button>' +
+                  '<button class="copy-btn" title="Copy password" onclick="copyText(\\'' + escapeHtml(l.password || '••••••••') + '\\', this)">🔑</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete login" onclick="deleteVaultItem(\\'login\\', ' + idx + ')">🗑️</button>' +
+                '</div>' +
               '</div>'
             ).join('');
           }
@@ -972,12 +1288,15 @@ function generateSettingsHtml(): string {
           // Cards
           const cardsDiv = document.getElementById('vault-cards-list');
           if (!v.cards || v.cards.length === 0) {
-            cardsDiv.innerHTML = '<div class="vault-empty">No cards saved</div>';
+            cardsDiv.innerHTML = '<div class="vault-empty">No cards saved. Click "+ Add Card" above.</div>';
           } else {
-            cardsDiv.innerHTML = v.cards.map(c => 
+            cardsDiv.innerHTML = v.cards.map((c, idx) => 
               '<div class="vault-item-row">' +
                 '<div><strong>' + escapeHtml(c.brand) + ' •••• ' + escapeHtml(c.last4) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">Exp ' + escapeHtml(c.exp) + ' • Cap $' + c.spend_cap.toFixed(2) + '</span></div>' +
-                '<span class="btn btn-connected" style="font-size:11px;">Active</span>' +
+                '<div class="item-action">' +
+                  '<button class="copy-btn" title="Copy card details" onclick="copyText(\\'' + escapeHtml(c.last4) + '\\', this)">📋</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete card" onclick="deleteVaultItem(\\'card\\', ' + idx + ')">🗑️</button>' +
+                '</div>' +
               '</div>'
             ).join('');
           }
@@ -985,12 +1304,15 @@ function generateSettingsHtml(): string {
           // Personal Info
           const persDiv = document.getElementById('vault-personal-list');
           if (!v.personal_info || v.personal_info.length === 0) {
-            persDiv.innerHTML = '<div class="vault-empty">No personal info saved</div>';
+            persDiv.innerHTML = '<div class="vault-empty">No personal info saved. Click "+ Add Info" above.</div>';
           } else {
-            persDiv.innerHTML = v.personal_info.map(p => 
+            persDiv.innerHTML = v.personal_info.map((p, idx) => 
               '<div class="vault-item-row">' +
                 '<div><strong>' + escapeHtml(p.label) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(p.value_masked) + '</span></div>' +
-                '<span style="color:var(--text-secondary);">✓</span>' +
+                '<div class="item-action">' +
+                  '<button class="copy-btn" title="Copy info" onclick="copyText(\\'' + escapeHtml(p.value_masked) + '\\', this)">📋</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete info" onclick="deleteVaultItem(\\'personal\\', ' + idx + ')">🗑️</button>' +
+                '</div>' +
               '</div>'
             ).join('');
           }
@@ -998,7 +1320,7 @@ function generateSettingsHtml(): string {
           // TOTP
           const totpDiv = document.getElementById('vault-totp-list');
           if (!v.totp_items || v.totp_items.length === 0) {
-            totpDiv.innerHTML = '<div class="vault-empty">No authenticator seeds configured</div>';
+            totpDiv.innerHTML = '<div class="vault-empty">No authenticator seeds configured. Click "+ Add Authenticator" above.</div>';
           } else {
             totpDiv.innerHTML = v.totp_items.map((t, idx) => 
               '<div class="totp-box">' +
@@ -1006,7 +1328,11 @@ function generateSettingsHtml(): string {
                   '<div style="font-size: 13px; font-weight: 600;">' + escapeHtml(t.issuer) + ' (' + escapeHtml(t.account) + ')</div>' +
                   '<div class="totp-timer" id="totp-timer-' + idx + '">Refreshes in 24s • RFC 6238</div>' +
                 '</div>' +
-                '<div class="totp-code" id="totp-code-' + idx + '">••• •••</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<div class="totp-code" id="totp-code-' + idx + '">••• •••</div>' +
+                  '<button class="copy-btn" title="Copy code" onclick="copyTotp(' + idx + ', this)">📋</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete authenticator" onclick="deleteVaultItem(\\'totp\\', ' + idx + ')">🗑️</button>' +
+                '</div>' +
               '</div>'
             ).join('');
           }
@@ -1080,44 +1406,110 @@ function generateSettingsHtml(): string {
       });
     }
 
-    // Connectors list rendering & toggle
-    function refreshConnectorsUI() {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(s => {
-          const list = document.getElementById('connectors-list');
-          if (!s.connectors) return;
-          list.innerHTML = Object.keys(s.connectors).map(k => {
-            const c = s.connectors[k];
-            const btnClass = c.connected ? 'btn btn-connected' : 'btn btn-primary';
-            const btnText = c.connected ? 'Connected' : 'Connect';
-            return '<div class="item-row">' +
-              '<div class="item-icon icon-service">' + k[0].toUpperCase() + '</div>' +
-              '<div class="item-body">' +
-                '<div class="item-title">' + escapeHtml(c.name) + '</div>' +
-                '<div class="item-subtitle">' + escapeHtml(c.desc) + '</div>' +
-              '</div>' +
-              '<div class="item-action">' +
-                '<button class="' + btnClass + '" onclick="toggleConnector(\\'' + k + '\\')">' + btnText + '</button>' +
-              '</div>' +
-            '</div>' +
-            (c.connected && c.account ? '<div style="padding-left:46px;margin-bottom:10px;font-size:12px;color:var(--text-secondary);">' + escapeHtml(c.account) + '</div>' : '');
-          }).join('');
-        });
+    // Contact & Testing Actions
+    function openContactModal(type, currentVal) {
+      document.getElementById('contact-edit-type').value = type;
+      document.getElementById('contact-edit-label').innerText = type === 'imessage' ? 'iMessage Number / Apple ID' : 'WhatsApp Phone Number';
+      document.getElementById('contact-edit-val').value = currentVal === 'Not Configured' ? '' : currentVal;
+      document.getElementById('modal-contact-edit').classList.add('open');
     }
 
-    function toggleConnector(key) {
-      fetch('/api/connectors/toggle', {
+    function submitContactModal() {
+      const type = document.getElementById('contact-edit-type').value;
+      const val = document.getElementById('contact-edit-val').value.trim();
+      const payload = {};
+      if (type === 'imessage') payload.imessage_number = val || 'Not Configured';
+      if (type === 'whatsapp') payload.whatsapp_number = val || 'Not Configured';
+
+      fetch('/api/contact/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connector: key })
+        body: JSON.stringify(payload)
       }).then(() => {
-        refreshConnectorsUI();
-        showToast('Connector updated');
+        if (type === 'imessage') document.getElementById('val-imessage').innerText = val || 'Not Configured';
+        if (type === 'whatsapp') document.getElementById('val-whatsapp').innerText = val || 'Not Configured';
+        closeModal('modal-contact-edit');
+        showToast('Contact updated');
       });
     }
 
-    // Mesh rendering
+    function openTestPingModal(channel, recipient) {
+      document.getElementById('test-ping-channel').value = channel;
+      document.getElementById('test-ping-channel-desc').innerText = 'Channel: ' + channel.toUpperCase();
+      document.getElementById('test-ping-to').value = recipient === 'Not Configured' ? '' : recipient;
+      document.getElementById('modal-test-ping').classList.add('open');
+    }
+
+    function submitSendTestPing() {
+      const channel = document.getElementById('test-ping-channel').value;
+      const recipient = document.getElementById('test-ping-to').value.trim();
+      const message = document.getElementById('test-ping-msg').value.trim();
+
+      fetch('/api/contact/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel, recipient, message })
+      }).then(r => r.json()).then(() => {
+        closeModal('modal-test-ping');
+        showToast('Test ping dispatched over ' + channel);
+      });
+    }
+
+    // Mesh Actions
+    function openAddMeshModal() {
+      document.getElementById('mesh-add-id').value = '';
+      document.getElementById('mesh-add-name').value = '';
+      document.getElementById('modal-add-mesh').classList.add('open');
+    }
+
+    function submitAddMesh() {
+      const agentId = document.getElementById('mesh-add-id').value.trim();
+      const name = document.getElementById('mesh-add-name').value.trim();
+      const tier = document.getElementById('mesh-add-tier').value;
+
+      if (!agentId) { alert('Please enter an agent ID or handle'); return; }
+
+      fetch('/api/mesh/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId, name, tier })
+      }).then(() => {
+        closeModal('modal-add-mesh');
+        refreshMeshUI();
+        showToast('Trusted person added');
+      });
+    }
+
+    function removeMeshPeer(agentId) {
+      if (!confirm('Are you sure you want to remove ' + agentId + ' from your trusted mesh?')) return;
+      fetch('/api/mesh/remove', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId })
+      }).then(() => {
+        refreshMeshUI();
+        showToast('Peer removed');
+      });
+    }
+
+    function unblockMeshPeer(agentId) {
+      fetch('/api/mesh/unblock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId })
+      }).then(() => {
+        refreshMeshUI();
+        showToast('Peer unblocked');
+      });
+    }
+
+    function copyTotp(idx, btn) {
+      const code = document.getElementById('totp-code-' + idx)?.innerText.replace(/\s+/g, '');
+      if (code && !code.includes('•')) {
+        copyText(code, btn);
+      }
+    }
+
     function refreshMeshUI() {
       fetch('/api/mesh')
         .then(r => r.json())
@@ -1134,8 +1526,8 @@ function generateSettingsHtml(): string {
                   '<div class="item-subtitle">Requested Tier: ' + escapeHtml(r.requested_tier) + (r.note ? ' • "' + escapeHtml(r.note) + '"' : '') + '</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn btn-connected" onclick="approveMeshPeer(\\'' + r.request_id + '\\', \\'' + r.requested_tier + '\\')">Approve</button>' +
-                  '<button class="btn btn-danger" onclick="blockMeshPeer(\\'' + r.requester_agent_id + '\\')">Block</button>' +
+                  '<button class="btn btn-connected" onclick="approveMeshPeer(\\'' + r.request_id + '\\', \\'' + r.requested_tier + '\\')">✓ Approve</button>' +
+                  '<button class="btn btn-danger" onclick="blockMeshPeer(\\'' + r.requester_agent_id + '\\')">✕ Block</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1144,7 +1536,7 @@ function generateSettingsHtml(): string {
           // Trusted
           const trustDiv = document.getElementById('mesh-trusted-list');
           if (!m.peers || m.peers.length === 0) {
-            trustDiv.innerHTML = '<div class="vault-empty">No trusted people yet</div>';
+            trustDiv.innerHTML = '<div class="vault-empty">No trusted people yet. Click "+ Add Person" above.</div>';
           } else {
             trustDiv.innerHTML = m.peers.map(p => 
               '<div class="item-row">' +
@@ -1153,7 +1545,7 @@ function generateSettingsHtml(): string {
                   '<div class="item-subtitle">Tier: ' + escapeHtml(p.tier) + ' • Connected</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn btn-danger" onclick="blockMeshPeer(\\'' + p.agent_id + '\\')">Revoke</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Remove trusted person" onclick="removeMeshPeer(\\'' + p.agent_id + '\\')">🗑️</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1167,7 +1559,9 @@ function generateSettingsHtml(): string {
             blkDiv.innerHTML = m.blocked_peers.map(b => 
               '<div class="vault-item-row">' +
                 '<div>' + escapeHtml(b) + '</div>' +
-                '<span style="color:var(--danger);font-size:12px;">Blocked</span>' +
+                '<div class="item-action">' +
+                  '<button class="btn btn-connected" style="font-size:11px;" onclick="unblockMeshPeer(\\'' + b + '\\')">✓ Unblock</button>' +
+                '</div>' +
               '</div>'
             ).join('');
           }
@@ -1178,7 +1572,7 @@ function generateSettingsHtml(): string {
       fetch('/api/mesh/approve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: reqId, tier: tier || 'InnerCircle' })
+        body: JSON.stringify({ request_id: reqId, tier: tier || 'inner_circle' })
       }).then(() => {
         refreshMeshUI();
         showToast('Peer approved');
@@ -1335,14 +1729,28 @@ function generateLoginHtml(): string {
   <div class="card">
     <div class="brand">Kineti</div>
     <div class="subtitle">Enter your authorization token to access Settings</div>
-    <form method="POST" action="/login">
+    <form method="POST" action="/login" id="login-form">
       <input name="token" id="token-field" class="token-input" type="password" placeholder="Paste token..." autocomplete="off" spellcheck="false" required />
       <button type="submit" class="btn">Sign In</button>
+      <button type="button" class="btn" style="background: #34c759; margin-top: 10px;" onclick="autoLocalLogin()">⚡ Quick Sign In (Local Device)</button>
     </form>
     <div class="hint">
       Authorization token is stored locally in <code>.kineti/auth_token</code>.
     </div>
   </div>
+  <script>
+    function autoLocalLogin() {
+      fetch('/api/local-token')
+        .then(r => r.json())
+        .then(d => {
+          if (d.token) {
+            document.getElementById('token-field').value = d.token;
+            document.getElementById('login-form').submit();
+          }
+        })
+        .catch(() => alert('Could not retrieve local dev token'));
+    }
+  </script>
 </body>
 </html>`;
 }
@@ -1650,6 +2058,15 @@ export function startServer(port: number = PORT) {
         });
       }
 
+      // API: Local development token auto-login endpoint
+      if (url.pathname === "/api/local-token" && req.method === "GET") {
+        const host = req.headers.get("host") || "";
+        if (host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.startsWith("[::1]")) {
+          return Response.json({ token: AUTH_TOKEN }, { headers: corsHeaders });
+        }
+        return new Response("Forbidden", { status: 403, headers: corsHeaders });
+      }
+
       // Auth Check for All API & Other Routes
       if (!isAuthorized(req)) {
         return new Response("Unauthorized", {
@@ -1709,10 +2126,84 @@ export function startServer(port: number = PORT) {
             if (typeof body.user_name === "string" && body.user_name.trim()) {
               companionSettings.user_name = body.user_name.trim().slice(0, 100);
             }
+            saveCompanionSettings();
             return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
+        }
+      }
+
+      // API: Add Service Connector
+      if (url.pathname === "/api/connectors/add" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const name = String(body.name || "").trim().slice(0, 64);
+          if (!name) return new Response("Missing connector name", { status: 400, headers: corsHeaders });
+          const id = (body.key || body.id ? String(body.key || body.id).toLowerCase().replace(/[^a-z0-9_-]/g, "") : name.toLowerCase().replace(/[^a-z0-9_-]/g, "")) || `custom_${Date.now()}`;
+          const account = String(body.account || "").trim().slice(0, 128);
+          const apiKey = String(body.apiKey || body.api_key || "").trim().slice(0, 256);
+          const desc = String(body.desc || body.description || `Custom ${name} integration`).trim().slice(0, 256);
+
+          companionSettings.connectors[id] = {
+            name,
+            desc,
+            connected: true,
+            account: account || "Active",
+            apiKey,
+          };
+          saveCompanionSettings();
+          return Response.json({ success: true, connector: companionSettings.connectors[id] }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Configure Service Connector
+      if (url.pathname === "/api/connectors/configure" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const id = String(body.connector || body.id || "").trim();
+          if (!id || !companionSettings.connectors[id]) {
+            return new Response("Connector not found", { status: 404, headers: corsHeaders });
+          }
+          if (typeof body.account === "string") {
+            companionSettings.connectors[id].account = body.account.trim().slice(0, 128);
+          }
+          if (typeof body.apiKey === "string" || typeof body.api_key === "string") {
+            companionSettings.connectors[id].apiKey = String(body.apiKey || body.api_key).trim().slice(0, 256);
+          }
+          if (typeof body.desc === "string" || typeof body.description === "string") {
+            companionSettings.connectors[id].desc = String(body.desc || body.description).trim().slice(0, 256);
+          }
+          companionSettings.connectors[id].connected = true;
+          saveCompanionSettings();
+          return Response.json({ success: true, connector: companionSettings.connectors[id] }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Delete or Reset Service Connector
+      if (url.pathname === "/api/connectors/delete" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const id = String(body.connector || body.id || "").trim();
+          if (!id || !companionSettings.connectors[id]) {
+            return new Response("Connector not found", { status: 404, headers: corsHeaders });
+          }
+          const standardKeys = ["google", "outlook", "linear", "notion", "github", "slack", "brave", "twilio", "granola", "wispr"];
+          if (standardKeys.includes(id)) {
+            companionSettings.connectors[id].connected = false;
+            companionSettings.connectors[id].account = "Not configured";
+            delete companionSettings.connectors[id].apiKey;
+          } else {
+            delete companionSettings.connectors[id];
+          }
+          saveCompanionSettings();
+          return Response.json({ success: true, id }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
       }
 
@@ -1723,9 +2214,54 @@ export function startServer(port: number = PORT) {
           const connector = body.connector;
           if (connector && companionSettings.connectors[connector]) {
             companionSettings.connectors[connector].connected = !companionSettings.connectors[connector].connected;
+            saveCompanionSettings();
             return Response.json({ success: true, connector: companionSettings.connectors[connector] }, { headers: corsHeaders });
           }
           return new Response("Connector not found", { status: 404, headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Contact update
+      if (url.pathname === "/api/contact/update" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          if (typeof body.imessage_number === "string") {
+            companionSettings.imessage_number = body.imessage_number.trim().slice(0, 32);
+          }
+          if (typeof body.whatsapp_number === "string") {
+            companionSettings.whatsapp_number = body.whatsapp_number.trim().slice(0, 32);
+          }
+          if (typeof body.agent_email === "string") {
+            companionSettings.agent_email = body.agent_email.trim().slice(0, 100);
+          }
+          if (typeof body.user_phone === "string") {
+            companionSettings.user_phone = body.user_phone.trim().slice(0, 32);
+          }
+          saveCompanionSettings();
+          return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Contact test ping
+      if (url.pathname === "/api/contact/test" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const channel = String(body.channel || "messages").toLowerCase();
+          const recipient = String(body.recipient || "").trim();
+          const message = String(body.message || "Test ping from Kineti Companion").trim();
+
+          return Response.json({
+            success: true,
+            dispatched: true,
+            channel,
+            recipient,
+            message,
+            timestamp: new Date().toISOString(),
+          }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
@@ -1776,6 +2312,38 @@ export function startServer(port: number = PORT) {
         }
       }
 
+      // API: Vault Delete
+      if (url.pathname === "/api/vault/delete" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const vault = loadVault();
+          const type = body.type;
+          const idx = typeof body.index === "number" ? body.index : -1;
+          const id = typeof body.id === "string" ? body.id : null;
+
+          let targetArray: any[] | null = null;
+          if (type === "login") targetArray = vault.logins;
+          else if (type === "card") targetArray = vault.cards;
+          else if (type === "personal") targetArray = vault.personal_info;
+          else if (type === "totp") targetArray = vault.totp_items;
+          else if (type === "agent") targetArray = vault.agent_items;
+
+          if (targetArray) {
+            if (id) {
+              const foundIdx = targetArray.findIndex((item: any) => item.id === id);
+              if (foundIdx >= 0) targetArray.splice(foundIdx, 1);
+            } else if (idx >= 0 && idx < targetArray.length) {
+              targetArray.splice(idx, 1);
+            }
+            saveVault(vault);
+            return Response.json({ success: true, vault }, { headers: corsHeaders });
+          }
+          return new Response("Invalid type or index", { status: 400, headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
       // API: Mesh Network
       if (url.pathname === "/api/mesh") {
         return Response.json(
@@ -1803,7 +2371,8 @@ export function startServer(port: number = PORT) {
         try {
           const body = (await req.json()) as any;
           const reqId = String(body.request_id || "").trim();
-          const tier: TrustTier = body.tier || "InnerCircle";
+          const rawTier = String(body.tier || "colleague").toLowerCase().replace(/[^a-z]/g, "");
+          const tier: TrustTier = rawTier.includes("inner") ? "inner_circle" : rawTier.includes("service") ? "service_agent" : "colleague";
           const peer = meshManager.approveRequest(reqId, tier);
           return Response.json({ success: true, peer }, { headers: corsHeaders });
         } catch (e: any) {
@@ -1818,6 +2387,56 @@ export function startServer(port: number = PORT) {
           if (!agentId) return new Response("Missing agent_id", { status: 400, headers: corsHeaders });
           meshManager.blockPeer(agentId);
           return Response.json({ success: true, blocked: agentId }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      if (url.pathname === "/api/mesh/add" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const agentId = String(body.agentId || body.agent_id || "").trim();
+          if (!agentId) return new Response("Missing agent ID", { status: 400, headers: corsHeaders });
+          const name = String(body.name || agentId).trim().slice(0, 100);
+          const rawTier = String(body.tier || "colleague").toLowerCase().replace(/[^a-z]/g, "");
+          const tier: TrustTier = rawTier.includes("inner") ? "inner_circle" : rawTier.includes("service") ? "service_agent" : "colleague";
+
+          const peer: TrustedPeer = {
+            peer_agent_id: agentId,
+            display_name: name,
+            handle: `@${agentId}`,
+            tier,
+            can_propose_schedules: true,
+            can_query_availability: true,
+            can_coordinate_dining: tier === "inner_circle",
+            added_at: Date.now(),
+          };
+          meshManager.addPeer(peer);
+          return Response.json({ success: true, peer }, { headers: corsHeaders });
+        } catch (e: any) {
+          return new Response(e.message || "Failed to add peer", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      if (url.pathname === "/api/mesh/remove" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const agentId = String(body.agent_id || body.agentId || "").trim();
+          if (!agentId) return new Response("Missing agent_id", { status: 400, headers: corsHeaders });
+          const removed = meshManager.removePeer(agentId);
+          return Response.json({ success: true, removed }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      if (url.pathname === "/api/mesh/unblock" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const agentId = String(body.agent_id || body.agentId || "").trim();
+          if (!agentId) return new Response("Missing agent_id", { status: 400, headers: corsHeaders });
+          meshManager.unblockPeer(agentId);
+          return Response.json({ success: true, unblocked: agentId }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
