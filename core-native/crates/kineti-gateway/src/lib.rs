@@ -12,12 +12,17 @@
 
 pub mod cortex;
 pub mod imessage;
+pub mod k2k;
 pub mod router;
 pub mod web_api;
 pub mod whatsapp;
 
 pub use cortex::{CortexOrchestrator, InferencePrompt, LlmProvider, ModelTier};
 pub use imessage::IMessageBridge;
+pub use k2k::{
+    ConnectionRequest, K2KCoordinator, K2KDeliveryResult, K2KIntent, K2KProtocolMessage,
+    RequestStatus, ScheduleStatus, TimeSlot, TrustTier, TrustedPeer,
+};
 pub use router::{DispatchReceipt, EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply};
 pub use web_api::{ConnectedAppStatus, UserSettingsPayload, VibePreferences, WebCompanionService};
 pub use whatsapp::{InboundWhatsAppMessage, OutboundWhatsAppPayload, WhatsAppGateway};
@@ -26,6 +31,10 @@ pub use whatsapp::{InboundWhatsAppMessage, OutboundWhatsAppPayload, WhatsAppGate
 pub mod prelude {
     pub use crate::cortex::{CortexOrchestrator, InferencePrompt, LlmProvider, ModelTier};
     pub use crate::imessage::IMessageBridge;
+    pub use crate::k2k::{
+        ConnectionRequest, K2KCoordinator, K2KDeliveryResult, K2KIntent, K2KProtocolMessage,
+        RequestStatus, ScheduleStatus, TimeSlot, TrustTier, TrustedPeer,
+    };
     pub use crate::router::{DispatchReceipt, EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply};
     pub use crate::web_api::{ConnectedAppStatus, UserSettingsPayload, VibePreferences, WebCompanionService};
     pub use crate::whatsapp::{InboundWhatsAppMessage, OutboundWhatsAppPayload, WhatsAppGateway};

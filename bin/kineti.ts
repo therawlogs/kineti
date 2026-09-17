@@ -37,6 +37,9 @@ const COMMAND_MAP: Record<string, { script: string; isShell?: boolean }> = {
   ci: { script: "bin/kineti-ci.ts" },
   egress: { script: "bin/kineti-egress.ts" },
   memory: { script: "bin/kineti-memory-job.ts" },
+  stripe: { script: "bin/kineti-stripe.ts" },
+  privacy: { script: "bin/kineti-privacy.ts" },
+  invite: { script: "bin/kineti-invite.ts" },
 };
 
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
@@ -98,5 +101,8 @@ Commands:
   kineti verify        Check test proof before commit
   kineti swarm <goal>  Run multi-agent task
   kineti ci            Run PR check
+  kineti stripe        Manage virtual cards with spend caps and SAGA undo
+  kineti privacy       Self-serve external data purge & model training opt-out
+  kineti invite        Viral vanity referrals and tier quotas
 `);
 }

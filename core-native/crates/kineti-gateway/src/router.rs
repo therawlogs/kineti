@@ -47,6 +47,8 @@ pub enum EventSource {
     CliCommand,
     /// Scheduled OS timer, cron trigger, or background alarm.
     ScheduledTrigger,
+    /// Inbound K2K inter-agent communication message.
+    K2KMessage,
 }
 
 /// Concrete incoming stimulus event waking the runtime from Stage 1 (Sleep).
@@ -115,6 +117,21 @@ impl IncomingStimulusEvent {
             text: text.into(),
             media_url: None,
             source: EventSource::ScheduledTrigger,
+            scope_hint: None,
+            candidate_action: None,
+            candidate_payload: None,
+            authorization_token: None,
+            root_goal: None,
+        }
+    }
+
+    /// Creates an inbound K2K inter-agent stimulus event.
+    pub fn k2k(user_id: impl Into<String>, text: impl Into<String>) -> Self {
+        Self {
+            user_id: user_id.into(),
+            text: text.into(),
+            media_url: None,
+            source: EventSource::K2KMessage,
             scope_hint: None,
             candidate_action: None,
             candidate_payload: None,
@@ -223,6 +240,8 @@ pub struct GatewayRouter {
     pub flux_connector: FluxClient,
     /// Active user root goals for autonomous drift validation.
     pub active_goals: RwLock<HashMap<String, VerbatimRootGoal>>,
+    /// K2K peer-to-peer inter-agent mesh coordinator.
+    pub k2k: RwLock<crate::k2k::K2KCoordinator>,
 }
 
 impl Default for GatewayRouter {
@@ -248,6 +267,7 @@ impl GatewayRouter {
             brave_connector: BraveSearchClient::new("BSA_live"),
             flux_connector: FluxClient::new("BFL_live"),
             active_goals: RwLock::new(HashMap::new()),
+            k2k: RwLock::new(crate::k2k::K2KCoordinator::new("agent_praveen")),
         }
     }
 
@@ -347,6 +367,123 @@ impl GatewayRouter {
                 drift_evaluation: None,
                 microcents_spent: 0,
             };
+        }
+
+        // -------------------------------------------------------------------
+        // AUTONOMOUS CAPABILITIES: K2K, SPATIAL MEMORY & EXTERNAL PURGE
+        // -------------------------------------------------------------------
+        // 1. External Data Purge
+        if event.candidate_action.as_deref() == Some("purge_external_data") {
+            let receipt = self.memory.purge.execute_external_purge(&event.user_id, &[]);
+            return DispatchReceipt {
+                reply: OutboundReply::Text {
+                    body: format!(
+                        "External data purged: {} records tombstoned across {} sources. Root goal intact: {}.",
+                        receipt.records_purged,
+                        receipt.sources_cleared.len(),
+                        receipt.root_goal_intact
+                    ),
+                },
+                source: event.source,
+                triage_latency_micros: 45,
+                reflex_short_circuit: true,
+                resolved_scope: None,
+                resolved_advice: None,
+                action_gate_passed: true,
+                drift_evaluation: None,
+                microcents_spent: 0,
+            };
+        }
+
+        // 2. K2K Inter-Agent Mesh Ingress
+        if event.source == EventSource::K2KMessage {
+            let mut k2k = self.k2k.write().unwrap();
+            let recipient_agent_id = k2k.agent_id().to_string();
+            let result = k2k.receive_message(crate::k2k::K2KProtocolMessage {
+                message_id: format!("msg_{}_{}", event.user_id, now_ms),
+                sender_agent_id: event.user_id.clone(),
+                recipient_agent_id,
+                timestamp: now_ms,
+                signature: None,
+                intent: crate::k2k::K2KIntent::ConnectRequest {
+                    requester_name: "External Peer".to_string(),
+                    requester_handle: format!("@{}", event.user_id),
+                    proposed_tier: crate::k2k::TrustTier::Colleague,
+                    note: event.text.clone(),
+                },
+            });
+            let reply_text = match result {
+                crate::k2k::K2KDeliveryResult::Accepted(_) => "K2K: Accepted peer message.".to_string(),
+                crate::k2k::K2KDeliveryResult::QueuedPendingApproval(req_id) => {
+                    format!("K2K: Unknown peer quarantined to pending queue (Request ID: {}).", req_id)
+                }
+                crate::k2k::K2KDeliveryResult::Blocked => "K2K: Peer is blocked.".to_string(),
+                crate::k2k::K2KDeliveryResult::MeshPaused => "K2K: Mesh communication is currently paused.".to_string(),
+                crate::k2k::K2KDeliveryResult::UnauthorizedTier => "K2K: Action unauthorized for peer trust tier.".to_string(),
+            };
+            return DispatchReceipt {
+                reply: OutboundReply::Text { body: reply_text },
+                source: event.source,
+                triage_latency_micros: 40,
+                reflex_short_circuit: true,
+                resolved_scope: None,
+                resolved_advice: None,
+                action_gate_passed: true,
+                drift_evaluation: None,
+                microcents_spent: 0,
+            };
+        }
+
+        // 3. Spatial Parking Query
+        if lower.contains("where is my car") || lower.contains("where did i park") || lower.contains("find my car") {
+            let reply = match self.memory.spatial.recall_parking() {
+                Some((parked, dist_opt, elapsed_s)) => {
+                    let note_str = parked.note.map(|n| format!(" ({})", n)).unwrap_or_default();
+                    let dist_str = dist_opt.map(|d| format!(" (~{:.0}m away)", d)).unwrap_or_default();
+                    format!(
+                        "Your car is parked at {:.5}, {:.5}{}{} (parked {}s ago).",
+                        parked.coordinate.lat, parked.coordinate.lon, note_str, dist_str, elapsed_s
+                    )
+                }
+                None => "No parked location saved yet. Send me a pin or say 'I parked here' with your location!".to_string(),
+            };
+            return DispatchReceipt {
+                reply: OutboundReply::Text { body: reply },
+                source: event.source,
+                triage_latency_micros: 25,
+                reflex_short_circuit: true,
+                resolved_scope: None,
+                resolved_advice: None,
+                action_gate_passed: true,
+                drift_evaluation: None,
+                microcents_spent: 0,
+            };
+        }
+
+        // 4. Spatial Location Ingestion (e.g. Parking pin from iMessage/WhatsApp)
+        if let Some((lat, lon)) = crate::imessage::IMessageBridge::extract_location_coordinates(&event.text) {
+            if lower.contains("park") || lower.contains("car") || lower.contains("spot") {
+                let coord = kineti_memory::spatial::GeoCoordinate {
+                    lat,
+                    lon,
+                    accuracy_m: 5.0,
+                    timestamp_ms: now_ms,
+                };
+                self.memory.spatial.record_parked_vehicle(coord, Some("Saved parking pin".to_string()));
+                return DispatchReceipt {
+                    reply: OutboundReply::Text {
+                        body: format!("Got it! Saved your parking spot at {:.5}, {:.5}.", lat, lon),
+                    },
+                    source: event.source,
+                    triage_latency_micros: 30,
+                    reflex_short_circuit: true,
+                    resolved_scope: None,
+                    resolved_advice: None,
+                    action_gate_passed: true,
+                    drift_evaluation: None,
+                    microcents_spent: 0,
+                };
+            }
         }
 
         // -------------------------------------------------------------------
@@ -1692,6 +1829,66 @@ mod tests {
                 assert!(banked_data.contains("zero goal mutation permitted"));
             }
             _ => panic!("Expected EscalateCleanNo"),
+        }
+    }
+
+    #[test]
+    fn test_router_spatial_parking_record_and_query() {
+        let router = GatewayRouter::new();
+        let quota = UserSpendQuota::new("u_park_user", 500_000_000);
+
+        // 1. Send parking pin from iMessage/Apple Maps
+        let pin_text = "I parked here: https://maps.apple.com/?ll=37.774929,-122.419416&q=My%20Spot";
+        let pin_event = IncomingStimulusEvent::imessage("u_park_user", pin_text, None);
+        let pin_receipt = router.dispatch_event(pin_event, &quota);
+        assert!(pin_receipt.reflex_short_circuit);
+        if let OutboundReply::Text { body } = pin_receipt.reply {
+            assert!(body.contains("Saved your parking spot at 37.77493, -122.41942"));
+        } else {
+            panic!("Expected text reply confirming saved parking");
+        }
+
+        // 2. Query parking location
+        let query_event = IncomingStimulusEvent::webhook("u_park_user", "Where did I park my car?", None);
+        let query_receipt = router.dispatch_event(query_event, &quota);
+        assert!(query_receipt.reflex_short_circuit);
+        if let OutboundReply::Text { body } = query_receipt.reply {
+            assert!(body.contains("Your car is parked at 37.77493, -122.41942"));
+        } else {
+            panic!("Expected text reply recalling parking location");
+        }
+    }
+
+    #[test]
+    fn test_router_k2k_inter_agent_mesh_dispatch() {
+        let router = GatewayRouter::new();
+        let quota = UserSpendQuota::new("u_mesh_user", 500_000_000);
+
+        let k2k_event = IncomingStimulusEvent::k2k("agent_external_sam", "Can we sync calendars?");
+        let receipt = router.dispatch_event(k2k_event, &quota);
+        assert!(receipt.reflex_short_circuit);
+        if let OutboundReply::Text { body } = receipt.reply {
+            assert!(body.contains("K2K: Unknown peer quarantined to pending queue"));
+        } else {
+            panic!("Expected K2K quarantine reply");
+        }
+    }
+
+    #[test]
+    fn test_router_external_data_purge_dispatch() {
+        let router = GatewayRouter::new();
+        let quota = UserSpendQuota::new("u_purge_user", 500_000_000);
+
+        let mut purge_event = IncomingStimulusEvent::cli("u_purge_user", "purge external data");
+        purge_event.candidate_action = Some("purge_external_data".to_string());
+
+        let receipt = router.dispatch_event(purge_event, &quota);
+        assert!(receipt.reflex_short_circuit);
+        if let OutboundReply::Text { body } = receipt.reply {
+            assert!(body.contains("External data purged:"));
+            assert!(body.contains("Root goal intact: true"));
+        } else {
+            panic!("Expected external data purge reply");
         }
     }
 }

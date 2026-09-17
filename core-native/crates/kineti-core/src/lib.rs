@@ -16,6 +16,7 @@ pub mod conversation;
 pub mod gate;
 pub mod hlc;
 pub mod kernel;
+pub mod privacy;
 pub mod root_goal;
 pub mod snapshot;
 pub mod spend;
@@ -151,6 +152,9 @@ pub use root_goal::{
     DriftEvaluation, DriftInspector, FrictionResolution, FrictionType, ImmutableBoundaries,
     VerbatimRootGoal,
 };
+
+// Privacy Controls & Training Opt-Out
+pub use privacy::PrivacyController;
 
 /// Prelude module for convenient single-import access to essential types.
 pub mod prelude {
