@@ -1865,6 +1865,119 @@ export function startServer(port: number = PORT) {
         }
       }
 
+      // API: Inbound Email Webhook
+      if (url.pathname === "/api/email/inbound" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const from = body.from || "unknown@sender.com";
+          const to = body.to || "agent@mail.kineti.com";
+          const subject = body.subject || "No Subject";
+          const text = body.text || body.body || "";
+          const rawMime = body.raw_mime || "";
+
+          // Extract verification links
+          const links: string[] = [];
+          const linkRegex = /https?:\/\/[^\s<>"]+/g;
+          let m: RegExpExecArray | null;
+          const fullContent = `${text} ${rawMime}`;
+          while ((m = linkRegex.exec(fullContent)) !== null) {
+            links.push(m[0]);
+          }
+
+          // Extract OTP codes
+          let otpCode: string | undefined;
+          const otpMatch = fullContent.match(/\b(\d{4,8})\b/);
+          if (otpMatch) {
+            otpCode = otpMatch[1];
+          }
+
+          // Extract tracking numbers
+          let trackingNumber: string | undefined;
+          const trackMatch = fullContent.match(/\b(1Z[0-9A-Z]{16}|[0-9]{12}|9\d{21})\b/);
+          if (trackMatch) {
+            trackingNumber = trackMatch[1];
+          }
+
+          const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
+          let emailStore: any[] = [];
+          try {
+            if (fs.existsSync(emailsFile)) {
+              emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
+            }
+          } catch {}
+
+          const emailRecord = {
+            id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            direction: "inbound",
+            from,
+            to,
+            subject,
+            text,
+            extracted: {
+              links: links.slice(0, 5),
+              otpCode,
+              trackingNumber,
+            },
+            receivedAt: new Date().toISOString(),
+          };
+
+          emailStore.unshift(emailRecord);
+          fs.writeFileSync(emailsFile, JSON.stringify(emailStore.slice(0, 500), null, 2), "utf-8");
+
+          return Response.json({ success: true, email: emailRecord }, { headers: corsHeaders });
+        } catch (e: any) {
+          return new Response(e.message || "Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Send Email
+      if (url.pathname === "/api/email/send" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          if (!body.to || !body.subject) {
+            return new Response("Missing 'to' or 'subject'", { status: 400, headers: corsHeaders });
+          }
+
+          const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
+          let emailStore: any[] = [];
+          try {
+            if (fs.existsSync(emailsFile)) {
+              emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
+            }
+          } catch {}
+
+          const emailRecord = {
+            id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            direction: "outbound",
+            from: "agent@mail.kineti.com",
+            to: body.to,
+            subject: body.subject,
+            text: body.body || body.text || "",
+            status: "sent",
+            sentAt: new Date().toISOString(),
+          };
+
+          emailStore.unshift(emailRecord);
+          fs.writeFileSync(emailsFile, JSON.stringify(emailStore.slice(0, 500), null, 2), "utf-8");
+
+          return Response.json({ success: true, email: emailRecord }, { headers: corsHeaders });
+        } catch (e: any) {
+          return new Response(e.message || "Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: List Emails
+      if (url.pathname === "/api/email/list" && req.method === "GET") {
+        const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
+        let emailStore: any[] = [];
+        try {
+          if (fs.existsSync(emailsFile)) {
+            emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
+          }
+        } catch {}
+        return Response.json({ emails: emailStore }, { headers: corsHeaders });
+      }
+
       return new Response("Not Found", { status: 404, headers: corsHeaders });
     },
   });

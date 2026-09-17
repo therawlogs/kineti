@@ -44,6 +44,8 @@ impl KinetiConnectorProtocol for MicrosoftGraphClient {
             "list_outlook_events",
             "find_meeting_times",
             "create_outlook_event",
+            "move_outlook_event",
+            "cancel_outlook_event",
             "list_todo_tasks",
             "create_todo_task",
             "complete_todo_task",
@@ -61,6 +63,8 @@ impl KinetiConnectorProtocol for MicrosoftGraphClient {
 
             "send_outlook_mail"
             | "create_outlook_event"
+            | "move_outlook_event"
+            | "cancel_outlook_event"
             | "create_todo_task"
             | "complete_todo_task" => ConsequenceLevel::HighConsequence,
 
@@ -108,6 +112,24 @@ impl KinetiConnectorProtocol for MicrosoftGraphClient {
                 let title = get_str_property(payload, "title").unwrap_or("Event");
                 map.insert("title".to_string(), Value::String(title.to_string()));
                 map.insert("status".to_string(), Value::String("event_created".to_string()));
+                Ok(Value::Object(map))
+            }
+            "move_outlook_event" => {
+                let event_id = get_str_property(payload, "event_id").unwrap_or("");
+                if event_id.is_empty() {
+                    return Err(ConnectorProtocolError::InvalidPayload("Missing 'event_id'".to_string()));
+                }
+                map.insert("event_id".to_string(), Value::String(event_id.to_string()));
+                map.insert("status".to_string(), Value::String("event_rescheduled".to_string()));
+                Ok(Value::Object(map))
+            }
+            "cancel_outlook_event" => {
+                let event_id = get_str_property(payload, "event_id").unwrap_or("");
+                if event_id.is_empty() {
+                    return Err(ConnectorProtocolError::InvalidPayload("Missing 'event_id'".to_string()));
+                }
+                map.insert("event_id".to_string(), Value::String(event_id.to_string()));
+                map.insert("status".to_string(), Value::String("event_cancelled".to_string()));
                 Ok(Value::Object(map))
             }
             "list_todo_tasks" => {

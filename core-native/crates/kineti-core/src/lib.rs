@@ -15,6 +15,7 @@
 pub mod conversation;
 pub mod gate;
 pub mod hlc;
+pub mod http;
 pub mod kernel;
 pub mod privacy;
 pub mod root_goal;
@@ -121,12 +122,19 @@ pub use hlc::{current_physical_ms, HlcError, HlcTimestamp, HybridLogicalClock};
 
 // Universal Provenance Kernel (all 20 entities, enums, JSON, hashing)
 pub use kernel::{
-    blake3, canonicalize_json, hex_encode, sha256, to_canonical_rfc8785_json, to_canonical_rfc8785_metadata,
+    blake3, canonicalize_json, constant_time_compare, hex_encode, hmac_sha256, sha256,
+    to_canonical_rfc8785_json, to_canonical_rfc8785_metadata,
     Action, Actor, ActorType, Approval, Authority, Constraint, Decision, Dependency,
     DependencyType, EnforcementLevel, Evidence, Exception, Goal, GoalStatus, HashAlgorithm,
     Intent, JsonNumber, JsonValue, KernelEntity, KernelError, Metric, NodeId, Observation,
     Outcome, OutcomeStatus, ProvenanceNode, ReviewRequired, ReviewStatus, ReviewUrgency, Role,
     RollbackStatus, RollbackStep, SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
+};
+
+// HTTP Execution Engine
+pub use http::{
+    execute_http, http_delete, http_get, http_patch_json, http_post_json, HttpRequest, HttpResponse,
+    KINETI_USER_AGENT,
 };
 
 // Conversation Models

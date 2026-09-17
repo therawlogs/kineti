@@ -71,6 +71,52 @@ impl GmailClient {
         let encoded = base64_url_encode(raw_mime.as_bytes());
         format!("{{\"message\":{{\"raw\":\"{}\"}}}}", encoded)
     }
+
+    /// Executes a live inbox search against Gmail REST API.
+    pub fn search_inbox_live(&self, query: &str, max_results: u32) -> Result<String, String> {
+        let (url, headers) = self.build_search_request(query, max_results);
+        let header_refs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let res = kineti_core::http_get(&url, &header_refs)
+            .map_err(|e| format!("Gmail API network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Gmail API HTTP error {}: {}", res.status, res.body));
+        }
+        Ok(res.body)
+    }
+
+    /// Creates a draft directly via Gmail REST API.
+    pub fn create_draft_live(&self, draft: &DraftEmailRequest) -> Result<String, String> {
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/drafts";
+        let auth_val = format!("Bearer {}", self.access_token);
+        let header_refs = [
+            ("Authorization", auth_val.as_str()),
+            ("Content-Type", "application/json"),
+        ];
+        let payload = self.build_draft_payload(draft);
+        let res = kineti_core::http_post_json(url, &header_refs, &payload)
+            .map_err(|e| format!("Gmail create draft network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Gmail create draft error {}: {}", res.status, res.body));
+        }
+        Ok(res.body)
+    }
+
+    /// Sends an email directly via Gmail REST API.
+    pub fn send_email_live(&self, draft: &DraftEmailRequest) -> Result<String, String> {
+        let url = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send";
+        let auth_val = format!("Bearer {}", self.access_token);
+        let header_refs = [
+            ("Authorization", auth_val.as_str()),
+            ("Content-Type", "application/json"),
+        ];
+        let payload = self.build_draft_payload(draft);
+        let res = kineti_core::http_post_json(url, &header_refs, &payload)
+            .map_err(|e| format!("Gmail send email network error: {}", e))?;
+        if !res.success {
+            return Err(format!("Gmail send email error {}: {}", res.status, res.body));
+        }
+        Ok(res.body)
+    }
 }
 
 fn base64_url_encode(data: &[u8]) -> String {

@@ -1409,6 +1409,43 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
     out
 }
 
+/// Computes RFC 2104 HMAC-SHA256 over arbitrary message bytes using a secret key.
+pub fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+    let mut k = [0u8; 64];
+    if key.len() > 64 {
+        let hashed = sha256(key);
+        k[..32].copy_from_slice(&hashed);
+    } else {
+        k[..key.len()].copy_from_slice(key);
+    }
+
+    let mut inner = Vec::with_capacity(64 + message.len());
+    for b in &k {
+        inner.push(b ^ 0x36);
+    }
+    inner.extend_from_slice(message);
+    let inner_hash = sha256(&inner);
+
+    let mut outer = Vec::with_capacity(64 + 32);
+    for b in &k {
+        outer.push(b ^ 0x5c);
+    }
+    outer.extend_from_slice(&inner_hash);
+    sha256(&outer)
+}
+
+/// Constant-time byte slice comparison to prevent timing attacks.
+pub fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 /// Pure Rust BLAKE3 cryptographic hash implementation.
 pub fn blake3(data: &[u8]) -> [u8; 32] {
     const IV: [u32; 8] = [

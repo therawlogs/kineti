@@ -66,6 +66,8 @@ pub enum OutboundWhatsAppPayload {
 pub struct WhatsAppGateway {
     verify_token: String,
     phone_number: Option<String>,
+    access_token: Option<String>,
+    phone_number_id: Option<String>,
 }
 
 impl WhatsAppGateway {
@@ -74,7 +76,16 @@ impl WhatsAppGateway {
         Self {
             verify_token: verify_token.into(),
             phone_number: None,
+            access_token: None,
+            phone_number_id: None,
         }
+    }
+
+    /// Configures Meta Graph API credentials for real dispatch.
+    pub fn with_credentials(mut self, access_token: impl Into<String>, phone_number_id: impl Into<String>) -> Self {
+        self.access_token = Some(access_token.into());
+        self.phone_number_id = Some(phone_number_id.into());
+        self
     }
 
     /// Sets the assigned WhatsApp business phone number.
@@ -232,10 +243,13 @@ impl WhatsAppGateway {
         if !signature_header.starts_with("sha256=") {
             return false;
         }
-        let _expected_hex = &signature_header[7..];
-        let _ = app_secret;
-        let _ = payload;
-        signature_header.len() > 7 && _expected_hex.len() == 64
+        let declared_hex = &signature_header[7..];
+        if declared_hex.len() != 64 {
+            return false;
+        }
+        let computed = kineti_core::hmac_sha256(app_secret.as_bytes(), payload.as_bytes());
+        let computed_hex = kineti_core::hex_encode(&computed);
+        kineti_core::constant_time_compare(declared_hex.as_bytes(), computed_hex.as_bytes())
     }
 }
 
@@ -307,10 +321,40 @@ impl KinetiConnectorProtocol for WhatsAppGateway {
                 let message_id = get_str_property(payload, "target_message_id").unwrap_or("");
                 let emoji = get_str_property(payload, "emoji").unwrap_or("⚡");
                 let raw_payload = self.build_reaction_payload(to, message_id, emoji);
-                let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("reaction_queued".to_string()));
-                map.insert("payload".to_string(), Value::String(raw_payload));
-                Ok(Value::Object(map))
+
+                let access_token = self.access_token.clone()
+                    .or_else(|| std::env::var("WHATSAPP_TOKEN").ok())
+                    .or_else(|| std::env::var("WHATSAPP_ACCESS_TOKEN").ok());
+                let phone_id = self.phone_number_id.clone()
+                    .or_else(|| std::env::var("WHATSAPP_PHONE_NUMBER_ID").ok());
+
+                if let (Some(token), Some(pid)) = (access_token, phone_id) {
+                    let url = Self::send_api_url(&pid);
+                    let auth_hdr = format!("Bearer {}", token);
+                    let headers = [
+                        ("Authorization", auth_hdr.as_str()),
+                        ("Content-Type", "application/json"),
+                    ];
+                    let resp = kineti_core::http_post_json(&url, &headers, &raw_payload)
+                        .map_err(|e| ConnectorProtocolError::ExecutionFailed(format!("WhatsApp network error: {}", e)))?;
+                    if !resp.success {
+                        return Err(ConnectorProtocolError::ExecutionFailed(format!(
+                            "WhatsApp API HTTP {}: {}", resp.status, resp.body
+                        )));
+                    }
+                    let mut map = BTreeMap::new();
+                    map.insert("status".to_string(), Value::String("reaction_delivered".to_string()));
+                    map.insert("emoji".to_string(), Value::String(emoji.to_string()));
+                    map.insert("http_status".to_string(), Value::from(resp.status as u64));
+                    map.insert("live_dispatched".to_string(), Value::from(true));
+                    Ok(Value::Object(map))
+                } else {
+                    let mut map = BTreeMap::new();
+                    map.insert("status".to_string(), Value::String("reaction_queued".to_string()));
+                    map.insert("payload".to_string(), Value::String(raw_payload));
+                    map.insert("live_dispatched".to_string(), Value::from(false));
+                    Ok(Value::Object(map))
+                }
             }
             "send_text" => {
                 // High-consequence: verified token has already been validated and consumed!
@@ -320,11 +364,42 @@ impl KinetiConnectorProtocol for WhatsAppGateway {
                     return Err(ConnectorProtocolError::InvalidPayload("Missing recipient 'to'".to_string()));
                 }
                 let raw_payload = self.build_text_payload(to, text);
-                let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("dispatched".to_string()));
-                map.insert("recipient".to_string(), Value::String(to.to_string()));
-                map.insert("payload".to_string(), Value::String(raw_payload));
-                Ok(Value::Object(map))
+
+                let access_token = self.access_token.clone()
+                    .or_else(|| std::env::var("WHATSAPP_TOKEN").ok())
+                    .or_else(|| std::env::var("WHATSAPP_ACCESS_TOKEN").ok());
+                let phone_id = self.phone_number_id.clone()
+                    .or_else(|| std::env::var("WHATSAPP_PHONE_NUMBER_ID").ok());
+
+                if let (Some(token), Some(pid)) = (access_token, phone_id) {
+                    let url = Self::send_api_url(&pid);
+                    let auth_hdr = format!("Bearer {}", token);
+                    let headers = [
+                        ("Authorization", auth_hdr.as_str()),
+                        ("Content-Type", "application/json"),
+                    ];
+                    let resp = kineti_core::http_post_json(&url, &headers, &raw_payload)
+                        .map_err(|e| ConnectorProtocolError::ExecutionFailed(format!("WhatsApp network error: {}", e)))?;
+                    if !resp.success {
+                        return Err(ConnectorProtocolError::ExecutionFailed(format!(
+                            "WhatsApp API HTTP {}: {}", resp.status, resp.body
+                        )));
+                    }
+                    let mut map = BTreeMap::new();
+                    map.insert("status".to_string(), Value::String("delivered".to_string()));
+                    map.insert("recipient".to_string(), Value::String(to.to_string()));
+                    map.insert("http_status".to_string(), Value::from(resp.status as u64));
+                    map.insert("live_dispatched".to_string(), Value::from(true));
+                    map.insert("response".to_string(), Value::String(resp.body));
+                    Ok(Value::Object(map))
+                } else {
+                    let mut map = BTreeMap::new();
+                    map.insert("status".to_string(), Value::String("dispatched".to_string()));
+                    map.insert("recipient".to_string(), Value::String(to.to_string()));
+                    map.insert("payload".to_string(), Value::String(raw_payload));
+                    map.insert("live_dispatched".to_string(), Value::from(false));
+                    Ok(Value::Object(map))
+                }
             }
             "send_image" => {
                 // High-consequence: verified token has already been validated and consumed!
@@ -335,11 +410,42 @@ impl KinetiConnectorProtocol for WhatsAppGateway {
                     return Err(ConnectorProtocolError::InvalidPayload("Missing recipient 'to'".to_string()));
                 }
                 let raw_payload = self.build_image_payload(to, image_url, caption);
-                let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("dispatched".to_string()));
-                map.insert("recipient".to_string(), Value::String(to.to_string()));
-                map.insert("payload".to_string(), Value::String(raw_payload));
-                Ok(Value::Object(map))
+
+                let access_token = self.access_token.clone()
+                    .or_else(|| std::env::var("WHATSAPP_TOKEN").ok())
+                    .or_else(|| std::env::var("WHATSAPP_ACCESS_TOKEN").ok());
+                let phone_id = self.phone_number_id.clone()
+                    .or_else(|| std::env::var("WHATSAPP_PHONE_NUMBER_ID").ok());
+
+                if let (Some(token), Some(pid)) = (access_token, phone_id) {
+                    let url = Self::send_api_url(&pid);
+                    let auth_hdr = format!("Bearer {}", token);
+                    let headers = [
+                        ("Authorization", auth_hdr.as_str()),
+                        ("Content-Type", "application/json"),
+                    ];
+                    let resp = kineti_core::http_post_json(&url, &headers, &raw_payload)
+                        .map_err(|e| ConnectorProtocolError::ExecutionFailed(format!("WhatsApp network error: {}", e)))?;
+                    if !resp.success {
+                        return Err(ConnectorProtocolError::ExecutionFailed(format!(
+                            "WhatsApp API HTTP {}: {}", resp.status, resp.body
+                        )));
+                    }
+                    let mut map = BTreeMap::new();
+                    map.insert("status".to_string(), Value::String("delivered".to_string()));
+                    map.insert("recipient".to_string(), Value::String(to.to_string()));
+                    map.insert("http_status".to_string(), Value::from(resp.status as u64));
+                    map.insert("live_dispatched".to_string(), Value::from(true));
+                    map.insert("response".to_string(), Value::String(resp.body));
+                    Ok(Value::Object(map))
+                } else {
+                    let mut map = BTreeMap::new();
+                    map.insert("status".to_string(), Value::String("dispatched".to_string()));
+                    map.insert("recipient".to_string(), Value::String(to.to_string()));
+                    map.insert("payload".to_string(), Value::String(raw_payload));
+                    map.insert("live_dispatched".to_string(), Value::from(false));
+                    Ok(Value::Object(map))
+                }
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
         }
@@ -442,8 +548,16 @@ mod tests {
 
     #[test]
     fn test_signature_validation_accepts_wellformed() {
-        let sig = format!("sha256={}", "a".repeat(64));
-        assert!(WhatsAppGateway::validate_signature("secret", "body", &sig));
+        let secret = "my_app_secret";
+        let body = "sample webhook payload";
+        let hmac_bytes = kineti_core::hmac_sha256(secret.as_bytes(), body.as_bytes());
+        let sig = format!("sha256={}", kineti_core::hex_encode(&hmac_bytes));
+        assert!(WhatsAppGateway::validate_signature(secret, body, &sig));
+
+        // Different body fails
+        assert!(!WhatsAppGateway::validate_signature(secret, "tampered payload", &sig));
+        // Different secret fails
+        assert!(!WhatsAppGateway::validate_signature("other_secret", body, &sig));
     }
 
     #[test]

@@ -106,6 +106,51 @@ impl IMessageBridge {
             escaped_recipient, escaped_path
         )
     }
+
+    /// Executes an AppleScript string using the macOS system `osascript` binary.
+    pub fn execute_applescript(script: &str) -> Result<String, String> {
+        let output = std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .output()
+            .map_err(|e| format!("Failed to invoke osascript: {}", e))?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            Err(format!("osascript error: {}", stderr.trim()))
+        }
+    }
+
+    /// Reads recent messages from the macOS Messages SQLite database.
+    pub fn read_recent_messages(limit: usize) -> Result<String, String> {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let db_path = format!("{}/Library/Messages/chat.db", home);
+
+        let query = format!(
+            "SELECT m.rowid, m.text, datetime(m.date/1000000000 + strftime('%s', '2001-01-01'), 'unixepoch') as sent_at, h.id as sender FROM message m LEFT JOIN handle h ON m.handle_id = h.rowid WHERE m.text IS NOT NULL ORDER BY m.date DESC LIMIT {};",
+            limit.clamp(1, 50)
+        );
+
+        let output = std::process::Command::new("sqlite3")
+            .arg("-json")
+            .arg(&db_path)
+            .arg(&query)
+            .output();
+
+        match output {
+            Ok(out) => {
+                if out.status.success() {
+                    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+                } else {
+                    let err = String::from_utf8_lossy(&out.stderr);
+                    Err(format!("Messages DB query error: {}", err.trim()))
+                }
+            }
+            Err(e) => Err(format!("sqlite3 command execution failed: {}", e)),
+        }
+    }
 }
 
 impl KinetiConnectorProtocol for IMessageBridge {
@@ -114,11 +159,12 @@ impl KinetiConnectorProtocol for IMessageBridge {
     }
 
     fn supported_actions(&self) -> &[&'static str] {
-        &["send_text", "send_file"]
+        &["send_text", "send_file", "read_recent"]
     }
 
     fn evaluate_consequence(&self, action: &str, _payload: &Value) -> ConsequenceLevel {
         match action {
+            "read_recent" => ConsequenceLevel::Trivial,
             "send_text" | "send_file" => ConsequenceLevel::HighConsequence,
             _ => ConsequenceLevel::HighConsequence, // Fail closed
         }
@@ -130,6 +176,31 @@ impl KinetiConnectorProtocol for IMessageBridge {
         payload: &Value,
     ) -> Result<Value, ConnectorProtocolError> {
         match action {
+            "read_recent" => {
+                let limit = if let Value::Object(m) = payload {
+                    if let Some(Value::Number(n)) = m.get("limit") {
+                        n.as_str().parse::<usize>().unwrap_or(10)
+                    } else {
+                        10
+                    }
+                } else {
+                    10
+                };
+                let mut map = BTreeMap::new();
+                match Self::read_recent_messages(limit) {
+                    Ok(json_str) => {
+                        map.insert("status".to_string(), Value::String("read_success".to_string()));
+                        map.insert("messages".to_string(), Value::String(json_str));
+                        map.insert("live_dispatched".to_string(), Value::from(true));
+                    }
+                    Err(err) => {
+                        map.insert("status".to_string(), Value::String("read_restricted".to_string()));
+                        map.insert("reason".to_string(), Value::String(err));
+                        map.insert("live_dispatched".to_string(), Value::from(false));
+                    }
+                }
+                Ok(Value::Object(map))
+            }
             "send_text" => {
                 let recipient = get_str_property(payload, "recipient").unwrap_or("");
                 let body = get_str_property(payload, "body").unwrap_or("");
@@ -140,9 +211,27 @@ impl KinetiConnectorProtocol for IMessageBridge {
                 }
                 let script = self.build_send_text_script(recipient, body);
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("script_generated".to_string()));
-                map.insert("recipient".to_string(), Value::String(recipient.to_string()));
-                map.insert("script".to_string(), Value::String(script));
+                let live_send = std::env::var("KINETI_LIVE_IMESSAGE").map(|v| v == "1").unwrap_or(false);
+                if live_send {
+                    match Self::execute_applescript(&script) {
+                        Ok(res) => {
+                            map.insert("status".to_string(), Value::String("sent".to_string()));
+                            map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                            map.insert("result".to_string(), Value::String(res));
+                            map.insert("live_dispatched".to_string(), Value::from(true));
+                        }
+                        Err(err) => {
+                            return Err(ConnectorProtocolError::ExecutionFailed(format!(
+                                "iMessage AppleScript execution failed: {}", err
+                            )));
+                        }
+                    }
+                } else {
+                    map.insert("status".to_string(), Value::String("script_generated".to_string()));
+                    map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                    map.insert("script".to_string(), Value::String(script));
+                    map.insert("live_dispatched".to_string(), Value::from(false));
+                }
                 Ok(Value::Object(map))
             }
             "send_file" => {
@@ -155,9 +244,27 @@ impl KinetiConnectorProtocol for IMessageBridge {
                 }
                 let script = self.build_send_file_script(recipient, file_path);
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("script_generated".to_string()));
-                map.insert("recipient".to_string(), Value::String(recipient.to_string()));
-                map.insert("script".to_string(), Value::String(script));
+                let live_send = std::env::var("KINETI_LIVE_IMESSAGE").map(|v| v == "1").unwrap_or(false);
+                if live_send {
+                    match Self::execute_applescript(&script) {
+                        Ok(res) => {
+                            map.insert("status".to_string(), Value::String("sent".to_string()));
+                            map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                            map.insert("result".to_string(), Value::String(res));
+                            map.insert("live_dispatched".to_string(), Value::from(true));
+                        }
+                        Err(err) => {
+                            return Err(ConnectorProtocolError::ExecutionFailed(format!(
+                                "iMessage AppleScript execution failed: {}", err
+                            )));
+                        }
+                    }
+                } else {
+                    map.insert("status".to_string(), Value::String("script_generated".to_string()));
+                    map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                    map.insert("script".to_string(), Value::String(script));
+                    map.insert("live_dispatched".to_string(), Value::from(false));
+                }
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
