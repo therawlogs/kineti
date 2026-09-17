@@ -54,12 +54,13 @@
 ## Milestones
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
-| M1 | Formal Research Canon & Mathematical Invariants | Audit Papers 1–5 theorems (2.1–2.3, 3.1–3.2, 5.1–5.3), 13-stage software factory, SAGA LIFO, 20-entity kernel, CVG, DNTI, spend breaker | none | IN_PROGRESS |
-| M2 | Native Rust Memory Safety & Concurrency Audit | Audit 80-thread writer contention, zero torn reads, 100% Safe Rust, Miri/ASan setup, multi-tenant isolation | M1 | PLANNED |
-| M3 | Empirical World-Class Micro-Benchmark Verification | Validate sensory triage p99 < 1.0ms, snapshot latency p99 < 0.1ms, graph walk p99 < 0.8ms, Ed25519 < 100µs, RSS < 25MB, token compression >= 35% | M2 | PLANNED |
-| M4 | Financial Safety & SAGA Reversibility Audit | Audit hardware spend ceiling deterministic trip at $47.50, 2-step financial confirmation, SAGA LIFO rollback | M1, M2 | PLANNED |
-| M5 | Production Readiness & Static Waitlist Audit | Audit waitlist payload < 35KB gzipped, Apple HIG, WhatsApp/iMessage gateway, Notion sync, 500 prompt injection vectors | M3, M4 | PLANNED |
-| M6 | Master Synthesis, Evidence Generation & Final Audit Report | Publish canonical `implementation_plan.md`, fresh evidence in `.kineti/evidence.jsonl`, master audit report `docs/ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md` | M1, M2, M3, M4, M5 | PLANNED |
+| M1 | Formal Research Canon & Mathematical Invariants | Audit Papers 1–5 theorems (2.1–2.3, 3.1–3.2, 5.1–5.3), 13-stage software factory, SAGA LIFO, 20-entity kernel, CVG, DNTI, spend breaker | none | COMPLETED |
+| M2 | Native Rust Memory Safety & Concurrency Audit | Audit 80-thread writer contention, zero torn reads, 100% Safe Rust, Miri/ASan setup, multi-tenant isolation | M1 | COMPLETED |
+| M3 | Empirical World-Class Micro-Benchmark Verification | Validate sensory triage p99 < 1.0ms, snapshot latency p99 < 0.1ms, graph walk p99 < 0.8ms, Ed25519 < 100µs, RSS < 25MB, token compression >= 35% | M2 | COMPLETED |
+| M4 | Financial Safety & SAGA Reversibility Audit | Audit hardware spend ceiling deterministic trip at $47.50, 2-step financial confirmation, SAGA LIFO rollback | M1, M2 | COMPLETED |
+| M5 | Production Readiness & Static Waitlist Audit | Audit waitlist payload < 35KB gzipped, Apple HIG, WhatsApp/iMessage gateway, Notion sync, 500 prompt injection vectors | M3, M4 | COMPLETED |
+| M6 | Master Synthesis, Evidence Generation & Final Audit Report | Publish canonical architecture plan, fresh evidence in `.kineti/evidence.jsonl`, master audit report `docs/ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md` | M1, M2, M3, M4, M5 | COMPLETED |
+| M7 | 360º Human Model & Epistemic Resilience | Verbatim root goal invariance, friction triage ladder, commitment verification, asymmetric gap-filling | M6 | COMPLETED |
 
 ## Interface Contracts
 - **Research Invariants to Codebase**:
