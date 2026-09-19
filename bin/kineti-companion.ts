@@ -44,7 +44,9 @@ function generateAuthToken(): string {
   if (fs.existsSync(tokenFile)) {
     try {
       token = fs.readFileSync(tokenFile, "utf8").trim();
-    } catch {}
+    } catch (err) {
+      console.warn(`kineti: warning: could not read auth_token: ${(err as Error).message}`);
+    }
   }
   if (!token) {
     token = crypto.randomBytes(32).toString("hex");
@@ -56,16 +58,41 @@ function generateAuthToken(): string {
 
 export const AUTH_TOKEN = generateAuthToken();
 
+interface SessionRecord {
+  createdAt: number;
+  expiresAt: number;
+}
+
+const activeSessions = new Map<string, SessionRecord>();
+export const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+export function createSessionToken(): string {
+  const sessionToken = crypto.randomBytes(32).toString("hex");
+  const now = Date.now();
+  activeSessions.set(sessionToken, { createdAt: now, expiresAt: now + SESSION_TTL_MS });
+  return sessionToken;
+}
+
+export function revokeSessionToken(token: string): boolean {
+  return activeSessions.delete(token);
+}
+
+export function isValidSession(token: string): boolean {
+  const session = activeSessions.get(token);
+  if (!session) return false;
+  if (Date.now() > session.expiresAt) {
+    activeSessions.delete(token);
+    return false;
+  }
+  return true;
+}
+
 export function extractToken(req: Request): string | null {
   const header = req.headers.get("authorization");
   if (header?.startsWith("Bearer ")) {
     return header.slice(7).trim();
   }
-  try {
-    const url = new URL(req.url);
-    const queryToken = url.searchParams.get("token");
-    if (queryToken) return queryToken.trim();
-  } catch {}
+  // Strictly disallow query params (?token=) to prevent token leaks in URLs/logs/referrers
   const cookie = req.headers.get("cookie");
   if (cookie) {
     const match = cookie.match(/(?:^|;\s*)kineti_token=([^;]+)/);
@@ -75,7 +102,12 @@ export function extractToken(req: Request): string | null {
 }
 
 export function isAuthorized(req: Request): boolean {
-  return extractToken(req) === AUTH_TOKEN;
+  const token = extractToken(req);
+  if (!token) return false;
+  // Master token allowed for CLI/testing over Authorization header
+  if (token === AUTH_TOKEN) return true;
+  // Valid active session token
+  return isValidSession(token);
 }
 
 const defaultRepoName = readJson<any>(path.join(projectKdir(), "state.json"))?.project || path.basename(REPO_ROOT) || "kineti-local-harness";
@@ -133,12 +165,49 @@ export function getFleetStatus() {
 
 // Vault Storage Helper
 const vaultFile = path.join(projectKdir(), "vault_entries.json");
+
+export function base32Decode(input: string): Buffer {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const cleaned = input.toUpperCase().replace(/=+$/, "").replace(/[^A-Z2-7]/g, "");
+  let bits = 0;
+  let value = 0;
+  const output: number[] = [];
+  for (let i = 0; i < cleaned.length; i++) {
+    const val = alphabet.indexOf(cleaned[i]);
+    if (val === -1) continue;
+    value = (value << 5) | val;
+    bits += 5;
+    if (bits >= 8) {
+      output.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(output);
+}
+
+export function computeRfc6238Totp(secretBase32: string, timeSec: number = Math.floor(Date.now() / 1000), period: number = 30, digits: number = 6): string {
+  try {
+    const key = base32Decode(secretBase32);
+    if (key.length === 0) return "000000";
+    const counter = Math.floor(timeSec / period);
+    const buf = Buffer.alloc(8);
+    buf.writeBigUInt64BE(BigInt(counter));
+    const hmac = crypto.createHmac("sha1", key).update(buf).digest();
+    const offset = hmac[hmac.length - 1] & 0x0f;
+    const codeInt = ((hmac.readUInt32BE(offset) & 0x7fffffff) % Math.pow(10, digits));
+    return codeInt.toString().padStart(digits, "0");
+  } catch (err) {
+    console.warn(`kineti: warning: failed to compute TOTP: ${(err as Error).message}`);
+    return "000000";
+  }
+}
+
 interface VaultStorage {
-  logins: Array<{ id: string; domain: string; username: string; created_at: string }>;
+  logins: Array<{ id: string; domain: string; username: string; created_at: string; password?: string }>;
   cards: Array<{ id: string; brand: string; last4: string; exp: string; spend_cap: number }>;
   personal_info: Array<{ id: string; label: string; value_masked: string }>;
   agent_items: Array<{ id: string; service: string; identifier: string; scope: string }>;
-  totp_items: Array<{ id: string; issuer: string; account: string; secret_masked: string }>;
+  totp_items: Array<{ id: string; issuer: string; account: string; secret_masked: string; secret_raw?: string; code?: string }>;
 }
 
 function loadVault(): VaultStorage {
@@ -155,13 +224,19 @@ function loadVault(): VaultStorage {
 }
 
 function saveVault(vault: VaultStorage): void {
-  ensureDir(projectKdir());
-  const tmpFile = path.join(projectKdir(), `vault_entries.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
-  fs.writeFileSync(tmpFile, JSON.stringify(vault, null, 2) + "\n", { mode: 0o600 });
-  fs.renameSync(tmpFile, vaultFile);
   try {
-    fs.chmodSync(vaultFile, 0o600);
-  } catch {}
+    ensureDir(projectKdir());
+    const tmpFile = path.join(projectKdir(), `vault_entries.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
+    fs.writeFileSync(tmpFile, JSON.stringify(vault, null, 2) + "\n", { mode: 0o600 });
+    fs.renameSync(tmpFile, vaultFile);
+    try {
+      fs.chmodSync(vaultFile, 0o600);
+    } catch (chmodErr) {
+      console.warn(`kineti: warning: could not chmod vault file: ${(chmodErr as Error).message}`);
+    }
+  } catch (err) {
+    console.warn(`kineti: warning: could not save vault: ${(err as Error).message}`);
+  }
 }
 
 const COMPANION_SETTINGS_FILE = path.join(process.cwd(), ".kineti", "companion_settings.json");
@@ -201,14 +276,25 @@ function loadCompanionSettings(): void {
         connectors: { ...companionSettings.connectors, ...(disk.connectors || {}) },
       };
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`kineti: warning: could not load companion settings: ${(err as Error).message}`);
+  }
 }
 
 export function saveCompanionSettings(): void {
   try {
     ensureDir(path.dirname(COMPANION_SETTINGS_FILE));
-    fs.writeFileSync(COMPANION_SETTINGS_FILE, JSON.stringify(companionSettings, null, 2) + "\n", "utf-8");
-  } catch {}
+    const tmpFile = path.join(path.dirname(COMPANION_SETTINGS_FILE), `settings.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
+    fs.writeFileSync(tmpFile, JSON.stringify(companionSettings, null, 2) + "\n", { mode: 0o600, encoding: "utf-8" });
+    fs.renameSync(tmpFile, COMPANION_SETTINGS_FILE);
+    try {
+      fs.chmodSync(COMPANION_SETTINGS_FILE, 0o600);
+    } catch (chmodErr) {
+      console.warn(`kineti: warning: could not chmod settings file: ${(chmodErr as Error).message}`);
+    }
+  } catch (err) {
+    console.warn(`kineti: warning: could not save companion settings: ${(err as Error).message}`);
+  }
 }
 
 loadCompanionSettings();
@@ -222,7 +308,7 @@ export function renderConnectorsHtml(connectors: Record<string, any>): string {
       ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;margin-left:8px;">Active</span>'
       : '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);margin-left:8px;">Off</span>';
     
-    return `<div class="item-row" id="connector-row-${k}">
+    return `<div class="item-row" id="connector-row-${escapeHtml(k)}">
       <div class="item-icon icon-service">${escapeHtml(k.slice(0, 2).toUpperCase())}</div>
       <div class="item-body">
         <div class="item-title">${escapeHtml(c.name)}${badgeHtml}</div>
@@ -230,9 +316,9 @@ export function renderConnectorsHtml(connectors: Record<string, any>): string {
         ${c.account ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Account: ${escapeHtml(c.account)}</div>` : ''}
       </div>
       <div class="item-action">
-        <button class="${btnClass}" onclick="toggleConnector('${k}')">${btnText}</button>
-        <button class="copy-btn" title="Configure credentials" onclick="openConfigConnectorModal('${k}', '${escapeHtml(c.name)}', '${escapeHtml(c.account || '')}')">✎</button>
-        <button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" onclick="deleteConnector('${k}')">🗑️</button>
+        <button class="${btnClass}" data-action="toggle-connector" data-key="${escapeHtml(k)}">${btnText}</button>
+        <button class="copy-btn" title="Configure credentials" data-action="config-connector" data-key="${escapeHtml(k)}" data-name="${escapeHtml(c.name)}" data-account="${escapeHtml(c.account || '')}">✎</button>
+        <button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" data-action="delete-connector" data-key="${escapeHtml(k)}">🗑️</button>
       </div>
     </div>`;
   }).join('');
@@ -581,9 +667,9 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle" id="val-imessage">${imessageNum}</div>
         </div>
         <div class="item-action">
-          <button class="copy-btn" title="Copy handle" onclick="copyText('${imessageNum}', this)">📋</button>
-          <button class="copy-btn" title="Edit number" onclick="openContactModal('imessage', '${imessageNum}')">✎</button>
-          <button class="copy-btn" title="Send test ping" onclick="openTestPingModal('imessage', '${imessageNum}')">⚡</button>
+          <button class="copy-btn" title="Copy handle" data-copy="${imessageNum}">📋</button>
+          <button class="copy-btn" title="Edit number" data-action="edit-contact" data-channel="imessage" data-val="${imessageNum}">✎</button>
+          <button class="copy-btn" title="Send test ping" data-action="test-ping" data-channel="imessage" data-val="${imessageNum}">⚡</button>
         </div>
       </div>
 
@@ -594,10 +680,10 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle" id="val-whatsapp">${whatsappNum}</div>
         </div>
         <div class="item-action">
-          <button class="copy-btn" title="Copy number" onclick="copyText('${whatsappNum}', this)">📋</button>
-          <button class="copy-btn" title="Edit number" onclick="openContactModal('whatsapp', '${whatsappNum}')">✎</button>
-          <button class="copy-btn" title="Setup QR code" onclick="window.open('/whatsapp-onboarding', '_blank')">📱</button>
-          <button class="copy-btn" title="Send test ping" onclick="openTestPingModal('whatsapp', '${whatsappNum}')">⚡</button>
+          <button class="copy-btn" title="Copy number" data-copy="${whatsappNum}">📋</button>
+          <button class="copy-btn" title="Edit number" data-action="edit-contact" data-channel="whatsapp" data-val="${whatsappNum}">✎</button>
+          <button class="copy-btn" title="Setup QR code" data-action="open-url" data-url="/whatsapp-onboarding">📱</button>
+          <button class="copy-btn" title="Send test ping" data-action="test-ping" data-channel="whatsapp" data-val="${whatsappNum}">⚡</button>
         </div>
       </div>
 
@@ -608,9 +694,9 @@ function generateSettingsHtml(): string {
           <div class="item-subtitle" id="val-email">${agentEmail}</div>
         </div>
         <div class="item-action">
-          <button class="copy-btn" title="Copy email" onclick="copyText('${agentEmail}', this)">📋</button>
-          <button class="copy-btn" title="Edit alias" onclick="openEmailModal()">✎</button>
-          <button class="copy-btn" title="Send test email" onclick="openTestPingModal('email', '${agentEmail}')">⚡</button>
+          <button class="copy-btn" title="Copy email" data-copy="${agentEmail}">📋</button>
+          <button class="copy-btn" title="Edit alias" data-action="open-email-modal">✎</button>
+          <button class="copy-btn" title="Send test email" data-action="test-ping" data-channel="email" data-val="${agentEmail}">⚡</button>
         </div>
       </div>
 
@@ -967,7 +1053,9 @@ function generateSettingsHtml(): string {
     if (window.location.search.includes('token=')) {
       try {
         history.replaceState({}, '', window.location.pathname);
-      } catch {}
+      } catch (err) {
+        console.warn('Could not clean address bar:', err);
+      }
     }
 
     function showToast(msg) {
@@ -1212,7 +1300,7 @@ function generateSettingsHtml(): string {
             const badgeHtml = c.connected
               ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;margin-left:8px;">Active</span>'
               : '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);margin-left:8px;">Off</span>';
-            return '<div class="item-row" id="connector-row-' + k + '">' +
+            return '<div class="item-row" id="connector-row-' + escapeHtml(k) + '">' +
               '<div class="item-icon icon-service">' + escapeHtml(k.slice(0, 2).toUpperCase()) + '</div>' +
               '<div class="item-body">' +
                 '<div class="item-title">' + escapeHtml(c.name) + badgeHtml + '</div>' +
@@ -1220,9 +1308,9 @@ function generateSettingsHtml(): string {
                 (c.account ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Account: ' + escapeHtml(c.account) + '</div>' : '') +
               '</div>' +
               '<div class="item-action">' +
-                '<button class="' + btnClass + '" onclick="toggleConnector(\\'' + k + '\\')">' + btnText + '</button>' +
-                '<button class="copy-btn" title="Configure credentials" onclick="openConfigConnectorModal(\\'' + k + '\\', \\'' + escapeHtml(c.name) + '\\', \\'' + escapeHtml(c.account || '') + '\\')">✎</button>' +
-                '<button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" onclick="deleteConnector(\\'' + k + '\\')">🗑️</button>' +
+                '<button class="' + btnClass + '" data-action="toggle-connector" data-key="' + escapeHtml(k) + '">' + btnText + '</button>' +
+                '<button class="copy-btn" title="Configure credentials" data-action="config-connector" data-key="' + escapeHtml(k) + '" data-name="' + escapeHtml(c.name) + '" data-account="' + escapeHtml(c.account || '') + '">✎</button>' +
+                '<button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" data-action="delete-connector" data-key="' + escapeHtml(k) + '">🗑️</button>' +
               '</div>' +
             '</div>';
           }).join('');
@@ -1255,9 +1343,9 @@ function generateSettingsHtml(): string {
               '<div class="vault-item-row">' +
                 '<div><strong>' + escapeHtml(l.domain) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(l.username) + '</span></div>' +
                 '<div class="item-action">' +
-                  '<button class="copy-btn" title="Copy username" onclick="copyText(\\'' + escapeHtml(l.username) + '\\', this)">📋</button>' +
-                  '<button class="copy-btn" title="Copy password" onclick="copyText(\\'' + escapeHtml(l.password || '••••••••') + '\\', this)">🔑</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete login" onclick="deleteVaultItem(\\'login\\', ' + idx + ')">🗑️</button>' +
+                  '<button class="copy-btn" title="Copy username" data-copy="' + escapeHtml(l.username) + '">📋</button>' +
+                  '<button class="copy-btn" title="Copy password" data-copy="' + escapeHtml(l.password || '••••••••') + '">🔑</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete login" data-action="delete-vault" data-type="login" data-index="' + idx + '">🗑️</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1272,8 +1360,8 @@ function generateSettingsHtml(): string {
               '<div class="vault-item-row">' +
                 '<div><strong>' + escapeHtml(c.brand) + ' •••• ' + escapeHtml(c.last4) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">Exp ' + escapeHtml(c.exp) + ' • Cap $' + c.spend_cap.toFixed(2) + '</span></div>' +
                 '<div class="item-action">' +
-                  '<button class="copy-btn" title="Copy card details" onclick="copyText(\\'' + escapeHtml(c.last4) + '\\', this)">📋</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete card" onclick="deleteVaultItem(\\'card\\', ' + idx + ')">🗑️</button>' +
+                  '<button class="copy-btn" title="Copy card details" data-copy="' + escapeHtml(c.last4) + '">📋</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete card" data-action="delete-vault" data-type="card" data-index="' + idx + '">🗑️</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1288,8 +1376,8 @@ function generateSettingsHtml(): string {
               '<div class="vault-item-row">' +
                 '<div><strong>' + escapeHtml(p.label) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(p.value_masked) + '</span></div>' +
                 '<div class="item-action">' +
-                  '<button class="copy-btn" title="Copy info" onclick="copyText(\\'' + escapeHtml(p.value_masked) + '\\', this)">📋</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete info" onclick="deleteVaultItem(\\'personal\\', ' + idx + ')">🗑️</button>' +
+                  '<button class="copy-btn" title="Copy info" data-copy="' + escapeHtml(p.value_masked) + '">📋</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete info" data-action="delete-vault" data-type="personal" data-index="' + idx + '">🗑️</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1304,12 +1392,12 @@ function generateSettingsHtml(): string {
               '<div class="totp-box">' +
                 '<div>' +
                   '<div style="font-size: 13px; font-weight: 600;">' + escapeHtml(t.issuer) + ' (' + escapeHtml(t.account) + ')</div>' +
-                  '<div class="totp-timer" id="totp-timer-' + idx + '">Refreshes in 24s • RFC 6238</div>' +
+                  '<div class="totp-timer" id="totp-timer-' + idx + '">Refreshes in 30s • RFC 6238</div>' +
                 '</div>' +
                 '<div style="display:flex;align-items:center;gap:8px;">' +
-                  '<div class="totp-code" id="totp-code-' + idx + '">••• •••</div>' +
-                  '<button class="copy-btn" title="Copy code" onclick="copyTotp(' + idx + ', this)">📋</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete authenticator" onclick="deleteVaultItem(\\'totp\\', ' + idx + ')">🗑️</button>' +
+                  '<div class="totp-code" id="totp-code-' + idx + '">' + escapeHtml(t.code ? (t.code.slice(0, 3) + ' ' + t.code.slice(3)) : '••• •••') + '</div>' +
+                  '<button class="copy-btn" title="Copy code" data-copy="' + escapeHtml((t.code || '').replace(/\s+/g, '')) + '">📋</button>' +
+                  '<button class="copy-btn" style="color:var(--danger);" title="Delete authenticator" data-action="delete-vault" data-type="totp" data-index="' + idx + '">🗑️</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1514,21 +1602,48 @@ function generateSettingsHtml(): string {
       }
     }
 
-    // Rotating live TOTP code generator simulation
+    // Rotating live TOTP code generator using server-verified RFC 6238
     function updateTotpCodes() {
       const now = Math.floor(Date.now() / 1000);
       const remaining = 30 - (now % 30);
-      const codes = document.querySelectorAll('.totp-code');
       const timers = document.querySelectorAll('.totp-timer');
       timers.forEach(t => t.innerText = 'Refreshes in ' + remaining + 's • RFC 6238 HMAC-SHA1');
-      if (remaining === 30 || codes[0]?.innerText.includes('•')) {
-        codes.forEach((c, idx) => {
-          const pseudoCode = String(Math.floor(100000 + (now + idx * 7) % 900000));
-          c.innerText = pseudoCode.slice(0, 3) + ' ' + pseudoCode.slice(3);
-        });
+      if (remaining === 30 || remaining === 1) {
+        refreshVaultUI();
       }
     }
     setInterval(updateTotpCodes, 1000);
+
+    // Global event delegation for data-copy and data-action attributes
+    document.addEventListener('click', function(e) {
+      const copyBtn = e.target.closest('[data-copy]');
+      if (copyBtn) {
+        const val = copyBtn.getAttribute('data-copy');
+        copyText(val, copyBtn);
+        return;
+      }
+      const actionBtn = e.target.closest('[data-action]');
+      if (actionBtn) {
+        const action = actionBtn.getAttribute('data-action');
+        if (action === 'toggle-connector') {
+          toggleConnector(actionBtn.getAttribute('data-key'));
+        } else if (action === 'config-connector') {
+          openConfigConnectorModal(actionBtn.getAttribute('data-key'), actionBtn.getAttribute('data-name'), actionBtn.getAttribute('data-account'));
+        } else if (action === 'delete-connector') {
+          deleteConnector(actionBtn.getAttribute('data-key'));
+        } else if (action === 'edit-contact') {
+          openContactModal(actionBtn.getAttribute('data-channel'), actionBtn.getAttribute('data-val'));
+        } else if (action === 'test-ping') {
+          openTestPingModal(actionBtn.getAttribute('data-channel'), actionBtn.getAttribute('data-val'));
+        } else if (action === 'delete-vault') {
+          deleteVaultItem(actionBtn.getAttribute('data-type'), parseInt(actionBtn.getAttribute('data-index'), 10));
+        } else if (action === 'open-email-modal') {
+          openEmailModal();
+        } else if (action === 'open-url') {
+          window.open(actionBtn.getAttribute('data-url'), '_blank');
+        }
+      }
+    });
 
     // Initial page hydration
     refreshVaultUI();
@@ -1641,25 +1756,11 @@ function generateLoginHtml(): string {
     <form method="POST" action="/login" id="login-form">
       <input name="token" id="token-field" class="token-input" type="password" placeholder="Paste token..." autocomplete="off" spellcheck="false" required />
       <button type="submit" class="btn">Sign In</button>
-      <button type="button" class="btn" style="background: #34c759; margin-top: 10px;" onclick="autoLocalLogin()">⚡ Quick Sign In (Local Device)</button>
     </form>
     <div class="hint">
       Authorization token is stored locally in <code>.kineti/auth_token</code>.
     </div>
   </div>
-  <script>
-    function autoLocalLogin() {
-      fetch('/api/local-token')
-        .then(r => r.json())
-        .then(d => {
-          if (d.token) {
-            document.getElementById('token-field').value = d.token;
-            document.getElementById('login-form').submit();
-          }
-        })
-        .catch(() => alert('Could not retrieve local dev token'));
-    }
-  </script>
 </body>
 </html>`;
 }
@@ -1914,14 +2015,17 @@ export function startServer(port: number = PORT) {
             const formData = await req.formData();
             submittedToken = formData.get("token")?.toString().trim() || "";
           }
-        } catch {}
+        } catch (err) {
+          console.warn(`kineti: warning: could not parse login payload: ${(err as Error).message}`);
+        }
 
         if (submittedToken === AUTH_TOKEN) {
+          const sessionToken = createSessionToken();
           return new Response(null, {
             status: 303,
             headers: {
               "Location": "/",
-              "Set-Cookie": `kineti_token=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+              "Set-Cookie": `kineti_token=${sessionToken}; Path=/; HttpOnly; SameSite=Strict; Max-Age=7200`,
               ...corsHeaders,
             },
           });
@@ -1931,6 +2035,10 @@ export function startServer(port: number = PORT) {
 
       // Logout handler
       if (url.pathname === "/logout" && req.method === "POST") {
+        const token = extractToken(req);
+        if (token) {
+          revokeSessionToken(token);
+        }
         return new Response(null, {
           status: 303,
           headers: {
@@ -1956,8 +2064,7 @@ export function startServer(port: number = PORT) {
 
         const headers: Record<string, string> = {
           "Content-Type": "text/html; charset=utf-8",
-          "Content-Security-Policy": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
-          "Set-Cookie": `kineti_token=${AUTH_TOKEN}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`,
+          "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';",
           ...corsHeaders,
         };
 
@@ -1965,15 +2072,6 @@ export function startServer(port: number = PORT) {
           status: 200,
           headers,
         });
-      }
-
-      // API: Local development token auto-login endpoint
-      if (url.pathname === "/api/local-token" && req.method === "GET") {
-        const host = req.headers.get("host") || "";
-        if (host.startsWith("localhost") || host.startsWith("127.0.0.1") || host.startsWith("[::1]")) {
-          return Response.json({ token: AUTH_TOKEN }, { headers: corsHeaders });
-        }
-        return new Response("Forbidden", { status: 403, headers: corsHeaders });
       }
 
       // Auth Check for All API & Other Routes
@@ -2179,7 +2277,18 @@ export function startServer(port: number = PORT) {
       // API: Vault
       if (url.pathname === "/api/vault") {
         if (req.method === "GET") {
-          return Response.json(loadVault(), { headers: corsHeaders });
+          const v = loadVault();
+          const safeVault = {
+            ...v,
+            totp_items: (v.totp_items || []).map(t => ({
+              id: t.id,
+              issuer: t.issuer,
+              account: t.account,
+              secret_masked: t.secret_masked,
+              code: computeRfc6238Totp(t.secret_raw || ""),
+            })),
+          };
+          return Response.json(safeVault, { headers: corsHeaders });
         }
         if (req.method === "POST") {
           try {
@@ -2203,18 +2312,30 @@ export function startServer(port: number = PORT) {
               const label = String(body.label || "").trim().slice(0, 64);
               const value = String(body.value || "").trim().slice(0, 256);
               if (!label || !value) return new Response("Invalid personal info parameters", { status: 400, headers: corsHeaders });
-              vault.personal_info.push({ id: `pers_${Date.now()}`, label, value_masked: value });
+              const masked = value.length > 4 ? "•••• " + value.slice(-4) : "••••";
+              vault.personal_info.push({ id: `pers_${Date.now()}`, label, value_masked: masked });
             } else if (body.type === "totp") {
               const issuer = String(body.issuer || "").trim().slice(0, 64);
               const account = String(body.account || "").trim().slice(0, 128);
               const secret = String(body.secret || "").trim().slice(0, 128);
               if (!issuer || !secret) return new Response("Invalid totp parameters", { status: 400, headers: corsHeaders });
-              vault.totp_items.push({ id: `totp_${Date.now()}`, issuer, account, secret_masked: secret.slice(0, 4) + "••••••••" });
+              const masked = secret.length > 4 ? "••••••••" + secret.slice(-4) : "••••••••";
+              vault.totp_items.push({ id: `totp_${Date.now()}`, issuer, account, secret_masked: masked, secret_raw: secret });
             } else {
               return new Response("Unknown vault item type", { status: 400, headers: corsHeaders });
             }
             saveVault(vault);
-            return Response.json({ success: true, vault }, { headers: corsHeaders });
+            const safeVault = {
+              ...vault,
+              totp_items: (vault.totp_items || []).map(t => ({
+                id: t.id,
+                issuer: t.issuer,
+                account: t.account,
+                secret_masked: t.secret_masked,
+                code: computeRfc6238Totp(t.secret_raw || ""),
+              })),
+            };
+            return Response.json({ success: true, vault: safeVault }, { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
@@ -2393,15 +2514,34 @@ export function startServer(port: number = PORT) {
         }
       }
 
+      // Email store persistence helper with atomic 0o600 write and FIFO 200-item cap
+      const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
+      const saveEmailStore = (store: any[]) => {
+        try {
+          ensureDir(path.dirname(emailsFile));
+          const capped = store.slice(0, 200);
+          const tmpFile = path.join(path.dirname(emailsFile), `emails.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
+          fs.writeFileSync(tmpFile, JSON.stringify(capped, null, 2), { mode: 0o600, encoding: "utf-8" });
+          fs.renameSync(tmpFile, emailsFile);
+          try {
+            fs.chmodSync(emailsFile, 0o600);
+          } catch (chmodErr) {
+            console.warn(`kineti: warning: could not chmod emails file: ${(chmodErr as Error).message}`);
+          }
+        } catch (err) {
+          console.warn(`kineti: warning: could not save emails: ${(err as Error).message}`);
+        }
+      };
+
       // API: Inbound Email Webhook
       if (url.pathname === "/api/email/inbound" && req.method === "POST") {
         try {
           const body = (await req.json()) as any;
-          const from = body.from || "unknown@sender.com";
-          const to = body.to || "agent@mail.kineti.com";
-          const subject = body.subject || "No Subject";
-          const text = body.text || body.body || "";
-          const rawMime = body.raw_mime || "";
+          const from = String(body.from || "unknown@sender.com").slice(0, 128);
+          const to = String(body.to || "agent@mail.kineti.com").slice(0, 128);
+          const subject = String(body.subject || "No Subject").slice(0, 500);
+          const text = String(body.text || body.body || "").slice(0, 100 * 1024);
+          const rawMime = String(body.raw_mime || "").slice(0, 100 * 1024);
 
           // Extract verification links
           const links: string[] = [];
@@ -2426,16 +2566,17 @@ export function startServer(port: number = PORT) {
             trackingNumber = trackMatch[1];
           }
 
-          const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
           let emailStore: any[] = [];
           try {
             if (fs.existsSync(emailsFile)) {
               emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
             }
-          } catch {}
+          } catch (readErr) {
+            console.warn(`kineti: warning: could not read emails store: ${(readErr as Error).message}`);
+          }
 
           const emailRecord = {
-            id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            id: `msg_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
             direction: "inbound",
             from,
             to,
@@ -2450,7 +2591,7 @@ export function startServer(port: number = PORT) {
           };
 
           emailStore.unshift(emailRecord);
-          fs.writeFileSync(emailsFile, JSON.stringify(emailStore.slice(0, 500), null, 2), "utf-8");
+          saveEmailStore(emailStore);
 
           return Response.json({ success: true, email: emailRecord }, { headers: corsHeaders });
         } catch (e: any) {
@@ -2466,27 +2607,28 @@ export function startServer(port: number = PORT) {
             return new Response("Missing 'to' or 'subject'", { status: 400, headers: corsHeaders });
           }
 
-          const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
           let emailStore: any[] = [];
           try {
             if (fs.existsSync(emailsFile)) {
               emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
             }
-          } catch {}
+          } catch (readErr) {
+            console.warn(`kineti: warning: could not read emails store: ${(readErr as Error).message}`);
+          }
 
           const emailRecord = {
-            id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            id: `msg_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
             direction: "outbound",
             from: "agent@mail.kineti.com",
-            to: body.to,
-            subject: body.subject,
-            text: body.body || body.text || "",
+            to: String(body.to).slice(0, 128),
+            subject: String(body.subject).slice(0, 500),
+            text: String(body.body || body.text || "").slice(0, 100 * 1024),
             status: "sent",
             sentAt: new Date().toISOString(),
           };
 
           emailStore.unshift(emailRecord);
-          fs.writeFileSync(emailsFile, JSON.stringify(emailStore.slice(0, 500), null, 2), "utf-8");
+          saveEmailStore(emailStore);
 
           return Response.json({ success: true, email: emailRecord }, { headers: corsHeaders });
         } catch (e: any) {
@@ -2496,14 +2638,15 @@ export function startServer(port: number = PORT) {
 
       // API: List Emails
       if (url.pathname === "/api/email/list" && req.method === "GET") {
-        const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
         let emailStore: any[] = [];
         try {
           if (fs.existsSync(emailsFile)) {
             emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
           }
-        } catch {}
-        return Response.json({ emails: emailStore }, { headers: corsHeaders });
+        } catch (readErr) {
+          console.warn(`kineti: warning: could not read emails store: ${(readErr as Error).message}`);
+        }
+        return Response.json({ emails: emailStore.slice(0, 200) }, { headers: corsHeaders });
       }
 
       return new Response("Not Found", { status: 404, headers: corsHeaders });

@@ -15,6 +15,15 @@ export function ensureDir(p: string): void {
   fs.mkdirSync(p, { recursive: true });
 }
 
+export function assertWithinProject(targetPath: string, baseDir: string = process.cwd()): string {
+  const resolved = path.resolve(baseDir, targetPath);
+  const normalizedBase = path.resolve(baseDir);
+  if (!resolved.startsWith(normalizedBase + path.sep) && resolved !== normalizedBase) {
+    die(`security violation: path '${targetPath}' resolves outside project root '${baseDir}'`, 2);
+  }
+  return resolved;
+}
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -217,9 +226,12 @@ function appendExecToEgressLedger(argv: string[], cwd: string): void {
     fs.appendFileSync(ledgerFile, JSON.stringify(receipt) + "\n");
     try {
       fs.writeFileSync(stateFile, JSON.stringify({ count: chain.length + 1, last_hash: hash }));
-    } catch {}
-  } catch {
-    // Ledger write must never break exec.
+    } catch (writeErr) {
+      console.warn(`kineti: warning: failed to update ledger state file: ${(writeErr as Error).message}`);
+    }
+  } catch (appendErr) {
+    // Ledger write must never break exec, but log warning
+    console.warn(`kineti: warning: failed to append to egress ledger: ${(appendErr as Error).message}`);
   }
 }
 

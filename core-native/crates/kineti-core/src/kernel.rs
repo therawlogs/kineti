@@ -888,6 +888,237 @@ impl ReviewStatus {
 }
 
 // ---------------------------------------------------------------------------
+// 20-Entity Kernel Enumeration & Relations (\Sigma_V & \Sigma_E)
+// ---------------------------------------------------------------------------
+
+/// Discriminator tag identifying the 20 provenance kernel entity types (\Sigma_V).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EntityType {
+    /// Actor: An autonomous agent, user, or external service.
+    Actor,
+    /// Role: Execution role with permissions and spend ceilings.
+    Role,
+    /// Authority: Delegated capability grant between actors.
+    Authority,
+    /// Intent: High-level user goal or prompt.
+    Intent,
+    /// Goal: Decomposed success condition derived from intent.
+    Goal,
+    /// Task: Actionable unit of work allocated to an actor.
+    Task,
+    /// Action: Concrete execution step dispatched by a task.
+    Action,
+    /// ToolCall: External tool invocation with arguments and timeouts.
+    ToolCall,
+    /// RollbackStep: SAGA LIFO inverse compensation command.
+    RollbackStep,
+    /// Observation: Execution output (stdout, stderr, exit code).
+    Observation,
+    /// Evidence: Cryptographic verification artifact and digest.
+    Evidence,
+    /// StateChange: Content-addressed record of mutated state.
+    StateChange,
+    /// Metric: Operational measurement and spend accounting.
+    Metric,
+    /// Decision: Branching rationale and selected option.
+    Decision,
+    /// Dependency: Causal prerequisite relationship between nodes.
+    Dependency,
+    /// Constraint: Safety boundary or invariant rule.
+    Constraint,
+    /// Approval: Human or cryptographic authorization receipt.
+    Approval,
+    /// Exception: Failure or error during execution.
+    Exception,
+    /// Outcome: Final verified result bound to an OVT ticket.
+    Outcome,
+    /// ReviewRequired: Escalation trigger requiring human intervention.
+    ReviewRequired,
+}
+
+impl EntityType {
+    /// Returns all 20 variants of the Universal Provenance Kernel.
+    pub const ALL: [EntityType; 20] = [
+        Self::Actor,
+        Self::Role,
+        Self::Authority,
+        Self::Intent,
+        Self::Goal,
+        Self::Task,
+        Self::Action,
+        Self::ToolCall,
+        Self::RollbackStep,
+        Self::Observation,
+        Self::Evidence,
+        Self::StateChange,
+        Self::Metric,
+        Self::Decision,
+        Self::Dependency,
+        Self::Constraint,
+        Self::Approval,
+        Self::Exception,
+        Self::Outcome,
+        Self::ReviewRequired,
+    ];
+
+    /// Returns the canonical PascalCase string representation.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Actor => "Actor",
+            Self::Role => "Role",
+            Self::Authority => "Authority",
+            Self::Intent => "Intent",
+            Self::Goal => "Goal",
+            Self::Task => "Task",
+            Self::Action => "Action",
+            Self::ToolCall => "ToolCall",
+            Self::RollbackStep => "RollbackStep",
+            Self::Observation => "Observation",
+            Self::Evidence => "Evidence",
+            Self::StateChange => "StateChange",
+            Self::Metric => "Metric",
+            Self::Decision => "Decision",
+            Self::Dependency => "Dependency",
+            Self::Constraint => "Constraint",
+            Self::Approval => "Approval",
+            Self::Exception => "Exception",
+            Self::Outcome => "Outcome",
+            Self::ReviewRequired => "ReviewRequired",
+        }
+    }
+
+    /// Parses an entity type from a string (case-insensitive, kebab/snake tolerant).
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_ascii_lowercase().replace('-', "_").as_str() {
+            "actor" => Some(Self::Actor),
+            "role" => Some(Self::Role),
+            "authority" => Some(Self::Authority),
+            "intent" => Some(Self::Intent),
+            "goal" => Some(Self::Goal),
+            "task" => Some(Self::Task),
+            "action" => Some(Self::Action),
+            "tool_call" | "toolcall" => Some(Self::ToolCall),
+            "rollback_step" | "rollbackstep" => Some(Self::RollbackStep),
+            "observation" => Some(Self::Observation),
+            "evidence" => Some(Self::Evidence),
+            "state_change" | "statechange" => Some(Self::StateChange),
+            "metric" => Some(Self::Metric),
+            "decision" => Some(Self::Decision),
+            "dependency" => Some(Self::Dependency),
+            "constraint" => Some(Self::Constraint),
+            "approval" => Some(Self::Approval),
+            "exception" => Some(Self::Exception),
+            "outcome" => Some(Self::Outcome),
+            "review_required" | "reviewrequired" => Some(Self::ReviewRequired),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for EntityType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+/// The 13 canonical causal relation types in the provenance graph (\Sigma_E).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum RelationType {
+    /// Precedent cause of an effect: (effect)-[:CAUSED_BY]->(cause)
+    CausedBy,
+    /// Outcome resolves a task or incident: (outcome)-[:RESOLVES]->(task)
+    Resolves,
+    /// Action implements a task specification: (action)-[:IMPLEMENTS]->(task)
+    Implements,
+    /// Event triggered a response: (reaction)-[:TRIGGERED]->(event)
+    Triggered,
+    /// Action authorized by an authority grant or approval: (action)-[:AUTHORIZED_BY]->(authority)
+    AuthorizedBy,
+    /// Intent defines a goal or task: (intent)-[:DEFINES]->(task)
+    Defines,
+    /// Task dispatches an action: (task)-[:DISPATCHES]->(action)
+    Dispatches,
+    /// Action mutates a state change: (action)-[:MUTATES]->(state_change)
+    Mutates,
+    /// State change yields an outcome: (state_change)-[:YIELDS]->(outcome)
+    Yields,
+    /// New fact or entity replaces an older one: (new_fact)-[:REPLACES]->(old_fact)
+    Replaces,
+    /// Fact or entity relates to another: (fact_a)-[:RELATES_TO]->(fact_b)
+    RelatesTo,
+    /// Fact or entity was derived from source data: (fact)-[:DERIVED_FROM]->(source)
+    DerivedFrom,
+    /// SAGA rollback compensation step reverses an action: (rollback)-[:COMPENSATES]->(action)
+    Compensates,
+}
+
+impl RelationType {
+    /// Returns all 13 variants of the Canonical Causal Relation set.
+    pub const ALL: [RelationType; 13] = [
+        Self::CausedBy,
+        Self::Resolves,
+        Self::Implements,
+        Self::Triggered,
+        Self::AuthorizedBy,
+        Self::Defines,
+        Self::Dispatches,
+        Self::Mutates,
+        Self::Yields,
+        Self::Replaces,
+        Self::RelatesTo,
+        Self::DerivedFrom,
+        Self::Compensates,
+    ];
+
+    /// Returns the uppercase relation string identifier.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::CausedBy => "CAUSED_BY",
+            Self::Resolves => "RESOLVES",
+            Self::Implements => "IMPLEMENTS",
+            Self::Triggered => "TRIGGERED",
+            Self::AuthorizedBy => "AUTHORIZED_BY",
+            Self::Defines => "DEFINES",
+            Self::Dispatches => "DISPATCHES",
+            Self::Mutates => "MUTATES",
+            Self::Yields => "YIELDS",
+            Self::Replaces => "REPLACES",
+            Self::RelatesTo => "RELATES_TO",
+            Self::DerivedFrom => "DERIVED_FROM",
+            Self::Compensates => "COMPENSATES",
+        }
+    }
+
+    /// Parses a string into a RelationType variant.
+    #[allow(clippy::should_implement_trait)]
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s.to_ascii_uppercase().replace('-', "_").as_str() {
+            "CAUSED_BY" | "CAUSEDBY" => Some(Self::CausedBy),
+            "RESOLVES" => Some(Self::Resolves),
+            "IMPLEMENTS" => Some(Self::Implements),
+            "TRIGGERED" => Some(Self::Triggered),
+            "AUTHORIZED_BY" | "AUTHORIZEDBY" => Some(Self::AuthorizedBy),
+            "DEFINES" => Some(Self::Defines),
+            "DISPATCHES" => Some(Self::Dispatches),
+            "MUTATES" => Some(Self::Mutates),
+            "YIELDS" => Some(Self::Yields),
+            "REPLACES" => Some(Self::Replaces),
+            "RELATES_TO" | "RELATESTO" => Some(Self::RelatesTo),
+            "DERIVED_FROM" | "DERIVEDFROM" => Some(Self::DerivedFrom),
+            "COMPENSATES" => Some(Self::Compensates),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for RelationType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+// ---------------------------------------------------------------------------
 // 20-Entity Kernel Enum & Validation
 // ---------------------------------------------------------------------------
 
@@ -986,6 +1217,32 @@ impl KernelEntity {
             Self::Exception(e) => &e.id,
             Self::Outcome(e) => &e.id,
             Self::ReviewRequired(e) => &e.id,
+        }
+    }
+
+    /// Returns the discriminator tag identifying the entity variant.
+    pub fn entity_type(&self) -> EntityType {
+        match self {
+            Self::Actor(_) => EntityType::Actor,
+            Self::Role(_) => EntityType::Role,
+            Self::Authority(_) => EntityType::Authority,
+            Self::Intent(_) => EntityType::Intent,
+            Self::Goal(_) => EntityType::Goal,
+            Self::Task(_) => EntityType::Task,
+            Self::Action(_) => EntityType::Action,
+            Self::ToolCall(_) => EntityType::ToolCall,
+            Self::RollbackStep(_) => EntityType::RollbackStep,
+            Self::Observation(_) => EntityType::Observation,
+            Self::Evidence(_) => EntityType::Evidence,
+            Self::StateChange(_) => EntityType::StateChange,
+            Self::Metric(_) => EntityType::Metric,
+            Self::Decision(_) => EntityType::Decision,
+            Self::Dependency(_) => EntityType::Dependency,
+            Self::Constraint(_) => EntityType::Constraint,
+            Self::Approval(_) => EntityType::Approval,
+            Self::Exception(_) => EntityType::Exception,
+            Self::Outcome(_) => EntityType::Outcome,
+            Self::ReviewRequired(_) => EntityType::ReviewRequired,
         }
     }
 
@@ -1964,6 +2221,25 @@ mod tests {
                 assert_ne!(declared, computed);
             }
             other => panic!("Expected ContentAddressMismatch, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_all_20_entity_types_and_13_relation_types() {
+        assert_eq!(EntityType::ALL.len(), 20);
+        for entity_type in EntityType::ALL {
+            let s = entity_type.as_str();
+            let parsed = EntityType::from_str(s).expect("parse entity type");
+            assert_eq!(parsed, entity_type);
+            assert_eq!(format!("{}", entity_type), s);
+        }
+
+        assert_eq!(RelationType::ALL.len(), 13);
+        for relation_type in RelationType::ALL {
+            let s = relation_type.as_str();
+            let parsed = RelationType::from_str(s).expect("parse relation type");
+            assert_eq!(parsed, relation_type);
+            assert_eq!(format!("{}", relation_type), s);
         }
     }
 }
