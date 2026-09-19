@@ -1,9 +1,15 @@
 #!/usr/bin/env bun
+// bin/kineti-spend.ts
+// Context Integrity Layer (Context Integrity Protocol / CIP) Hardware Spend Circuit Breaker
+// Enforces $50.00 hardware spending ceiling ($47.50 95% trip) and $/Outcome economics tracking.
+// Reference: Paper 5 (Outcome Engineering)
+// Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+
 import fs from "node:fs";
 import path from "node:path";
 import {
   appendJsonl, die, ensureDir, loadLimits, machineDir, nowIso,
-  ok, projectKdir, readJson, usdToMicrocents, writeJson,
+  ok, projectKdir, readJson, readJsonl, usdToMicrocents, writeJson,
 } from "./lib.ts";
 
 interface Entry {
@@ -137,7 +143,7 @@ function main() {
     return;
   }
 
-  if (cmd === "check" || cmd === "status") {
+  if (cmd === "check" || cmd === "status" || cmd === "economics") {
     if (s.tripped) {
       console.error(`kineti: TRIPPED: ${s.reason}`);
       process.exit(3);
@@ -147,7 +153,22 @@ function main() {
       if (spentMicro >= Math.round(stageLimit(limits, stg) * 1e6)) over = true;
     }
     if (s.total_microcents >= Math.round(limits.globalUsd * 1e6)) over = true;
-    if (over && cmd === "check") { console.error("kineti: over limit"); process.exit(3); }
+    if (over && (cmd === "check" || cmd === "economics")) { console.error("kineti: over limit"); process.exit(3); }
+
+    if (cmd === "economics" || rest.includes("--economics")) {
+      const evidenceFile = path.join(projectKdir(), "evidence.jsonl");
+      let verifiedOutcomes = 0;
+      if (fs.existsSync(evidenceFile)) {
+        try {
+          const records = readJsonl<{ label?: string; exit_code?: number }>(evidenceFile);
+          verifiedOutcomes = records.filter(r => r.exit_code === 0).length;
+        } catch {}
+      }
+      const costPerOutcome = s.total_usd / Math.max(1, verifiedOutcomes);
+      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; verified_outcomes=${verifiedOutcomes}; cost_per_outcome=$${costPerOutcome.toFixed(2)} (benchmark target: $0.31)`);
+      return;
+    }
+
     ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}`);
     return;
   }
@@ -160,7 +181,7 @@ function main() {
     return;
   }
 
-  die(`unknown command: ${cmd}. Use log | check | status | reset`, 2);
+  die(`unknown command: ${cmd}. Use log | check | status | economics | reset`, 2);
 }
 
 function trip(s: SpendState, reason: string): never {

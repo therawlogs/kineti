@@ -125,10 +125,11 @@ pub use kernel::{
     blake3, canonicalize_json, constant_time_compare, hex_encode, hmac_sha256, sha256,
     to_canonical_rfc8785_json, to_canonical_rfc8785_metadata,
     Action, Actor, ActorType, Approval, Authority, Constraint, Decision, Dependency,
-    DependencyType, EnforcementLevel, Evidence, Exception, Goal, GoalStatus, HashAlgorithm,
-    Intent, JsonNumber, JsonValue, KernelEntity, KernelError, Metric, NodeId, Observation,
-    Outcome, OutcomeStatus, ProvenanceNode, ReviewRequired, ReviewStatus, ReviewUrgency, Role,
-    RollbackStatus, RollbackStep, SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
+    DependencyType, EnforcementLevel, EntityType, Evidence, Exception, Goal, GoalStatus,
+    HashAlgorithm, Intent, JsonNumber, JsonValue, KernelEntity, KernelError, Metric, NodeId,
+    Observation, Outcome, OutcomeStatus, ProvenanceNode, RelationType, ReviewRequired, ReviewStatus,
+    ReviewUrgency, Role, RollbackStatus, RollbackStep, SandboxLevel, StateChange, Task, TaskStatus,
+    ToolCall,
 };
 
 // HTTP Execution Engine
@@ -172,10 +173,10 @@ pub mod prelude {
     pub use crate::kernel::{
         blake3, canonicalize_json, sha256, to_canonical_rfc8785_json, Action, Actor, ActorType,
         Approval, Authority, Constraint, Decision, Dependency, DependencyType, EnforcementLevel,
-        Evidence, Exception, Goal, GoalStatus, HashAlgorithm, Intent, JsonNumber, JsonValue,
-        KernelEntity, KernelError, Metric, NodeId, Observation, Outcome, OutcomeStatus,
-        ProvenanceNode, ReviewRequired, ReviewStatus, ReviewUrgency, Role, RollbackStatus,
-        RollbackStep, SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
+        EntityType, Evidence, Exception, Goal, GoalStatus, HashAlgorithm, Intent, JsonNumber,
+        JsonValue, KernelEntity, KernelError, Metric, NodeId, Observation, Outcome, OutcomeStatus,
+        ProvenanceNode, RelationType, ReviewRequired, ReviewStatus, ReviewUrgency, Role,
+        RollbackStatus, RollbackStep, SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
     };
     pub use crate::snapshot::{SnapshotEngine, SnapshotHandle, SnapshotNode};
     pub use crate::root_goal::{

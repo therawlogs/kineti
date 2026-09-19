@@ -250,14 +250,9 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(res.headers.get("vary")).toContain("Origin");
   });
 
-  test("GET / with ?token=<token> returns 200 and sets session cookie", async () => {
+  test("GET / with ?token=<token> is rejected with 401 (no token leak in URL)", async () => {
     const res = await server.fetch(new Request(`http://localhost/?token=${AUTH_TOKEN}`));
-    expect(res.status).toBe(200);
-    const setCookie = res.headers.get("set-cookie");
-    expect(setCookie).toBeDefined();
-    expect(setCookie).toContain(`kineti_token=${AUTH_TOKEN}`);
-    const html = await res.text();
-    expect(html).toContain("Kineti Settings");
+    expect(res.status).toBe(401);
   });
 
   test("GET / with session cookie returns 200", async () => {
@@ -290,7 +285,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(text).toContain("Invalid pairing token format");
   });
 
-  test("POST /login with valid token redirects 303 with HttpOnly cookie", async () => {
+  test("POST /login with valid token redirects 303 with HttpOnly session cookie", async () => {
     const body = new FormData();
     body.append("token", AUTH_TOKEN);
     const res = await server.fetch(
@@ -304,7 +299,37 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     const setCookie = res.headers.get("set-cookie") || "";
     expect(setCookie).toContain("HttpOnly");
     expect(setCookie).toContain("SameSite=Strict");
-    expect(setCookie).toContain(`kineti_token=${AUTH_TOKEN}`);
+    expect(setCookie).toContain("kineti_token=");
+
+    // Extract session token from cookie and verify it accesses /
+    const match = setCookie.match(/kineti_token=([a-f0-9]+)/);
+    expect(match).toBeDefined();
+    const sessionToken = match![1];
+    expect(sessionToken).not.toBe(AUTH_TOKEN);
+
+    const authRes = await server.fetch(
+      new Request("http://localhost/", {
+        headers: { Cookie: `kineti_token=${sessionToken}` },
+      }),
+    );
+    expect(authRes.status).toBe(200);
+
+    // Test POST /logout revokes the session
+    const logoutRes = await server.fetch(
+      new Request("http://localhost/logout", {
+        method: "POST",
+        headers: { Cookie: `kineti_token=${sessionToken}` },
+      }),
+    );
+    expect(logoutRes.status).toBe(303);
+
+    // Subsequent request with revoked session must be 401
+    const revokedRes = await server.fetch(
+      new Request("http://localhost/", {
+        headers: { Cookie: `kineti_token=${sessionToken}` },
+      }),
+    );
+    expect(revokedRes.status).toBe(401);
   });
 
   test("POST /api/connectors/toggle toggles connector status", async () => {
@@ -364,22 +389,13 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(meshRes.status).toBe(200);
   });
 
-  test("GET /api/local-token returns token on localhost Host and rejects external", async () => {
+  test("GET /api/local-token is removed (401/404) to prevent local auth bypass", async () => {
     const localRes = await server.fetch(
       new Request("http://127.0.0.1:8788/api/local-token", {
         headers: { Host: "127.0.0.1:8788" },
       }),
     );
-    expect(localRes.status).toBe(200);
-    const localJson = (await localRes.json()) as any;
-    expect(localJson.token).toBe(AUTH_TOKEN);
-
-    const extRes = await server.fetch(
-      new Request("http://evil.com/api/local-token", {
-        headers: { Host: "evil.com" },
-      }),
-    );
-    expect(extRes.status).toBe(403);
+    expect([401, 404]).toContain(localRes.status);
   });
 
   test("POST /api/connectors/add, configure, and delete manages connectors", async () => {

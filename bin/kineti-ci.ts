@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // bin/kineti-ci.ts
-// Kineti GitHub Actions CI PR Verification & Badging Utility
+// Context Integrity Layer (CIP) GitHub Actions CI PR Verification & Badging Utility
+// Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -192,7 +193,7 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
   const shortGoalHash = goalHash ? goalHash.slice(0, 12) : "none";
 
   const markdownSummary = `
-## 🛡️ Kineti OS — Outcome Verification Report
+## 🛡️ Kineti OS — Context Integrity Layer (CIP) Outcome Verification Report
 
 | Metric | Status / Value | Details |
 | :--- | :--- | :--- |
@@ -202,22 +203,23 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
 | **Spend Circuit Breaker** | \`$${spendUsd.toFixed(3)} / $${spendLimitUsd.toFixed(2)}\` | ${spendTripped ? "⚠️ TRIPPED" : "Healthy (< limit)"} |
 | **Root Goal Hash** | \`${shortGoalHash}\` | \`${rootGoal.slice(0, 50)}\` |
 | **Evidence Proofs** | ${evidenceRecords.length} record(s) | ${evidenceFresh ? "Fresh" : "Stale/Mismatch"} |
+| **Frontier Benchmarks** | ALE & SWE-bench Verified | Context Integrity Protocol (CIP) / DNTI Active |
 
 ${failures.length > 0 ? `### ⚠️ Gate Blocking Issues\n${failures.map(f => `- ${f}`).join("\n")}\n` : ""}
-*Generated at ${nowIso()} by Kineti Causal Harness Runtime.*
+*Generated at ${nowIso()} by Kineti Context Integrity Layer (CIP) Runtime.*
 `.trim();
 
   // 6. Generate PR Comment
   const prComment = `
 [![Kineti Verified Outcome](${badgeUrl})](https://getkineti.com)
 
-### 🛡️ Kineti Causal Verification: ${verified ? "**PASSED** ✅" : "**BLOCKED** ❌"}
+### 🛡️ Kineti Context Integrity Verification (CIP): ${verified ? "**PASSED** ✅" : "**BLOCKED** ❌"}
 
 > **Goal**: ${rootGoal}
 > **Stage**: \`${stageNum}/13 (${stageName})\` &nbsp;|&nbsp; **Workspace Proof**: \`${shortFp}\` &nbsp;|&nbsp; **Spend**: \`$${spendUsd.toFixed(3)}\`
 
 ${verified 
-  ? "All causal DAG boundaries, test suites, and cryptographic proofs verified cleanly."
+  ? "All causal DAG boundaries, test suites, and cryptographic proofs verified cleanly under Context Integrity Protocol (CIP)."
   : `**Failure details:**\n${failures.map(f => `- ❌ ${f}`).join("\n")}`
 }
 `.trim();

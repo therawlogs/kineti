@@ -40,6 +40,11 @@ export interface VerificationTicket {
   workerSignature: string;
   reviewerSignature: string;
   verifiedAt: string;
+  // Context Integrity Layer (CIP) / Paper 5 Outcome Engineering Extensions
+  dntiScore?: number;
+  costPerOutcomeUsd?: number;
+  benchmarkRef?: string;
+  semanticEntropy?: number;
 }
 
 /**
@@ -170,7 +175,13 @@ export function reviewAndSignOutcome(
   worker: SwarmAgent,
   workerSignature: string,
   evidenceHash: string,
-  testsPass: boolean
+  testsPass: boolean,
+  metrics?: {
+    dntiScore?: number;
+    costPerOutcomeUsd?: number;
+    benchmarkRef?: string;
+    semanticEntropy?: number;
+  }
 ): VerificationTicket {
   if (reviewer.role !== "reviewer" && reviewer.role !== "auditor") {
     throw new Error(`Permission denied: Agent ${reviewer.id} with role "${reviewer.role}" cannot approve gates. Must be reviewer or auditor.`);
@@ -206,6 +217,10 @@ export function reviewAndSignOutcome(
     workerSignature,
     reviewerSignature,
     verifiedAt,
+    dntiScore: metrics?.dntiScore,
+    costPerOutcomeUsd: metrics?.costPerOutcomeUsd,
+    benchmarkRef: metrics?.benchmarkRef,
+    semanticEntropy: metrics?.semanticEntropy,
   };
 }
 
