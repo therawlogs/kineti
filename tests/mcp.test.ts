@@ -80,7 +80,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     }
   });
 
-  test("tools/list returns 12 core Kineti governance tools", async () => {
+  test("tools/list returns 13 core Kineti governance tools plus talk", async () => {
     const tmpDir = makeTmpDir();
     const session = createMcpSession(tmpDir);
 
@@ -101,7 +101,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
 
       expect(listResp.result.tools).toBeDefined();
       const toolNames = listResp.result.tools.map((t: any) => t.name);
-      expect(toolNames.length).toBe(13);
+      expect(toolNames.length).toBe(14);
+      expect(toolNames).toContain("kineti_talk");
       expect(toolNames).toContain("kineti_status");
       expect(toolNames).toContain("kineti_lock_goal");
       expect(toolNames).toContain("kineti_set_stage");

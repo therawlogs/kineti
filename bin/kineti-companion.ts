@@ -110,7 +110,7 @@ export function isAuthorized(req: Request): boolean {
   return isValidSession(token);
 }
 
-const defaultRepoName = readJson<any>(path.join(projectKdir(), "state.json"))?.project || path.basename(REPO_ROOT) || "kineti-local-harness";
+const defaultRepoName = readJson<any>(path.join(projectKdir(), "state.json"))?.project || path.basename(REPO_ROOT) || "kineti";
 let activeRepoId = defaultRepoName;
 
 export function getHarnessStatus() {
@@ -129,6 +129,25 @@ export function getHarnessStatus() {
       tripped: spend.tripped || false,
     },
     gates: state.gates || { spec: "pass", ship: "pass", security: "pass" },
+  };
+}
+
+export function getMiniStatus() {
+  const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
+  const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
+  const config = readJson<any>(path.join(REPO_ROOT, "kineti.config.json")) || {};
+  const toggle = readJson<any>(path.join(projectKdir(), "kineti.json"));
+  const lines = readJsonl<any>(path.join(projectKdir(), "saga.jsonl"));
+  const committed = new Set(lines.filter((l) => l.kind === "commit").map((l) => l.run_id));
+  const pendingUndo = lines.filter((l) => l.kind === "register" && !committed.has(l.run_id)).length;
+  return {
+    spend_total: typeof spend.total_usd === "number" ? spend.total_usd : 0,
+    ceiling: config.settings?.spend_limit_usd?.global ?? 50.0,
+    tripped: spend.tripped === true,
+    stage: state.stage ?? "not started",
+    goal: typeof state.root_goal === "string" ? state.root_goal : null,
+    enabled: !toggle || toggle.enabled !== false,
+    pending_undo: pendingUndo,
   };
 }
 
@@ -2087,6 +2106,29 @@ export function startServer(port: number = PORT) {
         return Response.json(getHarnessStatus(), { headers: corsHeaders });
       }
 
+      // API: Mini status for menu bar helper (spend, goal, undo, on/off)
+      if (url.pathname === "/api/mini") {
+        return Response.json(getMiniStatus(), { headers: corsHeaders });
+      }
+
+      // API: Power toggle for menu bar helper and dashboard switch
+      if (url.pathname === "/api/power" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const on = body.on === true;
+          writeJson(path.join(projectKdir(), "kineti.json"), {
+            enabled: on, updated_by: "dashboard", at: new Date().toISOString(),
+          });
+          try {
+            const { appendAudit } = await import("./kineti-audit.ts");
+            appendAudit("dashboard-user", on ? "kineti.on" : "kineti.off", "power toggled from dashboard");
+          } catch { /* audit must never block toggle */ }
+          return Response.json({ success: true, enabled: on }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
       // API: Fleet Repos
       if (url.pathname === "/api/fleet") {
         return Response.json(getFleetStatus(), { headers: corsHeaders });
@@ -2116,17 +2158,33 @@ export function startServer(port: number = PORT) {
             if (typeof body !== "object" || body === null) {
               return new Response("Bad Request", { status: 400, headers: corsHeaders });
             }
+            const ALLOWED_SETTINGS_KEYS = new Set([
+              "repo_budgets", "repo_owners", "user_name", "user_phone",
+              "imessage_number", "whatsapp_number",
+            ]);
+            for (const k of Object.keys(body)) {
+              if (!ALLOWED_SETTINGS_KEYS.has(k)) {
+                return new Response(`Unknown setting: ${k}`, { status: 400, headers: corsHeaders });
+              }
+            }
+            const budgetChanges: string[] = [];
             if (body.repo_budgets && typeof body.repo_budgets === "object") {
               for (const [k, v] of Object.entries(body.repo_budgets)) {
-                if (typeof v === "number" && Number.isFinite(v) && v >= 0) {
-                  companionSettings.repo_budgets[k] = v;
+                const key = String(k).slice(0, 128);
+                if (!/^[a-zA-Z0-9_-]{1,128}$/.test(key)) continue;
+                if (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 10000) {
+                  const old = companionSettings.repo_budgets[key];
+                  companionSettings.repo_budgets[key] = v;
+                  budgetChanges.push(`${key}: ${old ?? "none"} -> ${v}`);
                 }
               }
             }
             if (body.repo_owners && typeof body.repo_owners === "object") {
               for (const [k, v] of Object.entries(body.repo_owners)) {
+                const key = String(k).slice(0, 128);
+                if (!/^[a-zA-Z0-9_-]{1,128}$/.test(key)) continue;
                 if (typeof v === "string" && v.length <= 100) {
-                  companionSettings.repo_owners[k] = v;
+                  companionSettings.repo_owners[key] = v;
                 }
               }
             }
@@ -2134,6 +2192,12 @@ export function startServer(port: number = PORT) {
               companionSettings.user_name = body.user_name.trim().slice(0, 100);
             }
             saveCompanionSettings();
+            if (budgetChanges.length > 0) {
+              try {
+                const { appendAudit } = await import("./kineti-audit.ts");
+                appendAudit("dashboard-user", "budget.change", budgetChanges.join("; ").slice(0, 1000));
+              } catch { /* audit must never block settings save */ }
+            }
             return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
@@ -2442,6 +2506,10 @@ export function startServer(port: number = PORT) {
             added_at: Date.now(),
           };
           meshManager.addPeer(peer);
+          try {
+            const { appendAudit } = await import("./kineti-audit.ts");
+            appendAudit("dashboard-user", "mesh.add", `${agentId} as ${tier} (minimum share)`.slice(0, 500));
+          } catch { /* audit must never block mesh */ }
           return Response.json({ success: true, peer }, { headers: corsHeaders });
         } catch (e: any) {
           return new Response(e.message || "Failed to add peer", { status: 400, headers: corsHeaders });
@@ -2454,6 +2522,10 @@ export function startServer(port: number = PORT) {
           const agentId = String(body.agent_id || body.agentId || "").trim();
           if (!agentId) return new Response("Missing agent_id", { status: 400, headers: corsHeaders });
           const removed = meshManager.removePeer(agentId);
+          try {
+            const { appendAudit } = await import("./kineti-audit.ts");
+            appendAudit("dashboard-user", "mesh.remove", agentId.slice(0, 200));
+          } catch { /* audit must never block mesh */ }
           return Response.json({ success: true, removed }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
@@ -2466,6 +2538,10 @@ export function startServer(port: number = PORT) {
           const agentId = String(body.agent_id || body.agentId || "").trim();
           if (!agentId) return new Response("Missing agent_id", { status: 400, headers: corsHeaders });
           meshManager.unblockPeer(agentId);
+          try {
+            const { appendAudit } = await import("./kineti-audit.ts");
+            appendAudit("dashboard-user", "mesh.unblock", agentId.slice(0, 200));
+          } catch { /* audit must never block mesh */ }
           return Response.json({ success: true, unblocked: agentId }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });

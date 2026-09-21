@@ -1,85 +1,64 @@
 # First Run Tutorial
 
-This tutorial walks you through using Kineti. It takes about 20 minutes.
+This guide takes about 20 minutes. You do not need to learn any commands.
+Just talk normal. Kineti handles safety, spending, undo, and proof in the background.
 
 You will need:
-- Kineti installed (`./setup.sh`)
-- An agent session open
-- A small project or idea
+- Kineti installed and turned on
+- An agent chat open
+- A small idea or problem
 
-You can start at any step, or run simple tasks directly (like bug fixes). If you are building a new project from scratch, follow these steps:
+## Step 0: Say hello
 
-## Step 0: Check Installation
+Ask in plain words:
+> What can you do for me?
 
-In your project folder, open your agent and ask:
-> What kineti skills are available?
+You should get a short answer with numbered choices. If Kineti says it is off,
+say "Kineti on".
 
-You should see skills starting with `kineti-`. If not, run `./setup.sh` from the Kineti folder.
+## Step 1: Tell your idea
 
-## Step 1: Define the Goal (Office Hours)
+Say your idea in one sentence:
+> I want to fix the login page so people stop getting locked out.
 
-Tell the agent your idea:
-> Load kineti-officehours. My idea: <one sentence describing your idea>
+Kineti locks this as your goal and asks only what is missing. It will not drift
+away from these words.
 
-The agent asks clarifying questions to find the simplest useful version. It creates `brief.md` and locks your main goal in `.kineti/state.json`.
+## Step 2: Answer a few questions
 
-Once locked, the goal cannot be changed by the agent. This prevents unintended drift.
+Kineti asks about the pain, the look you like, and what must never break.
+Answer in plain words. Name real examples with names and dates where you can.
 
-## Step 2: Measure the Problem (Diagnose)
+## Step 3: Read the short plan
 
-Ask the agent:
-> Run kineti-diagnose against <the process from your brief>
+Kineti shows a short plan with what it will build and what it will not build.
+No code is written until you say yes in plain words:
+> Yes, go ahead.
 
-The agent calculates where time or money is lost. It writes the results and calculations to `diagnostics.md`.
+Saying "change the color" or "fix the title" counts as a fix request.
+Kineti updates the plan and asks again.
 
-## Step 3: Choose the Visual Style (Design)
+## Step 4: Let it build
 
-Ask the agent:
-> Run kineti-design
+Once you say yes, Kineti builds in small steps. Every change can be undone.
+Tests, safety checks, and spending checks run quietly. You only see results.
 
-Name three websites or apps whose look you like. The agent writes a design summary and creates HTML screen previews. Pick the layout you prefer.
+Ask any time in plain words:
+> How much have I spent?
+> Did tests pass?
+> Where are we?
 
-## Step 4: Map Services and Failures (Architecture)
+## Step 5: Undo if needed
 
-Ask the agent:
-> Run kineti-architecture
+If something looks wrong, say:
+> Undo that.
 
-The agent creates a diagram of services, lists error scenarios, and compares hosting costs.
+Kineti shows what would be undone, newest first, and asks for your yes.
+Nothing is undone without your yes.
 
-## Step 5: Check Practical Limits (Feasibility)
+## Step 6: After it ships
 
-Ask the agent:
-> Run kineti-feasibility
-
-The agent checks three areas:
-1. Money: Expected cost and return.
-2. Data: Quality of necessary input data.
-3. Users: Key people who must approve the work.
-
-If any check fails, the agent reports the issue and stops so you can fix it early.
-
-## Step 6: Write the Specification (Spec)
-
-Ask the agent:
-> Run kineti-spec
-
-The agent writes clear data types, pass/fail test rules, and a list of what will not be built.
-
-The agent stops here and waits for your approval. No code is written in `src/` until you approve.
-
-## Step 7: Build, Review, and Ship (Build → Review → QA → Security → Ship)
-
-Once you approve the spec, tell the agent:
-> Approve the spec. Run kineti-build.
-
-1. **Build**: Code is written in small steps. Every file change registers an undo action in `.kineti/saga.jsonl`.
-2. **Review**: The agent checks for logic errors and edge cases.
-3. **QA**: The agent runs tests in a real browser at mobile, tablet, and desktop widths.
-4. **Security**: The agent runs standard security checks.
-5. **Ship**: The agent checks that all tests passed recently and creates the pull request or commit.
-
-## Step 8: Monitor and Learn (Watch and Review)
-
-After deployment:
-- **Watch**: Check for errors or slow response times. Alerts go to `~/.kineti/alerts.log`.
-- **Review**: At the end of each week, run `kineti-retro` to record lessons learned so future tasks use them.
+- If errors appear later, just describe them in plain words.
+- At the end of the week say "what did we learn" and Kineti saves the lessons
+  so future work is better.
+- To pause everything say "Kineti off". To resume say "Kineti on".

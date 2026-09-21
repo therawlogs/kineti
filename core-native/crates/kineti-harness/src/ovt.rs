@@ -233,4 +233,42 @@ mod tests {
         let bad_r = OvtCoordinator::verify_ticket(&ticket, "worker_priv_secret_abc", "tampered_key");
         assert_eq!(bad_r, Err(OvtError::InvalidReviewerSignature));
     }
+
+    #[test]
+    fn test_tampered_evidence_hash_fails_verification() {
+        let mut ticket = OvtCoordinator::generate_ticket(
+            "task_200",
+            "goal_hash_abc",
+            "worker_01",
+            "worker_secret_1",
+            "reviewer_02",
+            "reviewer_secret_2",
+            "evidence_ok",
+            true,
+            1789000001,
+        )
+        .expect("generation succeeds");
+        ticket.evidence_hash = "evidence_tampered".to_string();
+        let res = OvtCoordinator::verify_ticket(&ticket, "worker_secret_1", "reviewer_secret_2");
+        assert_eq!(res, Err(OvtError::InvalidWorkerSignature));
+    }
+
+    #[test]
+    fn test_goal_drift_detected_on_wrong_root_hash() {
+        let ticket = OvtCoordinator::generate_ticket(
+            "task_201",
+            "goal_hash_original",
+            "worker_01",
+            "worker_secret_1",
+            "reviewer_02",
+            "reviewer_secret_2",
+            "evidence_ok",
+            true,
+            1789000002,
+        )
+        .expect("generation succeeds");
+        // Verifier holding a different root goal hash sees a different worker payload.
+        let worker_payload = format!("{}:{}:{}:{}", ticket.task_id, ticket.worker_id, "goal_hash_drifted", ticket.evidence_hash);
+        assert!(!OvtCoordinator::verify_signature("worker_secret_1", &worker_payload, &ticket.worker_signature_hex));
+    }
 }

@@ -208,6 +208,17 @@ const TOOLS = [
     },
   },
   {
+    name: "kineti_talk",
+    description: "Talk to Kineti in plain words. No skill or command names needed. Handles spending, undo, proof, status, yes/no, on/off, and routes tasks. Always returns plain words plus numbered choices.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        message: { type: "string", description: "The user's plain words, e.g. 'how much have I spent?'" },
+      },
+      required: ["message"],
+    },
+  },
+  {
     name: "kineti_epistemic_eval",
     description: "Evaluate a candidate action against the 360º Human Model (Rule-Exception hierarchies, Epistemic certainty, and Safety ceilings).",
     inputSchema: {
@@ -359,6 +370,14 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
 
       case "kineti_egress_record": {
         const res = runBin("kineti-egress.ts", ["record", "--host", String(args.host), "--desc", String(args.desc)]);
+        return {
+          content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
+          isError: res.exitCode !== 0,
+        };
+      }
+
+      case "kineti_talk": {
+        const res = runBin("kineti-router.ts", [String(args.message || "")]);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
           isError: res.exitCode !== 0,

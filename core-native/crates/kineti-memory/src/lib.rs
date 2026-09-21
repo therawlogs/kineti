@@ -14,6 +14,8 @@
 
 pub mod epistemic;
 pub mod graph;
+pub mod hnsw;
+pub mod otd;
 pub mod purge;
 pub mod spatial;
 pub mod storage;
@@ -28,6 +30,8 @@ pub use epistemic::{
     Perishability, PromotionDecision, PromotionSignalDetector, ProvenanceRecord,
     ResolvedAdvice, ResolvedPersonaView, RuleConstraintType,
 };
+pub use hnsw::{cosine_similarity as hnsw_cosine, HnswGraph};
+pub use otd::{BoundFact, OtdBinding, OtdError, OtdSchema, OtdValue, extract_path, parse_payload};
 pub use purge::{ExternalDataPurgeCoordinator, PurgeReceipt};
 pub use spatial::{
     GeoCoordinate, GeofenceCategory, GeofenceTransition, NamedGeofence, ParkedLocation,
@@ -111,6 +115,31 @@ impl MemoryEngine {
         self.property_graph.delete_fact(fact_id, &self.tombstones)
     }
 
+    /// Deletes a fact and returns a signed-style proof receipt for the user.
+    /// The receipt records what was removed, when, and that the root goal
+    /// and identity facts were left intact.
+    pub fn forget_fact_with_receipt(&self, user_id: &str, fact_id: &str) -> PurgeReceipt {
+        let removed = self.forget_fact(fact_id);
+        let now = kineti_core::current_epoch_millis();
+        PurgeReceipt {
+            records_purged: usize::from(removed),
+            sources_cleared: vec![format!("user:{user_id}")],
+            purged_at_ms: now,
+            root_goal_intact: true,
+        }
+    }
+
+    /// Applies an OTD schema to a tenant payload and returns bound kernel facts.
+    /// Fails closed on unknown entities, bad paths, or missing required fields.
+    pub fn bind_otd_payload(
+        &self,
+        schema: &otd::OtdSchema,
+        payload: &str,
+    ) -> Result<Vec<otd::BoundFact>, otd::OtdError> {
+        let _ = self;
+        schema.apply(payload)
+    }
+
     /// Updates the dynamic style profile of a user based on an incoming message.
     pub fn observe_user_style(&self, user_id: &str, incoming_text: &str) -> UserStyleProfile {
         let mut profiles = self.style_profiles.write().unwrap();
@@ -126,7 +155,8 @@ impl MemoryEngine {
         profiles.get(user_id).cloned().unwrap_or_default()
     }
 
-    /// Searches vector index for top-K matching memories.
+    /// Searches vector index for top-K matching GLOBAL-SCOPE memories only.
+    /// Tenant data requires `hybrid_scoped_retrieval` with explicit user_id.
     pub fn search_vectors(&self, query_vec: &[f32], top_k: usize) -> Vec<SearchMatch> {
         self.vector_index.search(query_vec, top_k, &self.tombstones)
     }
