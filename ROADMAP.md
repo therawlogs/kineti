@@ -15,14 +15,14 @@ This replaces the old roadmap. No Jev. Kineti native only.
 4. `research/` 5 papers plus README. Keep.
 5. `tests/` core 10: harness, exec-safe, mcp, ci, companion, swarm, ui, apple_design, memory-job, adversarial_prompt_injection. Keep.
 6. `docs/` keep 5: README, TUTORIAL-first-run, HOWTO-daily-loop, SECURITY_REPORT, SWARM_COORDINATION_AND_IDENTITY. Keep.
-7. `web/index.html` one landing page. Keep.
+7. `public/waitlist.html` one landing page, the audited artifact. Keep.
 8. Completed in v4.0: 360 human model with scope isolation and certainty tiers, Safe Rust core, snapshots under 0.1 ms with 80 writers, 20-entity graph, spend stop at 50.00 with trip at 47.50, reflex triage under 1.0 ms, dual-signed tickets, WhatsApp and iMessage gateway, 500 attack vectors with 0 escapes, 83 Rust tests plus 82 TypeScript tests.
 
 ## What to clear up - low value or duplicate
 
 1. `docs/archive/` 2 old files - keep 1 zip only, out of main docs.
 2. `docs/AUDIT_REPORT.md` plus `ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md` plus `CANONICAL_ARCHITECTURE_PLAN.md` - merge to 1 `AUDIT.md` plus 1 `PLAN.md`.
-3. `public/waitlist.html` versus `web/index.html` - keep 1 only. Same landing twice.
+3. `public/waitlist.html` is the audited artifact referenced by audit evidence and the payload gate. `web/index.html` was a byte-identical duplicate, removed. `web/privacy.html` and `web/terms.html` stay as legal pages.
 4. `CLAUDE.md`, `CODEX.md`, `ETHOS.md`, `MEMORY.md`, `MIGRATION.md`, `WORKFLOWS.md`, `PROJECT.md` - merge to 1 `AGENTS.md` plus `README.md`.
 5. `bin/` extra 8: stripe, invite, schedule, epistemic, privacy, egress, swarm, memory-job - keep code, backend only. Remove from user docs.
 6. `skills/` 17 folders - backend only. No trigger words for user.

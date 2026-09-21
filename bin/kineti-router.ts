@@ -13,7 +13,7 @@ export type Intent =
   | "spend" | "undo" | "proof" | "status"
   | "approve_yes" | "approve_fix"
   | "kineti_on" | "kineti_off"
-  | "swarm_budget" | "swarm_save" | "model" | "forget" | "help" | "task";
+  | "swarm_budget" | "swarm_save" | "model" | "sync" | "forget" | "help" | "task";
 
 interface RouterReply {
   intent: Intent;
@@ -49,6 +49,7 @@ export function classifyIntent(raw: string): Intent {
   if (!t) return "help";
   // Model auto-switch phrases first: they contain on/off words of their own.
   if (/\bwhich model|best model|switch model|change model|faster model|stronger model|auto.switch|auto switch\b/.test(t)) return "model";
+  if (/\b(sync|sync my|export my|import my|other device|new phone|new laptop)\b/.test(t)) return "sync";
   // Swarm save phrases before spend: "share one budget" contains budget words.
   if (/\bshare one budget|shared? budgets?\b/.test(t)) return "swarm_save";
   if (/\bkineti\s+off\b|\bturn\s+off\b|\bswitch\s+off\b|\bpause\b|\bdisable\b/.test(t) && !/\bturn on\b/.test(t)) return "kineti_off";
@@ -226,8 +227,23 @@ function helpReply(): string {
   );
 }
 
-function forgetReply(userText: string): string {
-  const short = userText.slice(0, 160);
+function syncReply(): string {
+  const s = readJson<{ sync_enabled?: boolean }>(path.join(projectKdir(), "kineti.json"));
+  const on = s?.sync_enabled === true;
+  if (!on) {
+    return (
+      `Device sync is off. When on, your notes move between your devices in encrypted form. ` +
+      `Your goal is never overwritten by an import.\n` +
+      `Choices:\n1. Turn sync on.\n2. Keep it off.`
+    );
+  }
+  return (
+    `Device sync is on. Exports are passphrase-encrypted, imports merge notes and never touch your goal.\n` +
+    `Choices:\n1. Export my notes.\n2. Import on this device.\n3. Turn sync off.`
+  );
+}
+
+function forgetReply(userText: string): string {  const short = userText.slice(0, 160);
   return (
     `I will delete "${short}" everywhere: chat memory, vector index, and connected service caches. ` +
     `Your goal and identity stay. You get a written proof receipt with count and time.\n` +
@@ -287,6 +303,7 @@ export function route(raw: string): RouterReply {
     case "swarm_budget": return { intent, reply: swarmBudgetReply() };
     case "swarm_save": return { intent, reply: swarmSaveReply(raw) };
     case "model": return { intent, reply: modelReply(raw) };
+    case "sync": return { intent, reply: syncReply() };
     case "forget": return { intent, reply: forgetReply(raw) };
     case "help": return { intent, reply: helpReply() };
     case "task":
