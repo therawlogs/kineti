@@ -11,6 +11,7 @@ These tools manage state, safety, and testing. Run any tool with `bun bin/<name>
 | `kineti-audit` | Write-only hash-chained audit log for price changes and tamper tries |
 | `kineti-router` | Plain-talk intent router. No skill or command names needed |
 | `kineti-sync` | Encrypted multi-device notes sync. Off by default |
+| `kineti-pairing` | Cloud dashboard pairing codes. 10 min life, one use |
 | `kineti-verify-gate` | Prevents closing a session if checks fail |
 | `kineti-egress` | Logs outbound network requests with cryptographic hashes |
 | `kineti-companion` | Starts the local web dashboard for live monitoring |

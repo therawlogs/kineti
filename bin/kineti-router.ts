@@ -8,12 +8,13 @@ import path from "node:path";
 import { projectKdir, readJson, readJsonl, writeJson } from "./lib.ts";
 import { recommend, isAutoSwitch, setAutoSwitch } from "./kineti-models.ts";
 import { appendAudit } from "./kineti-audit.ts";
+import { livePairing, makePairing, minutesLeft, revokePairing, PAIR_LINK } from "./kineti-pairing.ts";
 
 export type Intent =
   | "spend" | "undo" | "proof" | "status"
   | "approve_yes" | "approve_fix"
   | "kineti_on" | "kineti_off"
-  | "swarm_budget" | "swarm_save" | "model" | "sync" | "forget" | "help" | "task";
+  | "swarm_budget" | "swarm_save" | "model" | "sync" | "dashboard" | "forget" | "help" | "task";
 
 interface RouterReply {
   intent: Intent;
@@ -49,6 +50,8 @@ export function classifyIntent(raw: string): Intent {
   if (!t) return "help";
   // Model auto-switch phrases first: they contain on/off words of their own.
   if (/\bwhich model|best model|switch model|change model|faster model|stronger model|auto.switch|auto switch\b/.test(t)) return "model";
+  if (/\brevoke cloud link|unmirror|drop cloud link|unlink device\b/.test(t)) return "dashboard";
+  if (/\bkineti.dashboard|ui dashboard|cloud link|pair device|pairing code|app\.getkineti\b/.test(t)) return "dashboard";
   if (/\b(sync|sync my|export my|import my|other device|new phone|new laptop)\b/.test(t)) return "sync";
   // Swarm save phrases before spend: "share one budget" contains budget words.
   if (/\bshare one budget|shared? budgets?\b/.test(t)) return "swarm_save";
@@ -243,7 +246,37 @@ function syncReply(): string {
   );
 }
 
-function forgetReply(userText: string): string {  const short = userText.slice(0, 160);
+function dashboardReply(userText: string): string {
+  const low = userText.toLowerCase();
+  if (/\brevoke|unmirror|drop|unlink\b/.test(low)) {
+    const had = revokePairing("user");
+    if (!had) return `There is no cloud link to drop. Local dashboard still works.\nChoices:\n1. Make a cloud link.\n2. Keep local only.`;
+    return `Cloud link dropped. Stored tokens deleted on this device.\nChoices:\n1. Make a new link.\n2. Keep local only.`;
+  }
+  const live = livePairing();
+  if (live) {
+    return (
+      `Your code is ${live.code}. Open ${PAIR_LINK} and log in with GitHub, then type the code. ` +
+      `Valid ${minutesLeft(live)} more min, one use, project ${live.project}.\n` +
+      `Choices:\n1. Make a fresh code.\n2. Drop the link.\n3. Keep local only.`
+    );
+  }
+  if (/\b(yes|make|create|generate)\b/.test(low)) {
+    const p = makePairing("user");
+    return (
+      `Your code is ${p.code}. Open ${PAIR_LINK} and log in with GitHub, then type the code. ` +
+      `Valid ${minutesLeft(p)} min, one use, project ${p.project}. Nothing mirrors until you approve that project too.\n` +
+      `Choices:\n1. Drop the link.\n2. Keep local only.`
+    );
+  }
+  return (
+    `Do you want a UI cloud link? The web dashboard then shows the same screens as here.\n` +
+    `Choices:\n1. Yes, make a cloud link.\n2. No, local only.`
+  );
+}
+
+function forgetReply(userText: string): string {
+  const short = userText.slice(0, 160);
   return (
     `I will delete "${short}" everywhere: chat memory, vector index, and connected service caches. ` +
     `Your goal and identity stay. You get a written proof receipt with count and time.\n` +
@@ -303,6 +336,7 @@ export function route(raw: string): RouterReply {
     case "swarm_budget": return { intent, reply: swarmBudgetReply() };
     case "swarm_save": return { intent, reply: swarmSaveReply(raw) };
     case "model": return { intent, reply: modelReply(raw) };
+    case "dashboard": return { intent, reply: dashboardReply(raw) };
     case "sync": return { intent, reply: syncReply() };
     case "forget": return { intent, reply: forgetReply(raw) };
     case "help": return { intent, reply: helpReply() };

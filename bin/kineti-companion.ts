@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso } from "./lib.ts";
+import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir } from "./lib.ts";
 import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
 import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
@@ -150,6 +150,58 @@ export function getMiniStatus() {
     enabled: !toggle || toggle.enabled !== false,
     pending_undo: pendingUndo,
   };
+}
+
+export interface ActivityRow {
+  at: string;
+  actor: string;
+  action: string;
+  detail: string;
+  hash: string;
+}
+
+/** View-only trail: audit log plus proof, spend, and undo events. Newest last. */
+export function getActivity(limit = 50): ActivityRow[] {
+  const rows: ActivityRow[] = [];
+  const n = Math.max(1, Math.min(200, limit));
+  try {
+    const chain = readJsonl<any>(path.join(machineDir(), "audit.log.jsonl")).slice(-n);
+    for (const e of chain) {
+      rows.push({
+        at: String(e.at || ""),
+        actor: String(e.actor || "unknown"),
+        action: String(e.action || "unknown"),
+        detail: String(e.detail || "").slice(0, 300),
+        hash: String(e.hash || "").slice(0, 12),
+      });
+    }
+  } catch { /* audit file may not exist yet */ }
+  try {
+    const proofs = readJsonl<any>(path.join(projectKdir(), "evidence.jsonl")).slice(-n);
+    for (const r of proofs) {
+      rows.push({
+        at: String(r.at || ""),
+        actor: "tests",
+        action: r.exit_code === 0 ? "proof.record" : "proof.failed",
+        detail: `${r.label || "check"}`.slice(0, 300),
+        hash: String(r.fingerprint || "").slice(0, 12),
+      });
+    }
+  } catch { /* no proofs yet */ }
+  try {
+    const spends = readJsonl<any>(path.join(projectKdir(), "spend.log.jsonl")).slice(-n);
+    for (const s of spends) {
+      rows.push({
+        at: String(s.at || ""),
+        actor: "spend",
+        action: "spend.log",
+        detail: `${s.stage || "?"} ${s.model || "?"} $${s.usd ?? "?"}`.slice(0, 300),
+        hash: "",
+      });
+    }
+  } catch { /* no spend log yet */ }
+  rows.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  return rows.slice(-n);
 }
 
 export function getFleetStatus() {
@@ -730,6 +782,7 @@ function generateSettingsHtml(): string {
         <button class="btn" onclick="quickTalk('Undo that')">Undo</button>
         <button class="btn" onclick="quickTalk('Did tests pass?')">Tests</button>
         <button class="btn" onclick="quickTalk('Where are we?')">Status</button>
+        <button class="btn" onclick="quickTalk('kineti-dashboard')">Cloud link</button>
       </div>
     </div>
 
@@ -2193,6 +2246,12 @@ export function startServer(port: number = PORT) {
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
+      }
+
+      // API: Activity trail, view-only. Merges audit, proof, and spend events.
+      if (url.pathname === "/api/activity") {
+        const n = Number(new URL(req.url).searchParams.get("n") || 50);
+        return Response.json({ activity: getActivity(n) }, { headers: corsHeaders });
       }
 
       // API: Fleet Repos
