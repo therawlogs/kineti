@@ -91,6 +91,12 @@ describe("kineti-router intent classification", () => {
     const off = route("turn auto switch off");
     expect(off.reply).toContain("Auto-switch is off");
   });
+  test("sync words route to sync with on/off choices", () => {
+    expect(classifyIntent("sync my devices")).toBe("sync");
+    const r = route("sync my devices");
+    expect(r.reply).toContain("Device sync is off");
+    expect(r.reply).toContain("Choices:");
+  });
   test("swarm budgets save from plain words with audit-safe store", () => {
     const r = route("separate budgets: coder 15, reviewer 10");
     expect(r.intent).toBe("swarm_save");

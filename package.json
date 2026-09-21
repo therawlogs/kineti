@@ -1,6 +1,6 @@
 {
   "name": "kineti",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "license": "Proprietary",
   "private": true,
   "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
