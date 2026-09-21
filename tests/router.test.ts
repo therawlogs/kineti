@@ -5,8 +5,10 @@ import { classifyIntent, route, setEnabled, isEnabled } from "../bin/kineti-rout
 
 const SWITCH_FILE = path.join(process.cwd(), ".kineti", "kineti.json");
 const SWARM_FILE = path.join(process.cwd(), ".kineti", "swarm.json");
+const PAIR_FILE = path.join(process.cwd(), ".kineti", "pairing.json");
 let backup: string | null = null;
 let swarmBackup: string | null = null;
+let pairBackup: string | null = null;
 let machineBackup: string | undefined;
 let tmpMachine: string = "";
 
@@ -19,6 +21,10 @@ beforeEach(() => {
     if (fs.existsSync(SWARM_FILE)) swarmBackup = fs.readFileSync(SWARM_FILE, "utf8");
     else swarmBackup = null;
   } catch { swarmBackup = null; }
+  try {
+    if (fs.existsSync(PAIR_FILE)) pairBackup = fs.readFileSync(PAIR_FILE, "utf8");
+    else pairBackup = null;
+  } catch { pairBackup = null; }
   // Keep test audit entries out of the real ~/.kineti log.
   machineBackup = process.env.KINETI_MACHINE_DIR;
   tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "kineti-test-"));
@@ -32,6 +38,8 @@ afterEach(() => {
     else fs.writeFileSync(SWITCH_FILE, backup);
     if (swarmBackup === null) fs.rmSync(SWARM_FILE, { force: true });
     else fs.writeFileSync(SWARM_FILE, swarmBackup);
+    if (pairBackup === null) fs.rmSync(PAIR_FILE, { force: true });
+    else fs.writeFileSync(PAIR_FILE, pairBackup);
     if (machineBackup === undefined) delete process.env.KINETI_MACHINE_DIR;
     else process.env.KINETI_MACHINE_DIR = machineBackup;
     fs.rmSync(tmpMachine, { recursive: true, force: true });
@@ -97,6 +105,21 @@ describe("kineti-router intent classification", () => {
     expect(r.reply).toContain("Device sync is off");
     expect(r.reply).toContain("Choices:");
   });
+  test("dashboard words ask first, yes makes a code", () => {
+    expect(classifyIntent("kineti-dashboard")).toBe("dashboard");
+    const ask = route("kineti-dashboard");
+    expect(ask.intent).toBe("dashboard");
+    expect(ask.reply).toContain("Do you want a UI cloud link?");
+    expect(ask.reply).toContain("Choices:");
+    const made = route("yes, make a cloud link");
+    expect(made.intent).toBe("dashboard");
+    expect(made.reply).toContain("KIN-");
+    expect(made.reply).toContain("app.getkineti.com/pair");
+    const again = route("kineti-dashboard");
+    expect(again.reply).toContain("Your code is");
+    const dropped = route("revoke cloud link");
+    expect(dropped.reply).toContain("dropped");
+  });
   test("swarm budgets save from plain words with audit-safe store", () => {
     const r = route("separate budgets: coder 15, reviewer 10");
     expect(r.intent).toBe("swarm_save");
@@ -129,7 +152,7 @@ describe("kineti-router replies stay plain", () => {
     expect(isEnabled()).toBe(true);
   });
   test("every reply offers numbered choices", () => {
-    for (const msg of ["where are we?", "did tests pass?", "undo that", "yes", "my idea: fix login", "which model fits?", "forget my diet"]) {
+    for (const msg of ["where are we?", "did tests pass?", "undo that", "yes", "my idea: fix login", "which model fits?", "forget my diet", "kineti-dashboard"]) {
       const r = route(msg);
       expect(r.reply).toContain("1.");
     }

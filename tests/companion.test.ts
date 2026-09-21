@@ -619,6 +619,36 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(json.reply).not.toContain("kineti-");
   });
 
+  test("POST /api/talk answers dashboard intent with cloud link prompt", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/api/talk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` },
+        body: JSON.stringify({ message: "kineti-dashboard" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.intent).toBe("dashboard");
+    expect(json.reply).toContain("Choices:");
+  });
+
+  test("GET /api/activity returns a view-only trail", async () => {
+    const denied = await server.fetch(new Request("http://localhost/api/activity"));
+    expect(denied.status).toBe(401);
+    const res = await server.fetch(
+      new Request("http://localhost/api/activity?n=10", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(Array.isArray(json.activity)).toBe(true);
+    for (const row of json.activity) {
+      expect(row.at).toBeDefined();
+      expect(row.actor).toBeDefined();
+      expect(row.action).toBeDefined();
+    }
+  });
+
   test("dashboard home tab is default, vault and invite are gone", async () => {
     const res = await server.fetch(
       new Request("http://localhost/", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
