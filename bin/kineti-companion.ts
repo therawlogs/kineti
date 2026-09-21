@@ -9,6 +9,7 @@ import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso
 import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
 import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
+import { route as routeTalk } from "./kineti-router.ts";
 
 const PORT = Number(process.env.KINETI_COMPANION_PORT || 8788);
 const REPO_ROOT = process.cwd();
@@ -659,11 +660,10 @@ function generateSettingsHtml(): string {
   <aside class="sidebar">
     <div class="brand">Kineti</div>
     <ul class="nav-list">
-      <li class="nav-item active" data-tab="workspace" onclick="switchTab('workspace', this)">Workspace</li>
-      <li class="nav-item" data-tab="vault" onclick="switchTab('vault', this)">Vault</li>
+      <li class="nav-item active" data-tab="home" onclick="switchTab('home', this)">Home</li>
+      <li class="nav-item" data-tab="workspace" onclick="switchTab('workspace', this)">Workspace</li>
       <li class="nav-item" data-tab="trusted" onclick="switchTab('trusted', this)">Trusted people</li>
       <li class="nav-item" data-tab="preferences" onclick="switchTab('preferences', this)">Preferences</li>
-      <li class="nav-item" onclick="openInviteModal()">Invite a friend</li>
       <li class="nav-item" onclick="handleLogout()" style="color: var(--text-secondary); margin-top: 14px;">Log out</li>
     </ul>
     <div class="user-footer">
@@ -674,8 +674,67 @@ function generateSettingsHtml(): string {
 
   <!-- Main Content -->
   <main class="main-content">
+    <!-- TAB 0: HOME -->
+    <div id="tab-home" class="tab-pane">
+      <h2 class="section-title">Home</h2>
+      <p class="section-desc">Just talk normal. Safety, spending, undo, and proof run in the background.</p>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Goal</div>
+          <div class="item-subtitle" id="home-goal">Loading…</div>
+        </div>
+        <div class="item-action">
+          <span class="item-subtitle" id="home-stage"></span>
+        </div>
+      </div>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Spending</div>
+          <div class="item-subtitle" id="home-spend">Loading…</div>
+        </div>
+      </div>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Undo available</div>
+          <div class="item-subtitle" id="home-undo">Loading…</div>
+        </div>
+      </div>
+
+      <div class="item-row" style="border: none;">
+        <div class="item-body">
+          <div class="item-title">Kineti</div>
+          <div class="item-subtitle" id="home-power-desc">All checks running</div>
+        </div>
+        <div class="item-action">
+          <label class="switch">
+            <input type="checkbox" id="toggle-power" checked onchange="togglePower(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <hr class="section-divider">
+
+      <h2 class="section-title">Talk</h2>
+      <p class="section-desc">Ask anything in plain words</p>
+      <div id="talk-log" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;"></div>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" id="talk-input" class="input-field" placeholder="How much have I spent?" onkeydown="if(event.key==='Enter')sendTalk()">
+        <button class="btn btn-primary" onclick="sendTalk()">Send</button>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+        <button class="btn" onclick="quickTalk('How much have I spent?')">Spending</button>
+        <button class="btn" onclick="quickTalk('Undo that')">Undo</button>
+        <button class="btn" onclick="quickTalk('Did tests pass?')">Tests</button>
+        <button class="btn" onclick="quickTalk('Where are we?')">Status</button>
+      </div>
+    </div>
+
     <!-- TAB 1: WORKSPACE -->
-    <div id="tab-workspace" class="tab-pane">
+    <div id="tab-workspace" class="tab-pane" style="display: none;">
       <h2 class="section-title">Contact</h2>
       <p class="section-desc">Ways to reach Kineti directly</p>
 
@@ -721,19 +780,6 @@ function generateSettingsHtml(): string {
 
       <hr class="section-divider">
 
-      <div class="vault-group-header">
-        <div>
-          <h2 class="section-title" style="margin: 0;">Connectors</h2>
-          <p class="section-desc" style="margin-bottom: 0;">Tools and services your Kineti agent can use</p>
-        </div>
-        <button class="btn btn-primary" onclick="openAddConnectorModal()">+ Add Connector</button>
-      </div>
-      <div id="connectors-list">
-        ${renderConnectorsHtml(companionSettings.connectors)}
-      </div>
-
-      <hr class="section-divider">
-
       <h2 class="section-title">Data privacy</h2>
       <p class="section-desc">Manage data from connected services</p>
       <div class="item-row" style="border: none;">
@@ -745,45 +791,6 @@ function generateSettingsHtml(): string {
           <button class="btn btn-danger" onclick="triggerPurge()">Delete data</button>
         </div>
       </div>
-    </div>
-
-    <!-- TAB 2: VAULT -->
-    <div id="tab-vault" class="tab-pane" style="display: none;">
-      <div class="vault-group-header">
-        <div>
-          <h2 class="vault-title">Logins</h2>
-          <p class="section-desc" style="margin-bottom: 0;">Web passwords and portal credentials</p>
-        </div>
-        <button class="btn btn-primary" onclick="openVaultModal('login')">+ Add Login</button>
-      </div>
-      <div id="vault-logins-list"></div>
-
-      <div class="vault-group-header" style="margin-top: 32px;">
-        <div>
-          <h2 class="vault-title">Cards</h2>
-          <p class="section-desc" style="margin-bottom: 0;">Payment methods and autonomous virtual cards</p>
-        </div>
-        <button class="btn btn-primary" onclick="openVaultModal('card')">+ Add Card</button>
-      </div>
-      <div id="vault-cards-list"></div>
-
-      <div class="vault-group-header" style="margin-top: 32px;">
-        <div>
-          <h2 class="vault-title">Personal info</h2>
-          <p class="section-desc" style="margin-bottom: 0;">Loyalty IDs, passport details, and travel preferences</p>
-        </div>
-        <button class="btn btn-primary" onclick="openVaultModal('personal')">+ Add Info</button>
-      </div>
-      <div id="vault-personal-list"></div>
-
-      <div class="vault-group-header" style="margin-top: 32px;">
-        <div>
-          <h2 class="vault-title">Authenticator (TOTP)</h2>
-          <p class="section-desc" style="margin-bottom: 0;">Time-based one-time password seeds for automated multi-factor authentication</p>
-        </div>
-        <button class="btn btn-primary" onclick="openVaultModal('totp')">+ Add Authenticator</button>
-      </div>
-      <div id="vault-totp-list"></div>
     </div>
 
     <!-- TAB 3: TRUSTED PEOPLE -->
@@ -958,21 +965,6 @@ function generateSettingsHtml(): string {
     </div>
   </div>
 
-  <!-- Invite Modal -->
-  <div id="modal-invite" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Invite a friend</h3>
-      <p class="modal-desc" id="invite-quota-desc">You have 3 of 3 invites remaining.</p>
-      <label class="input-label">Referral Link</label>
-      <input type="text" id="invite-url-input" class="input-field" readonly value="https://getkineti.com/join/user?code=kineti_invite">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-invite')">Done</button>
-        <button class="btn" onclick="generateNewInviteLink()">Generate New</button>
-        <button class="btn btn-primary" onclick="copyInviteLink()">Copy link</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Email Modal -->
   <div id="modal-email" class="modal-overlay">
     <div class="modal-card">
@@ -1094,7 +1086,68 @@ function generateSettingsHtml(): string {
         const item = document.querySelector('.nav-item[data-tab="' + tab + '"]');
         if (item) item.classList.add('active');
       }
+      if (tab === 'home') loadHome();
     }
+
+    function loadHome() {
+      fetch('/api/mini')
+        .then(r => r.json())
+        .then(m => {
+          document.getElementById('home-goal').innerText = m.goal || 'No goal locked yet';
+          document.getElementById('home-stage').innerText = 'Step ' + m.stage + ' of 13';
+          document.getElementById('home-spend').innerText = '$' + m.spend_total + ' of $' + m.ceiling + (m.tripped ? ' (stopped)' : ' used');
+          document.getElementById('home-undo').innerText = m.pending_undo === 0 ? 'Nothing to undo' : m.pending_undo + ' change(s) can be undone';
+          document.getElementById('toggle-power').checked = m.enabled !== false;
+          document.getElementById('home-power-desc').innerText = m.enabled !== false ? 'All checks running' : 'Paused';
+        })
+        .catch(() => {});
+    }
+
+    function togglePower(on) {
+      fetch('/api/power', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
+        .then(() => loadHome());
+    }
+
+    function appendTalk(who, text) {
+      const log = document.getElementById('talk-log');
+      const div = document.createElement('div');
+      div.style.cssText = 'padding: 10px 12px; border-radius: 10px; font-size: 13px; white-space: pre-wrap;';
+      if (who === 'you') {
+        div.style.background = '#0071e3';
+        div.style.color = '#fff';
+        div.style.alignSelf = 'flex-end';
+        div.style.maxWidth = '85%';
+      } else {
+        div.style.background = '#f5f5f7';
+        div.style.color = '#1d1d1f';
+        div.style.alignSelf = 'flex-start';
+        div.style.maxWidth = '95%';
+      }
+      div.innerText = text;
+      log.appendChild(div);
+    }
+
+    function sendTalk() {
+      const input = document.getElementById('talk-input');
+      const msg = input.value.trim();
+      if (!msg) return;
+      input.value = '';
+      appendTalk('you', msg);
+      fetch('/api/talk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg }) })
+        .then(r => r.json())
+        .then(d => {
+          appendTalk('kineti', d.reply || 'No reply');
+          loadHome();
+        })
+        .catch(() => appendTalk('kineti', 'Could not reach Kineti.'));
+    }
+
+    function quickTalk(msg) {
+      document.getElementById('talk-input').value = msg;
+      sendTalk();
+    }
+
+    document.addEventListener('DOMContentLoaded', loadHome);
 
     function openVaultModal(type) {
       if (type === 'login') document.getElementById('modal-add-login').classList.add('open');
@@ -2124,6 +2177,19 @@ export function startServer(port: number = PORT) {
             appendAudit("dashboard-user", on ? "kineti.on" : "kineti.off", "power toggled from dashboard");
           } catch { /* audit must never block toggle */ }
           return Response.json({ success: true, enabled: on }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Plain talk. No skill or command names needed.
+      if (url.pathname === "/api/talk" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const message = String(body.message || "").slice(0, 2000);
+          if (!message.trim()) return new Response("Missing message", { status: 400, headers: corsHeaders });
+          const r = routeTalk(message);
+          return Response.json({ intent: r.intent, reply: r.reply }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
