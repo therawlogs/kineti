@@ -570,6 +570,67 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     );
     expect(unblkRes.status).toBe(200);
   });
+
+  test("GET /api/mini returns spend, goal, undo, and power state", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/api/mini", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.ceiling).toBe(50);
+    expect(json.enabled).toBe(true);
+    expect(json.pending_undo).toBeGreaterThanOrEqual(0);
+  });
+
+  test("POST /api/power toggles Kineti off and back on", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const switchFile = path.join(process.cwd(), ".kineti", "kineti.json");
+    const hadSwitch = fs.existsSync(switchFile);
+    const off = await server.fetch(
+      new Request("http://localhost/api/power", { method: "POST", headers: authHeaders, body: JSON.stringify({ on: false }) }),
+    );
+    expect(off.status).toBe(200);
+    expect(((await off.json()) as any).enabled).toBe(false);
+    const mini = (await (await server.fetch(
+      new Request("http://localhost/api/mini", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    )).json()) as any;
+    expect(mini.enabled).toBe(false);
+    const on = await server.fetch(
+      new Request("http://localhost/api/power", { method: "POST", headers: authHeaders, body: JSON.stringify({ on: true }) }),
+    );
+    expect(((await on.json()) as any).enabled).toBe(true);
+    if (!hadSwitch) fs.rmSync(switchFile, { force: true });
+  });
+
+  test("POST /api/talk answers in plain words with choices", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/api/talk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` },
+        body: JSON.stringify({ message: "how much have I spent?" }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const json = (await res.json()) as any;
+    expect(json.intent).toBe("spend");
+    expect(json.reply).toContain("Choices:");
+    expect(json.reply).not.toContain("kineti-");
+  });
+
+  test("dashboard home tab is default, vault and invite are gone", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
+    const html = await res.text();
+    expect(html).toContain('data-tab="home"');
+    expect(html).toContain('id="talk-input"');
+    expect(html).toContain('id="toggle-power"');
+    expect(html).not.toContain('data-tab="vault"');
+    expect(html).not.toContain("Invite a friend");
+    expect(html).not.toContain('id="connectors-list"');
+  });
 });
 
 
