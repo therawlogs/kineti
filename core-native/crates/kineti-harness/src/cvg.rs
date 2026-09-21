@@ -147,4 +147,51 @@ mod tests {
         // Due to db_users having 0.4 loss * 2.5 = 1.0 downside, DNTI should reflect Kahneman-Tversky aversion
         assert!(report.dnti < 0.3);
     }
+
+    #[test]
+    fn test_high_loss_action_requires_human_approval() {
+        let mut graph = CausalValueGraph::new();
+        graph.insert_node(ValueNode {
+            id: "payments".to_string(),
+            weight: 1.0,
+            expected_gain: 0.1,
+            expected_loss: 0.9,
+            dependencies: vec!["ledger".to_string()],
+        });
+        graph.insert_node(ValueNode {
+            id: "ledger".to_string(),
+            weight: 1.0,
+            expected_gain: 0.0,
+            expected_loss: 0.8,
+            dependencies: vec![],
+        });
+        let report = graph.evaluate_impact("payments", DEFAULT_LOSS_AVERSION_KAPPA);
+        assert!(report.dnti < 0.0);
+        assert!(report.requires_human_approval);
+    }
+
+    #[test]
+    fn test_empty_graph_needs_no_approval() {
+        let graph = CausalValueGraph::new();
+        let report = graph.evaluate_impact("ghost", DEFAULT_LOSS_AVERSION_KAPPA);
+        assert_eq!(report.affected_node_count, 1);
+        assert_eq!(report.total_weight, 0.0);
+        assert!(!report.requires_human_approval);
+    }
+
+    #[test]
+    fn test_blast_radius_stops_at_visited_nodes() {
+        let mut graph = CausalValueGraph::new();
+        for id in ["a", "b", "c"] {
+            graph.insert_node(ValueNode {
+                id: id.to_string(),
+                weight: 0.5,
+                expected_gain: 0.5,
+                expected_loss: 0.0,
+                dependencies: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            });
+        }
+        let radius = graph.compute_blast_radius("a");
+        assert_eq!(radius.len(), 3);
+    }
 }

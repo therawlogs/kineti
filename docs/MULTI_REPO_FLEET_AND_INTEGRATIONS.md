@@ -106,11 +106,11 @@ Returns the list of all repositories in the fleet, total fleet spending, and set
 **Response Example (local-only defaults):**
 ```json
 {
-  "active_repo_id": "kineti-local-harness",
+  "active_repo_id": "kineti",
   "repos": [
     {
-      "id": "kineti-local-harness",
-      "name": "kineti-local-harness",
+      "id": "kineti",
+      "name": "kineti",
       "path": "/path/to/kineti",
       "owner": "Local Owner",
       "branch": "main",
@@ -135,7 +135,7 @@ Switches the active repository displayed on the main dashboard. Requires `Author
 **Request Body:**
 ```json
 {
-  "repo_id": "kineti-local-harness"
+  "repo_id": "kineti"
 }
 ```
 
@@ -143,7 +143,7 @@ Switches the active repository displayed on the main dashboard. Requires `Author
 ```json
 {
   "success": true,
-  "active_repo_id": "kineti-local-harness"
+  "active_repo_id": "kineti"
 }
 ```
 
@@ -157,6 +157,6 @@ Updates settings, repository owners, or budget ceilings. Requires `Authorization
 ```json
 {
   "ides": { "cursor": true, "claude_code": true },
-  "repo_budgets": { "kineti-local-harness": 60.0 }
+  "repo_budgets": { "kineti": 60.0 }
 }
 ```

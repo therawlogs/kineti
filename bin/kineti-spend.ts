@@ -90,7 +90,7 @@ function stageLimit(limits: ReturnType<typeof loadLimits>, stage: string): numbe
   return limits.perStage[stage] ?? limits.perStageDefaultUsd;
 }
 
-function main() {
+async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   const limits = loadLimits();
   const s = load();
@@ -175,8 +175,13 @@ function main() {
 
   if (cmd === "reset") {
     if (!rest.includes("--i-am-human")) die("reset requires --i-am-human (breakers are human-only)", 2);
+    const actor = process.env.USER || process.env.LOGNAME || "human";
     s.tripped = false; s.reason = null;
     writeJson(file(), s);
+    try {
+      const { appendAudit } = await import("./kineti-audit.ts");
+      appendAudit(actor, "spend.reset", `breaker reset by human; total $${s.total_usd}`);
+    } catch { /* audit must never block reset */ }
     ok("breaker reset by human");
     return;
   }
@@ -196,4 +201,4 @@ function trip(s: SpendState, reason: string): never {
 
 function round(n: number): number { return Math.round(n * 1e4) / 1e4; }
 
-main();
+void main();

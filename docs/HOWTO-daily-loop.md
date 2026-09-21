@@ -1,92 +1,50 @@
 # Daily and Weekly Guide
 
-This guide shows how to run and maintain Kineti.
+You do not need commands. Talk normal. Kineti routes everything itself.
 
-## Start a New Task or Project
+## Start anything
 
-1. Open your project folder:
-   ```sh
-   cd <project-folder>
-   ```
-2. In your agent session, tell the agent what you want to do:
-   - For a direct task: `Fix the login bug in auth.ts` or `Refactor database queries`
-   - For a full project: `Load kineti-officehours. My idea: ...`
+Open your project chat and say what you want:
+- "Fix the login bug."
+- "I want to add dark mode."
+- "Where are we on the shop revamp?"
 
-You can start at any step or follow the full sequence:
-`officehours` → `diagnose` → `design` → `architecture` → `feasibility` → `spec` → `build` → `review` → `qa` → `security` → `ship` → `watch` → `retro`.
+Kineti picks the right step on its own. Skills and tools run in the background.
+You never need their names.
 
-## Resume Saved Work
+## Useful things to say
 
-The current state is saved in `<project>/.kineti/state.json`.
+- "How much have I spent?" - spending so far and what is left.
+- "My limit is twenty dollars." - set a lower cap in plain words.
+- "Undo that." - show what can be undone, newest first.
+- "Did tests pass?" - last check result and proof state.
+- "Where are we?" - goal plus current step of 13.
+- "Yes" or "go ahead" - approve and move on.
+- "Change X" or "fix Y" - ask for a fix, nothing is final until you say yes.
+- "Kineti off" and "Kineti on" - pause and resume all checks.
+- "We have a team here." - Kineti offers separate budgets per helper.
 
-Ask the agent:
-> Read .kineti/state.json and tell me the current state and next step.
+## Teams
 
-## Check Money Spent
+If more than one helper works here, Kineti asks:
+> I see a team here. Do you want separate budgets?
 
-Check the current cost (use `check` to enforce the cap; `status` is view-only):
-```sh
-bun "$(cat "$HOME/.kineti/repo")/bin/kineti-spend.ts" check
-```
+Say yes and give numbers in plain words, or say no to share one budget.
 
-Limits: $50 global, $10 per stage, breaker trips at 95% (~$47.50). If tripped, the run stops. Only a human can reset it:
-```sh
-bun "$(cat "$HOME/.kineti/repo")/bin/kineti-spend.ts" reset --i-am-human
-```
+## Weekly
 
-## Undo Changes
+Once a week say "run the weekly check". Kineti:
+1. Marks old notes as expired.
+2. Checks history was not changed.
+3. Checks timestamps are in real order.
+4. Lists words worth keeping.
 
-To undo changes from a run:
-```sh
-bun "$(cat ~/.kineti/repo)/bin/kineti-saga.ts" rollback --run-id <id>
-```
+## Memory
 
-Undo steps run newest first. If one undo step fails, the remaining steps still run.
+Ask "what do you remember about X" and Kineti answers from saved notes.
+Say "forget X" and Kineti deletes it everywhere and shows proof.
 
-## Verify Tests Before Shipping
+## Removing Kineti
 
-Run tests and save proof:
-```sh
-KIN="$(cat "$HOME/.kineti/repo")/bin"
-bun "$KIN/kineti-evidence.ts" run --label qa -- bun test
-bun "$KIN/kineti-evidence.ts" check --label qa
-```
-
-Shipping requires recent passing test proof. Ship is blocked until `security` gate is `pass` and evidence is fresh.
-
-## Weekly Maintenance
-
-Run the weekly check (colon-separated list, quoted for spaces in paths):
-```sh
-KINETI_PROJECTS="$HOME/projects/a:$HOME/projects/b" \
-  "$(cat "$HOME/.kineti/repo")/scripts/weekly.sh"
-```
-
-This script:
-1. Marks old records as expired.
-2. Checks that history records were not changed.
-3. Checks that timestamps follow real order.
-4. Lists frequently used words to save.
-
-## Search Saved Memory
-
-With gbrain active:
-> What do you remember about <topic>?
-
-In the terminal:
-```sh
-gbrain search "<topic>"
-```
-
-## Track a New Project
-
-Run any task in the project. Kineti creates `.kineti/journal.jsonl` automatically.
-
-## Uninstall Kineti
-
-To remove Kineti from your computer:
-```sh
-cd <kineti-repo> && ./setup.sh --uninstall
-```
-
-This removes only Kineti files. Saved notes in `~/.gbrain` stay intact.
+Say "remove Kineti" or run the uninstaller. Only Kineti files go away.
+Your saved notes stay unless you say "forget everything".

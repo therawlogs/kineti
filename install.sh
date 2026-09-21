@@ -22,8 +22,18 @@ fi
 
 echo "kineti: download $URL"
 TMP="$(mktemp)"
-# Require HTTPS, retry once. No checksum yet — verify release notes if paranoid.
+# Require HTTPS, retry once.
 curl --proto '=https' --tlsv1.2 -fsSL --retry 2 "$URL" -o "$TMP"
+# Optional checksum: set KINETI_SHA256 to the expected hex digest to verify.
+if [ -n "${KINETI_SHA256:-}" ]; then
+  if command -v shasum >/dev/null 2>&1; then GOT="$(shasum -a 256 "$TMP" | awk '{print $1}')";
+  elif command -v sha256sum >/dev/null 2>&1; then GOT="$(sha256sum "$TMP" | awk '{print $1}')";
+  else echo "kineti: cannot verify checksum (no shasum/sha256sum)"; exit 1; fi
+  if [ "$GOT" != "$KINETI_SHA256" ]; then echo "kineti: checksum mismatch, refusing install"; rm -f "$TMP"; exit 1; fi
+  echo "kineti: checksum ok"
+else
+  echo "kineti: no KINETI_SHA256 set, skipping checksum. Verify release notes over the same connection."
+fi
 chmod +x "$TMP"
 
 # bun is required for bin/*.ts skills even with the binary install.
