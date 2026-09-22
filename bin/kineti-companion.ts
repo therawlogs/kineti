@@ -1107,6 +1107,45 @@ function generateSettingsHtml(): string {
 
       <hr class="section-divider">
 
+      <h2 class="section-title">Cloud link</h2>
+      <p class="section-desc">Same screens on the web. Local only until you make a code.</p>
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Pairing code</div>
+          <div class="item-subtitle" id="cloud-code-state">Loading…</div>
+        </div>
+        <div class="item-action">
+          <button class="btn btn-primary" onclick="makePairingCode()">Make code</button>
+          <button class="btn btn-danger" onclick="dropCloudLink()">Drop link</button>
+        </div>
+      </div>
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Mirror this project to cloud</div>
+          <div class="item-subtitle">Ciphertext only. Files and vault secrets never leave this device. Journal notes excluded unless you include them.</div>
+        </div>
+        <div class="item-action">
+          <label class="switch">
+            <input type="checkbox" id="toggle-mirror" onchange="toggleMirror(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div class="item-row" style="border: none;">
+        <div class="item-body">
+          <div class="item-title">Include journal notes in mirror</div>
+          <div class="item-subtitle">Off by default. Per project.</div>
+        </div>
+        <div class="item-action">
+          <label class="switch">
+            <input type="checkbox" id="toggle-mirror-notes" onchange="toggleMirrorNotes(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <hr class="section-divider">
+
       <h2 class="section-title" style="color: var(--danger);">Danger zone</h2>
       <p class="section-desc">One danger zone at the bottom.</p>
       <div class="item-row">
@@ -1507,6 +1546,7 @@ function generateSettingsHtml(): string {
           if (t3) t3.checked = s.enabled === true;
         })
         .catch(() => {});
+      loadCloudPanel();
     }
 
     function toggleSync(on) {
@@ -1543,8 +1583,53 @@ function generateSettingsHtml(): string {
         });
     }
 
-    function approveMesh(id) {
-      fetch('/api/mesh/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: id, tier: 'colleague' }) })
+    function loadCloudPanel() {
+      fetch('/api/pairing')
+        .then(r => r.json())
+        .then(p => {
+          const el = document.getElementById('cloud-code-state');
+          if (el) {
+            el.innerText = p.live
+              ? p.code + ' — open ' + p.link + ', ' + p.minutes_left + ' min left, one use, project ' + p.project
+              : 'Local only. Make a code when you need a web link.';
+          }
+        })
+        .catch(() => {});
+      fetch('/api/mirror')
+        .then(r => r.json())
+        .then(m => {
+          const t = document.getElementById('toggle-mirror');
+          if (t) t.checked = m.enabled === true;
+          const n = document.getElementById('toggle-mirror-notes');
+          if (n) n.checked = m.note_sync === true;
+        })
+        .catch(() => {});
+    }
+
+    function makePairingCode() {
+      fetch('/api/pairing', { method: 'POST' })
+        .then(() => { loadCloudPanel(); showToast('Code made. Valid 10 min, one use.'); });
+    }
+
+    function dropCloudLink() {
+      if (!confirm('Drop the cloud link? Stored tokens are deleted on this device.')) return;
+      fetch('/api/pairing/drop', { method: 'POST' })
+        .then(() => { loadCloudPanel(); showToast('Cloud link dropped'); });
+    }
+
+    function toggleMirror(on) {
+      const notes = (document.getElementById('toggle-mirror-notes') || {}).checked === true;
+      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: on, note_sync: notes }) })
+        .then(() => { loadCloudPanel(); showToast(on ? 'Mirror on for this project' : 'Mirror off'); });
+    }
+
+    function toggleMirrorNotes(on) {
+      const enabled = (document.getElementById('toggle-mirror') || {}).checked === true;
+      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, note_sync: on }) })
+        .then(() => { loadCloudPanel(); showToast(on ? 'Journal notes included' : 'Journal notes excluded'); });
+    }
+
+    function approveMesh(id) {      fetch('/api/mesh/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: id, tier: 'colleague' }) })
         .then(() => { refreshMeshUI(); showToast('Approved'); });
     }
 
@@ -2733,6 +2818,65 @@ export function startServer(port: number = PORT) {
           return Response.json({ success: true, auto_switch: body.on }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Cloud link pairing. Local half only: make, show, drop. No server yet.
+      if (url.pathname === "/api/pairing") {
+        const { livePairing, makePairing, minutesLeft, PAIR_LINK } = await import("./kineti-pairing.ts");
+        if (req.method === "GET") {
+          const live = livePairing();
+          return Response.json(
+            live
+              ? { live: true, code: live.code, link: PAIR_LINK, minutes_left: minutesLeft(live), project: live.project }
+              : { live: false, code: null, link: PAIR_LINK, minutes_left: 0, project: null },
+            { headers: corsHeaders },
+          );
+        }
+        if (req.method === "POST") {
+          const p = makePairing("dashboard-user");
+          return Response.json(
+            { live: true, code: p.code, link: PAIR_LINK, minutes_left: minutesLeft(p), project: p.project },
+            { headers: corsHeaders },
+          );
+        }
+      }
+
+      // API: Cloud link claim (local simulation until the server lands) and drop.
+      if (url.pathname === "/api/pairing/claim" && req.method === "POST") {
+        const { claimPairing } = await import("./kineti-pairing.ts");
+        const c = claimPairing("dashboard-user");
+        if (!c) return new Response("No live code to claim", { status: 409, headers: corsHeaders });
+        return Response.json({ success: true, linked_at: c.linked_at, project: c.project }, { headers: corsHeaders });
+      }
+
+      if (url.pathname === "/api/pairing/drop" && req.method === "POST") {
+        const { dropLink } = await import("./kineti-pairing.ts");
+        const d = dropLink("dashboard-user");
+        return Response.json({ success: true, ...d }, { headers: corsHeaders });
+      }
+
+      // API: Cloud token store state. Never exposes token values.
+      if (url.pathname === "/api/cloud" && req.method === "GET") {
+        const { cloudStatus } = await import("./kineti-pairing.ts");
+        return Response.json(cloudStatus(), { headers: corsHeaders });
+      }
+
+      // API: Per-project mirror consent. Journal notes excluded by default.
+      if (url.pathname === "/api/mirror") {
+        const { getMirror, setMirror } = await import("./kineti-pairing.ts");
+        if (req.method === "GET") {
+          return Response.json(getMirror(), { headers: corsHeaders });
+        }
+        if (req.method === "POST") {
+          try {
+            const body = (await req.json()) as any;
+            if (typeof body.enabled !== "boolean") return new Response("Bad Request", { status: 400, headers: corsHeaders });
+            const noteSync = body.note_sync === true;
+            return Response.json(setMirror(body.enabled, noteSync, "dashboard-user"), { headers: corsHeaders });
+          } catch {
+            return new Response("Bad Request", { status: 400, headers: corsHeaders });
+          }
         }
       }
 
