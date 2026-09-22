@@ -121,13 +121,6 @@ kineti/
 │   ├── SECURITY_REPORT.md                   # Security Audit & Origin Gating Analysis
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md   # Multi-Agent Swarm Topology & OVTs
 │   └── archive/                             # Archived historical notes
-├── research/                                # Context Integrity Layer Research Series (Author: Praveen Kumar, therawlogs.com)
-│   ├── README.md                            # Series Overview & Mathematical Foundations
-│   ├── paper_1_autonomous_nervous_system.md # 13-Stage Software Factory & SAGA Undo
-│   ├── paper_2_physics_of_context.md        # The Physics of Context: Memory Bandwidth, 100× Move Penalty, Lock-Free Atomics
-│   ├── paper_3_beyond_vector_search.md      # Beyond Vector Search: Causal-Graph Substrates & Runtime OTD
-│   ├── paper_4_sensory_reflex_and_style.md  # The Reflexive Cerebellum: Sub-1ms Sensory Triage & Style Profiling
-│   └── paper_5_outcome_engineering.md       # Outcome Engineering: Causal Value Graphs & Frontier Benchmarks
 ├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (139+ tests)
 └── kineti.config.json                       # Core System Configuration
 ```

@@ -14,13 +14,7 @@
   - `bin/`: CLI command routers, `kineti-state.ts` (13 stages), `kineti-spend.ts` ($50 global / $10 stage limit), `kineti-saga.ts` (LIFO undo stack), `kineti-evidence.ts` (cryptographic test proofs), `kineti-verify-gate.ts`, `kineti-companion.ts` (local dashboard, <12 KB gzipped payload, Apple HIG tokens).
   - `src/`: UI components, Apple design tokens, swarm coordinator (`coordinator.ts`) with Ed25519 OVT signing protocol.
   - `tests/`: 10 test suites with 82 automated governance tests (including 500-vector adversarial prompt injection suite).
-- **Foundational Research Series (`research/`)**:
-  - `paper_1_autonomous_nervous_system.md`: 13-stage software factory, SAGA LIFO undo ledger, cryptographic evidence binding.
-  - `paper_2_physics_of_context.md`: The Physics of Context (100x move penalty, EBR atomics, zero torn reads).
-  - `paper_3_beyond_vector_search.md`: Beyond Vector Search (20-entity active kernel, causal graph substrate, O(1) tombstones).
-  - `paper_4_sensory_reflex_and_style.md`: Sensory reflex and style (sub-1ms triage, emoji reactions, 5-dim persona profile).
-  - `paper_5_outcome_engineering.md`: Outcome Engineering (CVG, Ed25519 dual-signed OVTs, DNTI, $/outcome economics, $50 spend breaker).
-  - `README.md`: Research series synthesis.
+- **Foundational Research Series**: removed from the tree. Will be re-added when ready.
 
 ## Feature Inventory
 | # | Feature | Description | Milestone | Source |
@@ -74,13 +68,6 @@
 
 ## Code Layout
 ```
-research/
-├── README.md                                (Research series synthesis)
-├── paper_1_autonomous_nervous_system.md     (13-stage software factory, SAGA LIFO, evidence binding)
-├── paper_2_physics_of_context.md            (100x move penalty, EBR atomics, zero torn reads)
-├── paper_3_beyond_vector_search.md          (20-entity active kernel, causal graph, tombstones)
-├── paper_4_sensory_reflex_and_style.md      (Sub-1ms sensory triage, emoji reactions, style profiling)
-└── paper_5_outcome_engineering.md           (CVG, Ed25519 OVTs, DNTI, $/outcome economics, spend breaker)
 
 core-native/
 ├── Cargo.toml                               (Workspace manifest: 7 active member crates)
