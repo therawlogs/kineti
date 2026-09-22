@@ -661,6 +661,96 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(html).not.toContain("Invite a friend");
     expect(html).not.toContain('id="connectors-list"');
   });
+
+  test("dashboard has Activity, Team, Settings tabs plus Cloud link panel", async () => {
+    const res = await server.fetch(
+      new Request("http://localhost/", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+    );
+    const html = await res.text();
+    expect(html).toContain('data-tab="activity"');
+    expect(html).toContain('data-tab="team"');
+    expect(html).toContain('data-tab="settings"');
+    expect(html).toContain('id="activity-rows"');
+    expect(html).toContain('id="team-agents-list"');
+    expect(html).toContain('id="cloud-code-state"');
+    expect(html).toContain('id="toggle-mirror"');
+    expect(html).toContain('id="forget-receipt"');
+    expect(html).toContain('id="home-proof"');
+  });
+
+  test("pairing, cloud, and mirror endpoints need token", async () => {
+    for (const p of ["/api/pairing", "/api/cloud", "/api/mirror"]) {
+      const denied = await server.fetch(new Request("http://localhost" + p));
+      expect(denied.status).toBe(401);
+    }
+  });
+
+  test("pairing make, cloud state, mirror toggle, and drop", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const os = await import("node:os");
+    const auth = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const pairFile = path.join(process.cwd(), ".kineti", "pairing.json");
+    const mirrorFile = path.join(process.cwd(), ".kineti", "mirror.json");
+    const hadPair = fs.existsSync(pairFile) ? fs.readFileSync(pairFile, "utf8") : null;
+    const hadMirror = fs.existsSync(mirrorFile) ? fs.readFileSync(mirrorFile, "utf8") : null;
+    const machineBackup = process.env.KINETI_MACHINE_DIR;
+    const tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "kineti-cloud-"));
+    process.env.KINETI_MACHINE_DIR = tmpMachine;
+    try {
+      const made = (await (await server.fetch(
+        new Request("http://localhost/api/pairing", { method: "POST", headers: auth }),
+      )).json()) as any;
+      expect(made.live).toBe(true);
+      expect(made.code).toMatch(/^KIN-/);
+
+      const status = (await (await server.fetch(
+        new Request("http://localhost/api/pairing", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+      )).json()) as any;
+      expect(status.code).toBe(made.code);
+      expect(status.minutes_left).toBeGreaterThan(0);
+
+      const cloud = (await (await server.fetch(
+        new Request("http://localhost/api/cloud", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+      )).json()) as any;
+      expect(cloud.linked).toBe(false);
+      expect(JSON.stringify(cloud)).not.toContain("access_token");
+
+      const mirror0 = (await (await server.fetch(
+        new Request("http://localhost/api/mirror", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+      )).json()) as any;
+      expect(mirror0.enabled).toBe(false);
+      expect(mirror0.note_sync).toBe(false);
+
+      const bad = await server.fetch(
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: "yes" }) }),
+      );
+      expect(bad.status).toBe(400);
+
+      const mirror1 = (await (await server.fetch(
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: true, note_sync: false }) }),
+      )).json()) as any;
+      expect(mirror1.enabled).toBe(true);
+      expect(mirror1.note_sync).toBe(false);
+
+      const dropped = (await (await server.fetch(
+        new Request("http://localhost/api/pairing/drop", { method: "POST", headers: auth }),
+      )).json()) as any;
+      expect(dropped.success).toBe(true);
+      const gone = (await (await server.fetch(
+        new Request("http://localhost/api/pairing", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+      )).json()) as any;
+      expect(gone.live).toBe(false);
+    } finally {
+      if (hadPair === null) fs.rmSync(pairFile, { force: true });
+      else fs.writeFileSync(pairFile, hadPair);
+      if (hadMirror === null) fs.rmSync(mirrorFile, { force: true });
+      else fs.writeFileSync(mirrorFile, hadMirror);
+      if (machineBackup === undefined) delete process.env.KINETI_MACHINE_DIR;
+      else process.env.KINETI_MACHINE_DIR = machineBackup;
+      fs.rmSync(tmpMachine, { recursive: true, force: true });
+    }
+  });
 });
 
 

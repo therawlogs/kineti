@@ -3,9 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   livePairing, makeCode, makePairing, markUsed, minutesLeft, revokePairing, PAIR_TTL_MS,
+  claimPairing, cloudStatus, dropLink, pollPairing, getMirror, setMirror,
 } from "../bin/kineti-pairing.ts";
 
 const PAIR_FILE = path.join(process.cwd(), ".kineti", "pairing.json");
+const MIRROR_FILE = path.join(process.cwd(), ".kineti", "mirror.json");
 let backup: string | null = null;
 let machineBackup: string | undefined;
 let tmpMachine = "";
@@ -68,5 +70,53 @@ describe("kineti-pairing cloud link codes", () => {
     expect(revokePairing("pair-test")).toBe(true);
     expect(livePairing()).toBeNull();
     expect(fs.existsSync(PAIR_FILE)).toBe(false);
+  });
+
+  test("claim stores owner-only tokens and uses the code once", () => {
+    makePairing("pair-test");
+    const c = claimPairing("pair-test");
+    expect(c?.project).toBe("kineti");
+    expect(livePairing()).toBeNull();
+    expect(claimPairing("pair-test")).toBeNull();
+    const st = cloudStatus();
+    expect(st.linked).toBe(true);
+    expect(JSON.stringify(st)).not.toContain("access_token");
+    const mode = fs.statSync(path.join(tmpMachine, "cloud.json")).mode & 0o777;
+    expect(mode).toBe(0o600);
+  });
+
+  test("drop removes pairing plus tokens on this device", () => {
+    makePairing("pair-test");
+    claimPairing("pair-test");
+    const d = dropLink("pair-test");
+    expect(d.hadPairing).toBe(true);
+    expect(d.hadCloud).toBe(true);
+    expect(cloudStatus().linked).toBe(false);
+    expect(fs.existsSync(PAIR_FILE)).toBe(false);
+    const again = dropLink("pair-test");
+    expect(again.hadPairing).toBe(false);
+    expect(again.hadCloud).toBe(false);
+  });
+
+  test("poll ends used, expired, or timeout", async () => {
+    expect(await pollPairing(1000, 250)).toEqual({ outcome: "expired" });
+    makePairing("pair-test");
+    expect(await pollPairing(1000, 250)).toEqual({ outcome: "timeout" });
+    markUsed("cloud");
+    expect(await pollPairing(5000, 250)).toEqual({ outcome: "used" });
+  });
+
+  test("mirror is off with notes excluded by default", () => {
+    try { fs.rmSync(MIRROR_FILE, { force: true }); } catch {}
+    const m = getMirror();
+    expect(m.enabled).toBe(false);
+    expect(m.note_sync).toBe(false);
+    const on = setMirror(true, false, "pair-test");
+    expect(on.enabled).toBe(true);
+    expect(on.note_sync).toBe(false);
+    const notes = setMirror(true, true, "pair-test");
+    expect(notes.note_sync).toBe(true);
+    setMirror(false, false, "pair-test");
+    try { fs.rmSync(MIRROR_FILE, { force: true }); } catch {}
   });
 });
