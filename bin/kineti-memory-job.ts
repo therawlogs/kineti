@@ -154,7 +154,7 @@ function main() {
     const candidates = [...counts.entries()].filter(([, n]) => n >= 3);
     if (candidates.length === 0) { ok("no promotion candidates (non-core words used fewer than 3 times)"); return; }
     for (const [w, n] of candidates.sort((a, b) => b[1] - a[1])) {
-      console.log(`PROMOTE? "${w}" used ${n}x — add to core vocabulary in MEMORY.md and kineti.config.json`);
+      console.log(`PROMOTE? "${w}" used ${n}x — add to core vocabulary in AGENTS.md and kineti.config.json`);
     }
     return;
   }

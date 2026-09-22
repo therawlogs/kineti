@@ -115,12 +115,12 @@ kineti/
 │   └── ...                                  # epistemic, invite, privacy, stripe, swarm, etc.
 ├── docs/                                    # Technical Documentation & Specifications
 │   ├── README.md                            # Documentation Index
-│   ├── CANONICAL_ARCHITECTURE_PLAN.md       # Canonical Production Architecture Spec
-│   ├── ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md # Concurrency & Performance Benchmarks
+│   ├── PLAN.md                                    # Canonical Production Architecture Spec
+│   ├── AUDIT.md                                   # Audit summary plus benchmarks
 │   ├── APPLE_DESIGN_GUIDE.md                # Apple HIG UI & Design Standards
 │   ├── SECURITY_REPORT.md                   # Security Audit & Origin Gating Analysis
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md   # Multi-Agent Swarm Topology & OVTs
-│   └── archive/                             # Archived historical notes
+│   └── archive.zip                          # Archived historical notes (zipped)
 ├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (139+ tests)
 └── kineti.config.json                       # Core System Configuration
 ```
@@ -140,3 +140,7 @@ kineti/
 ## Documentation
 
 For full architecture deep-dives and research treatises, refer to [**docs/README.md**](docs/README.md).
+
+## Agent rules
+
+If you are an AI agent working in this repo, read [**AGENTS.md**](AGENTS.md) first. It holds all rules, workflows, memory spec, and program references in one file.

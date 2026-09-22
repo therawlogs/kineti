@@ -16,9 +16,8 @@ Removed from the tree. Will be re-added when ready.
 ---
 
 ## 1. Core Architecture & Specifications
-- [**CANONICAL_ARCHITECTURE_PLAN.md**](./CANONICAL_ARCHITECTURE_PLAN.md) — Comprehensive technical architecture specification: wait-free EBR snapshots, 20-entity provenance kernel, HLC temporal monotonicity, Merkle DAG commit gate, and SAGA transactional reversibility.
-- [**ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md**](./ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md) — Architectural benchmarks (sub-100µs snapshot latency under 80 concurrent writers, sub-1ms reflex triage).
-- [**AUDIT_REPORT.md**](./AUDIT_REPORT.md) — Initial codebase and governance security audit findings.
+- [**PLAN.md**](./PLAN.md) — Comprehensive technical architecture specification: wait-free EBR snapshots, 20-entity provenance kernel, HLC temporal monotonicity, Merkle DAG commit gate, and SAGA transactional reversibility.
+- [**AUDIT.md**](./AUDIT.md) — Audit summary plus full publication-grade architectural benchmarks (sub-100µs snapshot latency under 80 concurrent writers, sub-1ms reflex triage).
 - [**SECURITY_REPORT.md**](./SECURITY_REPORT.md) — Vulnerability assessment, origin validation, CSRF/CSWSH protection, and secret scan results.
 
 ---
@@ -37,4 +36,4 @@ Removed from the tree. Will be re-added when ready.
 ---
 
 ## 4. Archive
-- [**archive/**](./archive/) — Historical documents and launch planning notes.
+- [**archive.zip**](./archive.zip) — Zipped historical documents and launch planning notes.

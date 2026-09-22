@@ -12,7 +12,7 @@ triggers:
 # kineti-anchors
 
 Write a short, absolute rules file at a project root so every agent session
-inherits the same law. Modeled on the repository's ETHOS.md.
+inherits the same law. Modeled on the repository's AGENTS.md.
 
 ## Procedure
 
@@ -22,7 +22,7 @@ inherits the same law. Modeled on the repository's ETHOS.md.
    - Freeze rules: directories agents must never touch.
    - Authority limits: what sub-agents may never do (send email, delete
      data, touch production).
-2. Write or update `<project>/ETHOS.md` with numbered, plain-worded rules.
+2. Write or update `<project>/AGENTS.md` with numbered, plain-worded rules.
    Each rule one sentence. No aspirations — only enforceables.
 3. Wire enforcement that exists:
    - verify command → already enforced by kineti-verify-gate.

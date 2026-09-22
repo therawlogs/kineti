@@ -1,3 +1,3 @@
 Cursor: add to .cursor/rules/kineti.mdc
 - Start every task with /kineti-officehours, then follow stages 1-13 in order.
-- Rules in CLAUDE.md apply: plain words, numbered choices, check spend, save undo, run tests.
+- Rules in AGENTS.md apply: plain words, numbered choices, check spend, save undo, run tests.
