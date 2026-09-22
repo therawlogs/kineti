@@ -12,11 +12,10 @@ This replaces the old roadmap. No Jev. Kineti native only.
 1. `core-native/` 8 crates: core, memory, reflex, connectors, actions, gateway, harness, cli. All keep. Link `kineti-harness` into workspace.
 2. `bin/` core 7: state, spend, saga, evidence, verify-gate, companion, mcp. Keep.
 3. `src/swarm`, `src/security`, `src/privacy`, `src/design`, `src/components`. Keep.
-4. `research/` 5 papers plus README. Keep.
-5. `tests/` core 10: harness, exec-safe, mcp, ci, companion, swarm, ui, apple_design, memory-job, adversarial_prompt_injection. Keep.
-6. `docs/` keep 5: README, TUTORIAL-first-run, HOWTO-daily-loop, SECURITY_REPORT, SWARM_COORDINATION_AND_IDENTITY. Keep.
-7. `public/waitlist.html` one landing page, the audited artifact. Keep.
-8. Completed in v4.0: 360 human model with scope isolation and certainty tiers, Safe Rust core, snapshots under 0.1 ms with 80 writers, 20-entity graph, spend stop at 50.00 with trip at 47.50, reflex triage under 1.0 ms, dual-signed tickets, WhatsApp and iMessage gateway, 500 attack vectors with 0 escapes, 83 Rust tests plus 82 TypeScript tests.
+4. `tests/` core 10: harness, exec-safe, mcp, ci, companion, swarm, ui, apple_design, memory-job, adversarial_prompt_injection. Keep.
+5. `docs/` keep 5: README, TUTORIAL-first-run, HOWTO-daily-loop, SECURITY_REPORT, SWARM_COORDINATION_AND_IDENTITY. Keep.
+6. `public/waitlist.html` one landing page, the audited artifact. Keep.
+7. Completed in v4.0: 360 human model with scope isolation and certainty tiers, Safe Rust core, snapshots under 0.1 ms with 80 writers, 20-entity graph, spend stop at 50.00 with trip at 47.50, reflex triage under 1.0 ms, dual-signed tickets, WhatsApp and iMessage gateway, 500 attack vectors with 0 escapes, 83 Rust tests plus 82 TypeScript tests.
 
 ## What to clear up - low value or duplicate
 
