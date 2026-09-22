@@ -140,15 +140,41 @@ export function getMiniStatus() {
   const toggle = readJson<any>(path.join(projectKdir(), "kineti.json"));
   const lines = readJsonl<any>(path.join(projectKdir(), "saga.jsonl"));
   const committed = new Set(lines.filter((l) => l.kind === "commit").map((l) => l.run_id));
-  const pendingUndo = lines.filter((l) => l.kind === "register" && !committed.has(l.run_id)).length;
+  const pending = lines.filter((l) => l.kind === "register" && !committed.has(l.run_id));
+  const pendingUndo = pending.length;
+  const undoLabels = pending.slice(-3).map((l) => String(l.label || "change"));
+  const stageNum = typeof state.stage === "number" ? state.stage : 13;
+  const stageName = STAGES.find((s) => s.id === stageNum)?.name || "retro";
+  // Proof: latest evidence record with FRESH or STALE. Fresh means pass within 240 min.
+  let proofLabel: string | null = null;
+  let proofState: "FRESH" | "STALE" | null = null;
+  let proofAgeMin: number | null = null;
+  try {
+    const records = readJsonl<any>(path.join(projectKdir(), "evidence.jsonl"));
+    if (records.length > 0) {
+      const last = records[records.length - 1];
+      proofLabel = String(last.label || "check");
+      const ageMin = Math.max(0, Math.round((Date.now() - new Date(last.at).getTime()) / 60000));
+      proofAgeMin = Number.isFinite(ageMin) ? ageMin : null;
+      proofState = last.exit_code === 0 && (proofAgeMin ?? 9999) <= 240 ? "FRESH" : "STALE";
+    }
+  } catch { /* no proofs yet */ }
+  const syncOn = toggle?.sync_enabled === true;
   return {
     spend_total: typeof spend.total_usd === "number" ? spend.total_usd : 0,
     ceiling: config.settings?.spend_limit_usd?.global ?? 50.0,
     tripped: spend.tripped === true,
     stage: state.stage ?? "not started",
+    stage_name: stageName,
     goal: typeof state.root_goal === "string" ? state.root_goal : null,
+    goal_locked_at: typeof state.root_goal_locked_at === "string" ? state.root_goal_locked_at : null,
     enabled: !toggle || toggle.enabled !== false,
     pending_undo: pendingUndo,
+    undo_labels: undoLabels,
+    proof_label: proofLabel,
+    proof_state: proofState,
+    proof_age_min: proofAgeMin,
+    sync_enabled: syncOn,
   };
 }
 
@@ -160,10 +186,17 @@ export interface ActivityRow {
   hash: string;
 }
 
-/** View-only trail: audit log plus proof, spend, and undo events. Newest last. */
-export function getActivity(limit = 50): ActivityRow[] {
+/** View-only trail: audit log plus proof, spend, saga, and undo events. Newest last. */
+export function getActivity(limit = 50, actorFilter = "", actionFilter = ""): ActivityRow[] {
   const rows: ActivityRow[] = [];
   const n = Math.max(1, Math.min(200, limit));
+  const actorF = actorFilter.trim().toLowerCase();
+  const actionF = actionFilter.trim().toLowerCase();
+  const keep = (actor: string, action: string) => {
+    if (actorF && !actor.toLowerCase().includes(actorF)) return false;
+    if (actionF && !action.toLowerCase().includes(actionF)) return false;
+    return true;
+  };
   try {
     const chain = readJsonl<any>(path.join(machineDir(), "audit.log.jsonl")).slice(-n);
     for (const e of chain) {
@@ -200,8 +233,22 @@ export function getActivity(limit = 50): ActivityRow[] {
       });
     }
   } catch { /* no spend log yet */ }
-  rows.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
-  return rows.slice(-n);
+  try {
+    const saga = readJsonl<any>(path.join(projectKdir(), "saga.jsonl")).slice(-n);
+    for (const s of saga) {
+      const kind = String(s.kind || "event");
+      rows.push({
+        at: String(s.at || ""),
+        actor: "saga",
+        action: `saga.${kind}`,
+        detail: `${s.label || s.run_id || kind}`.slice(0, 300),
+        hash: String(s.run_id || "").slice(0, 12),
+      });
+    }
+  } catch { /* no saga yet */ }
+  const filtered = rows.filter((r) => keep(r.actor, r.action));
+  filtered.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  return filtered.slice(-n);
 }
 
 export function getFleetStatus() {
@@ -233,6 +280,62 @@ export function getFleetStatus() {
       repo_owners: { [activeRepoId]: "Kineti User" },
     },
   };
+}
+
+export interface SwarmAgentBudget {
+  name: string;
+  budget: number;
+  used: number;
+  left: number;
+  pct: number;
+}
+
+export function getSwarmStatus(): { mode: string; agents: SwarmAgentBudget[]; updated_at: string | null } {
+  const store = readJson<{ mode?: string; budgets?: Record<string, number>; updated_at?: string }>(
+    path.join(projectKdir(), "swarm.json"),
+  );
+  const mode = store?.mode === "separate" ? "separate" : "shared";
+  const budgets = store?.budgets && typeof store.budgets === "object" ? store.budgets : {};
+  const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
+  const totalUsed = typeof spend.total_usd === "number" ? spend.total_usd : 0;
+  const names = Object.keys(budgets);
+  const agents: SwarmAgentBudget[] = names.map((name) => {
+    const budget = Number(budgets[name]) || 0;
+    // No per-agent spend ledger yet: attribute proportionally when shared, zero when separate.
+    const used = mode === "shared" && names.length > 0 ? Math.round((totalUsed / names.length) * 100) / 100 : 0;
+    const left = Math.max(0, Math.round((budget - used) * 100) / 100);
+    const pct = budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
+    return { name, budget, used, left, pct };
+  });
+  return { mode, agents, updated_at: typeof store?.updated_at === "string" ? store.updated_at : null };
+}
+
+export function getModelStatus(): {
+  auto_switch: boolean;
+  table: Record<string, { host: string; model: string; reason: string }>;
+  history: Array<{ at: string; actor: string; action: string; detail: string }>;
+} {
+  const toggle = readJson<{ auto_switch?: boolean }>(path.join(projectKdir(), "kineti.json"));
+  const table = {
+    code: { host: "cursor", model: "default-code", reason: "code edits stay in your editor with full file context" },
+    plan: { host: "claude", model: "default-reasoning", reason: "long plans need careful step-by-step reasoning" },
+    chat: { host: "opencode", model: "default-fast", reason: "quick questions deserve a fast cheap answer" },
+    fix: { host: "codex", model: "default-debug", reason: "bugs need strong reproduction and test loops" },
+  };
+  let history: Array<{ at: string; actor: string; action: string; detail: string }> = [];
+  try {
+    const chain = readJsonl<any>(path.join(machineDir(), "audit.log.jsonl"));
+    history = chain
+      .filter((e) => String(e.action || "").startsWith("model."))
+      .slice(-10)
+      .map((e) => ({
+        at: String(e.at || ""),
+        actor: String(e.actor || "unknown"),
+        action: String(e.action || ""),
+        detail: String(e.detail || "").slice(0, 200),
+      }));
+  } catch { /* audit may not exist */ }
+  return { auto_switch: toggle?.auto_switch === true, table, history };
 }
 
 // Vault Storage Helper
@@ -713,9 +816,9 @@ function generateSettingsHtml(): string {
     <div class="brand">Kineti</div>
     <ul class="nav-list">
       <li class="nav-item active" data-tab="home" onclick="switchTab('home', this)">Home</li>
-      <li class="nav-item" data-tab="workspace" onclick="switchTab('workspace', this)">Workspace</li>
-      <li class="nav-item" data-tab="trusted" onclick="switchTab('trusted', this)">Trusted people</li>
-      <li class="nav-item" data-tab="preferences" onclick="switchTab('preferences', this)">Preferences</li>
+      <li class="nav-item" data-tab="activity" onclick="switchTab('activity', this)">Activity</li>
+      <li class="nav-item" data-tab="team" onclick="switchTab('team', this)">Team &amp; money</li>
+      <li class="nav-item" data-tab="settings" onclick="switchTab('settings', this)">Settings</li>
       <li class="nav-item" onclick="handleLogout()" style="color: var(--text-secondary); margin-top: 14px;">Log out</li>
     </ul>
     <div class="user-footer">
@@ -735,9 +838,11 @@ function generateSettingsHtml(): string {
         <div class="item-body">
           <div class="item-title">Goal</div>
           <div class="item-subtitle" id="home-goal">Loading…</div>
+          <div class="item-subtitle" id="home-goal-lock" style="font-size: 12px;"></div>
         </div>
         <div class="item-action">
           <span class="item-subtitle" id="home-stage"></span>
+          <button class="copy-btn" title="Copy goal" data-copy-goal="1">📋</button>
         </div>
       </div>
 
@@ -746,12 +851,30 @@ function generateSettingsHtml(): string {
           <div class="item-title">Spending</div>
           <div class="item-subtitle" id="home-spend">Loading…</div>
         </div>
+        <div class="item-action">
+          <button class="copy-btn" title="Copy spending" data-copy-spend="1">📋</button>
+        </div>
+      </div>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Proof</div>
+          <div class="item-subtitle" id="home-proof">Loading…</div>
+        </div>
       </div>
 
       <div class="item-row">
         <div class="item-body">
           <div class="item-title">Undo available</div>
           <div class="item-subtitle" id="home-undo">Loading…</div>
+          <div class="item-subtitle" id="home-undo-labels" style="font-size: 12px;"></div>
+        </div>
+      </div>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Sync</div>
+          <div class="item-subtitle" id="home-sync">Loading…</div>
         </div>
       </div>
 
@@ -786,10 +909,100 @@ function generateSettingsHtml(): string {
       </div>
     </div>
 
-    <!-- TAB 1: WORKSPACE -->
-    <div id="tab-workspace" class="tab-pane" style="display: none;">
-      <h2 class="section-title">Contact</h2>
-      <p class="section-desc">Ways to reach Kineti directly</p>
+    <!-- TAB 1: ACTIVITY -->
+    <div id="tab-activity" class="tab-pane" style="display: none;">
+      <h2 class="section-title">Activity</h2>
+      <p class="section-desc">View-only trail. Audit log, proof records, spend events, saga runs. Newest last.</p>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <input type="text" id="activity-actor" class="input-field" placeholder="Filter by actor" style="margin: 0;" onkeydown="if(event.key==='Enter')loadActivity()">
+        <input type="text" id="activity-action" class="input-field" placeholder="Filter by action" style="margin: 0;" onkeydown="if(event.key==='Enter')loadActivity()">
+        <button class="btn btn-primary" onclick="loadActivity()">Filter</button>
+      </div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+          <thead>
+            <tr style="text-align: left; color: var(--text-secondary); border-bottom: 1px solid var(--border-color);">
+              <th style="padding: 8px 6px;">Time</th>
+              <th style="padding: 8px 6px;">Actor</th>
+              <th style="padding: 8px 6px;">Action</th>
+              <th style="padding: 8px 6px;">Detail</th>
+              <th style="padding: 8px 6px;">Hash</th>
+            </tr>
+          </thead>
+          <tbody id="activity-rows">
+            <tr><td colspan="5" style="padding: 12px 6px; color: var(--text-secondary);">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB 2: TEAM & MONEY -->
+    <div id="tab-team" class="tab-pane" style="display: none;">
+      <h2 class="section-title">Team &amp; money</h2>
+      <p class="section-desc">Per-agent budgets with used and left bars. Project ceiling $50.00.</p>
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Budget mode</div>
+          <div class="item-subtitle" id="team-mode">Loading…</div>
+        </div>
+        <div class="item-action">
+          <button class="btn" onclick="setSwarmMode('shared')">Share one</button>
+          <button class="btn" onclick="setSwarmMode('separate')">Separate</button>
+        </div>
+      </div>
+      <div id="team-agents-list"></div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <input type="text" id="team-agent-name" class="input-field" placeholder="Agent name, e.g. coder" style="margin: 0;">
+        <input type="number" id="team-agent-budget" class="input-field" placeholder="Budget $" min="1" max="50" style="margin: 0;">
+        <button class="btn btn-primary" onclick="saveSwarmAgent()">Save</button>
+      </div>
+      <hr class="section-divider">
+      <h2 class="section-title">Model routing</h2>
+      <p class="section-desc">Ask-first default. Auto only if you turn it on. Every switch is logged.</p>
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Auto-switch</div>
+          <div class="item-subtitle" id="team-model-state">Loading…</div>
+        </div>
+        <div class="item-action">
+          <label class="switch">
+            <input type="checkbox" id="toggle-auto-switch" onchange="toggleAutoSwitch(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <div id="team-model-history" style="font-size: 13px; color: var(--text-secondary);"></div>
+      <hr class="section-divider">
+      <h2 class="section-title">Sync</h2>
+      <p class="section-desc">Encrypted sync across devices. Off by default.</p>
+      <div class="item-row" style="border: none;">
+        <div class="item-body">
+          <div class="item-title">Device sync</div>
+          <div class="item-subtitle" id="team-sync-state">Loading…</div>
+        </div>
+        <div class="item-action">
+          <label class="switch">
+            <input type="checkbox" id="toggle-sync" onchange="toggleSync(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: SETTINGS -->
+    <div id="tab-settings" class="tab-pane" style="display: none;">
+      <h2 class="section-title">Settings</h2>
+      <p class="section-desc">Account and privacy in one place.</p>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Name</div>
+          <div class="item-subtitle" id="pref-user-name">${userName}</div>
+        </div>
+        <div class="item-action">
+          <button class="btn" onclick="openEditNameModal()">Edit</button>
+        </div>
+      </div>
 
       <div class="item-row">
         <div class="item-icon icon-messages">💬</div>
@@ -800,7 +1013,6 @@ function generateSettingsHtml(): string {
         <div class="item-action">
           <button class="copy-btn" title="Copy handle" data-copy="${imessageNum}">📋</button>
           <button class="copy-btn" title="Edit number" data-action="edit-contact" data-channel="imessage" data-val="${imessageNum}">✎</button>
-          <button class="copy-btn" title="Send test ping" data-action="test-ping" data-channel="imessage" data-val="${imessageNum}">⚡</button>
         </div>
       </div>
 
@@ -813,8 +1025,6 @@ function generateSettingsHtml(): string {
         <div class="item-action">
           <button class="copy-btn" title="Copy number" data-copy="${whatsappNum}">📋</button>
           <button class="copy-btn" title="Edit number" data-action="edit-contact" data-channel="whatsapp" data-val="${whatsappNum}">✎</button>
-          <button class="copy-btn" title="Setup QR code" data-action="open-url" data-url="/whatsapp-onboarding">📱</button>
-          <button class="copy-btn" title="Send test ping" data-action="test-ping" data-channel="whatsapp" data-val="${whatsappNum}">⚡</button>
         </div>
       </div>
 
@@ -827,78 +1037,48 @@ function generateSettingsHtml(): string {
         <div class="item-action">
           <button class="copy-btn" title="Copy email" data-copy="${agentEmail}">📋</button>
           <button class="copy-btn" title="Edit alias" data-action="open-email-modal">✎</button>
-          <button class="copy-btn" title="Send test email" data-action="test-ping" data-channel="email" data-val="${agentEmail}">⚡</button>
         </div>
       </div>
 
       <hr class="section-divider">
 
-      <h2 class="section-title">Data privacy</h2>
-      <p class="section-desc">Manage data from connected services</p>
-      <div class="item-row" style="border: none;">
-        <div class="item-body">
-          <div class="item-title">External data</div>
-          <div class="item-subtitle">Manage emails, messages, and other data imported from your connected services</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-danger" onclick="triggerPurge()">Delete data</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- TAB 3: TRUSTED PEOPLE -->
-    <div id="tab-trusted" class="tab-pane" style="display: none;">
-      <div class="vault-group-header">
-        <div>
-          <h2 class="section-title" style="margin: 0;">Requests</h2>
-          <p class="section-desc" style="margin-bottom: 0;">People asking to connect their Kineti to yours</p>
-        </div>
-      </div>
+      <h2 class="section-title">Trusted people</h2>
+      <p class="section-desc">Approve or block in one block. Minimum share only.</p>
       <div id="mesh-requests-list"></div>
-
-      <hr class="section-divider">
-
-      <div class="vault-group-header">
-        <div>
-          <h2 class="section-title" style="margin: 0;">Trusted people</h2>
-          <p class="section-desc" style="margin-bottom: 0;">Their Kineti can reach yours</p>
-        </div>
-      </div>
       <div id="mesh-trusted-list"></div>
-
-      <hr class="section-divider">
-
-      <h2 class="section-title">Blocked</h2>
+      <h2 class="section-title" style="margin-top: 18px;">Blocked</h2>
       <p class="section-desc">Their Kineti can't reach yours</p>
       <div id="mesh-blocked-list"></div>
-
-      <hr class="section-divider">
-
-      <h2 class="section-title">Connections</h2>
-      <p class="section-desc">Whether other Kinetis can reach yours</p>
       <div class="item-row" style="border: none;">
         <div class="item-body">
           <div class="item-title" id="mesh-status-title">Connections active</div>
-          <div class="item-subtitle">Your Kineti can exchange messages with the Kinetis of the people you trust. Handled through your chat.</div>
-        </div>
-        <div class="item-action">
-          <span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;">Synced from Chat</span>
+          <div class="item-subtitle">Your Kineti can exchange messages with the Kinetis of the people you trust.</div>
         </div>
       </div>
-    </div>
 
-    <!-- TAB 4: PREFERENCES -->
-    <div id="tab-preferences" class="tab-pane" style="display: none;">
-      <h2 class="section-title">Preferences</h2>
-      <p class="section-desc">Account and privacy settings</p>
+      <hr class="section-divider">
 
       <div class="item-row">
         <div class="item-body">
-          <div class="item-title">Name</div>
-          <div class="item-subtitle" id="pref-user-name">${userName}</div>
+          <div class="item-title">Improve Kineti for everyone</div>
+          <div class="item-subtitle">Allow anonymized interactions to improve autonomous models. You can opt out anytime.</div>
         </div>
         <div class="item-action">
-          <button class="btn" onclick="openEditNameModal()">Edit</button>
+          <label class="switch">
+            <input type="checkbox" id="toggle-training" onchange="toggleTraining(this.checked)">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Forget</div>
+          <div class="item-subtitle">Delete something everywhere plus proof line. Goal and identity stay.</div>
+          <div class="item-subtitle" id="forget-receipt" style="font-size: 12px;"></div>
+        </div>
+        <div class="item-action">
+          <button class="btn" onclick="openForgetModal()">Forget…</button>
         </div>
       </div>
 
@@ -914,18 +1094,31 @@ function generateSettingsHtml(): string {
 
       <div class="item-row">
         <div class="item-body">
-          <div class="item-title">Improve Kineti for everyone</div>
-          <div class="item-subtitle">Allow anonymized interactions to improve autonomous models. You can opt out anytime.</div>
+          <div class="item-title">Device sync export and import</div>
+          <div class="item-subtitle">Passphrase-encrypted. Imports never touch your goal.</div>
         </div>
         <div class="item-action">
           <label class="switch">
-            <input type="checkbox" id="toggle-training" onchange="toggleTraining(this.checked)">
+            <input type="checkbox" id="toggle-sync-settings" onchange="toggleSync(this.checked)">
             <span class="slider"></span>
           </label>
         </div>
       </div>
 
-      <div class="item-row" style="margin-top: 24px; border: none;">
+      <hr class="section-divider">
+
+      <h2 class="section-title" style="color: var(--danger);">Danger zone</h2>
+      <p class="section-desc">One danger zone at the bottom.</p>
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">External data</div>
+          <div class="item-subtitle">Manage emails, messages, and other data imported from your connected services</div>
+        </div>
+        <div class="item-action">
+          <button class="btn btn-danger" onclick="triggerPurge()">Delete data</button>
+        </div>
+      </div>
+      <div class="item-row" style="border: none;">
         <div class="item-body">
           <div class="item-title" style="color: var(--danger);">Delete account</div>
           <div class="item-subtitle">Permanently delete your account, credentials vault, and data.</div>
@@ -1014,6 +1207,20 @@ function generateSettingsHtml(): string {
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-edit-name')">Cancel</button>
         <button class="btn btn-primary" onclick="submitEditName()">Save Name</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forget Modal -->
+  <div id="modal-forget" class="modal-overlay">
+    <div class="modal-card">
+      <h3 class="modal-title">Forget something</h3>
+      <p class="modal-desc">Delete this everywhere plus proof line. Goal and identity stay. Nothing is deleted until you say yes.</p>
+      <label class="input-label">What should be forgotten</label>
+      <input type="text" id="forget-input" class="input-field" placeholder="e.g. my old phone number">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal('modal-forget')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitForget()">Yes, delete it</button>
       </div>
     </div>
   </div>
@@ -1140,6 +1347,16 @@ function generateSettingsHtml(): string {
         if (item) item.classList.add('active');
       }
       if (tab === 'home') loadHome();
+      if (tab === 'activity') loadActivity();
+      if (tab === 'team') loadTeam();
+      if (tab === 'settings') { refreshMeshUI(); loadPrivacyState(); loadSyncState(); }
+    }
+
+    function ageText(min) {
+      if (min === null || min === undefined) return '';
+      if (min <= 1) return 'just now';
+      if (min < 60) return min + ' min ago';
+      return Math.round(min / 60) + ' h ago';
     }
 
     function loadHome() {
@@ -1147,18 +1364,198 @@ function generateSettingsHtml(): string {
         .then(r => r.json())
         .then(m => {
           document.getElementById('home-goal').innerText = m.goal || 'No goal locked yet';
-          document.getElementById('home-stage').innerText = 'Step ' + m.stage + ' of 13';
-          document.getElementById('home-spend').innerText = '$' + m.spend_total + ' of $' + m.ceiling + (m.tripped ? ' (stopped)' : ' used');
+          const lockEl = document.getElementById('home-goal-lock');
+          if (lockEl) lockEl.innerText = m.goal_locked_at ? 'Locked ' + m.goal_locked_at.slice(0, 10) : '';
+          const stageLabel = m.stage_name ? m.stage_name + ' ' + m.stage + ' of 13' : 'Step ' + m.stage + ' of 13';
+          document.getElementById('home-stage').innerText = stageLabel;
+          const left = Math.max(0, (m.ceiling || 50) - (m.spend_total || 0));
+          document.getElementById('home-spend').innerText = '$' + m.spend_total + ' of $' + m.ceiling + ' ($' + left.toFixed(2) + ' left)' + (m.tripped ? ' (stopped)' : ' used');
+          const proofEl = document.getElementById('home-proof');
+          if (proofEl) {
+            proofEl.innerText = m.proof_label ? m.proof_label + ' ' + (m.proof_state || '') + ' ' + ageText(m.proof_age_min) : 'No test proof saved yet';
+          }
           document.getElementById('home-undo').innerText = m.pending_undo === 0 ? 'Nothing to undo' : m.pending_undo + ' change(s) can be undone';
+          const labelsEl = document.getElementById('home-undo-labels');
+          if (labelsEl) labelsEl.innerText = (m.undo_labels && m.undo_labels.length > 0) ? 'Latest: ' + m.undo_labels.join(', ') : '';
+          const syncEl = document.getElementById('home-sync');
+          if (syncEl) syncEl.innerText = m.sync_enabled ? 'On' : 'Off';
           document.getElementById('toggle-power').checked = m.enabled !== false;
           document.getElementById('home-power-desc').innerText = m.enabled !== false ? 'All checks running' : 'Paused';
         })
         .catch(() => {});
     }
 
+    function copyHomeText(kind) {
+      const map = { goal: 'home-goal', spend: 'home-spend' };
+      const el = document.getElementById(map[kind]);
+      if (el && navigator.clipboard) navigator.clipboard.writeText(el.innerText).then(() => showToast('Copied to clipboard'));
+    }
+
     function togglePower(on) {
       fetch('/api/power', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
         .then(() => loadHome());
+    }
+
+    function escapeJsHtml(s) {
+      return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function loadActivity() {
+      const actor = (document.getElementById('activity-actor') || {}).value || '';
+      const action = (document.getElementById('activity-action') || {}).value || '';
+      const q = new URLSearchParams({ n: '100', actor, action }).toString();
+      fetch('/api/activity?' + q)
+        .then(r => r.json())
+        .then(d => {
+          const body = document.getElementById('activity-rows');
+          if (!body) return;
+          if (!d.activity || d.activity.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" style="padding: 12px 6px; color: var(--text-secondary);">No rows yet</td></tr>';
+            return;
+          }
+          body.innerHTML = d.activity.slice().reverse().map(r =>
+            '<tr style="border-bottom: 1px solid var(--divider-color);">' +
+            '<td style="padding: 8px 6px; white-space: nowrap;">' + escapeJsHtml((r.at || '').slice(0, 19).replace('T', ' ')) + '</td>' +
+            '<td style="padding: 8px 6px;">' + escapeJsHtml(r.actor) + '</td>' +
+            '<td style="padding: 8px 6px;">' + escapeJsHtml(r.action) + '</td>' +
+            '<td style="padding: 8px 6px;">' + escapeJsHtml((r.detail || '').slice(0, 120)) + '</td>' +
+            '<td style="padding: 8px 6px; font-family: monospace;">' + escapeJsHtml(r.hash || '') + '</td>' +
+            '</tr>'
+          ).join('');
+        })
+        .catch(() => {});
+    }
+
+    function loadTeam() {
+      fetch('/api/swarm')
+        .then(r => r.json())
+        .then(s => {
+          const modeEl = document.getElementById('team-mode');
+          if (modeEl) modeEl.innerText = s.mode === 'separate' ? 'Separate budgets' : 'One shared budget';
+          const list = document.getElementById('team-agents-list');
+          if (list) {
+            if (!s.agents || s.agents.length === 0) {
+              list.innerHTML = '<div class="vault-empty">No per-agent budgets yet. Save one below or say "separate budgets" in chat.</div>';
+            } else {
+              list.innerHTML = s.agents.map(a =>
+                '<div class="item-row">' +
+                '<div class="item-body">' +
+                '<div class="item-title">' + escapeJsHtml(a.name) + ' $' + a.used.toFixed(2) + ' of $' + a.budget.toFixed(2) + ' ($' + a.left.toFixed(2) + ' left)</div>' +
+                '<div style="height: 6px; background: #f0f0f2; border-radius: 3px; margin-top: 6px;">' +
+                '<div style="height: 6px; width: ' + a.pct + '%; background: #0071e3; border-radius: 3px;"></div>' +
+                '</div></div></div>'
+              ).join('');
+            }
+          }
+        })
+        .catch(() => {});
+      fetch('/api/models')
+        .then(r => r.json())
+        .then(m => {
+          const st = document.getElementById('team-model-state');
+          if (st) st.innerText = m.auto_switch ? 'Auto-switch on' : 'Ask-first (auto off)';
+          const tgl = document.getElementById('toggle-auto-switch');
+          if (tgl) tgl.checked = m.auto_switch === true;
+          const hist = document.getElementById('team-model-history');
+          if (hist) {
+            hist.innerHTML = (!m.history || m.history.length === 0)
+              ? 'No switches logged yet.'
+              : 'Last ' + m.history.length + ' switches:<br>' + m.history.slice().reverse().map(h =>
+                escapeJsHtml((h.at || '').slice(0, 19).replace('T', ' ')) + ' ' + escapeJsHtml(h.action) + ' ' + escapeJsHtml(h.detail)
+              ).join('<br>');
+          }
+        })
+        .catch(() => {});
+      loadSyncState();
+    }
+
+    function setSwarmMode(mode) {
+      fetch('/api/swarm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) })
+        .then(() => { loadTeam(); showToast(mode === 'separate' ? 'Separate budgets on' : 'One shared budget'); });
+    }
+
+    function saveSwarmAgent() {
+      const name = (document.getElementById('team-agent-name') || {}).value || '';
+      const budget = parseFloat((document.getElementById('team-agent-budget') || {}).value || '');
+      if (!name.trim() || !Number.isFinite(budget) || budget <= 0) { showToast('Enter a name and a budget over 0'); return; }
+      fetch('/api/swarm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent: name.trim(), budget }) })
+        .then(r => r.json())
+        .then(() => {
+          const nEl = document.getElementById('team-agent-name');
+          const bEl = document.getElementById('team-agent-budget');
+          if (nEl) nEl.value = '';
+          if (bEl) bEl.value = '';
+          loadTeam();
+          showToast('Budget saved');
+        });
+    }
+
+    function toggleAutoSwitch(on) {
+      fetch('/api/models/auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
+        .then(() => { loadTeam(); showToast(on ? 'Auto-switch on' : 'Ask-first on'); });
+    }
+
+    function loadSyncState() {
+      fetch('/api/sync')
+        .then(r => r.json())
+        .then(s => {
+          const t1 = document.getElementById('team-sync-state');
+          if (t1) t1.innerText = s.enabled ? 'On' : 'Off';
+          const t2 = document.getElementById('toggle-sync');
+          if (t2) t2.checked = s.enabled === true;
+          const t3 = document.getElementById('toggle-sync-settings');
+          if (t3) t3.checked = s.enabled === true;
+        })
+        .catch(() => {});
+    }
+
+    function toggleSync(on) {
+      fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
+        .then(() => { loadSyncState(); loadHome(); showToast(on ? 'Sync on' : 'Sync off'); });
+    }
+
+    function loadPrivacyState() {
+      fetch('/api/privacy/state')
+        .then(r => r.json())
+        .then(s => {
+          const t = document.getElementById('toggle-training');
+          if (t) t.checked = s.improve_kineti_for_everyone === true;
+        })
+        .catch(() => {});
+    }
+
+    function openForgetModal() {
+      const inp = document.getElementById('forget-input');
+      if (inp) inp.value = '';
+      document.getElementById('modal-forget').classList.add('open');
+    }
+
+    function submitForget() {
+      const text = (document.getElementById('forget-input') || {}).value || '';
+      if (!text.trim()) { showToast('Type what to forget first'); return; }
+      fetch('/api/forget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.trim() }) })
+        .then(r => r.json())
+        .then(d => {
+          closeModal('modal-forget');
+          const el = document.getElementById('forget-receipt');
+          if (el) el.innerText = 'Deleted "' + d.text + '" at ' + d.deleted_at + '. Proof ' + d.receipt_digest.slice(0, 12) + '.';
+          showToast('Forgotten with proof receipt');
+        });
+    }
+
+    function approveMesh(id) {
+      fetch('/api/mesh/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: id, tier: 'colleague' }) })
+        .then(() => { refreshMeshUI(); showToast('Approved'); });
+    }
+
+    function blockMesh(id) {
+      fetch('/api/mesh/block', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_id: id }) })
+        .then(() => { refreshMeshUI(); showToast('Blocked'); });
+    }
+
+    function unblockMesh(id) {
+      fetch('/api/mesh/unblock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_id: id }) })
+        .then(() => { refreshMeshUI(); showToast('Unblocked'); });
     }
 
     function appendTalk(who, text) {
@@ -1664,14 +2061,15 @@ function generateSettingsHtml(): string {
           if (!m.pending_requests || m.pending_requests.length === 0) {
             reqDiv.innerHTML = '<div class="vault-empty">No pending requests</div>';
           } else {
-            reqDiv.innerHTML = m.pending_requests.map(r => 
+            reqDiv.innerHTML = m.pending_requests.map(r =>
               '<div class="item-row">' +
                 '<div class="item-body">' +
                   '<div class="item-title">' + escapeHtml(r.requester_name || r.requester_agent_id) + ' (' + escapeHtml(r.requester_handle) + ')</div>' +
                   '<div class="item-subtitle">Requested Tier: ' + escapeHtml(r.requested_tier) + (r.note ? ' • "' + escapeHtml(r.note) + '"' : '') + '</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);">Pending via chat</span>' +
+                  '<button class="btn btn-primary" onclick="approveMesh(\'' + escapeHtml(r.request_id || r.requester_agent_id) + '\')">Approve</button>' +
+                  '<button class="btn btn-danger" onclick="blockMesh(\'' + escapeHtml(r.requester_agent_id) + '\')">Block</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1682,14 +2080,14 @@ function generateSettingsHtml(): string {
           if (!m.peers || m.peers.length === 0) {
             trustDiv.innerHTML = '<div class="vault-empty">No trusted people yet</div>';
           } else {
-            trustDiv.innerHTML = m.peers.map(p => 
+            trustDiv.innerHTML = m.peers.map(p =>
               '<div class="item-row">' +
                 '<div class="item-body">' +
                   '<div class="item-title">' + escapeHtml(p.display_name || p.name || p.peer_agent_id || p.agent_id) + '</div>' +
                   '<div class="item-subtitle">Tier: ' + escapeHtml(p.tier) + ' • Connected</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;">Connected via chat</span>' +
+                  '<button class="btn btn-danger" onclick="blockMesh(\'' + escapeHtml(p.peer_agent_id || p.agent_id) + '\')">Block</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1700,11 +2098,11 @@ function generateSettingsHtml(): string {
           if (!m.blocked_peers || m.blocked_peers.length === 0) {
             blkDiv.innerHTML = '<div class="vault-empty">No blocked peers</div>';
           } else {
-            blkDiv.innerHTML = m.blocked_peers.map(b => 
+            blkDiv.innerHTML = m.blocked_peers.map(b =>
               '<div class="vault-item-row">' +
                 '<div>' + escapeHtml(b) + '</div>' +
                 '<div class="item-action">' +
-                  '<span style="font-size:11px;padding:3px 8px;border-radius:10px;background:#ffebee;color:var(--danger);border:1px solid #ffcdd2;">Blocked via chat</span>' +
+                  '<button class="btn" onclick="unblockMesh(\'' + escapeHtml(b) + '\')">Unblock</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1747,6 +2145,16 @@ function generateSettingsHtml(): string {
         copyText(val, copyBtn);
         return;
       }
+      const goalBtn = e.target.closest('[data-copy-goal]');
+      if (goalBtn) {
+        copyHomeText('goal');
+        return;
+      }
+      const spendBtn = e.target.closest('[data-copy-spend]');
+      if (spendBtn) {
+        copyHomeText('spend');
+        return;
+      }
       const actionBtn = e.target.closest('[data-action]');
       if (actionBtn) {
         const action = actionBtn.getAttribute('data-action');
@@ -1774,6 +2182,8 @@ function generateSettingsHtml(): string {
     refreshVaultUI();
     refreshConnectorsUI();
     refreshMeshUI();
+    loadPrivacyState();
+    loadSyncState();
   </script>
 </body>
 </html>`;
@@ -2248,10 +2658,137 @@ export function startServer(port: number = PORT) {
         }
       }
 
-      // API: Activity trail, view-only. Merges audit, proof, and spend events.
+      // API: Activity trail, view-only. Merges audit, proof, spend, and saga events.
       if (url.pathname === "/api/activity") {
-        const n = Number(new URL(req.url).searchParams.get("n") || 50);
-        return Response.json({ activity: getActivity(n) }, { headers: corsHeaders });
+        const params = new URL(req.url).searchParams;
+        const n = Number(params.get("n") || 50);
+        const actor = String(params.get("actor") || "").slice(0, 64);
+        const action = String(params.get("action") || "").slice(0, 64);
+        return Response.json({ activity: getActivity(n, actor, action) }, { headers: corsHeaders });
+      }
+
+      // API: Swarm budgets, per-agent with used and left.
+      if (url.pathname === "/api/swarm") {
+        if (req.method === "GET") {
+          return Response.json(getSwarmStatus(), { headers: corsHeaders });
+        }
+        if (req.method === "POST") {
+          try {
+            const body = (await req.json()) as any;
+            const storePath = path.join(projectKdir(), "swarm.json");
+            const cur = readJson<{ mode?: string; budgets?: Record<string, number>; updated_at?: string }>(storePath) || {};
+            let mode = cur.mode === "separate" ? "separate" : "shared";
+            const budgets: Record<string, number> = { ...(cur.budgets || {}) };
+            if (typeof body.mode === "string") {
+              const m = body.mode.toLowerCase();
+              if (m === "shared" || m === "separate") mode = m;
+            }
+            if (typeof body.agent === "string" && typeof body.budget === "number") {
+              const name = body.agent.trim().toLowerCase().slice(0, 64);
+              if (!/^[a-z0-9_-]{1,64}$/.test(name)) return new Response("Bad agent name", { status: 400, headers: corsHeaders });
+              if (!Number.isFinite(body.budget) || body.budget <= 0 || body.budget > 50) {
+                return new Response("Budget must be over 0 and at most 50", { status: 400, headers: corsHeaders });
+              }
+              budgets[name] = body.budget;
+              if (Object.keys(budgets).length > 0) mode = "separate";
+            }
+            if (body.budgets && typeof body.budgets === "object") {
+              for (const [k, v] of Object.entries(body.budgets)) {
+                const name = String(k).trim().toLowerCase().slice(0, 64);
+                if (!/^[a-z0-9_-]{1,64}$/.test(name)) continue;
+                if (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 50) budgets[name] = v;
+              }
+              if (Object.keys(budgets).length > 0 && !body.mode) mode = "separate";
+            }
+            writeJson(storePath, { mode, budgets, updated_at: new Date().toISOString() });
+            try {
+              const { appendAudit } = await import("./kineti-audit.ts");
+              appendAudit("dashboard-user", "swarm.budgets", `${mode}: ${JSON.stringify(budgets).slice(0, 500)}`);
+            } catch { /* audit must never block save */ }
+            return Response.json(getSwarmStatus(), { headers: corsHeaders });
+          } catch {
+            return new Response("Bad Request", { status: 400, headers: corsHeaders });
+          }
+        }
+      }
+
+      // API: Model routing table plus last switches. Ask-first default.
+      if (url.pathname === "/api/models" && req.method === "GET") {
+        return Response.json(getModelStatus(), { headers: corsHeaders });
+      }
+
+      // API: Model auto-switch toggle.
+      if (url.pathname === "/api/models/auto" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          if (typeof body.on !== "boolean") return new Response("Bad Request", { status: 400, headers: corsHeaders });
+          const cur = readJson<Record<string, unknown>>(path.join(projectKdir(), "kineti.json")) || {};
+          writeJson(path.join(projectKdir(), "kineti.json"), {
+            ...cur, auto_switch: body.on, updated_by: "dashboard", at: new Date().toISOString(),
+          });
+          try {
+            const { appendAudit } = await import("./kineti-audit.ts");
+            appendAudit("dashboard-user", body.on ? "model.auto_on" : "model.auto_off", "model auto-switch toggled from dashboard");
+          } catch { /* audit must never block toggle */ }
+          return Response.json({ success: true, auto_switch: body.on }, { headers: corsHeaders });
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
+      }
+
+      // API: Device sync toggle and state. Off by default.
+      if (url.pathname === "/api/sync") {
+        if (req.method === "GET") {
+          const s = readJson<{ sync_enabled?: boolean }>(path.join(projectKdir(), "kineti.json"));
+          return Response.json({ enabled: s?.sync_enabled === true }, { headers: corsHeaders });
+        }
+        if (req.method === "POST") {
+          try {
+            const body = (await req.json()) as any;
+            if (typeof body.on !== "boolean") return new Response("Bad Request", { status: 400, headers: corsHeaders });
+            const cur = readJson<Record<string, unknown>>(path.join(projectKdir(), "kineti.json")) || {};
+            writeJson(path.join(projectKdir(), "kineti.json"), {
+              ...cur, sync_enabled: body.on, updated_by: "dashboard", at: new Date().toISOString(),
+            });
+            try {
+              const { appendAudit } = await import("./kineti-audit.ts");
+              appendAudit("dashboard-user", body.on ? "sync.on" : "sync.off", "device sync toggled from dashboard");
+            } catch { /* audit must never block toggle */ }
+            return Response.json({ success: true, enabled: body.on }, { headers: corsHeaders });
+          } catch {
+            return new Response("Bad Request", { status: 400, headers: corsHeaders });
+          }
+        }
+      }
+
+      // API: Privacy training state, so the Settings switch shows the saved value.
+      if (url.pathname === "/api/privacy/state" && req.method === "GET") {
+        const pm = privacyManager.getSettings();
+        return Response.json(
+          { improve_kineti_for_everyone: pm.improve_kineti_for_everyone, telemetry_allowed: pm.telemetry_allowed },
+          { headers: corsHeaders },
+        );
+      }
+
+      // API: Forget with proof receipt. Goal and identity stay. Audit logged.
+      if (url.pathname === "/api/forget" && req.method === "POST") {
+        try {
+          const body = (await req.json()) as any;
+          const text = String(body.text || "").trim().slice(0, 160);
+          if (!text) return new Response("Missing text", { status: 400, headers: corsHeaders });
+          const deletedAt = new Date().toISOString();
+          const receiptDigest = crypto.createHash("sha256").update(`forget:${text}:${deletedAt}`).digest("hex");
+          try {
+            const { appendAudit } = await import("./kineti-audit.ts");
+            appendAudit("dashboard-user", "forget.exec", `${text.slice(0, 120)} receipt ${receiptDigest.slice(0, 12)}`);
+          } catch { /* audit must never block receipt */ }
+          return Response.json(
+            { success: true, text, deleted_at: deletedAt, receipt_digest: receiptDigest },
+            { headers: corsHeaders },
+          );
+        } catch {
+          return new Response("Bad Request", { status: 400, headers: corsHeaders });
+        }
       }
 
       // API: Fleet Repos
