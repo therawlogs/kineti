@@ -1,4 +1,4 @@
 # Kineti hook block for opencode
 Add to your opencode config:
   Instructions: load the kineti skill set. When the user asks to start a product,
-  run /kineti-officehours first. Follow stage order in kineti WORKFLOWS.md.
+  run /kineti-officehours first. Follow stage order in kineti AGENTS.md.

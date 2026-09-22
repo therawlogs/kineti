@@ -25,7 +25,7 @@ again. One skill does one job.
    (name, description, stage, version 0.1.0).
 4. **Plain-word pass**: remove every word a newcomer would misread.
 5. **Add the memory hooks**: what to recall before, what to record after.
-6. **Register it**: add to WORKFLOWS.md if it belongs to the pipeline, or
+6. **Register it**: add to AGENTS.md if it belongs to the pipeline, or
    list under meta skills; re-run `./setup.sh` so all hosts receive it.
 7. **First real use is a trial**: annotate anything that needed human
    rescue; fold fixes back within 24 hours.

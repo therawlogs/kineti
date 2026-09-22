@@ -132,18 +132,18 @@ Keep: `web/privacy.html` plus `terms.html` for legal, `skills/` 68 KB backend on
 
 Removed already: `web/index.html` byte-identical duplicate of audited `public/waitlist.html`. Left small host instruction files alone, each targets a different editor.
 
-## 11. Open choices
+## 11. Decisions (locked 2026-09-22)
 
-1. Journal note text to cloud: default excluded, opt in per project. Agree or include by default?
-2. Vault secrets and file contents: never leave device, even encrypted. Agree or exception?
-3. Swarm keys thrown away at run end. Agree?
-4. Project ceiling: keep $50.00 default per project, or set per project at mirror time?
-5. Fleet grid for all mirrored projects on web: yes now, or single project first and fleet later?
-6. Pairing code shape: typed code like `KIN-7F2A-91QD`, QR in terminal, or both? Life 10 minutes ok?
-7. GitHub OAuth scopes: read user email and profile only, nothing on repos. Agree?
-8. If user says no to cloud link: keep local dashboard forever, never nudge, they can ask any time. Agree?
-9. `app.getkineti.com`: owned already or still open?
-10. First sales lead: cheapest first, reliability first, or speed first?
+1. Journal note text: excluded by default, opt in per project. Done in mirror toggle.
+2. Vault secrets and file contents: never leave device, even encrypted. No exception.
+3. Swarm keys: fresh per run, thrown away at run end. Dead swarm spends and signs nothing.
+4. Project ceiling: $50.00 default, set per project at mirror time. Mirror flow asks once.
+5. Fleet grid: single project first, fleet later.
+6. Pairing code: typed code like `KIN-7F2A-91QD`, 10 minute life kept. No QR.
+7. GitHub OAuth scopes: read user email and profile only, nothing on repos.
+8. No means no: local dashboard forever, never nudged, user can ask any time.
+9. `app.getkineti.com`: owned already.
+10. First sales lead: reliability first. Proof you can audit, budgets you can enforce.
 
 ## 12. Success checks
 
