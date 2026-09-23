@@ -1,4 +1,6 @@
-# Kineti Roadmap - Kineti only, user first
+# Kineti Roadmap - Kineti only, user first (ORIGINAL SPEC, FROZEN)
+
+> Current plan lives in `GOOD_ROADMAP.md`. This file is the original phase spec, kept frozen for reference. Success checks now live in `GOOD_ROADMAP.md` section 12.
 
 Goal: user talks normal. Kineti does safety, spend, undo, and proof in the background.
 User only sees result and advice. One switch for on and off. No skill names. No special commands.
@@ -21,7 +23,7 @@ This replaces the old roadmap. No Jev. Kineti native only.
 
 1. `docs/archive/` 2 old files - keep 1 zip only, out of main docs.
 2. `docs/AUDIT_REPORT.md` plus `ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md` plus `CANONICAL_ARCHITECTURE_PLAN.md` - merge to 1 `AUDIT.md` plus 1 `PLAN.md`.
-3. `public/waitlist.html` is the audited artifact referenced by audit evidence and the payload gate. `web/index.html` was a byte-identical duplicate, removed. `web/privacy.html` and `web/terms.html` stay as legal pages.
+3. `public/waitlist.html` is the audited artifact referenced by audit evidence and the payload gate. `web/index.html` was a byte-identical duplicate, removed. `public/privacy.html` and `public/terms.html` stay as legal pages.
 4. `CLAUDE.md`, `CODEX.md`, `ETHOS.md`, `MEMORY.md`, `MIGRATION.md`, `WORKFLOWS.md`, `PROJECT.md` - merge to 1 `AGENTS.md` plus `README.md`.
 5. `bin/` extra 8: stripe, invite, schedule, epistemic, privacy, egress, swarm, memory-job - keep code, backend only. Remove from user docs.
 6. `skills/` 17 folders - backend only. No trigger words for user.
@@ -77,7 +79,7 @@ This replaces the old roadmap. No Jev. Kineti native only.
 
 ---
 
-## Success checks
+## Success checks (moved to GOOD_ROADMAP.md section 12, kept here frozen)
 
 1. User never types skill, tool, or approve words.
 2. Spend, proof, and undo always run, always logged, cannot be edited, can be seen.

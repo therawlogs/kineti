@@ -17,7 +17,6 @@ coverage/
 
 # Not shipped to consumers
 website/
-web/
 tests/
 docs/
 preview/
