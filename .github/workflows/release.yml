@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to attach binaries to'
+        required: true
+        default: 'v0.3.1'
 
 jobs:
   test:
@@ -42,6 +47,7 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
           files: |
             dist/kineti-linux-x64
             dist/kineti-darwin-arm64
