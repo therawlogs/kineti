@@ -1,6 +1,6 @@
 // Shared data for all 6 routes. MIT.
 export const repo = 'https://github.com/therawlogs/kineti';
-export const author = 'Praveen Kumar';
+export const author = 'Kineti Research Team';
 
 export interface Tool {
   number: number;

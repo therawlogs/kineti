@@ -3,7 +3,7 @@
 // Context Integrity Layer (Context Integrity Protocol / CIP) Hardware Spend Circuit Breaker
 // Enforces $50.00 hardware spending ceiling ($47.50 95% trip) and $/Outcome economics tracking.
 // Reference: Paper 5 (Outcome Engineering)
-// Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+// Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import fs from "node:fs";
 import path from "node:path";

@@ -2,7 +2,7 @@
 // Context Integrity Layer (Context Integrity Protocol / CIP)
 // Frontier Benchmarks & Outcome Engineering Metrics
 // Reference: Paper 3 (Beyond Vector Search) & Paper 5 (Outcome Engineering)
-// Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+// Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import crypto from "node:crypto";
 

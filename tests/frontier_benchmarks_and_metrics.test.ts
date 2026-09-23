@@ -1,7 +1,7 @@
 // tests/frontier_benchmarks_and_metrics.test.ts
 // Verification Suite for Context Integrity Layer (CIP) Frontier Benchmarks & Metrics
 // References: Paper 3 (Beyond Vector Search) & Paper 5 (Outcome Engineering)
-// Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+// Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import { describe, expect, it } from "bun:test";
 import {

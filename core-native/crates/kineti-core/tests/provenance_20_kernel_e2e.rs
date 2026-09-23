@@ -2,7 +2,7 @@
 //! and 13 Canonical Causal Relations (\Sigma_E) committed through the 3-Way Graph Commit Gate.
 //!
 //! Grounded in Paper 3 (Beyond Vector Search) & Paper 5 (Outcome Engineering)
-//! Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+//! Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 use kineti_core::prelude::*;
 use std::collections::BTreeMap;

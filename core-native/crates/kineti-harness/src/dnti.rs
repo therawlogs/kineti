@@ -3,7 +3,7 @@
 //! Implements the three-factor outcome verification metric defined in Paper 5 (§3.1):
 //! $$\text{Verified Impact} = \Phi(\text{Metric}_{\text{base}}, \text{Metric}_{\text{obs}}, \mathbf{d}) \times \sigma_{\tau}(SE) \times \Psi(\mathcal{T})$$
 //!
-//! Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+//! Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 /// Direction of improvement for an evaluated metric.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

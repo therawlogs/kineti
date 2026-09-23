@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // bin/kineti-ci.ts
 // Context Integrity Layer (CIP) GitHub Actions CI PR Verification & Badging Utility
-// Author: Praveen Kumar (therawlogs.com | Foundational AI Research)
+// Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import fs from "node:fs";
 import path from "node:path";
