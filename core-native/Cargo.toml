@@ -1,0 +1,36 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/kineti-core",
+    "crates/kineti-reflex",
+    "crates/kineti-memory",
+    "crates/kineti-connectors",
+    "crates/kineti-actions",
+    "crates/kineti-gateway",
+    "crates/kineti-cli",
+    "crates/kineti-harness",
+]
+
+[workspace.package]
+version = "0.3.3"
+edition = "2021"
+authors = ["Kineti Team <team@getkineti.com>"]
+license = "MIT"
+publish = false
+description = "Universal agent harness with cryptographic verification"
+homepage = "https://github.com/therawlogs/kineti"
+repository = "https://github.com/therawlogs/kineti"
+
+[workspace.dependencies]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"

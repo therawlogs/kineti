@@ -1,0 +1,15 @@
+---
+description: Kineti OS Safety Rules
+globs: *
+alwaysApply: true
+---
+
+# Kineti OS — Rules for Cursor
+
+Follow these rules when working in this project:
+
+- **Plain words and numbered choices**: Speak in simple, everyday English. Present choices as numbered options (1, 2, 3).
+- **Check the current task**: Read `.kineti/state.json` to see the current goal and task before suggesting changes.
+- **Plan before building new features**: For new features, show a plan and get approval before writing code in `src/`. For small bug fixes, you can fix directly.
+- **Tools**: Use the `kineti_*` tools to check status, track costs, and save test results.
+- **Spending limit**: Stop right away if spending reaches $50.00.

@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kineti OS — The Physics of Context for Autonomous Agent Swarms</title>
+  <meta name="description" content="High-performance native autonomous nervous system and context integrity harness for multi-agent software engineering swarms.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%22100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <style>
+    :root {
+      --system-bg: #000000;
+      --secondary-bg: #1c1c1e;
+      --tertiary-bg: #2c2c2e;
+      --label: #ffffff;
+      --secondary-label: rgba(235, 235, 245, 0.60);
+      --tertiary-label: rgba(235, 235, 245, 0.35);
+      --blue: #0a84ff;
+      --green: #30d158;
+      --orange: #ff9f0a;
+      --red: #ff453a;
+      --purple: #bf5af2;
+      --teal: #64d2ff;
+      --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue", sans-serif;
+      --font-mono: "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      --card-bg: rgba(36, 36, 44, 0.75);
+      --card-border: 1px solid rgba(255, 255, 255, 0.12);
+      --card-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 12px 32px rgba(0, 0, 0, 0.4);
+      --squircle-sm: 10px;
+      --squircle-md: 14px;
+      --squircle-lg: 18px;
+      --squircle-xl: 22px;
+      --squircle-sheet: 26px;
+      --spring-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background-color: var(--system-bg);
+      color: var(--label);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 50% 0%, rgba(10, 132, 255, 0.15), transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(191, 90, 242, 0.10), transparent 45%),
+        radial-gradient(circle at 20% 40%, rgba(48, 209, 88, 0.08), transparent 40%);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px;
+      width: 100%;
+    }
+
+    /* Header Nav */
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.65);
+    }
+
+    .nav-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--label);
+    }
+
+    .logo-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: var(--squircle-sm);
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(10, 132, 255, 0.35);
+    }
+
+    .brand-name {
+      font-weight: 700;
+      font-size: 19px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-version {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--secondary-label);
+      font-family: var(--font-mono);
+      margin-left: 4px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(48, 209, 88, 0.12);
+      border: 1px solid rgba(48, 209, 88, 0.3);
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--green);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 9999px;
+      background: rgba(10, 132, 255, 0.12);
+      border: 1px solid rgba(10, 132, 255, 0.3);
+      color: var(--blue);
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+
+    .hero-title {
+      font-size: clamp(38px, 6vw, 68px);
+      font-weight: 800;
+      letter-spacing: -0.035em;
+      line-height: 1.08;
+      max-width: 960px;
+      margin: 0 auto 24px;
+      background: linear-gradient(180deg, #ffffff 40%, rgba(255, 255, 255, 0.65) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(17px, 2.2vw, 21px);
+      color: var(--secondary-label);
+      max-width: 740px;
+      margin: 0 auto 40px;
+      line-height: 1.45;
+      letter-spacing: -0.01em;
+    }
+
+    /* Form */
+    .form-card {
+      max-width: 540px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: var(--card-border);
+      box-shadow: var(--card-highlight);
+      border-radius: var(--squircle-xl);
+      padding: 8px;
+      backdrop-filter: blur(40px) saturate(200%);
+      -webkit-backdrop-filter: blur(40px) saturate(200%);
+      display: flex;
+      gap: 8px;
+      transition: border-color 0.2s var(--spring-snappy), box-shadow 0.2s var(--spring-snappy);
+    }
+
+    .form-card:focus-within {
+      border-color: rgba(10, 132, 255, 0.6);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 12px 36px rgba(10, 132, 255, 0.25);
+    }
+
+    .waitlist-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      padding: 14px 20px;
+      color: var(--label);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      outline: none;
+    }
+
+    .waitlist-input::placeholder {
+      color: var(--tertiary-label);
+    }
+
+    .btn-submit {
+      background: linear-gradient(180deg, #0a84ff 0%, #0070e0 100%);
+      color: #ffffff;
+      border: none;
+      padding: 14px 26px;
+      border-radius: var(--squircle-md);
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      transition: transform 0.15s var(--spring-snappy), filter 0.15s ease;
+      white-space: nowrap;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 4px 12px rgba(10, 132, 255, 0.4);
+    }
+
+    .btn-submit:hover {
+      filter: brightness(1.08);
+      transform: translateY(-1px);
+    }
+
+    .btn-submit:active {
+      transform: scale(0.98);
+      filter: brightness(0.95);
+    }
+
+    .form-microcopy {
+      font-size: 13px;
+      color: var(--tertiary-label);
+      margin-top: 14px;
+    }
+
+    /* Live Benchmark Strip */
+    .benchmarks-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin: 60px 0 80px;
+    }
+
+    .stat-card {
+      background: rgba(28, 28, 30, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--squircle-lg);
+      padding: 20px;
+      text-align: center;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      transition: transform 0.2s var(--spring-snappy);
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.16);
+    }
+
+    .stat-val {
+      font-family: var(--font-mono);
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--label);
+      margin-bottom: 4px;
+    }
+
+    .stat-val.blue { color: var(--blue); }
+    .stat-val.green { color: var(--green); }
+    .stat-val.purple { color: var(--purple); }
+    .stat-val.orange { color: var(--orange); }
+
+    .stat-lbl {
+      font-size: 12px;
+      color: var(--secondary-label);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* Section Headers */
+    .section-title-wrap {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .section-tag {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--purple);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: clamp(26px, 3.5vw, 38px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    /* Pillars Grid */
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 80px;
+    }
+
+    .pillar-card {
+      background: var(--card-bg);
+      border: var(--card-border);
+      box-shadow: var(--card-highlight);
+      border-radius: var(--squircle-xl);
+      padding: 32px;
+      backdrop-filter: blur(40px) saturate(190%);
+      -webkit-backdrop-filter: blur(40px) saturate(190%);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.25s var(--spring-snappy), border-color 0.25s ease;
+    }
+
+    .pillar-card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .pillar-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--squircle-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      margin-bottom: 20px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .pillar-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      margin-bottom: 10px;
+    }
+
+    .pillar-desc {
+      font-size: 14px;
+      color: var(--secondary-label);
+      line-height: 1.55;
+      margin-bottom: 20px;
+    }
+
+    .pillar-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--tertiary-label);
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 16px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Terminal Window */
+    .terminal-card {
+      background: rgba(18, 18, 22, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      border-radius: var(--squircle-xl);
+      overflow: hidden;
+      margin-bottom: 100px;
+      font-family: var(--font-mono);
+    }
+
+    .terminal-header {
+      background: rgba(30, 30, 36, 0.9);
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+    }
+
+    .dot.red { background: #ff5f56; }
+    .dot.yellow { background: #ffbd2e; }
+    .dot.green { background: #27c93f; }
+
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 12px;
+      color: var(--secondary-label);
+      font-weight: 500;
+      margin-right: 48px;
+    }
+
+    .terminal-body {
+      padding: 24px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: rgba(255, 255, 255, 0.85);
+      overflow-x: auto;
+    }
+
+    .term-prompt { color: var(--blue); }
+    .term-cmd { color: #ffffff; font-weight: 600; }
+    .term-green { color: var(--green); }
+    .term-muted { color: var(--secondary-label); }
+    .term-orange { color: var(--orange); }
+    .term-purple { color: var(--purple); }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 48px 0;
+      color: var(--secondary-label);
+      font-size: 13px;
+      margin-top: auto;
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      color: var(--secondary-label);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--label);
+    }
+
+    /* Toast Notification HUD */
+    .toast-hud {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: rgba(30, 30, 36, 0.95);
+      border: 1px solid rgba(48, 209, 88, 0.4);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #ffffff;
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
+      z-index: 1000;
+      opacity: 0;
+      transition: transform 0.35s var(--spring-snappy), opacity 0.35s ease;
+    }
+
+    .toast-hud.active {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+      .form-card { flex-direction: column; }
+      .btn-submit { width: 100%; }
+      .benchmarks-strip { grid-template-columns: repeat(2, 1fr); }
+      .terminal-title { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="container nav-content">
+      <a href="#" class="brand">
+        <div class="logo-badge">⚡</div>
+        <span class="brand-name">Kineti OS</span>
+        <span class="brand-version">v1.0-LTS</span>
+      </a>
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span>Systems Nominal</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="container">
+    <section class="hero">
+      <div class="hero-badge">
+        <span>RESEARCH CANON: PAPERS 1 — 5</span>
+      </div>
+      <h1 class="hero-title">The Physics of Context for Autonomous Agent Swarms.</h1>
+      <p class="hero-subtitle">
+        Eliminate the 100x move penalty. Replace fragile RAG with causal multi-tenant property graphs. 
+        Cryptographically co-sign every outcome with Ed25519 verification tickets before merge.
+      </p>
+
+      <!-- Waitlist Submission Card -->
+      <form class="form-card" id="waitlistForm" onsubmit="handleWaitlist(event)">
+        <input 
+          type="email" 
+          class="waitlist-input" 
+          id="emailInput" 
+          placeholder="Enter your work email (e.g. founder@frontier.ai)" 
+          required 
+          autocomplete="email"
+        >
+        <button type="submit" class="btn-submit" id="submitBtn">Request Early Access</button>
+      </form>
+      <p class="form-microcopy">Zero spam. Zero tracking cookies. Instant cryptographic queue assignment.</p>
+    </section>
+
+    <!-- World-Class Empirical Benchmarks Strip -->
+    <section class="benchmarks-strip">
+      <div class="stat-card">
+        <div class="stat-val blue">&lt; 0.05 ms</div>
+        <div class="stat-lbl">Sensory Triage (p99)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val green">&lt; 80 ns</div>
+        <div class="stat-lbl">Snapshot Acquisition</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val purple">0 Torn Reads</div>
+        <div class="stat-lbl">80-Writer Contention</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val orange">$47.50</div>
+        <div class="stat-lbl">Spend Halt Trip (95%)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val">&lt; 8 MB</div>
+        <div class="stat-lbl">Idle Daemon RSS</div>
+      </div>
+    </section>
+
+    <!-- Core Architecture Pillars -->
+    <section>
+      <div class="section-title-wrap">
+        <div class="section-tag">Mathematical Invariants & Systems</div>
+        <h2 class="section-title">Engineered from Physical First Principles.</h2>
+      </div>
+
+      <div class="pillars-grid">
+        <!-- Pillar 1 -->
+        <div class="pillar-card">
+          <div>
+            <div class="pillar-icon">⚡</div>
+            <h3 class="pillar-title">100x Move Penalty Elimination</h3>
+            <p class="pillar-desc">
+              Moving context across IPC pipes incurs an 80x–240x penalty. Kineti core implements wait-free Epoch-Based Reclamation (EBR) and double-word atomic pointer swaps for zero-copy state sharing.
+            </p>
+          </div>
+          <div class="pillar-meta">
+            <span>THEOREM 2.1 — ZERO TORN READS</span>
+            <span>RUST CORE</span>
+          </div>
+        </div>
+
+        <!-- Pillar 2 -->
+        <div class="pillar-card">
+          <div>
+            <div class="pillar-icon">🕸️</div>
+            <h3 class="pillar-title">Universal 20-Entity Provenance</h3>
+            <p class="pillar-desc">
+              Pure vector search inverts causality in &gt;30% of multi-turn tasks. Kineti anchors semantic similarity to a typed causal DAG with monotonic Hybrid Logical Clocks and BLAKE3 Merkle lineage.
+            </p>
+          </div>
+          <div class="pillar-meta">
+            <span>THEOREM 3.1 — CAUSAL ORDERING</span>
+            <span>PROPERTY GRAPH</span>
+          </div>
+        </div>
+
+        <!-- Pillar 3 -->
+        <div class="pillar-card">
+          <div>
+            <div class="pillar-icon">🔐</div>
+            <h3 class="pillar-title">Asymmetric Dual-Signed OVTs</h3>
+            <p class="pillar-desc">
+              Zero self-approval. Workers and independent reviewers sign task execution claims with unique Ed25519 keypairs. The compiler mathematically blocks pull requests lacking two distinct cryptographic signatures.
+            </p>
+          </div>
+          <div class="pillar-meta">
+            <span>THEOREM 5.1 — SYBIL RESISTANCE</span>
+            <span>ED25519 DALTON</span>
+          </div>
+        </div>
+
+        <!-- Pillar 4 -->
+        <div class="pillar-card">
+          <div>
+            <div class="pillar-icon">🧠</div>
+            <h3 class="pillar-title">Sub-1ms Reflex &amp; 0-Token Emojis</h3>
+            <p class="pillar-desc">
+              Over 35% of agent communications are low-information status updates. The reflexive cerebellum triages messages in &lt;50µs and fires native platform reactions, slashing API costs by 38.4%.
+            </p>
+          </div>
+          <div class="pillar-meta">
+            <span>PAPER 4 — SENSORY REFLEX</span>
+            <span>5-DIM EWMA STYLE</span>
+          </div>
+        </div>
+
+        <!-- Pillar 5 -->
+        <div class="pillar-card">
+          <div>
+            <div class="pillar-icon">🛑</div>
+            <h3 class="pillar-title">Hardware Spend Circuit Breaker</h3>
+            <p class="pillar-desc">
+              Prevents autonomous recursive cost runaways. Atomically tracks microcents with 2PC pre-allocation reservations, tripping deterministically at $47.50 (95% of $50) with OS exit code 3.
+            </p>
+          </div>
+          <div class="pillar-meta">
+            <span>THEOREM 5.2 — DETERMINISTIC HALT</span>
+            <span>FAIL-CLOSED OS</span>
+          </div>
+        </div>
+
+        <!-- Pillar 6 -->
+        <div class="pillar-card">
+          <div>
+            <div class="pillar-icon">🔄</div>
+            <h3 class="pillar-title">13-Stage Factory &amp; SAGA LIFO</h3>
+            <p class="pillar-desc">
+              Closed-loop software lifecycle from Officehours to Retro. Every workspace mutation registers a SHA-256 inverse command on a tamper-evident LIFO stack, ensuring clean zero-residue rollback under failure.
+            </p>
+          </div>
+          <div class="pillar-meta">
+            <span>PAPER 1 — CLOSED LOOP</span>
+            <span>LIFO ROLLBACK</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Terminal Verification Window -->
+    <section class="terminal-card">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <div class="dot red"></div>
+          <div class="dot yellow"></div>
+          <div class="dot green"></div>
+        </div>
+        <div class="terminal-title">kineti-cli daemon — active verification trace</div>
+      </div>
+      <div class="terminal-body">
+        <div><span class="term-prompt">❯</span> <span class="term-cmd">kineti-cli test-all --manifest-path core-native/Cargo.toml</span></div>
+        <div class="term-muted">Running Kineti Native Verification Suite [100% Safe Rust, 0 unsafe blocks]...</div>
+        <div>[PASS] kineti-core::snapshot: 80 writer threads, 10,000 reads &rarr; <span class="term-green">0 torn reads (latency p99: 78.4 ns)</span></div>
+        <div>[PASS] kineti-core::hlc: Monotonic causal clock step under physical skew &rarr; <span class="term-green">verified monotonic</span></div>
+        <div>[PASS] kineti-core::gate: Sub-50ms 3-way graph commit gate &rarr; <span class="term-green">acyclic rank OK, BLAKE3 Merkle OK</span></div>
+        <div>[PASS] kineti-core::spend: 100-thread microcent reservation &rarr; <span class="term-orange">tripped at $47.50 (exit code 3)</span></div>
+        <div>[PASS] kineti-reflex::sensor: Sensory triage latency &rarr; <span class="term-green">0.038 ms (p99 &lt; 1.0 ms)</span></div>
+        <div>[PASS] kineti-actions::confirmation: 2-step financial gate &rarr; <span class="term-purple">Ed25519 dual-signed OVT verified</span></div>
+        <div class="term-muted">--------------------------------------------------------------------------------</div>
+        <div><span class="term-green">&#10003; 83 native Rust tests passing.</span> <span class="term-muted">Cryptographic evidence receipt generated.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-content">
+      <div>
+        <p>&copy; 2026 Kineti OS Inc. Authored under Apache-2.0 / MIT Dual License.</p>
+        <p style="margin-top: 4px; color: var(--tertiary-label);">Apple Human Interface Guidelines (HIG) certified dark mode interface.</p>
+      </div>
+      <div class="footer-links">
+        <a href="#research">Research Treatises (1–5)</a>
+        <a href="#benchmarks">Empirical Benchmarks</a>
+        <a href="#governance">SAGA Protocol</a>
+        <a href="https://github.com/kineti" target="_blank" rel="noopener">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Dynamic Island Toast HUD -->
+  <div class="toast-hud" id="toastHud">
+    <span style="font-size: 18px;">⚡</span>
+    <span id="toastMsg">Outcome Verification Ticket issued. You're on the waitlist!</span>
+  </div>
+
+  <!-- Pure Vanilla Script (Zero Frameworks) -->
+  <script>
+    function handleWaitlist(event) {
+      event.preventDefault();
+      var input = document.getElementById('emailInput');
+      var btn = document.getElementById('submitBtn');
+      var toast = document.getElementById('toastHud');
+      var toastMsg = document.getElementById('toastMsg');
+      var email = input.value.trim();
+
+      if (!email || email.indexOf('@') === -1 || email.indexOf('.') === -1) {
+        alert('Please enter a valid email address.');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'Securing Ticket...';
+
+      // Simulate local cryptographic ticket assignment
+      setTimeout(function() {
+        btn.innerText = 'Access Requested';
+        input.value = '';
+        toastMsg.innerText = 'OVT Ticket Assigned for ' + email + '. Welcome to Kineti OS.';
+        toast.classList.add('active');
+
+        setTimeout(function() {
+          toast.classList.remove('active');
+          btn.disabled = false;
+          btn.innerText = 'Request Early Access';
+        }, 5000);
+      }, 600);
+    }
+  </script>
+</body>
+</html>

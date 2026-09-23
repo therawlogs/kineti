@@ -1,0 +1,35 @@
+# Operating System files
+.DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Dependencies & Build artifacts
+node_modules/
+target/
+dist/
+coverage/
+*.log
+*.bun-build
+*.tgz
+
+# Local runtime state & secrets (never commit)
+.kineti/
+**/.kineti/
+.agents/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+
+# Local IDE & tooling configuration
+.cursor/mcp.json
+.cursor/mcp.local.json
+.kineti/fleet.local.json
+
+# Local-only planning documents & sprint archives
+GOOD_ROADMAP.md
+ROADMAP.md
+docs/archive.zip
+docs/archive/
+

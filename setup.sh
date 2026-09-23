@@ -1,0 +1,211 @@
+#!/usr/bin/env bash
+# Kineti OS installer. Copies skills into every detected agent host.
+# Safe to re-run: overwrites only kineti-* files it owns.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PREFIX="kineti-"
+ONLY_HOST=""
+INSTALL_ROOT=""
+UNINSTALL=0
+HOST_NAMES=()
+HOST_DIRS=()
+HOST_CONFS=()
+
+usage() {
+  echo "Usage: ./setup.sh [--host opencode|claude|gemini|codex|cursor] [--install-root [DIR]] [--uninstall]"
+  exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --host) [[ $# -lt 2 ]] && { echo "Missing value for --host"; usage; }; ONLY_HOST="${2:-}"; shift 2 ;;
+    --install-root) if [[ $# -ge 2 && "$2" != --* ]]; then INSTALL_ROOT="$2"; shift 2; else INSTALL_ROOT="$(pwd)"; shift 1; fi ;;
+    --uninstall) UNINSTALL=1; shift ;;
+    -h|--help) usage ;;
+    *) echo "Unknown option: $1"; usage ;;
+  esac
+done
+
+read_conf() { # $1 = conf file, $2 = key -> prints value (quotes stripped)
+  grep -E "^$2=" "$1" | head -1 | cut -d= -f2- | tr -d '"'
+}
+
+expand_path() { # expand $HOME and ${CODEX_HOME:-...} without executing arbitrary code
+  local p="$1"
+  local codex_base="${CODEX_HOME:-$HOME/.codex}"
+  p="${p//\$\{CODEX_HOME:-\$HOME\/.codex\}/$codex_base}"
+  p="${p//\$HOME/$HOME}"
+  echo "$p"
+}
+
+host_dirs() { # $1 = conf -> prints existing skills dirs (primary + fallback)
+  local conf="$1" primary fallback
+  primary="$(expand_path "$(read_conf "$conf" skills_dir_primary)")"
+  fallback="$(expand_path "$(read_conf "$conf" skills_dir_fallback)")"
+  [[ -n "$fallback" && -d "$fallback" && ! -d "$primary" ]] && primary="$fallback"
+  echo "$primary"
+}
+
+load_hosts() {
+  local conf name dir
+  for conf in "$HERE"/hosts/*.conf; do
+    name="$(read_conf "$conf" name)"
+    [[ -n "$ONLY_HOST" && "$name" != "$ONLY_HOST" ]] && continue
+    dir="$(host_dirs "$conf")"
+    HOST_NAMES+=("$name"); HOST_DIRS+=("$dir"); HOST_CONFS+=("$conf")
+  done
+}
+
+uninstall() {
+  load_hosts
+  local i dir removed=0
+  for i in "${!HOST_NAMES[@]}"; do
+    dir="${HOST_DIRS[$i]}"
+    # Safety: never delete outside $HOME, never delete empty/root paths.
+    [[ -z "$dir" || "$dir" == "/" || "$dir" == "$HOME" ]] && continue
+    case "$dir" in "$HOME"/*) ;; *) continue ;; esac
+    [[ -d "$dir" ]] || continue
+    for d in "$dir/${PREFIX}"*; do
+      [[ -e "$d" ]] || continue
+      rm -rf "$d"; removed=$((removed+1))
+      echo "removed: $d"
+    done
+  done
+  echo "Kineti uninstalled. Removed $removed skill folders."
+  echo "Note: hook text blocks in host settings are comments; remove them by hand if desired."
+  echo "Note: ~/.kineti/repo pointer and ~/.kineti/alerts.log are kept. Delete by hand if needed."
+}
+
+install_root_files() {
+  local target="${1:-$(pwd)}"
+  echo "Installing zero-touch root platform hooks into: $target"
+
+  # 1. CLAUDE.md
+  if [[ ! -f "$target/CLAUDE.md" ]]; then
+    cat << 'EOF' > "$target/CLAUDE.md"
+# Kineti OS — Autonomous Directives for Claude Code
+
+This repository is governed by Kineti OS v3. You operate under standing governance rules without requiring the user to manually type slash commands.
+
+## Automatic Operational Protocol
+1. Plain English and numbered options (1, 2, 3).
+2. Inspect .kineti/state.json to track the active stage (1 to 13). Do NOT skip stages.
+3. Hard gate: Do NOT write application code in src/ before Stage 6 (Spec) approval.
+4. Check spend with bun bin/kineti-spend.ts check before heavy tasks ($50.00 global, $10 per stage).
+5. Record test proofs via bun bin/kineti-evidence.ts run --label <name> -- <command>.
+EOF
+    echo "  + CLAUDE.md"
+  fi
+
+  # 2. AGENTS.md
+  if [[ ! -f "$target/AGENTS.md" ]]; then
+    cat << 'EOF' > "$target/AGENTS.md"
+# Kineti OS — Universal Agent Standing Directives
+
+You are operating inside a repository governed by the Kineti OS v3 Runtime. You do NOT require the operator to invoke manual slash commands; governance is automated from the platform root.
+
+## Rules
+1. Plain English interaction with numbered choices.
+2. Read .kineti/state.json. Stages 1-6 are design/spec; Stage 6 gate blocks code.
+3. Verify test proofs with code fingerprints.
+4. Pause if spend reaches $50 USD.
+EOF
+    echo "  + AGENTS.md"
+  fi
+
+  # 3. .cursor/rules/kineti.mdc
+  mkdir -p "$target/.cursor/rules"
+  if [[ ! -f "$target/.cursor/rules/kineti.mdc" ]]; then
+    cat << 'EOF' > "$target/.cursor/rules/kineti.mdc"
+---
+description: Kineti OS Autonomous Runtime Governance
+globs: *
+alwaysApply: true
+---
+
+# Kineti OS — Cursor Autonomous Governance
+
+You are governed by the Kineti OS v3 Runtime. Do not wait for manual slash commands.
+
+- Inspect .kineti/state.json on every task.
+- No code before Stage 6 (Spec approval).
+- Use registered kineti_* MCP tools.
+- Respect spend circuit breaker ($50 ceiling).
+EOF
+    echo "  + .cursor/rules/kineti.mdc"
+  fi
+
+  # 4. CODEX.md
+  if [[ ! -f "$target/CODEX.md" ]]; then
+    cat << 'EOF' > "$target/CODEX.md"
+# Kineti OS — Autonomous Directives for OpenAI Codex
+
+Governed by Kineti OS v3.
+
+1. Plain English and numbered options.
+2. Read .kineti/state.json. Do not write code before Stage 6.
+3. Verify evidence with code fingerprints.
+EOF
+    echo "  + CODEX.md"
+  fi
+}
+
+install() {
+  load_hosts
+  if [[ ${#HOST_NAMES[@]} -eq 0 ]]; then
+    echo "No matching host found. Installed hosts are auto-detected;"
+    echo "force one with: ./setup.sh --host <opencode|claude|gemini|codex|cursor>"
+    exit 1
+  fi
+  local i name dir skill dest count total=0 skipped=0
+  for i in "${!HOST_NAMES[@]}"; do
+    name="${HOST_NAMES[$i]}"; dir="${HOST_DIRS[$i]}"; count=0
+    # Auto mode installs only into existing host folders. --host forces creation.
+    if [[ ! -d "$dir" && -z "$ONLY_HOST" ]]; then
+      echo "skipped: $name (not installed on this machine)"
+      skipped=$((skipped+1))
+      continue
+    fi
+    mkdir -p "$dir"
+    for skill in "$HERE"/skills/*/; do
+      skill="$(basename "$skill")"
+      dest="$dir/${PREFIX}${skill}"
+      mkdir -p "$dest"
+      cp "$HERE/skills/$skill/SKILL.md" "$dest/SKILL.md"
+      count=$((count+1))
+    done
+    echo "installed: $count skills -> $dir ($name)"
+    total=$((total+count))
+  done
+  echo ""
+  echo "== Hook blocks (paste into each host's instructions file) =="
+  for i in "${!HOST_NAMES[@]}"; do
+    name="${HOST_NAMES[$i]}"
+    [[ -d "${HOST_DIRS[$i]}" ]] || continue
+    echo ""
+    cat "$HERE/hooks/$name.txt"
+  done
+  local installed_hosts=0
+  for i in "${!HOST_DIRS[@]}"; do [[ -d "${HOST_DIRS[$i]}" ]] && installed_hosts=$((installed_hosts+1)); done
+  echo ""
+  echo "Done. $total skill copies across $installed_hosts host(s). Re-run any time."
+  if [[ -f "$HOME/.kineti/repo" ]]; then
+    cp "$HOME/.kineti/repo" "$HOME/.kineti/repo.bak" 2>/dev/null || true
+  fi
+  printf '%s\n' "$HERE" > "$HOME/.kineti/repo"
+  echo "Repository pointer written: $HOME/.kineti/repo -> $HERE"
+  if [[ $total -eq 0 ]]; then
+    echo "No agent host folders were found on this machine."
+    echo "Create one (for example install opencode) or force a target:"
+    echo "  ./setup.sh --host <opencode|claude|gemini|codex|cursor>"
+  fi
+  if [[ -n "$INSTALL_ROOT" ]]; then
+    echo ""
+    install_root_files "$INSTALL_ROOT"
+  fi
+}
+
+mkdir -p "$HOME/.kineti"
+
+if [[ $UNINSTALL -eq 1 ]]; then uninstall; else install; fi

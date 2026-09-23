@@ -1,0 +1,10 @@
+[package]
+name = "kineti-harness"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Developer safety harness: MCP proxy interceptor, shadow workspace, and native OVT verification"
+
+[dependencies]
+kineti-core = { path = "../kineti-core" }

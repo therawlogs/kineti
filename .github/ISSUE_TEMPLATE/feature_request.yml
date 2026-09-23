@@ -1,0 +1,60 @@
+name: Feature Request
+description: Suggest a new capability or improvement for Kineti
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing an enhancement to Kineti. Kineti follows simple rules: plain words, numbered choices (1, 2, 3), and strict safety boundaries.
+
+  - type: textarea
+    id: problem-statement
+    attributes:
+      label: Problem Statement
+      description: What problem are you trying to solve? Please explain in plain English.
+      placeholder: Describe the problem or limitation you are facing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: Explain how you would like this feature to work.
+      placeholder: Describe the expected user flow and outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: numbered-options
+    attributes:
+      label: Numbered Options
+      description: Present 2 to 3 numbered approaches (1, 2, 3) for how this can be implemented or configured.
+      placeholder: |
+        1. Option 1: ...
+        2. Option 2: ...
+        3. Option 3: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety-and-spending
+    attributes:
+      label: Safety and Spending Considerations
+      description: How does this proposal interact with spend caps ($50 ceiling), undo safety (saga steps), or execution boundaries?
+      placeholder: Note any impacts on spending limits, file changes, or external network calls.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Feature Checklist
+      options:
+        - label: This proposal directly supports the main goal of Kineti (universal agent harness with cryptographic verification).
+          required: true
+        - label: I searched existing issues and feature requests before submitting.
+          required: true
+        - label: I am willing to help test or contribute to this implementation if accepted.
+          required: false

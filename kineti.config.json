@@ -1,0 +1,48 @@
+{
+  "version": "0.3.3",
+  "name": "Kineti OS",
+  "description": "Closed-loop software factory: skills propose, programs enforce, memory remembers",
+  "pipeline": [
+    { "n": 1, "id": "officehours", "gate": false },
+    { "n": 2, "id": "diagnose", "gate": false },
+    { "n": 3, "id": "design", "gate": false },
+    { "n": 4, "id": "architecture", "gate": false },
+    { "n": 5, "id": "feasibility", "gate": true, "on_fail": "goto:2" },
+    { "n": 6, "id": "spec", "gate": true, "stop": "human_approval" },
+    { "n": 7, "id": "build", "gate": false },
+    { "n": 8, "id": "review", "gate": false },
+    { "n": 9, "id": "qa", "gate": false },
+    { "n": 10, "id": "security", "gate": true, "blocks": "ship" },
+    { "n": 11, "id": "ship", "gate": true, "requires": ["evidence_fresh", "security_pass"] },
+    { "n": 12, "id": "watch", "gate": false },
+    { "n": 13, "id": "retro", "gate": false }
+  ],
+  "settings": {
+    "spend_limit_usd": { "global": 50.0, "per_stage_default": 10.0 },
+    "qa_max_self_repair_attempts": 5,
+    "data_quality_threshold": 0.8,
+    "hurdle_rate_min": 0.5,
+    "verify_command": "bun test",
+    "freeze_during": ["build", "review", "qa"]
+  },
+  "memory": {
+    "engine": "gbrain",
+    "ttl_states": ["active", "warm", "cold", "archive"],
+    "cause_core_words": [
+      "caused", "triggers", "blocks", "enables", "requires",
+      "supports", "indicates", "contributes_to", "remediates",
+      "contradicts", "supersedes", "resolves", "duplicates"
+    ],
+    "cause_vocabulary": "open; new words allowed at write time, promoted by weekly job",
+    "edge_status_flow": ["candidate", "hypothesis", "validated", "rejected"],
+    "validation_requires_proof_record": true,
+    "time_order_check": "weekly",
+    "record_types": ["run-record", "learning", "project-dossier"]
+  },
+  "asset_paths": {
+    "screens": "design/screens/",
+    "qa_screenshots": "design/screenshots/",
+    "run_state": ".kineti/"
+  },
+  "hosts": ["opencode", "claude", "gemini", "codex", "cursor", "antigravity", "fx", "lovable", "replit", "emergent"]
+}

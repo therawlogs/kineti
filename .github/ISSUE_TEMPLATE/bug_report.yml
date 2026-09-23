@@ -1,0 +1,67 @@
+name: Bug Report
+description: Report unexpected behavior, errors, or broken tests in Kineti
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue in Kineti. Please describe the problem in plain English and provide clear reproduction steps.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Provide a clear description of the unexpected behavior or error.
+      placeholder: Describe the problem using simple, everyday words.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction-steps
+    attributes:
+      label: Steps to reproduce
+      description: List numbered steps (1, 2, 3) to reproduce the issue.
+      placeholder: |
+        1. Run command '...'
+        2. Inspect state file '...'
+        3. See error '...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: Explain what should have happened instead.
+      placeholder: Tell us what you expected to see.
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide operating system, Bun version, and Rust version.
+      placeholder: "macOS 15 (ARM64) / Linux x86_64, Bun 1.2.0, Rust 1.80.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs-and-output
+    attributes:
+      label: Command output and logs
+      description: Paste any command output, stack traces, or test failure logs. Please ensure no private tokens or personal paths are included.
+      render: shell
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Safety and Hygiene Checklist
+      options:
+        - label: I searched existing issues to ensure this is not a duplicate.
+          required: true
+        - label: I verified that no private tokens, passwords, or personal paths (/Users/...) are included in this report.
+          required: true
+        - label: I reproduced this behavior on the latest release or main branch.
+          required: true

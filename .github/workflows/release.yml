@@ -1,0 +1,66 @@
+name: Release Kineti OS
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to attach binaries to'
+        required: true
+        default: 'v0.3.1'
+
+jobs:
+  test:
+    name: Verify test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun test tests/
+
+  build-and-publish:
+    name: Build binaries and publish release
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+
+      - name: Build standalone binaries
+        run: |
+          mkdir -p dist
+          bun build --compile --minify ./bin/kineti.ts --outfile dist/kineti-linux-x64
+          bun build --compile --minify --target=bun-darwin-arm64 ./bin/kineti.ts --outfile dist/kineti-darwin-arm64
+          bun build --compile --minify --target=bun-darwin-x64 ./bin/kineti.ts --outfile dist/kineti-darwin-x64
+          cd dist && sha256sum * > SHA256SUMS
+
+      - name: Upload binaries as run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kineti-binaries
+          path: |
+            dist/kineti-linux-x64
+            dist/kineti-darwin-arm64
+            dist/kineti-darwin-x64
+            dist/SHA256SUMS
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: |
+            dist/kineti-linux-x64
+            dist/kineti-darwin-arm64
+            dist/kineti-darwin-x64
+            dist/SHA256SUMS
+          generate_release_notes: true
