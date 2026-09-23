@@ -15,3 +15,4 @@ coverage/
 *.tgz
 .cursor/mcp.json
 .kineti/fleet.local.json
+.bun-build
