@@ -5,7 +5,7 @@
 // All replies use plain words plus numbered choices.
 
 import path from "node:path";
-import { projectKdir, readJson, readJsonl, writeJson } from "./lib.ts";
+import { projectKdir, readJson, readJsonl, writeJson, loadLimits } from "./lib.ts";
 import { recommend, isAutoSwitch, setAutoSwitch } from "./kineti-models.ts";
 import { appendAudit } from "./kineti-audit.ts";
 import { livePairing, makePairing, minutesLeft, revokePairing, PAIR_LINK } from "./kineti-pairing.ts";
@@ -76,15 +76,16 @@ function spendReply(): string {
   const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
   const total = typeof spend.total_usd === "number" ? spend.total_usd : 0;
   const tripped = spend.tripped === true;
+  const ceiling = loadLimits().globalUsd;
   if (tripped) {
     return (
-      `Spending is stopped. You have used $${total} of $50. ` +
+      `Spending is stopped. You have used $${total} of $${ceiling}. ` +
       `Only you can restart it.\nChoices:\n1. Keep it stopped.\n2. Restart it.`
     );
   }
-  const left = Math.max(0, 50 - total);
+  const left = Math.max(0, ceiling - total);
   return (
-    `You have used $${total} of $50. $${left.toFixed(2)} is left.\n` +
+    `You have used $${total} of $${ceiling}. $${left.toFixed(2)} is left.\n` +
     `Choices:\n1. Keep going.\n2. Set a lower limit in plain words, for example "my limit is twenty dollars".`
   );
 }

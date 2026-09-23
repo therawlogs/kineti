@@ -732,6 +732,22 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
       )).json()) as any;
       expect(mirror1.enabled).toBe(true);
       expect(mirror1.note_sync).toBe(false);
+      expect(mirror1.ceiling).toBe(50);
+
+      const mirrorCap = (await (await server.fetch(
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: true, note_sync: false, ceiling: 40 }) }),
+      )).json()) as any;
+      expect(mirrorCap.ceiling).toBe(40);
+
+      const mini = (await (await server.fetch(
+        new Request("http://localhost/api/mini", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
+      )).json()) as any;
+      expect(mini.ceiling).toBe(40);
+
+      const over = await server.fetch(
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: true, ceiling: 5000 }) }),
+      );
+      expect(over.status).toBe(400);
 
       const dropped = (await (await server.fetch(
         new Request("http://localhost/api/pairing/drop", { method: "POST", headers: auth }),

@@ -86,13 +86,29 @@ export interface Limits {
   safetyFactor: number;
 }
 
+/** Per-project ceiling bounds. Only the human sets it, every change is audit logged. */
+export const MIN_PROJECT_CEILING_USD = 1;
+export const MAX_PROJECT_CEILING_USD = 1000;
+export const DEFAULT_PROJECT_CEILING_USD = 50;
+
 export function loadLimits(cwd: string = process.cwd()): Limits {
   const cfg = readJson<any>(path.join(cwd, "kineti.config.json"));
   const s = cfg?.settings?.spend_limit_usd ?? {};
   // Clamp every limit to a positive-finite number, else fall back to defaults.
   // Bad config must never disable the breaker (fail closed).
   const rawGlobal = Number(s.global ?? 50);
-  const globalUsd = Number.isFinite(rawGlobal) && rawGlobal > 0 ? rawGlobal : 50;
+  let globalUsd = Number.isFinite(rawGlobal) && rawGlobal > 0 ? rawGlobal : 50;
+  // Per-project ceiling set at mirror time overrides the repo default.
+  // Invalid or missing mirror ceiling falls back to the config value (fail closed).
+  const mirror = readJson<{ ceiling?: unknown }>(path.join(cwd, ".kineti", "mirror.json"));
+  const rawCeiling = Number(mirror?.ceiling);
+  if (
+    Number.isFinite(rawCeiling) &&
+    rawCeiling >= MIN_PROJECT_CEILING_USD &&
+    rawCeiling <= MAX_PROJECT_CEILING_USD
+  ) {
+    globalUsd = rawCeiling;
+  }
   const rawStageDefault = Number(s.per_stage_default ?? 10);
   const perStageDefaultUsd = Number.isFinite(rawStageDefault) && rawStageDefault > 0 ? rawStageDefault : 10;
   const perStage: Record<string, number> = {};
