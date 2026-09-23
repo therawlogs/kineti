@@ -5,6 +5,7 @@ import {
   livePairing, makeCode, makePairing, markUsed, minutesLeft, revokePairing, PAIR_TTL_MS,
   claimPairing, cloudStatus, dropLink, pollPairing, getMirror, setMirror,
 } from "../bin/kineti-pairing.ts";
+import { loadLimits } from "../bin/lib.ts";
 
 const PAIR_FILE = path.join(process.cwd(), ".kineti", "pairing.json");
 const MIRROR_FILE = path.join(process.cwd(), ".kineti", "mirror.json");
@@ -111,12 +112,35 @@ describe("kineti-pairing cloud link codes", () => {
     const m = getMirror();
     expect(m.enabled).toBe(false);
     expect(m.note_sync).toBe(false);
+    expect(m.ceiling).toBe(50);
     const on = setMirror(true, false, "pair-test");
     expect(on.enabled).toBe(true);
     expect(on.note_sync).toBe(false);
+    expect(on.ceiling).toBe(50);
     const notes = setMirror(true, true, "pair-test");
     expect(notes.note_sync).toBe(true);
+    const capped = setMirror(true, false, "pair-test", 40);
+    expect(capped.ceiling).toBe(40);
+    const bad = setMirror(true, false, "pair-test", 5000);
+    expect(bad.ceiling).toBe(40);
     setMirror(false, false, "pair-test");
     try { fs.rmSync(MIRROR_FILE, { force: true }); } catch {}
+  });
+
+  test("mirror ceiling drives the spend breaker, invalid falls back to 50", () => {
+    const os = require("node:os") as typeof import("node:os");
+    const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "kineti-limits-"));
+    try {
+      fs.mkdirSync(path.join(dir, ".kineti"), { recursive: true });
+      expect(loadLimits(dir).globalUsd).toBe(50);
+      fs.writeFileSync(path.join(dir, ".kineti", "mirror.json"), JSON.stringify({ ceiling: 40 }));
+      expect(loadLimits(dir).globalUsd).toBe(40);
+      fs.writeFileSync(path.join(dir, ".kineti", "mirror.json"), JSON.stringify({ ceiling: 5000 }));
+      expect(loadLimits(dir).globalUsd).toBe(50);
+      fs.writeFileSync(path.join(dir, ".kineti", "mirror.json"), JSON.stringify({ ceiling: "lots" }));
+      expect(loadLimits(dir).globalUsd).toBe(50);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

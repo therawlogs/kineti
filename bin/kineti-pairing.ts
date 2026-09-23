@@ -8,7 +8,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { die, ok, projectKdir, readJson, writeJson, machineDir, ensureDir } from "./lib.ts";
+import { die, ok, projectKdir, readJson, writeJson, machineDir, ensureDir, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD, DEFAULT_PROJECT_CEILING_USD } from "./lib.ts";
 import { appendAudit } from "./kineti-audit.ts";
 
 export const PAIR_TTL_MS = 10 * 60 * 1000;
@@ -167,6 +167,7 @@ export interface MirrorState {
   project: string;
   enabled: boolean;
   note_sync: boolean;
+  ceiling: number;
   updated_at: string | null;
 }
 
@@ -178,25 +179,35 @@ function mirrorFile(): string {
 export function getMirror(): MirrorState {
   const state = readJson<{ project?: string }>(path.join(projectKdir(), "state.json")) || {};
   const project = typeof state.project === "string" ? state.project : "kineti";
-  const disk = readJson<{ enabled?: boolean; note_sync?: boolean; updated_at?: string }>(mirrorFile());
+  const disk = readJson<{ enabled?: boolean; note_sync?: boolean; ceiling?: unknown; updated_at?: string }>(mirrorFile());
+  const rawCeiling = Number(disk?.ceiling);
   return {
     project,
     enabled: disk?.enabled === true,
     note_sync: disk?.note_sync === true,
+    ceiling:
+      Number.isFinite(rawCeiling) && rawCeiling >= MIN_PROJECT_CEILING_USD && rawCeiling <= MAX_PROJECT_CEILING_USD
+        ? rawCeiling
+        : DEFAULT_PROJECT_CEILING_USD,
     updated_at: typeof disk?.updated_at === "string" ? disk.updated_at : null,
   };
 }
 
-export function setMirror(enabled: boolean, noteSync: boolean, actor = "user"): MirrorState {
+export function setMirror(enabled: boolean, noteSync: boolean, actor = "user", ceiling = DEFAULT_PROJECT_CEILING_USD): MirrorState {
   const cur = getMirror();
+  const rawCeiling = Number(ceiling);
   const next: MirrorState = {
     project: cur.project,
     enabled,
     note_sync: noteSync,
+    ceiling:
+      Number.isFinite(rawCeiling) && rawCeiling >= MIN_PROJECT_CEILING_USD && rawCeiling <= MAX_PROJECT_CEILING_USD
+        ? rawCeiling
+        : cur.ceiling,
     updated_at: new Date().toISOString(),
   };
   writeJson(mirrorFile(), next);
-  try { appendAudit(actor, enabled ? "mirror.on" : "mirror.off", `project=${next.project} notes=${noteSync ? "included" : "excluded"}`); } catch {}
+  try { appendAudit(actor, enabled ? "mirror.on" : "mirror.off", `project=${next.project} ceiling=$${next.ceiling} notes=${noteSync ? "included" : "excluded"}`); } catch {}
   return next;
 }
 
@@ -254,8 +265,11 @@ function cli(): void {
     const on = rest[0] === "on";
     if (rest[0] !== "on" && rest[0] !== "off") die("mirror requires on or off", 2);
     const notes = rest.includes("--with-notes");
-    const m = setMirror(on, notes);
-    ok(`mirror for ${m.project} is now ${on ? "on" : "off"}. Journal notes ${m.note_sync ? "included" : "excluded"}. Files and vault secrets never leave this device.`);
+    let ceiling = DEFAULT_PROJECT_CEILING_USD;
+    const ci = rest.indexOf("--ceiling");
+    if (ci >= 0) ceiling = Number(rest[ci + 1] ?? DEFAULT_PROJECT_CEILING_USD);
+    const m = setMirror(on, notes, "user", ceiling);
+    ok(`mirror for ${m.project} is now ${on ? "on" : "off"} with $${m.ceiling} ceiling. Journal notes ${m.note_sync ? "included" : "excluded"}. Files and vault secrets never leave this device.`);
     return;
   }
   die("unknown command: use make | status | revoke | claim | drop | poll | mirror <on|off>", 2);

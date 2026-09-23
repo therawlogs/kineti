@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir } from "./lib.ts";
+import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir, loadLimits, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD, DEFAULT_PROJECT_CEILING_USD } from "./lib.ts";
 import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
 import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
@@ -117,8 +117,7 @@ let activeRepoId = defaultRepoName;
 export function getHarnessStatus() {
   const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
   const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
-  const config = readJson<any>(path.join(REPO_ROOT, "kineti.config.json")) || {};
-  const configuredCeiling = config.settings?.spend_limit_usd?.global ?? 50.0;
+  const configuredCeiling = loadLimits().globalUsd;
   return {
     repo_id: activeRepoId,
     root_goal: state.root_goal || "Build universal agent harness with cryptographic verification",
@@ -136,7 +135,7 @@ export function getHarnessStatus() {
 export function getMiniStatus() {
   const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
   const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
-  const config = readJson<any>(path.join(REPO_ROOT, "kineti.config.json")) || {};
+  const effectiveCeiling = loadLimits().globalUsd;
   const toggle = readJson<any>(path.join(projectKdir(), "kineti.json"));
   const lines = readJsonl<any>(path.join(projectKdir(), "saga.jsonl"));
   const committed = new Set(lines.filter((l) => l.kind === "commit").map((l) => l.run_id));
@@ -162,7 +161,7 @@ export function getMiniStatus() {
   const syncOn = toggle?.sync_enabled === true;
   return {
     spend_total: typeof spend.total_usd === "number" ? spend.total_usd : 0,
-    ceiling: config.settings?.spend_limit_usd?.global ?? 50.0,
+    ceiling: effectiveCeiling,
     tripped: spend.tripped === true,
     stage: state.stage ?? "not started",
     stage_name: stageName,
@@ -252,6 +251,7 @@ export function getActivity(limit = 50, actorFilter = "", actionFilter = ""): Ac
 }
 
 export function getFleetStatus() {
+  const ceiling = loadLimits().globalUsd;
   return {
     active_repo_id: activeRepoId,
     total_fleet_spend: 0,
@@ -266,7 +266,7 @@ export function getFleetStatus() {
         status: "active",
         active_task: "Universal Autonomous Assistant Integration",
         spend_usd: 0,
-        ceiling_usd: 50,
+        ceiling_usd: ceiling,
         tests_passing: 100,
         ide: "antigravity",
         is_local: true,
@@ -939,7 +939,7 @@ function generateSettingsHtml(): string {
     <!-- TAB 2: TEAM & MONEY -->
     <div id="tab-team" class="tab-pane" style="display: none;">
       <h2 class="section-title">Team &amp; money</h2>
-      <p class="section-desc">Per-agent budgets with used and left bars. Project ceiling $50.00.</p>
+      <p class="section-desc">Per-agent budgets with used and left bars. <span id="team-ceiling-note">Project ceiling $50.00.</span></p>
       <div class="item-row">
         <div class="item-body">
           <div class="item-title">Budget mode</div>
@@ -1129,6 +1129,15 @@ function generateSettingsHtml(): string {
             <input type="checkbox" id="toggle-mirror" onchange="toggleMirror(this.checked)">
             <span class="slider"></span>
           </label>
+        </div>
+      </div>
+      <div class="item-row">
+        <div class="item-body">
+          <div class="item-title">Project ceiling</div>
+          <div class="item-subtitle">Set once at mirror time. The breaker stops at 95% of it. Only you can raise it.</div>
+        </div>
+        <div class="item-action">
+          <input type="number" id="mirror-ceiling" class="input-field" min="1" max="1000" step="1" style="margin: 0; width: 110px;" onchange="saveMirrorCeiling()">
         </div>
       </div>
       <div class="item-row" style="border: none;">
@@ -1602,6 +1611,10 @@ function generateSettingsHtml(): string {
           if (t) t.checked = m.enabled === true;
           const n = document.getElementById('toggle-mirror-notes');
           if (n) n.checked = m.note_sync === true;
+          const c = document.getElementById('mirror-ceiling');
+          if (c) c.value = m.ceiling;
+          const note = document.getElementById('team-ceiling-note');
+          if (note) note.innerText = 'Project ceiling $' + m.ceiling + '.';
         })
         .catch(() => {});
     }
@@ -1617,16 +1630,34 @@ function generateSettingsHtml(): string {
         .then(() => { loadCloudPanel(); showToast('Cloud link dropped'); });
     }
 
-    function toggleMirror(on) {
+    function mirrorPayload(enabled, noteSync) {
       const notes = (document.getElementById('toggle-mirror-notes') || {}).checked === true;
-      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: on, note_sync: notes }) })
-        .then(() => { loadCloudPanel(); showToast(on ? 'Mirror on for this project' : 'Mirror off'); });
+      const was = (document.getElementById('toggle-mirror') || {}).checked === true;
+      const cEl = document.getElementById('mirror-ceiling');
+      const ceiling = cEl && cEl.value !== '' ? parseFloat(cEl.value) : undefined;
+      return { enabled: enabled !== undefined ? enabled : was, note_sync: noteSync !== undefined ? noteSync : notes, ceiling };
+    }
+
+    function toggleMirror(on) {
+      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorPayload(on)) })
+        .then(r => {
+          if (!r.ok) { showToast('Ceiling must be $1 to $1000'); loadCloudPanel(); return; }
+          loadCloudPanel(); loadHome(); showToast(on ? 'Mirror on for this project' : 'Mirror off');
+        });
     }
 
     function toggleMirrorNotes(on) {
       const enabled = (document.getElementById('toggle-mirror') || {}).checked === true;
-      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled, note_sync: on }) })
+      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorPayload(enabled, on)) })
         .then(() => { loadCloudPanel(); showToast(on ? 'Journal notes included' : 'Journal notes excluded'); });
+    }
+
+    function saveMirrorCeiling() {
+      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorPayload(undefined)) })
+        .then(r => {
+          if (!r.ok) { showToast('Ceiling must be $1 to $1000'); loadCloudPanel(); return; }
+          loadCloudPanel(); loadHome(); showToast('Ceiling saved');
+        });
     }
 
     function approveMesh(id) {      fetch('/api/mesh/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ request_id: id, tier: 'colleague' }) })
@@ -2771,17 +2802,19 @@ export function startServer(port: number = PORT) {
             if (typeof body.agent === "string" && typeof body.budget === "number") {
               const name = body.agent.trim().toLowerCase().slice(0, 64);
               if (!/^[a-z0-9_-]{1,64}$/.test(name)) return new Response("Bad agent name", { status: 400, headers: corsHeaders });
-              if (!Number.isFinite(body.budget) || body.budget <= 0 || body.budget > 50) {
-                return new Response("Budget must be over 0 and at most 50", { status: 400, headers: corsHeaders });
+              const cap = loadLimits().globalUsd;
+              if (!Number.isFinite(body.budget) || body.budget <= 0 || body.budget > cap) {
+                return new Response(`Budget must be over 0 and at most ${cap}`, { status: 400, headers: corsHeaders });
               }
               budgets[name] = body.budget;
               if (Object.keys(budgets).length > 0) mode = "separate";
             }
             if (body.budgets && typeof body.budgets === "object") {
+              const cap = loadLimits().globalUsd;
               for (const [k, v] of Object.entries(body.budgets)) {
                 const name = String(k).trim().toLowerCase().slice(0, 64);
                 if (!/^[a-z0-9_-]{1,64}$/.test(name)) continue;
-                if (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= 50) budgets[name] = v;
+                if (typeof v === "number" && Number.isFinite(v) && v > 0 && v <= cap) budgets[name] = v;
               }
               if (Object.keys(budgets).length > 0 && !body.mode) mode = "separate";
             }
@@ -2873,7 +2906,11 @@ export function startServer(port: number = PORT) {
             const body = (await req.json()) as any;
             if (typeof body.enabled !== "boolean") return new Response("Bad Request", { status: 400, headers: corsHeaders });
             const noteSync = body.note_sync === true;
-            return Response.json(setMirror(body.enabled, noteSync, "dashboard-user"), { headers: corsHeaders });
+            const ceiling = body.ceiling === undefined ? undefined : Number(body.ceiling);
+            if (ceiling !== undefined && (!Number.isFinite(ceiling) || ceiling < MIN_PROJECT_CEILING_USD || ceiling > MAX_PROJECT_CEILING_USD)) {
+              return new Response(`Ceiling must be $${MIN_PROJECT_CEILING_USD} to $${MAX_PROJECT_CEILING_USD}`, { status: 400, headers: corsHeaders });
+            }
+            return Response.json(setMirror(body.enabled, noteSync, "dashboard-user", ceiling ?? DEFAULT_PROJECT_CEILING_USD), { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
