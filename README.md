@@ -49,43 +49,46 @@ Personalized agents must understand the full human context without hallucinating
 
 ## Quickstart
 
-### 1. Build and Run the Native Rust CLI
+### 1. Install via npm
 
 ```bash
-# Build the native Rust workspace
-cargo build --release --manifest-path core-native/Cargo.toml
+# Install globally
+npm install -g kineti
 
-# Run the 360º Human Model Anti-Drift Engine Demo
-cargo run --package kineti-cli -- anti-drift
-
-# Run the Epistemic Persona Engine Demo
-cargo run --package kineti-cli -- epistemic
-
-# Start interactive local chat session (simulated iMessage/WhatsApp)
-cargo run --package kineti-cli -- chat
-
-# Run the 5 end-to-end verification flows (full workspace: 251 Rust tests via cargo test)
-cargo run --package kineti-cli -- test-all
+# Or run directly with npx
+npx kineti --help
 ```
 
-### 2. TypeScript Governance Commands
+### 2. Core Governance Commands
 
 ```bash
 # Start the visual companion dashboard (Apple HIG)
 kineti companion
 # Open http://127.0.0.1:8788
 
-# Start the MCP governance server for IDEs
+# Start the MCP governance server for AI editors (Cursor, Claude Code, Antigravity)
 kineti mcp
 
-# Check spending circuit breaker status
-bun bin/kineti-spend.ts check
+# Check spend circuit breaker status ($50 default ceiling)
+kineti spend check
 
-# Check cryptographic test evidence freshness
-bun bin/kineti-evidence.ts check --label 360-human-model-resilience
+# Verify cryptographic test evidence freshness
+kineti evidence check --label 360-human-model-resilience
 
-# Run PR continuous integration verification
+# Run stage-agnostic CI verification
 kineti ci
+```
+
+### 3. Native Rust Engine (Optional / Contributors)
+
+If developing or running the pure Rust nervous system (`core-native/`):
+
+```bash
+# Run all 105 native Rust unit and challenge tests
+cargo test --manifest-path core-native/Cargo.toml
+
+# Run the 5 native verification demo flows
+cargo run --package kineti-cli -- test-all
 ```
 
 ---
@@ -94,49 +97,42 @@ kineti ci
 
 ```text
 kineti/
-├── core-native/                             # Pure Rust Nervous System Workspace
-│   ├── Cargo.toml                           # Workspace manifest (8 active crates)
+├── bin/                 # TypeScript Governance CLI tools (single router: kineti.js)
+│   ├── kineti.ts        # CLI router source (spend, saga, evidence, companion, mcp, ci)
+│   ├── kineti-spend.ts  # Hardware spend circuit breaker ($50 ceiling, exit code 3)
+│   ├── kineti-saga.ts   # LIFO undo stack & transactional rollback
+│   ├── kineti-evidence.ts # Delimited SHA-256 test proofs bound to git tree hashes
+│   ├── kineti-companion.ts # Apple HIG visual companion server (loopback only)
+│   └── kineti-mcp.ts    # Model Context Protocol (MCP) server
+├── core-native/         # Pure Rust Nervous System Workspace (8 crates, 0 external dependencies)
+│   ├── Cargo.toml       # Workspace manifest
 │   └── crates/
-│       ├── kineti-core/                     # EBR Snapshots, HLC, Kernel, Gate, Root Goal
-│       ├── kineti-memory/                   # Epistemic Engine, Causal Graph, Vector Index
-│       ├── kineti-reflex/                   # Sensory Triage, Emoji Reflexes, Style Profiler
-│       ├── kineti-connectors/               # Protocolized Connectors & Permission Gating
-│       ├── kineti-actions/                  # Action Execution & Confirmation Gates
-│       ├── kineti-gateway/                  # WhatsApp Webhooks & Apple iMessage Bridge
-│       ├── kineti-harness/                  # Outcome Verification Tickets (OVT) & Shadow Workspaces
-│       └── kineti-cli/                      # Native Binary CLI Entrypoint & Daemon
-├── bin/                                     # TypeScript Governance Control Plane (23 CLI tools, single router)
-│   ├── kineti.ts                            # Main router source (kineti.js is generated, never hand-edited)
-│   ├── kineti-spend.ts                      # Spend circuit breaker ($50 default ceiling, per-project at mirror time)
-│   ├── kineti-saga.ts                       # LIFO undo stack & transactional rollback
-│   ├── kineti-evidence.ts                   # Delimited SHA-256 test proofs
-│   ├── kineti-companion.ts                  # Apple HIG visual companion server
-│   ├── kineti-mcp.ts                        # Model Context Protocol (MCP) server
-│   ├── kineti-ci.ts                         # Stage-agnostic CI verification
-│   └── ...                                  # epistemic, invite, privacy, stripe, swarm, schema, pairing, etc.
-├── src/                                     # Shared TypeScript libraries used by bin/
-├── skills/                                  # 17 pipeline skill prompts (backend only, installed by setup.sh)
-├── hosts/                                   # 10 host configs for skill install targets
-├── hooks/                                   # 5 hook text blocks for host setup
-├── scripts/                                 # Maintenance scripts (router codegen, skill audit, weekly)
-├── public/                                  # Audited static landing (waitlist.html) plus legal pages
-├── website/                                 # Marketing site (Vite+React, own package, excluded from npm)
-├── docs/                                    # Technical Documentation & Specifications
-│   ├── README.md                            # Documentation Index
-│   ├── PLAN.md                                    # Canonical Production Architecture Spec
-│   ├── AUDIT.md                                   # Audit summary plus benchmarks
-│   ├── APPLE_DESIGN_GUIDE.md                # Apple HIG UI & Design Standards
-│   ├── SECURITY_REPORT.md                   # Security Audit & Origin Gating Analysis
-│   ├── SWARM_COORDINATION_AND_IDENTITY.md   # Multi-Agent Swarm Topology & OVTs
-│   ├── TUTORIAL-first-run.md                # First-run tutorial
-│   ├── HOWTO-daily-loop.md                  # Daily developer loop
-│   ├── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet governance (docs only for now)
-│   └── archive.zip                          # Archived historical notes (zipped)
-├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (168 tests)
-├── GOOD_ROADMAP.md                          # Current plan, decisions, ship log (local only, not committed)
-├── ROADMAP.md                               # Original phase spec, frozen (local only, not committed)
-├── AGENTS.md                                # All agent rules in one file
-└── kineti.config.json                       # Core System Configuration
+│       ├── kineti-core/ # Double-buffered snapshots, HLC, Kernel, Commit Gate
+│       ├── kineti-memory/ # Epistemic Engine, Multi-scope context, Tombstones
+│       ├── kineti-reflex/ # Fast sensory classification & emoji reflexes
+│       ├── kineti-connectors/ # Protocolized connectors & permission gating
+│       ├── kineti-actions/ # Action execution & confirmation gates
+│       ├── kineti-gateway/ # Messaging webhooks & bridge
+│       ├── kineti-harness/ # Outcome Verification Tickets (OVT) & Shadow workspaces
+│       └── kineti-cli/  # Standalone native CLI binary
+├── src/                 # Shared TypeScript libraries (governance, scheduler, security)
+├── skills/              # 16 agent workflow skills (installed by setup.sh)
+├── hosts/               # 10 editor configurations (Cursor, Claude, Antigravity, etc.)
+├── hooks/               # 5 hook text blocks for host setup
+├── public/              # Static documentation & legal assets
+├── website/             # Kineti marketing & research portal (React + Vite)
+├── docs/                # Architecture specifications & security reports
+│   ├── PLAN.md          # Canonical production architecture spec
+│   ├── AUDIT.md         # Audit summary & benchmarks
+│   ├── SECURITY_REPORT.md # Security audit & origin gating analysis
+│   └── TUTORIAL-first-run.md # Developer quickstart
+├── tests/               # 168 TypeScript governance & causal test suites
+├── .github/             # GitHub Actions CI, issue forms, PR template, Dependabot
+├── AGENTS.md            # Universal rules for AI agents in this repository
+├── SECURITY.md          # Vulnerability disclosure policy & SLAs
+├── CONTRIBUTING.md      # Development setup, testing, and DCO sign-off
+├── LICENSE              # MIT License
+└── package.json         # kineti@0.3.3 npm package manifest
 ```
 
 ---
