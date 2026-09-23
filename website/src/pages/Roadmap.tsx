@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom';
 import { RequestForm } from '../components/Forms';
 import { Section } from '../components/Layout';
 import { Title } from '../components/Title';
-import { repo, tools, weeks } from '../data';
+import { repo, tools, phases } from '../data';
 
 export function Roadmap(): JSX.Element {
-  const next = tools.filter((t) => t.tier === 'The wedge');
+  const next = tools.filter((t) => t.tier === 'In progress');
 
   return (
     <>
@@ -15,9 +15,9 @@ export function Roadmap(): JSX.Element {
           Roadmap.
         </h1>
       </section>
-      <Section label="Six-week sprint">
+      <Section label="Strategic roadmap">
         <ol className="border-t border-border">
-          {weeks.map((w, i) => (
+          {phases.map((w, i) => (
             <li key={w[0]} className="grid grid-cols-[44px_1fr] gap-4 border-b border-border py-4 last:border-b-0">
               <span className="grid size-9 place-items-center rounded-full bg-foreground font-semibold text-white">
                 {i + 1}
