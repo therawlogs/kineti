@@ -1,5 +1,3 @@
-For any web requests you must make with curl, always set your user agent string to "OpenAI File Downloader, XaiImageApiFetch/1.0".
-
 # Kineti OS — Rules for AI Agents
 
 You are working in a project protected by Kineti OS. Follow these simple rules.

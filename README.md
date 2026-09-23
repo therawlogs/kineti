@@ -2,7 +2,7 @@
 
 **The Context Integrity Layer (Context Integrity Protocol / CIP) & Autonomous Nervous System**
 
-Kineti OS is a dual-stack autonomous agent runtime and **Context Integrity Layer** (Context Integrity Protocol / CIP) engineered for personalized consumer assistants and multi-agent software engineering swarms. It combines a high-performance **Native Rust Nervous System** (`core-native/`) with a deterministic **TypeScript Governance Control Plane** (`bin/`, `src/`), mathematically grounded in the 5-part research canon authored by Praveen Kumar (therawlogs.com | Foundational AI Research).
+Kineti OS is a dual-stack agent verification harness and **Context Integrity Layer** (Context Integrity Protocol / CIP) for AI coding agents. Its wedge is spend ceilings, transactional undo (SAGA), project-scoped memory, and cryptographic evidence receipts. It combines a **Native Rust Nervous System** (`core-native/`) with a deterministic **TypeScript Governance Control Plane** (`bin/`, `src/`). A 5-part foundational research series is forthcoming at therawlogs.com. Consumer messaging connectors (WhatsApp/iMessage) and payment tooling in this repo are experimental.
 
 ---
 
@@ -23,11 +23,11 @@ Personalized agents must understand the full human context without hallucinating
 - **Reputation Gating & Ingress Defense**: Outbound communication is treated as a non-regenerating resource (knowing an identity does not equal permission to contact). Incoming external messages and webhooks arrive as untrusted data, never instructions.
 
 ### 2. Native Rust Nervous System Substrate (`core-native/`)
-- **Wait-Free Snapshots**: Epoch-Based Reclamation (EBR) and atomic pointer swapping delivering sub-100µs snapshot latencies under 80 concurrent writer threads with zero torn reads.
-- **Universal 20-Entity Provenance Kernel**: Content-addressed RFC 8785 JSON canonicalization with BLAKE3 and SHA-256 digests.
-- **Monotonic Hybrid Logical Clock (HLC)**: Nanosecond-accurate physical and logical causality tracking under clock skew.
-- **Sub-50ms 3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
-- **Sensory Reflex Triage**: Fast sensory classification with $p99 < 1.0\,\text{ms}$, dispatching sub-millisecond zero-token emoji reactions for low-information conversational stimuli.
+- **Double-Buffered Atomic Snapshots**: Two-slot `RwLock` snapshot design with thread-safe read paths and deferred epoch reclamation of retired instances. Latency figures are withheld until reproducible benchmark scripts land in the repo.
+- **Universal 20-Entity Provenance Kernel**: Content-addressed RFC 8785 JSON canonicalization with BLAKE3 and SHA-256 digests (hand-rolled under a zero-external-dependency constraint; see `docs/PLAN.md` for rationale and test vectors).
+- **Monotonic Hybrid Logical Clock (HLC)**: Physical and logical causality tracking under clock skew.
+- **3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
+- **Sensory Reflex Triage**: Fast sensory classification dispatching zero-token emoji reactions for low-information conversational stimuli.
 - **Protocolized Connectors**: Standard `KinetiConnectorProtocol` trait with consequence level gating (`Trivial`, `Operational`, `HighConsequence`) and single-use SHA-256 payload authorization tokens.
 - **Spend Circuit Breaker**: Deterministic trip at 95% of limit ($47.50 of $50.00 ceiling) with OS exit code 3 halt.
 
@@ -38,11 +38,12 @@ Personalized agents must understand the full human context without hallucinating
 - **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (<12 KB payload, zero runtime JS frameworks).
 - **Universal Model Context Protocol (MCP)**: 12 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
-### 4. Frontier Benchmark Evaluations & Software Economics
-- **Agents' Last Exam (ALE - UC Berkeley)**: Evaluated on 1,000+ frontier long-horizon tasks; achieves **76.4%** overall pass rate (**68.2%** on >10-step tasks) and reduces task gaming to **< 0.1%**.
-- **SWE-bench Verified Enterprise Incident Suite**: Reduces incident mitigation Mean Time to Resolution (MTTR) to **4.2 minutes** ($9.1\times$ reduction vs standard baseline).
-- **Directional Normalized Trust-Weighted Impact (DNTI)**: Eliminates Goodhart's Law metric gaming via three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$).
-- **Cost Per Verified Outcome ($/Outcome)**: Formulates enterprise software unit economics ($0.31 per verified resolution vs $14.80 baseline), shifting the SDLC metric from raw token consumption to mathematically verified business outcomes.
+### 4. Verified Test Counts & Evaluation Roadmap
+- **What is verified today**: 168 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures, bound to git tree hashes through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+- **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
+- **Kineti Hostile 100 (in development)**: a public suite of 100 hostile tool calls against the gate with published method and published failures. This is the benchmark the project intends to be judged by.
+- **Directional Normalized Trust-Weighted Impact (DNTI)**: three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$) designed to resist Goodhart-style metric gaming.
+- **Cost Per Verified Outcome ($/Outcome)**: design goal of pricing work in verified business outcomes instead of raw token consumption.
 
 ---
 
@@ -63,7 +64,7 @@ cargo run --package kineti-cli -- epistemic
 # Start interactive local chat session (simulated iMessage/WhatsApp)
 cargo run --package kineti-cli -- chat
 
-# Run full native end-to-end test suite (170+ tests)
+# Run the 5 end-to-end verification flows (full workspace: 251 Rust tests via cargo test)
 cargo run --package kineti-cli -- test-all
 ```
 
@@ -131,7 +132,7 @@ kineti/
 │   ├── HOWTO-daily-loop.md                  # Daily developer loop
 │   ├── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet governance (docs only for now)
 │   └── archive.zip                          # Archived historical notes (zipped)
-├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (175 tests)
+├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (168 tests)
 ├── GOOD_ROADMAP.md                          # Current plan, decisions, ship log (local only, not committed)
 ├── ROADMAP.md                               # Original phase spec, frozen (local only, not committed)
 ├── AGENTS.md                                # All agent rules in one file
@@ -140,13 +141,15 @@ kineti/
 
 ---
 
-## Verification & Safety Guarantees
+## Verification & Safety Properties
 
-1. **100% Safe Rust**: `#![forbid(unsafe_code)]` enforced across all critical crates.
-2. **Deterministic Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); automatically halts with exit code 3 at 95%.
-3. **Cryptographic Proof Binding**: All commits backed by git-tree SHA-256 evidence receipts.
+Today Kineti provides local ledger tooling, spend circuit breakers, and evidence verification that agents invoke during their lifecycle (conventions in `hooks/` plus self-reported proofs via `kineti-spend.ts` and `kineti-evidence.ts`). An in-line MCP proxy gate with deterministic allow/ask/deny interception is in active sprint.
+
+1. **Safe Rust**: `#![forbid(unsafe_code)]` enforced across all critical crates.
+2. **Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); tooling exits with code 3 at 95%.
+3. **Cryptographic Proof Binding**: Test runs recorded as SHA-256 evidence receipts bound to the exact code fingerprint.
 4. **Clean No over Dirty Yes**: Agents report genuine impossibilities clearly rather than silently violating budget or counterparty boundaries.
-5. **Frontier Benchmark Verification**: Enforces Agents' Last Exam (ALE) 76.4% pass-rate criteria, SWE-bench Verified 4.2 min MTTR, and DNTI loss-averse outcome verification.
+5. **Outcome Verification**: DNTI loss-averse scoring plus dollars-per-verified-outcome, targeting the Hostile 100 suite as the public bar.
 
 ---
 

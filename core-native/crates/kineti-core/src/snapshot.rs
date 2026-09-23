@@ -1,8 +1,8 @@
-//! Lock-free atomic state snapshots with Epoch-Based Reclamation (EBR) semantics.
+//! Double-buffered atomic state snapshots with thread-safe read paths.
 //!
-//! Provides wait-free snapshot acquisition (`p99 < 0.1ms`), zero torn reads under
-//! high concurrency (verified up to 80+ writer threads), and deferred epoch reclamation
-//! of retired snapshot instances using dual-buffered RCU atomic slots.
+//! Provides two-slot `RwLock` snapshot storage with deferred epoch reclamation
+//! of retired snapshot instances. Latency and concurrency figures are withheld
+//! until reproducible benchmark scripts land in the repo.
 
 use std::fmt;
 use std::ops::Deref;
