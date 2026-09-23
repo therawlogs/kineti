@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 /**
  * Kineti OS - single command router.
+ * Single source of truth: bin/kineti.js is GENERATED from this file.
+ * Never hand-edit bin/kineti.js. Regenerate with: bun run build:router
  *
  * Use:
  *   kineti init [--host <name>]
@@ -18,6 +20,14 @@
 import { spawnSync } from "node:child_process";
 import * as path from "node:path";
 import * as fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// Works under bun (import.meta.dir) and plain node (file URL fallback)
+// so this file stays the single router source for both runtimes.
+const here: string =
+  typeof (import.meta as any).dir === "string"
+    ? (import.meta as any).dir
+    : path.dirname(fileURLToPath(import.meta.url));
 
 const [subcommand, ...subArgs] = process.argv.slice(2);
 
@@ -48,9 +58,9 @@ if (!subcommand || subcommand === "--help" || subcommand === "-h") {
 }
 
 if (subcommand === "--version" || subcommand === "-v") {
-  let version = "0.1.0";
+  let version = "0.0.0-dev";
   try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(import.meta.dir, "../package.json"), "utf8"));
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(here, "../package.json"), "utf8"));
     if (pkg && pkg.version) version = pkg.version;
   } catch {}
   console.log(`kineti v${version}`);
@@ -64,7 +74,7 @@ if (!target) {
   process.exit(1);
 }
 
-const rootDir = path.resolve(import.meta.dir, "..");
+const rootDir = path.resolve(here, "..");
 const fullPath = path.join(rootDir, target.script);
 
 let execArgs = subArgs;
@@ -82,6 +92,12 @@ if (target.isShell) {
   const res = spawnSync("bash", [fullPath, ...execArgs], { stdio: "inherit", cwd: process.cwd() });
   process.exit(res.status ?? 0);
 } else {
+  // npm bin runs under node: sub-scripts still need the bun runtime.
+  const probe = spawnSync("bun", ["--version"], { stdio: "ignore" });
+  if (probe.error || probe.status !== 0) {
+    console.error("kineti: Bun runtime is required. Install with: curl -fsSL https://bun.sh/install | bash");
+    process.exit(1);
+  }
   const res = spawnSync("bun", [fullPath, ...execArgs], { stdio: "inherit", cwd: process.cwd() });
   process.exit(res.status ?? 0);
 }

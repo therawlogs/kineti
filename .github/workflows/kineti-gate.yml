@@ -31,6 +31,11 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
+      - name: Router codegen freshness
+        run: |
+          bun run build:router
+          git diff --exit-code -- bin/kineti.js
+
       - name: Run Type Integrity Check
         run: bun run typecheck
 

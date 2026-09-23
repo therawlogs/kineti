@@ -128,7 +128,7 @@ Safe to remove, all verified:
 7. Docs merges: audit 3 into 2, instruction files 7 into 2, archive zip.
 8. `dist/` 4 KB: gitignored stub. Leave it.
 
-Keep: `web/privacy.html` plus `terms.html` for legal, `skills/` 68 KB backend only, `hosts/` all 10, `.kineti/` runtime state never committed.
+Keep: `public/privacy.html` plus `terms.html` for legal, `skills/` 68 KB backend only, `hosts/` all 10, `.kineti/` runtime state never committed.
 
 Removed already: `web/index.html` byte-identical duplicate of audited `public/waitlist.html`. Left small host instruction files alone, each targets a different editor.
 
@@ -161,3 +161,4 @@ Stay on 0.3.x, no 5.0 jump. Homebrew skipped. Hardware enclave bridge open, soft
 - Pack 336.7 kB, 167 files. `files` allowlist crashes npm 11, so `.npmignore` denylist instead.
 - Standalone `bun build --compile` binaries cannot run in this environment (exit 137 even on hello world). Ship runs on bun plus node via committed `bin/kineti.js`.
 - Landing 6,702 bytes gzipped (limit 35,000). Attack suite 500 plus 50 vectors, 0 escapes. Proof `ship-0.3.1` FRESH.
+- `website/` stays in this repo (decided 2026-09-23): builds clean, tracked source is 27 files, excluded from npm pack. Audited landing stays `public/waitlist.html` either way. Split out only when the site needs independent deploys.

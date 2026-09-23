@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "kineti-actions"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-connectors",
  "kineti-core",
@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "kineti-cli"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-actions",
  "kineti-connectors",
@@ -25,7 +25,7 @@ dependencies = [
 
 [[package]]
 name = "kineti-connectors"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-core",
  "kineti-memory",
@@ -34,11 +34,11 @@ dependencies = [
 
 [[package]]
 name = "kineti-core"
-version = "0.1.0"
+version = "0.3.1"
 
 [[package]]
 name = "kineti-gateway"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-actions",
  "kineti-connectors",
@@ -49,14 +49,14 @@ dependencies = [
 
 [[package]]
 name = "kineti-harness"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-core",
 ]
 
 [[package]]
 name = "kineti-memory"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-core",
  "kineti-reflex",
@@ -64,7 +64,7 @@ dependencies = [
 
 [[package]]
 name = "kineti-reflex"
-version = "0.1.0"
+version = "0.3.1"
 dependencies = [
  "kineti-core",
 ]

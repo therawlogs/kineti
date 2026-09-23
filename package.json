@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "bun run typecheck",
     "build": "bun build bin/kineti.ts --outfile dist/kineti.js",
+    "build:router": "bun scripts/build-router.ts",
     "prepublishOnly": "bun run build",
     "mcp": "bun bin/kineti-mcp.ts",
     "mcp:init": "bun bin/kineti-mcp.ts init",
