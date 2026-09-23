@@ -1,0 +1,28 @@
+# npm ship denylist. Keeps the published tarball lean.
+# (A `files` allowlist crashes npm 11 here, so this mirrors .gitignore plus extras.)
+
+# Build caches and installs (any level)
+target/
+node_modules/
+dist/
+coverage/
+
+# Local runtime state and secrets
+.kineti/
+.env
+.env.*
+*.pem
+*.key
+*.p12
+
+# Not shipped to consumers
+website/
+web/
+tests/
+docs/
+preview/
+design/
+GOOD_ROADMAP.md
+ROADMAP.md
+*.tgz
+.DS_Store

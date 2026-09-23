@@ -153,3 +153,11 @@ Removed already: `web/index.html` byte-identical duplicate of audited `public/wa
 4. One switch for on and off everywhere.
 5. Same screens local and cloud. Same plain-talk router. Same audit trail.
 6. Price per verified outcome, never per seat.
+
+## 13. Ship log (0.3.x, 2026-09-23)
+
+Stay on 0.3.x, no 5.0 jump. Homebrew skipped. Hardware enclave bridge open, software fallback ships.
+- Version 0.3.1, tag `v0.3.1` local. npm name `kineti` confirmed, publish by human with `npm publish`.
+- Pack 336.7 kB, 167 files. `files` allowlist crashes npm 11, so `.npmignore` denylist instead.
+- Standalone `bun build --compile` binaries cannot run in this environment (exit 137 even on hello world). Ship runs on bun plus node via committed `bin/kineti.js`.
+- Landing 6,702 bytes gzipped (limit 35,000). Attack suite 500 plus 50 vectors, 0 escapes. Proof `ship-0.3.1` FRESH.
