@@ -8,8 +8,10 @@ const REPO = process.cwd();
 const SYNC = path.join(REPO, "bin", "kineti-sync.ts");
 const SWITCH_FILE = path.join(REPO, ".kineti", "kineti.json");
 const JOURNAL_FILE = path.join(REPO, ".kineti", "journal.jsonl");
+const STATE_FILE = path.join(REPO, ".kineti", "state.json");
 let backupSwitch: string | null = null;
 let backupJournal: string | null = null;
+let backupState: string | null = null;
 let tmpDir = "";
 
 function run(args: string[], env: Record<string, string> = {}) {
@@ -27,6 +29,21 @@ beforeEach(() => {
   try {
     backupJournal = fs.existsSync(JOURNAL_FILE) ? fs.readFileSync(JOURNAL_FILE, "utf8") : null;
   } catch { backupJournal = null; }
+  try {
+    backupState = fs.existsSync(STATE_FILE) ? fs.readFileSync(STATE_FILE, "utf8") : null;
+  } catch { backupState = null; }
+  // CI checkouts have no .kineti/: seed a minimal locked goal for the roundtrip test.
+  if (backupState === null) {
+    fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+    fs.writeFileSync(STATE_FILE, JSON.stringify({
+      version: 1,
+      project: "kineti-test",
+      root_goal: "Test goal for sync",
+      root_goal_locked_at: new Date().toISOString(),
+      stage: 7,
+      gates: { spec: "pass", ship: "pass", security: "pass" },
+    }));
+  }
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kineti-sync-"));
 });
 
@@ -36,6 +53,8 @@ afterEach(() => {
     else fs.writeFileSync(SWITCH_FILE, backupSwitch);
     if (backupJournal === null) fs.rmSync(JOURNAL_FILE, { force: true });
     else fs.writeFileSync(JOURNAL_FILE, backupJournal);
+    if (backupState === null) fs.rmSync(STATE_FILE, { force: true });
+    else fs.writeFileSync(STATE_FILE, backupState);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   } catch { /* ignore */ }
 });

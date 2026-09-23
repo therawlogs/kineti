@@ -6,9 +6,11 @@ import { classifyIntent, route, setEnabled, isEnabled } from "../bin/kineti-rout
 const SWITCH_FILE = path.join(process.cwd(), ".kineti", "kineti.json");
 const SWARM_FILE = path.join(process.cwd(), ".kineti", "swarm.json");
 const PAIR_FILE = path.join(process.cwd(), ".kineti", "pairing.json");
+const STATE_FILE = path.join(process.cwd(), ".kineti", "state.json");
 let backup: string | null = null;
 let swarmBackup: string | null = null;
 let pairBackup: string | null = null;
+let stateBackup: string | null = null;
 let machineBackup: string | undefined;
 let tmpMachine: string = "";
 
@@ -25,6 +27,23 @@ beforeEach(() => {
     if (fs.existsSync(PAIR_FILE)) pairBackup = fs.readFileSync(PAIR_FILE, "utf8");
     else pairBackup = null;
   } catch { pairBackup = null; }
+  try {
+    if (fs.existsSync(STATE_FILE)) stateBackup = fs.readFileSync(STATE_FILE, "utf8");
+    else stateBackup = null;
+  } catch { stateBackup = null; }
+  // Router replies branch on a locked goal. CI checkouts have no .kineti/,
+  // so seed a minimal goal here and restore afterwards.
+  if (stateBackup === null) {
+    fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
+    fs.writeFileSync(STATE_FILE, JSON.stringify({
+      version: 1,
+      project: "kineti-test",
+      root_goal: "Test goal for router",
+      root_goal_locked_at: new Date().toISOString(),
+      stage: 7,
+      gates: { spec: "pass", ship: "pass", security: "pass" },
+    }));
+  }
   // Keep test audit entries out of the real ~/.kineti log.
   machineBackup = process.env.KINETI_MACHINE_DIR;
   tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "kineti-test-"));
@@ -40,6 +59,8 @@ afterEach(() => {
     else fs.writeFileSync(SWARM_FILE, swarmBackup);
     if (pairBackup === null) fs.rmSync(PAIR_FILE, { force: true });
     else fs.writeFileSync(PAIR_FILE, pairBackup);
+    if (stateBackup === null) fs.rmSync(STATE_FILE, { force: true });
+    else fs.writeFileSync(STATE_FILE, stateBackup);
     if (machineBackup === undefined) delete process.env.KINETI_MACHINE_DIR;
     else process.env.KINETI_MACHINE_DIR = machineBackup;
     fs.rmSync(tmpMachine, { recursive: true, force: true });
