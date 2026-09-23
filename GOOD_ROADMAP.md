@@ -162,4 +162,5 @@ Stay on 0.3.x, no 5.0 jump. Homebrew skipped. Hardware enclave bridge open, soft
 - Standalone `bun build --compile` binaries cannot run in this environment (exit 137 even on hello world). Ship runs on bun plus node via committed `bin/kineti.js`.
 - Landing 6,702 bytes gzipped (limit 35,000). Attack suite 500 plus 50 vectors, 0 escapes. Proof `ship-0.3.1` FRESH.
 - Published 2026-09-23: `kineti@0.3.1` live on npm as latest. Human ran `npm publish --otp` with 2FA.
+- Release `v0.3.1` live with 3 CI-built binaries plus SHA256SUMS. Local `--compile` cannot run here (exit 137); CI builds them. Release workflow accepts manual rebuilds with a tag input and keeps binaries as run artifacts.
 - `website/` stays in this repo (decided 2026-09-23): builds clean, tracked source is 27 files, excluded from npm pack. Audited landing stays `public/waitlist.html` either way. Split out only when the site needs independent deploys.
