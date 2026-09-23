@@ -1,5 +1,7 @@
 # Kineti OS: Canonical Implementation Plan & Production Roadmap
 
+> Historical snapshot dated 2026-09-16. Current version is 0.3.x and the live plan is `GOOD_ROADMAP.md`. Version strings, dates, and counts below are frozen as audited.
+
 **Document Status:** Canonical & Production-Approved  
 **Target Release:** Kineti OS v1.0.0-LTS  
 **Author:** Worker Audit (`worker_o7_audit`) on behalf of Kineti Architecture Team  

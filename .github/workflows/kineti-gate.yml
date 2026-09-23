@@ -42,6 +42,12 @@ jobs:
       - name: Run Unit & Gate Test Suite
         run: bun test tests/
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run Rust Engine Test Suite
+        run: cargo test --manifest-path core-native/Cargo.toml
+
       - name: Run Installer Smoke Test
         run: ./tests/test-setup.sh
 

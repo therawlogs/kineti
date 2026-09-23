@@ -2,6 +2,8 @@
 
 Merged from `docs/AUDIT_REPORT.md` plus `docs/ARCHITECTURE_AUDIT_AND_BENCHMARK_REPORT.md`. One file, no duplicates.
 
+> Historical snapshot dated 2026-09-16. Counts below are frozen as audited; current suite state lives in `.kineti/evidence.jsonl` and `GOOD_ROADMAP.md`.
+
 ---
 
 # Kineti OS: Architecture Audit & Empirical Benchmark Report Summary

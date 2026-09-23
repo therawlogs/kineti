@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
-  "description": "Kineti landing page: 4-route React static site with a light 2D canvas hero. MIT.",
+  "description": "Kineti landing page: 6-route React static site with a light 2D canvas hero. MIT.",
   "type": "module",
   "scripts": {
     "dev": "vite",
