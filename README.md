@@ -104,15 +104,22 @@ kineti/
 │       ├── kineti-gateway/                  # WhatsApp Webhooks & Apple iMessage Bridge
 │       ├── kineti-harness/                  # Outcome Verification Tickets (OVT) & Shadow Workspaces
 │       └── kineti-cli/                      # Native Binary CLI Entrypoint & Daemon
-├── bin/                                     # TypeScript Governance Control Plane (15 CLI tools)
-│   ├── kineti.ts                            # Main TypeScript CLI router
-│   ├── kineti-spend.ts                      # Hardware spend circuit breaker ($50 ceiling)
+├── bin/                                     # TypeScript Governance Control Plane (23 CLI tools, single router)
+│   ├── kineti.ts                            # Main router source (kineti.js is generated, never hand-edited)
+│   ├── kineti-spend.ts                      # Spend circuit breaker ($50 default ceiling, per-project at mirror time)
 │   ├── kineti-saga.ts                       # LIFO undo stack & transactional rollback
 │   ├── kineti-evidence.ts                   # Delimited SHA-256 test proofs
 │   ├── kineti-companion.ts                  # Apple HIG visual companion server
 │   ├── kineti-mcp.ts                        # Model Context Protocol (MCP) server
 │   ├── kineti-ci.ts                         # Stage-agnostic CI verification
-│   └── ...                                  # epistemic, invite, privacy, stripe, swarm, etc.
+│   └── ...                                  # epistemic, invite, privacy, stripe, swarm, schema, pairing, etc.
+├── src/                                     # Shared TypeScript libraries used by bin/
+├── skills/                                  # 17 pipeline skill prompts (backend only, installed by setup.sh)
+├── hosts/                                   # 10 host configs for skill install targets
+├── hooks/                                   # 5 hook text blocks for host setup
+├── scripts/                                 # Maintenance scripts (router codegen, skill audit, weekly)
+├── public/                                  # Audited static landing (waitlist.html) plus legal pages
+├── website/                                 # Marketing site (Vite+React, own package, excluded from npm)
 ├── docs/                                    # Technical Documentation & Specifications
 │   ├── README.md                            # Documentation Index
 │   ├── PLAN.md                                    # Canonical Production Architecture Spec
@@ -120,8 +127,14 @@ kineti/
 │   ├── APPLE_DESIGN_GUIDE.md                # Apple HIG UI & Design Standards
 │   ├── SECURITY_REPORT.md                   # Security Audit & Origin Gating Analysis
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md   # Multi-Agent Swarm Topology & OVTs
+│   ├── TUTORIAL-first-run.md                # First-run tutorial
+│   ├── HOWTO-daily-loop.md                  # Daily developer loop
+│   ├── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet governance (docs only for now)
 │   └── archive.zip                          # Archived historical notes (zipped)
-├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (139+ tests)
+├── tests/                                   # Governance, Frontier Benchmarks & Causal Test Suites (175 tests)
+├── GOOD_ROADMAP.md                          # Current plan, decisions, ship log
+├── ROADMAP.md                               # Original phase spec (frozen)
+├── AGENTS.md                                # All agent rules in one file
 └── kineti.config.json                       # Core System Configuration
 ```
 
@@ -130,7 +143,7 @@ kineti/
 ## Verification & Safety Guarantees
 
 1. **100% Safe Rust**: `#![forbid(unsafe_code)]` enforced across all critical crates.
-2. **Deterministic Spending Ceiling**: `$50.00` total spending cap; automatically halts with exit code 3 at 95% ($47.50).
+2. **Deterministic Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); automatically halts with exit code 3 at 95%.
 3. **Cryptographic Proof Binding**: All commits backed by git-tree SHA-256 evidence receipts.
 4. **Clean No over Dirty Yes**: Agents report genuine impossibilities clearly rather than silently violating budget or counterparty boundaries.
 5. **Frontier Benchmark Verification**: Enforces Agents' Last Exam (ALE) 76.4% pass-rate criteria, SWE-bench Verified 4.2 min MTTR, and DNTI loss-averse outcome verification.

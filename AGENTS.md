@@ -29,7 +29,7 @@ Simple rules that always apply.
 1.2 Present decisions as numbered options (1, 2, 3).
 1.3 Plan user experience before writing code. Define the user, the screen flow, inputs, outputs, and who does what (user, server, or AI).
 1.4 Read the current task in `state.json` before making changes.
-1.5 Keep all files, designs, and tests inside the project folder (`src/`, `design/`). Never write to `/tmp` or outside folders.
+1.5 Keep all files, designs, and tests inside the project folder. Never write to `/tmp` or outside folders. (`design/screens/` and `design/screenshots/` are on-demand agent working dirs, not repo dirs.)
 
 ### 2. Main goal
 2.1 The project goal is written once when starting. It can never be edited or replaced later.
@@ -213,7 +213,7 @@ These commands expire old records, verify hashes, check timestamps, and suggest 
 | `skills/qa.md` | `skills/qa` + `skills/review` + `skills/security` | Multi-screen testing, code review, and security checks |
 | `skills/ship.md` | `skills/ship` + `skills/watch` + `skills/retro` + `skills/learn` | Verified commits, monitoring, and weekly reviews |
 
-Old version 2 files were preserved in `legacy/v2-skills/` at migration time (not shipped in this repo).
+Old version 2 files were preserved in `legacy/v2-skills/` at migration time (that folder is gone now; nothing ships from it).
 
 ### Local configuration updates (what setup.sh actually does)
 
