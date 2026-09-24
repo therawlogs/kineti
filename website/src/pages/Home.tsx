@@ -30,7 +30,7 @@ export function Home(): JSX.Element {
           <li>Run the dangerous test.</li>
           <li>Verify the receipt.</li>
         </ol>
-        <Link to="/tools" className="font-semibold text-foreground">See all 16 tools →</Link>
+        <Link to="/tools" className="font-semibold text-foreground">See all 15 tools →</Link>
       </Section>
     </>
   );
