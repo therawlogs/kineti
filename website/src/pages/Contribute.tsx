@@ -6,7 +6,7 @@ import { ItemRow } from '../components/Rows';
 const firsts = [
   { n: 1, name: 'Add a policy pack', detail: 'Code changes, money, customer data, production, or a workflow you know.' },
   { n: 2, name: 'Break the gate', detail: 'Add hostile calls, changed arguments, stale approvals, and evidence edge cases.' },
-  { n: 3, name: 'Improve one micro-tool', detail: 'Package an extractable v0.3.3 capability with tests and a clear README.' },
+  { n: 3, name: 'Improve one micro-tool', detail: 'Package an extractable v0.3.4 capability with tests and a clear README.' },
   { n: 4, name: 'Build a reference integration', detail: 'Show exact-action approval and recovery against a real MCP workflow.' },
 ];
 
