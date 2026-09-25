@@ -175,7 +175,7 @@ kineti/
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
 ├── CONTRIBUTING.md      # Development setup, testing, and DCO sign-off
 ├── LICENSE              # MIT License
-└── package.json         # kineti@0.3.3 npm package manifest
+└── package.json         # kineti@0.3.4 npm package manifest
 ```
 
 ---

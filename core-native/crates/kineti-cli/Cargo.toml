@@ -7,12 +7,12 @@ license.workspace = true
 description = "Native CLI and server runner for Kineti AI assistant"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.3" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.3" }
-kineti-memory = { path = "../kineti-memory", version = "0.3.3" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.3.3" }
-kineti-actions = { path = "../kineti-actions", version = "0.3.3" }
-kineti-gateway = { path = "../kineti-gateway", version = "0.3.3" }
+kineti-core = { path = "../kineti-core", version = "0.3.4" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.4" }
+kineti-memory = { path = "../kineti-memory", version = "0.3.4" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.4" }
+kineti-actions = { path = "../kineti-actions", version = "0.3.4" }
+kineti-gateway = { path = "../kineti-gateway", version = "0.3.4" }
 
 [[bench]]
 name = "benchmarks"

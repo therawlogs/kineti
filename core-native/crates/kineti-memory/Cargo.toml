@@ -7,5 +7,5 @@ license.workspace = true
 description = "Dual-substrate memory: Vector search, causal user property graph, and tombstone masking"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.3" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.3" }
+kineti-core = { path = "../kineti-core", version = "0.3.4" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.4" }

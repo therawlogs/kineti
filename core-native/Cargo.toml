@@ -12,11 +12,10 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.3"
+version = "0.3.4"
 edition = "2021"
 authors = ["Kineti Team <team@getkineti.com>"]
 license = "MIT"
-publish = false
 description = "Universal agent harness with cryptographic verification"
 homepage = "https://github.com/therawlogs/kineti"
 repository = "https://github.com/therawlogs/kineti"
