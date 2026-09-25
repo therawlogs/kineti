@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.therawlogs/kineti",
+  "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
+  "repository": {
+    "url": "https://github.com/therawlogs/kineti",
+    "source": "github"
+  },
+  "version": "0.3.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "kineti",
+      "version": "0.3.3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
