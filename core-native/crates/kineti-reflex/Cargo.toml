@@ -7,4 +7,4 @@ license.workspace = true
 description = "Sub-millisecond sensory triage, style analyzer, and reflex circuit router"
 
 [dependencies]
-kineti-core = { path = "../kineti-core" }
+kineti-core = { path = "../kineti-core", version = "0.3.3" }

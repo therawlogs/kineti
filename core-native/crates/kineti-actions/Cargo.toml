@@ -7,6 +7,6 @@ license.workspace = true
 description = "Real-world actions: Headless price comparison, ticket search, and two-step confirmation safety gate"
 
 [dependencies]
-kineti-core = { path = "../kineti-core" }
-kineti-reflex = { path = "../kineti-reflex" }
-kineti-connectors = { path = "../kineti-connectors" }
+kineti-core = { path = "../kineti-core", version = "0.3.3" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.3" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.3" }

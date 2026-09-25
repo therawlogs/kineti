@@ -16,7 +16,6 @@ version = "0.3.3"
 edition = "2021"
 authors = ["Kineti Team <team@getkineti.com>"]
 license = "MIT"
-publish = false
 description = "Universal agent harness with cryptographic verification"
 homepage = "https://github.com/therawlogs/kineti"
 repository = "https://github.com/therawlogs/kineti"
