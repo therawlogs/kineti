@@ -1,6 +1,7 @@
 {
   "name": "kineti",
-  "version": "0.3.3",
+  "version": "0.3.4",
+  "mcpName": "io.github.therawlogs/kineti",
   "license": "MIT",
   "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
   "homepage": "https://github.com/therawlogs/kineti",
