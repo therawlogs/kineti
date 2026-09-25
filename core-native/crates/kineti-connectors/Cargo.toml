@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 description = "High-speed backend connectors: Brave Search, FLUX.1, Gmail, Notion, and WhatsApp OTP Auth"
 
 [dependencies]
