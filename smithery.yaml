@@ -1,0 +1,10 @@
+# Smithery configuration for Kineti MCP Server
+# https://smithery.ai/docs/config
+startCommand:
+  type: stdio
+  config:
+    command: npx
+    args:
+      - "-y"
+      - "kineti"
+      - "mcp"
