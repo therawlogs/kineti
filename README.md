@@ -59,14 +59,57 @@ npm install -g kineti
 npx kineti --help
 ```
 
-### 2. Core Governance Commands
+### 2. Connect to Your AI Editor (Cursor, Claude Code, Cline)
+
+Run Kineti directly as an MCP governance server inside your AI editor to enforce spend caps ($50 ceiling), transactional SAGA undo, and cryptographic test verification.
+
+#### Claude Code (CLI)
+```bash
+claude mcp add kineti npx -y kineti mcp
+```
+
+#### Claude Desktop
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+```json
+{
+  "mcpServers": {
+    "kineti": {
+      "command": "npx",
+      "args": ["-y", "kineti", "mcp"]
+    }
+  }
+}
+```
+
+#### Cursor
+Add to your project's `.cursor/mcp.json` or Cursor Settings $\to$ Features $\to$ MCP:
+```json
+{
+  "mcpServers": {
+    "kineti": {
+      "command": "npx",
+      "args": ["-y", "kineti", "mcp"]
+    }
+  }
+}
+```
+
+#### Cline / Roo Code / Windsurf
+Add a new stdio MCP server:
+- **Server Name**: `kineti`
+- **Command**: `npx`
+- **Args**: `["-y", "kineti", "mcp"]`
+
+---
+
+### 3. Core Governance Commands
 
 ```bash
 # Start the visual companion dashboard (Apple HIG)
 kineti companion
 # Open http://127.0.0.1:8788
 
-# Start the MCP governance server for AI editors (Cursor, Claude Code, Antigravity)
+# Start the MCP governance server directly
 kineti mcp
 
 # Check spend circuit breaker status ($50 default ceiling)
@@ -79,7 +122,7 @@ kineti evidence check --label 360-human-model-resilience
 kineti ci
 ```
 
-### 3. Native Rust Engine (Optional / Contributors)
+### 4. Native Rust Engine (Optional / Contributors)
 
 If developing or running the pure Rust nervous system (`core-native/`):
 
