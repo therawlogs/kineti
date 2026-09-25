@@ -122,12 +122,18 @@ kineti evidence check --label 360-human-model-resilience
 kineti ci
 ```
 
-### 4. Native Rust Engine (Optional / Contributors)
+### 4. Native Rust Engine & Crates.io
 
-If developing or running the pure Rust nervous system (`core-native/`):
+All 8 native crates are published on [crates.io](https://crates.io):
 
 ```bash
-# Run all 105 native Rust unit and challenge tests
+# Add native core nervous system to your Rust project
+cargo add kineti-core
+
+# Or install the native CLI binary directly
+cargo install kineti-cli
+
+# Run all 105 native Rust unit and challenge tests locally
 cargo test --manifest-path core-native/Cargo.toml
 
 # Run the 5 native verification demo flows
