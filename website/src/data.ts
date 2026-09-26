@@ -1,4 +1,4 @@
-// Shared data for all 6 routes. MIT.
+// Shared data for all 5 routes. MIT.
 export const repo = 'https://github.com/therawlogs/kineti';
 export const author = 'Kineti Research Team';
 

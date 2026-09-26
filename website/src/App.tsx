@@ -2,7 +2,6 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Tools } from './pages/Tools';
-import { Research } from './pages/Research';
 import { DocDetail } from './pages/Docs';
 import { Roadmap } from './pages/Roadmap';
 import { Contribute } from './pages/Contribute';
@@ -15,7 +14,6 @@ export function App(): JSX.Element {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/tools" element={<Tools />} />
-          <Route path="/research" element={<Research />} />
           <Route path="/docs" element={<Navigate to="/tools" replace />} />
           <Route path="/docs/:slug" element={<DocDetail />} />
           <Route path="/roadmap" element={<Roadmap />} />

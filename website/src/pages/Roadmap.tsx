@@ -39,14 +39,9 @@ export function Roadmap(): JSX.Element {
               <span className="text-muted"> · {t.status}</span>
             </li>
           ))}
-          <li className="text-[15px]">
-            <span className="font-semibold">5 research papers</span>
-            <span className="text-muted"> · Coming soon</span>
-          </li>
         </ul>
         <p className="mt-4 text-[15px] text-muted">
-          Full lists live on <Link to="/tools" className="font-semibold text-foreground">Tools</Link> and{' '}
-          <Link to="/research" className="font-semibold text-foreground">Research</Link>. Like it?{' '}
+          Full list lives on <Link to="/tools" className="font-semibold text-foreground">Tools</Link>. Like it?{' '}
           <a href={repo} target="_blank" rel="noreferrer" className="font-semibold text-foreground">⭐ Star on GitHub</a>.
         </p>
       </Section>

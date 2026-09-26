@@ -32,7 +32,6 @@ export function Layout({ children }: { children: ReactNode }): JSX.Element {
             {[
               ['/', 'Home'],
               ['/tools', 'Tools'],
-              ['/research', 'Research'],
               ['/roadmap', 'Roadmap'],
               ['/contribute', 'Contribute'],
             ].map(([to, label]) => (
