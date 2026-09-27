@@ -6,6 +6,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
+readme = "../../README.md"
 description = "Dual-substrate memory: Vector search, causal user property graph, and tombstone masking"
 
 [dependencies]
