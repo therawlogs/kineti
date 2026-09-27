@@ -1,8 +1,27 @@
 # Kineti OS
 
-**The Context Integrity Layer (Context Integrity Protocol / CIP) & Autonomous Nervous System**
+> **Spend cap, transactional undo, and proof receipts for AI coding agents.**  
+> A lightweight open-source (MIT) safety harness that runs under Claude Code, Cursor, OpenCode, Codex, Antigravity, Cline, and fx.sh.
 
-Kineti OS is a dual-stack agent verification harness and **Context Integrity Layer** (Context Integrity Protocol / CIP) for AI coding agents. Its wedge is spend ceilings, transactional undo (SAGA), project-scoped memory, and cryptographic evidence receipts. It combines a **Native Rust Nervous System** (`core-native/`) with a deterministic **TypeScript Governance Control Plane** (`bin/`, `src/`). A 5-part foundational research series is forthcoming at therawlogs.com. Consumer messaging connectors (WhatsApp/iMessage) and payment tooling in this repo are experimental.
+```text
+$ kineti spend status
+total $0 of $50; entries 0; tripped=false
+
+$ kineti spend log --stage build --model sonnet --tokens-in 400000 --tokens-out 200000
+logged $4.2 (stage build); run total $4.2
+
+$ kineti spend log --stage build --model opus --tokens-in 100000 --tokens-out 60000
+kineti: SPEND BREAKER TRIPPED: stage build total $10.2 reached ceiling $9.5 (exit code 3)
+
+$ kineti spend check
+kineti: TRIPPED: stage build total $10.2 reached ceiling $9.5 (exit code 3)
+
+$ kineti spend reset
+kineti: reset requires --i-am-human (breakers are human-only) (exit code 2)
+
+$ kineti spend reset --i-am-human
+breaker reset by human (exit code 0)
+```
 
 ---
 
@@ -61,29 +80,25 @@ npm install -g kineti
 npx kineti --help
 ```
 
-### 2. Connect to Your AI Editor (Cursor, Claude Code, Cline)
+### 2. Connect to Your AI Editor or Agent Host
 
 Run Kineti directly as an MCP governance server inside your AI editor to enforce spend caps ($50 ceiling), transactional SAGA undo, and cryptographic test verification.
 
-#### Claude Code (CLI)
+#### Automatic Setup for All Hosts
+Run Kineti's auto-configurator in your project directory:
+```bash
+kineti init
+```
+This automatically detects your installed hosts (Claude, Cursor, OpenCode, Codex, Antigravity, fx.sh, Gemini, Cline) and links project rules and MCP configurations.
+
+#### Manual Configuration by Editor
+
+**Claude Code (CLI)**:
 ```bash
 claude mcp add kineti npx -y kineti mcp
 ```
 
-#### Claude Desktop
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-```json
-{
-  "mcpServers": {
-    "kineti": {
-      "command": "npx",
-      "args": ["-y", "kineti", "mcp"]
-    }
-  }
-}
-```
-
-#### Cursor
+**Cursor & Windsurf**:
 Add to your project's `.cursor/mcp.json` or Cursor Settings $\to$ Features $\to$ MCP:
 ```json
 {
@@ -96,8 +111,47 @@ Add to your project's `.cursor/mcp.json` or Cursor Settings $\to$ Features $\to$
 }
 ```
 
-#### Cline / Roo Code / Windsurf
-Add a new stdio MCP server:
+**OpenCode**:
+```bash
+opencode mcp add kineti npx -y kineti mcp
+```
+Or add to `~/.config/opencode/opencode.jsonc`.
+
+**Codex (CLI)**:
+Add to `${CODEX_HOME:-$HOME/.codex}/config.toml`:
+```toml
+[mcp.servers.kineti]
+command = "npx"
+args = ["-y", "kineti", "mcp"]
+```
+
+**Google Antigravity & Gemini**:
+Run the automated host configurator:
+```bash
+kineti init --host antigravity
+```
+
+**Fx.sh**:
+Install skill rules directly to your fx environment:
+```bash
+kineti init --host fx
+```
+
+**Claude Desktop**:
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+```json
+{
+  "mcpServers": {
+    "kineti": {
+      "command": "npx",
+      "args": ["-y", "kineti", "mcp"]
+    }
+  }
+}
+```
+
+**Cline / Roo Code**:
+Add a new stdio MCP server in settings:
 - **Server Name**: `kineti`
 - **Command**: `npx`
 - **Args**: `["-y", "kineti", "mcp"]`
