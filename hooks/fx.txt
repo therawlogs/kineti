@@ -1,0 +1,4 @@
+# Kineti hook block for fx.sh
+Add a "kineti" section to your fx.sh system instructions file:
+  When starting a new product run /kineti-officehours first and follow the
+  kineti stage order from the Kineti repository AGENTS.md.

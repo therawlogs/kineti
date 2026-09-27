@@ -3,6 +3,7 @@ import { Actions, Section } from '../components/Layout';
 import { Title } from '../components/Title';
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { repo } from '../data';
 
 export function Home(): JSX.Element {
   const [copied, setCopied] = useState<string | null>(null);
@@ -90,7 +91,11 @@ export function Home(): JSX.Element {
           <li>Run tests and capture receipts (<code className="rounded bg-muted/20 px-1 py-0.5 font-mono text-xs text-foreground">kineti test -- bun test</code>).</li>
           <li>Run the 30s spend-stop demo (<code className="rounded bg-muted/20 px-1 py-0.5 font-mono text-xs text-foreground">bash scripts/demo-spend-cap.sh</code>).</li>
         </ol>
-        <Link to="/tools" className="font-semibold text-foreground">See all 15 tools →</Link>
+        <p className="mt-2 text-[15px] text-muted">
+          <Link to="/tools" className="font-semibold text-foreground">See all 15 tools →</Link>
+          {' · '}
+          <a href={repo} target="_blank" rel="noreferrer" className="font-semibold text-foreground">⭐ Star on GitHub</a>
+        </p>
       </Section>
     </>
   );

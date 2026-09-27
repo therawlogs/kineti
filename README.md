@@ -232,13 +232,12 @@ kineti/
 │       └── kineti-cli/  # Standalone native CLI binary
 ├── src/                 # Shared TypeScript libraries (governance, scheduler, security)
 ├── skills/              # 16 agent workflow skills (installed by setup.sh)
-├── hosts/               # 10 editor configurations (Cursor, Claude, Antigravity, etc.)
-├── hooks/               # 5 hook text blocks for host setup
+├── hosts/               # 7 editor configurations (Claude, Cursor, Codex, OpenCode, Gemini, Antigravity, fx.sh)
+├── hooks/               # 6 hook text blocks for host setup
 ├── public/              # Static documentation & legal assets
 ├── website/             # Kineti marketing & research portal (React + Vite)
 ├── docs/                # Architecture specifications & security reports
 │   ├── PLAN.md          # Canonical production architecture spec
-│   ├── AUDIT.md         # Audit summary & benchmarks
 │   ├── SECURITY_REPORT.md # Security audit & origin gating analysis
 │   └── TUTORIAL-first-run.md # Developer quickstart
 ├── tests/               # 168 TypeScript governance & causal test suites

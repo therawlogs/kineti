@@ -91,23 +91,22 @@ Every contribution follows a structured 5-step review process:
 ## 11. Packages: npm, website, Rust
 
 1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). Verify with `npm pack --dry-run`.
-2. Website package `kineti-website`: separate app in `website/` with its own lockfile. Build with `bun run build` inside `website/`. It is excluded from the npm pack. The audited landing stays `public/waitlist.html`.
+2. Website package `kineti-website`: separate app in `website/` with its own lockfile. Build with `bun run build` inside `website/`. It is excluded from the npm pack.
 3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.5` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
 4. Version rule: `package.json`, `kineti.config.json`, and Cargo workspace move together. `tests/versions.test.ts` enforces the trio.
 
 ## 12. Docs rules
 
 1. `AGENTS.md` holds all agent rules. `GOOD_ROADMAP.md` is the living plan. `ROADMAP.md` is the frozen original spec, do not extend it.
-2. `docs/PLAN.md` and `docs/AUDIT.md` are frozen historical snapshots. Add dated note headers, never rewrite their bodies.
+2. `docs/PLAN.md` is a frozen historical snapshot. Add a dated note header, never rewrite its body.
 3. Root `README.md` structure tree must match the real tree. Update it when adding top-level dirs or tools.
 4. Website copy lives in `website/src/`. Keep version strings and tool counts in sync with the repo.
 
 ## 13. Ship checklist
 
 1. Typecheck clean, full bun suite green with FRESH proof, Rust suite green.
-2. Landing check: `gzip -c public/waitlist.html | wc -c` under 35,000.
-3. Adversarial suite: `bun test tests/adversarial_prompt_injection.test.ts`, 0 fail.
-4. Bump the version trio, commit, push, tag `vX.Y.Z`.
-5. Tag push triggers CI binaries. Attach to the GitHub release (retry on API lag, it resolves).
-6. `npm publish` needs a human with 2FA. Record publish plus release in `GOOD_ROADMAP.md` section 13.
+2. Adversarial suite: `bun test tests/adversarial_prompt_injection.test.ts`, 0 fail.
+3. Bump the version trio, commit, push, tag `vX.Y.Z`.
+4. Tag push triggers CI binaries. Attach to the GitHub release (retry on API lag, it resolves).
+5. `npm publish` needs a human with 2FA. Record publish plus release in `GOOD_ROADMAP.md` section 13.
 

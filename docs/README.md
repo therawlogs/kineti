@@ -17,7 +17,6 @@ The papers were removed from the tree and will be re-added when ready. The figur
 
 ## 2. Core Architecture & Specifications
 - [**PLAN.md**](./PLAN.md) — Comprehensive technical architecture specification: wait-free EBR snapshots, 20-entity provenance kernel, HLC temporal monotonicity, Merkle DAG commit gate, and SAGA transactional reversibility.
-- [**AUDIT.md**](./AUDIT.md) — Audit summary plus full publication-grade architectural benchmarks (sub-100µs snapshot latency under 80 concurrent writers, sub-1ms reflex triage).
 - [**SECURITY_REPORT.md**](./SECURITY_REPORT.md) — Vulnerability assessment, origin validation, CSRF/CSWSH protection, and secret scan results.
 
 ---
@@ -29,7 +28,6 @@ The papers were removed from the tree and will be re-added when ready. The figur
 ---
 
 ## 4. Guides & Tutorials
-- [**APPLE_DESIGN_GUIDE.md**](./APPLE_DESIGN_GUIDE.md) — Apple Human Interface Guidelines (HIG) specification for the Kineti visual companion dashboard and UI components.
 - [**TUTORIAL-first-run.md**](./TUTORIAL-first-run.md) — Getting started with Kineti OS from installation to first verified task execution.
 - [**HOWTO-daily-loop.md**](./HOWTO-daily-loop.md) — Daily developer workflow: stage gating, test evidence recording, and spend tracking.
 

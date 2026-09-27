@@ -133,8 +133,8 @@ Commands:
   kineti verify        Check test proof before commit
   kineti swarm <goal>  Run multi-agent task
   kineti ci            Run PR check
-  kineti stripe        Manage virtual cards with spend caps and SAGA undo
+  kineti stripe        Manage virtual cards with spend caps and SAGA undo   [experimental]
   kineti privacy       Self-serve external data purge & model training opt-out
-  kineti invite        Viral vanity referrals and tier quotas
+  kineti invite        Viral vanity referrals and tier quotas               [experimental]
 `);
 }

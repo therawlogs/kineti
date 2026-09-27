@@ -225,5 +225,5 @@ Old version 2 files were preserved in `legacy/v2-skills/` at migration time (tha
 ## Project (from PROJECT.md)
 
 Goal: build universal agent harness with cryptographic verification. Locked in `.kineti/state.json`, never edited.
-Current plan lives in `GOOD_ROADMAP.md` (local only, never committed). Architecture spec in `docs/PLAN.md`, audit in `docs/AUDIT.md`.
+Current plan lives in `GOOD_ROADMAP.md` (local only, never committed). Architecture spec in `docs/PLAN.md`.
 Native engine in `core-native/`, governance in `bin/` + `src/`, tests in `tests/`, runtime state in `.kineti/` (never committed).
