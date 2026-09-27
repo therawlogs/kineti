@@ -2,7 +2,7 @@
 name: build
 description: Produce code in small verified pieces with undo safety. Stage 7 of 13.
 stage: build
-version: 0.3.5
+version: 0.2.0
 triggers:
   - build it
   - implement
