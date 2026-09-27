@@ -1,6 +1,7 @@
 {
   "name": "kineti",
   "version": "0.3.5",
+  "author": "Kineti Team <hello@getkineti.com>",
   "type": "module",
   "mcpName": "io.github.therawlogs/kineti",
   "license": "MIT",

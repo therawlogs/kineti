@@ -53,9 +53,16 @@ export function Layout({ children }: { children: ReactNode }): JSX.Element {
         </div>
       </header>
       <main>{children}</main>
-      <footer className="mt-4 border-t border-border pt-6 text-[13px] text-muted">
-        Open research for human progress. MIT licensed.{' '}
-        <a href={repo} target="_blank" rel="noreferrer" className="text-foreground">Source</a>
+      <footer className="mt-4 flex flex-col gap-3 border-t border-border pt-6 text-[13px] text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          Open research for human progress. MIT licensed.{' '}
+          <a href={repo} target="_blank" rel="noreferrer" className="text-foreground hover:underline">Source</a>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <a href="mailto:hello@getkineti.com" className="text-foreground hover:underline">hello@getkineti.com</a>
+          <span>·</span>
+          <a href="mailto:security@getkineti.com" className="text-foreground hover:underline">security@getkineti.com</a>
+        </div>
       </footer>
     </div>
   );

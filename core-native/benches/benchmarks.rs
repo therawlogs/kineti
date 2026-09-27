@@ -61,7 +61,7 @@ fn bench_sensory_triage() -> (f64, f64, f64) {
         "remember that my home city is San Francisco",
         "search for latest quantum computing breakthroughs",
         "create an image of an apple style translucent glass panel",
-        "draft an email to team@getkineti.com regarding the launch",
+        "draft an email to hello@getkineti.com regarding the launch",
         "show me tasks from my personal notion workspace",
         "compare prices for sony wh-1000xm5 headphones",
         "got it thanks",

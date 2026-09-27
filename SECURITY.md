@@ -15,10 +15,12 @@ We provide security updates for the current active release line.
 
 If you discover a security issue or vulnerability in Kineti, please report it privately. Do not open a public GitHub issue.
 
-Report vulnerabilities only through GitHub native Private Vulnerability Reporting:
+You can report vulnerabilities privately through either of these channels:
 
-1. Open a private report at [GitHub Security Advisories](https://github.com/therawlogs/kineti/security/advisories/new).
-2. Do not open a public issue and do not send email. No email address is needed.
+1. **Email**: Send your findings directly to [security@getkineti.com](mailto:security@getkineti.com).
+2. **GitHub Security Advisory**: Open a private report at [GitHub Security Advisories](https://github.com/therawlogs/kineti/security/advisories/new).
+
+Please do not open a public issue. We acknowledge all reports within 24 hours.
 
 ### What to include in your report
 

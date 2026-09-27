@@ -270,5 +270,13 @@ If you are an AI agent working in this repo, read [**AGENTS.md**](AGENTS.md) fir
 Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ## Contributing
-
+ 
 Humans and agents follow the same steps in [**CONTRIBUTING.md**](CONTRIBUTING.md): setup, tests with proof, money rules, and the ship checklist.
+
+## Contact
+
+- **General & Community**: [hello@getkineti.com](mailto:hello@getkineti.com)
+- **Security Disclosures**: [security@getkineti.com](mailto:security@getkineti.com) (PGP/disclosure policy in [SECURITY.md](SECURITY.md))
+- **Website**: [getkineti.com](https://getkineti.com)
+- **GitHub Issues**: [github.com/therawlogs/kineti/issues](https://github.com/therawlogs/kineti/issues)
+
