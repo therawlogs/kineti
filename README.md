@@ -1,4 +1,8 @@
-# Kineti OS
+# Kineti OS `v0.3.5`
+
+[![npm version](https://img.shields.io/npm/v/kineti.svg?color=teal)](https://www.npmjs.com/package/kineti)
+[![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > **Spend cap, transactional undo, and proof receipts for AI coding agents.**  
 > A lightweight open-source (MIT) safety harness that runs under Claude Code, Cursor, OpenCode, Codex, Antigravity, Cline, and fx.sh.
@@ -73,8 +77,11 @@ Personalized agents must understand the full human context without hallucinating
 > **Prerequisite**: The CLI is distributed on npm and runs on Node.js (>= 18), but requires Bun (>= 1.1) installed on the system for governance execution (`curl -fsSL https://bun.sh/install | bash`).
 
 ```bash
-# Install globally
+# Install globally (latest)
 npm install -g kineti
+
+# Or pin to the current stable release
+npm install -g kineti@0.3.5
 
 # Or run directly with npx
 npx kineti --help
@@ -190,7 +197,7 @@ All 8 native crates are published on [crates.io](https://crates.io):
 cargo add kineti-core
 
 # Or install the native CLI binary directly
-cargo install kineti-cli
+cargo install kineti-cli@0.3.5
 
 # Run all 251 native Rust unit and integration tests locally
 cargo test --manifest-path core-native/Cargo.toml

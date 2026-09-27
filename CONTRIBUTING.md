@@ -92,7 +92,7 @@ Every contribution follows a structured 5-step review process:
 
 1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). Verify with `npm pack --dry-run`.
 2. Website package `kineti-website`: separate app in `website/` with its own lockfile. Build with `bun run build` inside `website/`. It is excluded from the npm pack. The audited landing stays `public/waitlist.html`.
-3. Rust workspace `core-native/`: 8 crates, `publish = false`. Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at `core-native/` is tracked; there is no root lockfile.
+3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.5` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
 4. Version rule: `package.json`, `kineti.config.json`, and Cargo workspace move together. `tests/versions.test.ts` enforces the trio.
 
 ## 12. Docs rules

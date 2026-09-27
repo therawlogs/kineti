@@ -2,7 +2,7 @@
 name: architecture
 description: Draw services, contracts, failures, and limits before code. Stage 4 of 13.
 stage: plan
-version: 0.2.0
+version: 0.3.5
 triggers:
   - architecture
   - system design

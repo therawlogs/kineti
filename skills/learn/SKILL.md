@@ -2,7 +2,7 @@
 name: learn
 description: Search, prune, and export what Kineti learned.
 stage: reflect
-version: 0.2.0
+version: 0.3.5
 triggers:
   - search memory
   - what do you remember
