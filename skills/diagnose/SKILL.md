@@ -2,7 +2,7 @@
 name: diagnose
 description: Prove in dollars where the business loses time or money today. Stage 2 of 13.
 stage: intake
-version: 0.2.0
+version: 0.3.5
 triggers:
   - diagnose losses
   - friction audit

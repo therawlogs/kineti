@@ -2,7 +2,7 @@
 name: ship
 description: Clean commits and a pull request, proof-gated. Stage 11 of 13.
 stage: ship
-version: 0.2.0
+version: 0.3.5
 triggers:
   - ship it
   - open a pull request

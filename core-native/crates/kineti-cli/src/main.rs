@@ -28,6 +28,7 @@ fn main() {
         "epistemic" => run_epistemic_demo(),
         "epistemic-eval" => run_epistemic_eval_json(&args),
         "anti-drift" => run_anti_drift_demo(),
+        "--version" | "-v" | "version" => println!("kineti-cli 0.3.5"),
         _ => print_help(),
     }
 }
@@ -35,15 +36,15 @@ fn main() {
 fn print_help() {
     println!(
         "\n=======================================================\n\
-           Kineti — Messaging AI Assistant\n\
-           Website: getkineti.com | Pure Rust Nervous System\n\
+           Kineti v0.3.5 — Agent Safety & Context Harness\n\
+           Website: getkineti.com | Crates.io: kineti-cli\n\
          =======================================================\n\n\
          Usage:\n\
-           kineti-cli chat        Start interactive chat testing session\n\
            kineti-cli status      Show memory and spend quota status\n\
            kineti-cli test-all    Run end-to-end verification checks\n\
            kineti-cli epistemic   Demonstrate 360º Human Model & Epistemic Engine\n\
-           kineti-cli anti-drift  Demonstrate Verbatim Root Goal & Anti-Drift Engine\n"
+           kineti-cli anti-drift  Demonstrate Verbatim Root Goal & Anti-Drift Engine\n\
+           kineti-cli --version   Print version (0.3.5)\n"
     );
 }
 

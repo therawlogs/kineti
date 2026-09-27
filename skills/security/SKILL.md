@@ -2,7 +2,7 @@
 name: security
 description: Run the OWASP checklist and threat walk over every boundary. Stage 10 gate.
 stage: verify
-version: 0.2.0
+version: 0.3.5
 triggers:
   - security check
   - owasp
