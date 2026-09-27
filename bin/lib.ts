@@ -4,7 +4,17 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 
 export function machineDir(): string {
-  return process.env.KINETI_MACHINE_DIR || path.join(os.homedir(), ".kineti");
+  if (process.env.KINETI_MACHINE_DIR) return process.env.KINETI_MACHINE_DIR;
+  const homeKineti = path.join(os.homedir(), ".kineti");
+  try {
+    ensureDir(homeKineti);
+    fs.accessSync(homeKineti, fs.constants.W_OK);
+    return homeKineti;
+  } catch {
+    const fallback = path.join(process.cwd(), ".kineti");
+    ensureDir(fallback);
+    return fallback;
+  }
 }
 
 export function projectKdir(): string {

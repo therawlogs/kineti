@@ -7,7 +7,7 @@
 **Author:** Worker Audit (`worker_o7_audit`) on behalf of Kineti Architecture Team  
 **Date:** 2026-09-16  
 **Repository Working Directory:** `$HOME/Documents/Products/Kineti`  
-**License:** Apache-2.0 / MIT Dual License  
+**License:** MIT  
 
 ---
 

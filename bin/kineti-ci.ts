@@ -203,7 +203,7 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
 | **Spend Circuit Breaker** | \`$${spendUsd.toFixed(3)} / $${spendLimitUsd.toFixed(2)}\` | ${spendTripped ? "⚠️ TRIPPED" : "Healthy (< limit)"} |
 | **Root Goal Hash** | \`${shortGoalHash}\` | \`${rootGoal.slice(0, 50)}\` |
 | **Evidence Proofs** | ${evidenceRecords.length} record(s) | ${evidenceFresh ? "Fresh" : "Stale/Mismatch"} |
-| **Frontier Benchmarks** | ALE & SWE-bench Verified | Context Integrity Protocol (CIP) / DNTI Active |
+| **Evaluation Targets** | Hostile 100 & DNTI | Design Targets Active |
 
 ${failures.length > 0 ? `### ⚠️ Gate Blocking Issues\n${failures.map(f => `- ${f}`).join("\n")}\n` : ""}
 *Generated at ${nowIso()} by Kineti Context Integrity Layer (CIP) Runtime.*

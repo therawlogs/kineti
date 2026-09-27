@@ -1,6 +1,7 @@
 {
   "name": "kineti",
   "version": "0.3.4",
+  "type": "module",
   "mcpName": "io.github.therawlogs/kineti",
   "license": "MIT",
   "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
@@ -16,6 +17,10 @@
   "bin": {
     "kineti": "bin/kineti.js"
   },
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.1.0"
+  },
   "scripts": {
     "setup": "./setup.sh",
     "test": "bun test tests/ && ./tests/test-setup.sh",
@@ -23,9 +28,9 @@
     "test:setup": "./tests/test-setup.sh",
     "typecheck": "tsc --noEmit",
     "lint": "bun run typecheck",
-    "build": "bun build bin/kineti.ts --outfile dist/kineti.js",
+    "build": "bun scripts/build-router.ts",
     "build:router": "bun scripts/build-router.ts",
-    "prepublishOnly": "bun run build",
+    "prepublishOnly": "bun run build:router && bun run typecheck",
     "mcp": "bun bin/kineti-mcp.ts",
     "mcp:init": "bun bin/kineti-mcp.ts init",
     "companion": "bun bin/kineti-companion.ts",

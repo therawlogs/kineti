@@ -53,8 +53,16 @@ var fullPath = path.join(rootDir, target.script);
 var execArgs = subArgs;
 if (subcommand === "spend" && subArgs.length === 0) {
   execArgs = ["status"];
-} else if (subcommand === "test" && subArgs.length > 0 && subArgs[0] !== "run" && subArgs[0] !== "check") {
-  execArgs = ["run", ...subArgs];
+} else if (subcommand === "test") {
+  if (subArgs[0] === "check") {
+    execArgs = subArgs;
+  } else if (subArgs[0] === "run") {
+    const hasLabel = subArgs.includes("--label");
+    execArgs = hasLabel ? subArgs : ["run", "--label", "test", ...subArgs.slice(1)];
+  } else if (subArgs.length > 0) {
+    const hasLabel = subArgs.includes("--label");
+    execArgs = hasLabel ? ["run", ...subArgs] : ["run", "--label", "test", ...subArgs];
+  }
 } else if (subcommand === "undo" && subArgs.length === 0) {
   execArgs = ["rollback"];
 } else if ((subcommand === "status" || subcommand === "state") && subArgs.length === 0) {
@@ -62,6 +70,10 @@ if (subcommand === "spend" && subArgs.length === 0) {
 }
 if (target.isShell) {
   const res = spawnSync("bash", [fullPath, ...execArgs], { stdio: "inherit", cwd: process.cwd() });
+  if (res.error) {
+    console.error(`kineti: failed to execute ${fullPath}: ${res.error.message}`);
+    process.exit(1);
+  }
   process.exit(res.status ?? 0);
 } else {
   const probe = spawnSync("bun", ["--version"], { stdio: "ignore" });
@@ -70,7 +82,11 @@ if (target.isShell) {
     process.exit(1);
   }
   const res = spawnSync("bun", [fullPath, ...execArgs], { stdio: "inherit", cwd: process.cwd() });
-  process.exit(res.status ?? 0);
+  if (res.error) {
+    console.error(`kineti: failed to execute bun ${fullPath}: ${res.error.message}`);
+    process.exit(1);
+  }
+  process.exit(res.status ?? 1);
 }
 function printHelp() {
   console.log(`

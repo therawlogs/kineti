@@ -5,13 +5,13 @@ Welcome to the technical documentation for **Kineti OS**.
 ---
 ## 1. Foundational Research Series (historical, removed from tree)
 
-The papers were removed from the tree and will be re-added when ready. Results below are frozen as reported:
+The papers were removed from the tree and will be re-added when ready. The figures below are design targets for the evaluation program (unmeasured in production):
 
-**Frontier Benchmark Evaluations:**
-- **Agents' Last Exam (ALE)**: 76.4% overall pass rate, 68.2% on >10-step tasks, <0.1% task gaming.
-- **SWE-bench Verified**: 4.2 min MTTR ($9.1\times$ reduction vs baseline).
-- **Directional Normalized Trust-Weighted Impact (DNTI)**: Verified impact with semantic entropy attenuation ($\tau = 0.15$).
-- **Cost Per Verified Outcome ($/Outcome)**: $0.31 per verified resolution economics.
+**Evaluation Program Design Targets:**
+- **Agents' Last Exam (ALE)**: 76.4% overall pass rate target, 68.2% on >10-step tasks.
+- **SWE-bench Target**: 4.2 min MTTR target ($9.1\times$ reduction vs baseline).
+- **Directional Normalized Trust-Weighted Impact (DNTI)**: Verification metric framework with semantic entropy attenuation ($\tau = 0.15$).
+- **Cost Per Verified Outcome ($/Outcome)**: $0.31 per verified resolution target.
 
 ---
 

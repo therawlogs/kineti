@@ -34,12 +34,12 @@ Personalized agents must understand the full human context without hallucinating
 ### 3. TypeScript Governance Control Plane (`bin/`, `src/`)
 - **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
 - **Transactional SAGA Undo Stack**: Guarantees LIFO file reversibility before every mutation.
-- **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact git tree hashes via `kineti-evidence.ts`.
+- **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact workspace code fingerprints via `kineti-evidence.ts`.
 - **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (<12 KB payload, zero runtime JS frameworks).
 - **Universal Model Context Protocol (MCP)**: 12 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
 ### 4. Verified Test Counts & Evaluation Roadmap
-- **What is verified today**: 168 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures, bound to git tree hashes through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+- **What is verified today**: 168 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (419 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Kineti Hostile 100 (in development)**: a public suite of 100 hostile tool calls against the gate with published method and published failures. This is the benchmark the project intends to be judged by.
 - **Directional Normalized Trust-Weighted Impact (DNTI)**: three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$) designed to resist Goodhart-style metric gaming.
@@ -50,6 +50,8 @@ Personalized agents must understand the full human context without hallucinating
 ## Quickstart
 
 ### 1. Install via npm
+
+> **Prerequisite**: The CLI is distributed on npm and runs on Node.js (>= 18), but requires Bun (>= 1.1) installed on the system for governance execution (`curl -fsSL https://bun.sh/install | bash`).
 
 ```bash
 # Install globally
@@ -115,8 +117,11 @@ kineti mcp
 # Check spend circuit breaker status ($50 default ceiling)
 kineti spend check
 
+# Run tests and save cryptographic proof receipt
+kineti test -- echo hello
+
 # Verify cryptographic test evidence freshness
-kineti evidence check --label 360-human-model-resilience
+kineti test check --label test
 
 # Run stage-agnostic CI verification
 kineti ci
@@ -133,7 +138,7 @@ cargo add kineti-core
 # Or install the native CLI binary directly
 cargo install kineti-cli
 
-# Run all 105 native Rust unit and challenge tests locally
+# Run all 251 native Rust unit and integration tests locally
 cargo test --manifest-path core-native/Cargo.toml
 
 # Run the 5 native verification demo flows
@@ -205,6 +210,10 @@ For full architecture deep-dives and research treatises, refer to [**docs/README
 ## Agent rules
 
 If you are an AI agent working in this repo, read [**AGENTS.md**](AGENTS.md) first. It holds all rules, workflows, memory spec, and program references in one file.
+
+## License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ## Contributing
 

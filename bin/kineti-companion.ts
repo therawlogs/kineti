@@ -11,7 +11,16 @@ import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
 import { route as routeTalk } from "./kineti-router.ts";
 
-const PORT = Number(process.env.KINETI_COMPANION_PORT || 8788);
+function parsePort(): number {
+  const args = process.argv.slice(2);
+  const idx = args.indexOf("--port");
+  if (idx !== -1 && args[idx + 1]) {
+    const p = parseInt(args[idx + 1], 10);
+    if (!isNaN(p) && p > 0 && p < 65536) return p;
+  }
+  return Number(process.env.KINETI_COMPANION_PORT || 8788);
+}
+const PORT = parsePort();
 const REPO_ROOT = process.cwd();
 
 export function escapeHtml(unsafe: string): string {
@@ -3577,6 +3586,7 @@ export function startServer(port: number = PORT) {
 
 if (import.meta.main) {
   startServer(PORT);
-  console.log(`\n✨ Kineti Settings Portal listening on port ${PORT}`);
-  console.log(`🔐 Authorization token stored in .kineti/auth_token\n`);
+  console.log(`\n✨ Kineti Visual Companion running on http://127.0.0.1:${PORT}`);
+  console.log(`🔐 Authorization Token: ${AUTH_TOKEN}`);
+  console.log(`   (Paste token into password field at http://127.0.0.1:${PORT})\n`);
 }
