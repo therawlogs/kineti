@@ -9,8 +9,8 @@ homepage.workspace = true
 description = "High-performance messaging gateway: WhatsApp Cloud API, macOS iMessage bridge, Web Auth & Settings API"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.4" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.4" }
-kineti-memory = { path = "../kineti-memory", version = "0.3.4" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.3.4" }
-kineti-actions = { path = "../kineti-actions", version = "0.3.4" }
+kineti-core = { path = "../kineti-core", version = "0.3.5" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.5" }
+kineti-memory = { path = "../kineti-memory", version = "0.3.5" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.5" }
+kineti-actions = { path = "../kineti-actions", version = "0.3.5" }

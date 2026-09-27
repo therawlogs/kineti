@@ -10,12 +10,12 @@ readme = "../../README.md"
 description = "Native CLI and server runner for Kineti AI assistant"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.4" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.4" }
-kineti-memory = { path = "../kineti-memory", version = "0.3.4" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.3.4" }
-kineti-actions = { path = "../kineti-actions", version = "0.3.4" }
-kineti-gateway = { path = "../kineti-gateway", version = "0.3.4" }
+kineti-core = { path = "../kineti-core", version = "0.3.5" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.5" }
+kineti-memory = { path = "../kineti-memory", version = "0.3.5" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.5" }
+kineti-actions = { path = "../kineti-actions", version = "0.3.5" }
+kineti-gateway = { path = "../kineti-gateway", version = "0.3.5" }
 
 [[bench]]
 name = "benchmarks"
