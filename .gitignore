@@ -26,6 +26,10 @@ coverage/
 .cursor/mcp.json
 .cursor/mcp.local.json
 .kineti/fleet.local.json
+.vscode/
+.idea/
+*.local
+
 
 # Local-only planning documents & sprint archives
 GOOD_ROADMAP.md

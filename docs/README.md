@@ -31,7 +31,3 @@ The papers were removed from the tree and will be re-added when ready. The figur
 - [**TUTORIAL-first-run.md**](./TUTORIAL-first-run.md) — Getting started with Kineti OS from installation to first verified task execution.
 - [**HOWTO-daily-loop.md**](./HOWTO-daily-loop.md) — Daily developer workflow: stage gating, test evidence recording, and spend tracking.
 
----
-
-## 5. Archive
-- [**archive.zip**](./archive.zip) — Zipped historical documents and launch planning notes.
