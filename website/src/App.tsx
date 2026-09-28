@@ -1,4 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { Layout } from './components/Layout';
 import { Home } from './pages/Home';
 import { Tools } from './pages/Tools';
@@ -21,6 +22,7 @@ export function App(): JSX.Element {
           <Route path="*" element={<Home />} />
         </Routes>
       </Layout>
+      <Analytics />
     </HashRouter>
   );
 }
