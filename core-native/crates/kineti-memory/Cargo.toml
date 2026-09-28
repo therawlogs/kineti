@@ -10,5 +10,5 @@ readme = "../../README.md"
 description = "Dual-substrate memory: Vector search, causal user property graph, and tombstone masking"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.5" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.5" }
+kineti-core = { path = "../kineti-core", version = "0.3.6" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.6" }

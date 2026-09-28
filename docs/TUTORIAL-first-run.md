@@ -1,64 +1,142 @@
 # First Run Tutorial
 
-This guide takes about 20 minutes. You do not need to learn any commands.
-Just talk normal. Kineti handles safety, spending, undo, and proof in the background.
+This tutorial takes about 10 minutes. It shows you how to install Kineti, connect it to your AI coding agent, run your first verified task, check spending, and use undo safety.
 
-You will need:
-- Kineti installed and turned on
-- An agent chat open
-- A small idea or problem
+## Prerequisites
+- **Node.js**: version 18 or higher
+- **Bun**: version 1.1 or higher (`curl -fsSL https://bun.sh/install | bash`)
+- **AI Coding Agent or Editor**: Claude Code, Cursor, Windsurf, OpenCode, Codex, or Antigravity
 
-## Step 0: Say hello
+---
 
-Ask in plain words:
-> What can you do for me?
+## Step 1: Install Kineti in your project
 
-You should get a short answer with numbered choices. If Kineti says it is off,
-say "Kineti on".
+Open your terminal in your project directory and run:
 
-## Step 1: Tell your idea
+```bash
+# Install Kineti globally
+npm install -g kineti
 
-Say your idea in one sentence:
-> I want to fix the login page so people stop getting locked out.
+# Initialize Kineti for your project and installed editors
+kineti init
+```
 
-Kineti locks this as your goal and asks only what is missing. It will not drift
-away from these words.
+`kineti init` creates the local `.kineti/` runtime folder, sets up safety hooks, and configures your detected AI editors.
 
-## Step 2: Answer a few questions
+---
 
-Kineti asks about the pain, the look you like, and what must never break.
-Answer in plain words. Name real examples with names and dates where you can.
+## Step 2: Connect Kineti to your AI editor (MCP)
 
-## Step 3: Read the short plan
+Kineti provides a universal Model Context Protocol (MCP) server so your agent can use spend controls, undo safety, and test proofs automatically.
 
-Kineti shows a short plan with what it will build and what it will not build.
-No code is written until you say yes in plain words:
-> Yes, go ahead.
+If `kineti init` did not configure your editor automatically, set it up manually:
 
-Saying "change the color" or "fix the title" counts as a fix request.
-Kineti updates the plan and asks again.
+- **Claude Code (CLI)**:
+  ```bash
+  claude mcp add kineti npx -y kineti mcp
+  ```
 
-## Step 4: Let it build
+- **Cursor & Windsurf**:
+  Add to `.cursor/mcp.json` or your editor MCP settings:
+  ```json
+  {
+    "mcpServers": {
+      "kineti": {
+        "command": "npx",
+        "args": ["-y", "kineti", "mcp"]
+      }
+    }
+  }
+  ```
 
-Once you say yes, Kineti builds in small steps. Every change can be undone.
-Tests, safety checks, and spending checks run quietly. You only see results.
+- **OpenCode**:
+  ```bash
+  opencode mcp add kineti npx -y kineti mcp
+  ```
 
-Ask any time in plain words:
-> How much have I spent?
-> Did tests pass?
-> Where are we?
+- **Codex (CLI)**:
+  Add to `${CODEX_HOME:-$HOME/.codex}/config.toml`:
+  ```toml
+  [mcp.servers.kineti]
+  command = "npx"
+  args = ["-y", "kineti", "mcp"]
+  ```
 
-## Step 5: Undo if needed
+---
 
-If something looks wrong, say:
-> Undo that.
+## Step 3: Run your first task with your agent
 
-Kineti shows what would be undone, newest first, and asks for your yes.
-Nothing is undone without your yes.
+Open your AI coding agent (in Cursor, Claude Code, etc.) and give it a real task:
 
-## Step 6: After it ships
+> "Add a health check test for our API and verify it passes."
 
-- If errors appear later, just describe them in plain words.
-- At the end of the week say "what did we learn" and Kineti saves the lessons
-  so future work is better.
-- To pause everything say "Kineti off". To resume say "Kineti on".
+Watch how Kineti works with your agent:
+1. **Goal anchoring**: The agent locks the goal so it does not drift during multi-step tasks.
+2. **Plan approval**: For new features or structural changes, the agent presents a clear plan before modifying code.
+3. **Undo recording**: Before modifying files, the agent records an undo command in the SAGA stack.
+
+---
+
+## Step 4: Check spending and limits
+
+Every token spent by the agent is recorded with exact dollar amounts.
+
+Check your spending anytime in your terminal:
+
+```bash
+# View current spending and limit
+kineti spend check
+```
+
+Expected output:
+```text
+total $0.15 of $50; entries 2; tripped=false
+```
+
+- **Automatic spend breaker**: If spending reaches 95% of the $50 limit ($47.50), Kineti immediately trips the breaker and stops all agent actions.
+- **Human-only reset**: An agent can never reset the spend limit on its own. Only you can reset it:
+  ```bash
+  kineti spend reset --i-am-human
+  ```
+
+---
+
+## Step 5: Run tests and verify evidence
+
+Kineti requires cryptographic proof that tests actually ran against the exact code in your repository:
+
+```bash
+# Run tests and record cryptographic proof receipt
+kineti test -- bun test
+
+# Verify that the test receipt is fresh and code has not changed
+kineti test check --label test
+```
+
+If any file in the repository changes after running tests, the proof receipt immediately flips from `FRESH` to `STALE`, ensuring you never deploy unverified code.
+
+---
+
+## Step 6: Test undo safety
+
+If an agent makes unwanted changes or breaks a file, you can roll back changes cleanly:
+
+```bash
+# Review and rollback the most recent changes
+kineti undo
+```
+
+Kineti unwinds changes in reverse order (newest first).
+
+---
+
+## Step 7: Open the Visual Companion
+
+Kineti includes a lightweight local dashboard built to Apple HIG standards:
+
+```bash
+# Start the companion dashboard
+kineti companion
+```
+
+Open `http://127.0.0.1:8788` in your browser to view your real-time spend charts, active tasks, team members, and verification receipts.

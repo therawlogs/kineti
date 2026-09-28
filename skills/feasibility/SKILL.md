@@ -2,7 +2,7 @@
 name: feasibility
 description: Kill losing plans before code exists — money, data, people checks. Stage 5 gate.
 stage: gate
-version: 0.3.5
+version: 0.3.6
 triggers:
   - feasibility
   - viability check

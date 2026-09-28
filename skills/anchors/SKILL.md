@@ -2,7 +2,7 @@
 name: anchors
 description: Install standing rules into a project root.
 stage: meta
-version: 0.3.5
+version: 0.3.6
 triggers:
   - project rules
   - install ethos

@@ -1,4 +1,4 @@
-# Kineti OS `v0.3.5`
+# Kineti OS `v0.3.6`
 
 [![npm version](https://img.shields.io/npm/v/kineti.svg?color=teal)](https://www.npmjs.com/package/kineti)
 [![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
@@ -81,7 +81,7 @@ Personalized agents must understand the full human context without hallucinating
 npm install -g kineti
 
 # Or pin to the current stable release
-npm install -g kineti@0.3.5
+npm install -g kineti@0.3.6
 
 # Or run directly with npx
 npx kineti --help
@@ -197,7 +197,7 @@ All 8 native crates are published on [crates.io](https://crates.io):
 cargo add kineti-core
 
 # Or install the native CLI binary directly
-cargo install kineti-cli@0.3.5
+cargo install kineti-cli@0.3.6
 
 # Run all 251 native Rust unit and integration tests locally
 cargo test --manifest-path core-native/Cargo.toml
@@ -246,7 +246,7 @@ kineti/
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
 ├── CONTRIBUTING.md      # Development setup, testing, and DCO sign-off
 ├── LICENSE              # MIT License
-└── package.json         # kineti@0.3.5 npm package manifest
+└── package.json         # kineti@0.3.6 npm package manifest
 ```
 
 ---

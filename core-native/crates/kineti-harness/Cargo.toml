@@ -10,4 +10,4 @@ readme = "../../README.md"
 description = "Developer safety harness: MCP proxy interceptor, shadow workspace, and native OVT verification"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.5" }
+kineti-core = { path = "../kineti-core", version = "0.3.6" }

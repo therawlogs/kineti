@@ -139,9 +139,9 @@ describe("Master Design System - 12 Mandatory UI Components", () => {
     const banner = HeroBanner({
       title: "Kineti Causal Harness",
       subtitle: "Runtime Governance & Verification",
-      badgeText: "v0.3.5",
+      badgeText: "v0.3.6",
     });
     expect(banner).toContain("Kineti Causal Harness");
-    expect(banner).toContain("v0.3.5");
+    expect(banner).toContain("v0.3.6");
   });
 });
