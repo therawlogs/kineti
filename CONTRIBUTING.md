@@ -6,7 +6,7 @@ Plain words. Numbered steps. Every change must be safe, tested, and proven.
 
 1. Install bun: `curl -fsSL https://bun.sh/install | bash`.
 2. Clone and enter the repo.
-3. Run `bun install` at the root. For the website, run `bun install` inside `website/` too.
+3. Run `bun install` at the root. The website is one static file in `website/` with no install step.
 4. Run `./setup.sh` to install skills into your editors (or `kineti init`).
 5. Start the dashboard: `bun run companion`, open `http://127.0.0.1:8788`.
 
@@ -91,7 +91,7 @@ Every contribution follows a structured 5-step review process:
 ## 11. Packages: npm, website, Rust
 
 1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). Verify with `npm pack --dry-run`.
-2. Website package `kineti-website`: separate app in `website/` with its own lockfile. Build with `bun run build` inside `website/`. It is excluded from the npm pack.
+2. Website: one static file `website/index.html`. No package, no lockfile, no build step. It is excluded from the npm pack.
 3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.6` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
 4. Version rule: `package.json`, `kineti.config.json`, and Cargo workspace move together. `tests/versions.test.ts` enforces the trio.
 
@@ -100,7 +100,7 @@ Every contribution follows a structured 5-step review process:
 1. `AGENTS.md` holds all agent rules. `GOOD_ROADMAP.md` is the living plan. `ROADMAP.md` is the frozen original spec, do not extend it.
 2. `docs/PLAN.md` is a frozen historical snapshot. Add a dated note header, never rewrite its body.
 3. Root `README.md` structure tree must match the real tree. Update it when adding top-level dirs or tools.
-4. Website copy lives in `website/src/`. Keep version strings and tool counts in sync with the repo.
+4. Website copy lives in `website/index.html`. Keep it short and in sync with the repo.
 
 ## 13. Ship checklist
 

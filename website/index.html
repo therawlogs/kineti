@@ -3,16 +3,62 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Kineti: open research for human progress. Independent research and open tools for how software should work. First front: AI agent verification." />
-    <meta property="og:title" content="Kineti — Open research for human progress" />
-    <meta property="og:description" content="Independent research and open tools. First front: AI agent verification - agents act, Kineti proves what they did." />
-    <meta name="theme-color" content="#f7f5f1" />
-    <link rel="canonical" href="https://getkineti.com/" />
-    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <title>Kineti — Open research for human progress</title>
+    <meta name="description" content="Kineti is an open-source (MIT) safety and memory layer for AI coding agents." />
+    <title>Kineti</title>
+    <style>
+      :root {
+        --background: #f7f5f1;
+        --foreground: #25211f;
+        --muted: #6f6660;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+      main {
+        max-width: 640px;
+        width: 100%;
+        text-align: center;
+      }
+      h1 {
+        font-size: 40px;
+        letter-spacing: -0.02em;
+        margin: 0 0 16px 0;
+      }
+      p {
+        font-size: 17px;
+        line-height: 1.6;
+        color: var(--foreground);
+        margin: 0 0 24px 0;
+      }
+      .links {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+        font-size: 15px;
+      }
+      a { color: var(--foreground); font-weight: 600; }
+      .contact { color: var(--muted); font-weight: 400; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <main>
+      <h1>Kineti</h1>
+      <p>Kineti is an open-source (MIT) safety and memory layer for AI coding agents. It checks a project's spend against limits you set, saves proof receipts for test runs, and keeps a local record your agent can learn from. Everything runs locally. The code, docs, and roadmap live in the repo.</p>
+      <div class="links">
+        <a href="https://github.com/therawlogs/kineti" target="_blank" rel="noreferrer">GitHub: https://github.com/therawlogs/kineti</a>
+        <a class="contact" href="mailto:hello@getkineti.com">hello@getkineti.com</a>
+      </div>
+    </main>
   </body>
 </html>

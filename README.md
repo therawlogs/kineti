@@ -235,7 +235,7 @@ kineti/
 ├── hosts/               # 7 editor configurations (Claude, Cursor, Codex, OpenCode, Gemini, Antigravity, fx.sh)
 ├── hooks/               # 6 hook text blocks for host setup
 ├── public/              # Static documentation & legal assets
-├── website/             # Kineti marketing & research portal (React + Vite)
+├── website/             # Single static page (index.html only)
 ├── docs/                # Architecture specifications & security reports
 │   ├── PLAN.md          # Canonical production architecture spec
 │   ├── SECURITY_REPORT.md # Security audit & origin gating analysis
