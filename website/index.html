@@ -10,13 +10,15 @@
         --background: #f7f5f1;
         --foreground: #25211f;
         --muted: #6f6660;
+        --link: #1a56db;
+        --link-hover: #0e3aa3;
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         background: var(--background);
         color: var(--foreground);
-        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font-family: "Trebuchet MS", "Trebuchet", Verdana, sans-serif;
         -webkit-font-smoothing: antialiased;
         min-height: 100vh;
         display: flex;
@@ -47,14 +49,30 @@
         flex-wrap: wrap;
         font-size: 15px;
       }
-      a { color: var(--foreground); font-weight: 600; }
-      .contact { color: var(--muted); font-weight: 400; }
+      a { color: var(--link); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; transition: color 150ms ease; }
+      a:hover { color: var(--link-hover); }
+      a:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+      .contact { color: var(--link); font-weight: 400; }
+      .cta {
+        display: inline-block;
+        margin: 0 0 24px 0;
+        padding: 12px 22px;
+        border: 2px solid var(--link);
+        border-radius: 8px;
+        font-size: 16px;
+        text-decoration: none;
+      }
+      .cta:hover {
+        background: var(--link);
+        color: #ffffff;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>Kineti</h1>
-      <p>Kineti is an open-source (MIT) safety and memory layer for AI coding agents. It checks a project's spend against limits you set, saves proof receipts for test runs, and keeps a local record your agent can learn from. Everything runs locally. The code, docs, and roadmap live in the repo.</p>
+      <p>Kineti is an open-source (MIT) safety and memory layer for AI coding agents. It checks a project's spend against limits you set, saves proof receipts for test runs, and keeps a local record your agent can learn from.</p>
+      <a class="cta" href="https://github.com/therawlogs/kineti" target="_blank" rel="noreferrer">Try it out and share feedback</a>
       <div class="links">
         <a href="https://github.com/therawlogs/kineti" target="_blank" rel="noreferrer">GitHub: https://github.com/therawlogs/kineti</a>
         <a class="contact" href="mailto:hello@getkineti.com">hello@getkineti.com</a>
