@@ -12,8 +12,19 @@ HOST_NAMES=()
 HOST_DIRS=()
 HOST_CONFS=()
 
+# Supported host names, read from hosts/*.conf so the list can never drift.
+host_list() {
+  local conf base out=""
+  for conf in "$HERE"/hosts/*.conf; do
+    [[ -e "$conf" ]] || continue
+    base="$(basename "$conf" .conf)"
+    out="${out:+$out|}$base"
+  done
+  echo "${out:-opencode|claude|gemini|codex|cursor}"
+}
+
 usage() {
-  echo "Usage: ./setup.sh [--host opencode|claude|gemini|codex|cursor] [--install-root [DIR]] [--uninstall]"
+  echo "Usage: ./setup.sh [--host $(host_list)] [--install-root [DIR]] [--uninstall]"
   exit 1
 }
 
@@ -155,7 +166,7 @@ install() {
   load_hosts
   if [[ ${#HOST_NAMES[@]} -eq 0 ]]; then
     echo "No matching host found. Installed hosts are auto-detected;"
-    echo "force one with: ./setup.sh --host <opencode|claude|gemini|codex|cursor>"
+    echo "force one with: ./setup.sh --host <$(host_list)>"
     exit 1
   fi
   local i name dir skill dest count total=0 skipped=0
@@ -198,7 +209,7 @@ install() {
   if [[ $total -eq 0 ]]; then
     echo "No agent host folders were found on this machine."
     echo "Create one (for example install opencode) or force a target:"
-    echo "  ./setup.sh --host <opencode|claude|gemini|codex|cursor>"
+    echo "  ./setup.sh --host <$(host_list)>"
   fi
   if [[ -n "$INSTALL_ROOT" ]]; then
     echo ""

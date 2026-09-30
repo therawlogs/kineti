@@ -73,6 +73,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
       expect(initResp.result).toBeDefined();
       expect(initResp.result.protocolVersion).toBe("2024-11-05");
       expect(initResp.result.serverInfo.name).toBe("kineti-harness");
+      const pkg = JSON.parse(fs.readFileSync(path.join(REPO, "package.json"), "utf8"));
+      expect(initResp.result.serverInfo.version).toBe(pkg.version);
       expect(initResp.result.capabilities.tools).toBeDefined();
     } finally {
       session.close();

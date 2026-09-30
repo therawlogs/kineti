@@ -61,7 +61,21 @@ export function readJson<T>(file: string): T | null {
 
 export function writeJson(file: string, value: unknown): void {
   ensureDir(path.dirname(file));
-  fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
+  fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
+  lockFileMode(file);
+}
+
+/**
+ * Governance state can contain tokens, spend ledgers, and undo commands.
+ * Re-assert owner-only permissions on every write so files created before
+ * this helper existed cannot stay world-readable.
+ */
+function lockFileMode(file: string): void {
+  try {
+    fs.chmodSync(file, 0o600);
+  } catch {
+    // Filesystems without POSIX modes (e.g. Windows) ignore this.
+  }
 }
 
 export function readJsonl<T>(file: string): T[] {
@@ -86,7 +100,8 @@ export function readJsonl<T>(file: string): T[] {
 
 export function appendJsonl(file: string, value: unknown): void {
   ensureDir(path.dirname(file));
-  fs.appendFileSync(file, JSON.stringify(value) + "\n");
+  fs.appendFileSync(file, JSON.stringify(value) + "\n", { mode: 0o600 });
+  lockFileMode(file);
 }
 
 export interface Limits {

@@ -341,3 +341,29 @@ describe("hardening-cryptography-and-units", () => {
   });
 });
 
+describe("governance state file permissions", () => {
+  test("writeJson and appendJsonl create and re-assert owner-only mode", async () => {
+    const { writeJson, appendJsonl } = await import("../bin/lib.ts");
+    const dir = fs.mkdtempSync(path.join(REPO, ".kineti", "scratch", "perm-"));
+    try {
+      const jsonFile = path.join(dir, "state.json");
+      const jsonlFile = path.join(dir, "journal.jsonl");
+
+      writeJson(jsonFile, { hello: "world" });
+      appendJsonl(jsonlFile, { line: 1 });
+      expect(fs.statSync(jsonFile).mode & 0o777).toBe(0o600);
+      expect(fs.statSync(jsonlFile).mode & 0o777).toBe(0o600);
+
+      // A file that was created world-readable must be locked down on next write.
+      fs.chmodSync(jsonFile, 0o644);
+      fs.chmodSync(jsonlFile, 0o644);
+      writeJson(jsonFile, { hello: "again" });
+      appendJsonl(jsonlFile, { line: 2 });
+      expect(fs.statSync(jsonFile).mode & 0o777).toBe(0o600);
+      expect(fs.statSync(jsonlFile).mode & 0o777).toBe(0o600);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+

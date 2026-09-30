@@ -10,13 +10,28 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
 import { readJson, projectKdir, loadLimits, Limits, splitLegacyCommand, assertInsideProject } from "./lib.ts";
 
+// Works under bun (import.meta.dir) and plain node (file URL fallback)
+const here: string =
+  typeof (import.meta as any).dir === "string"
+    ? (import.meta as any).dir
+    : path.dirname(fileURLToPath(import.meta.url));
+
 const PROTOCOL_VERSION = "2024-11-05";
 const SERVER_NAME = "kineti-harness";
-const SERVER_VERSION = "0.2.0";
+const SERVER_VERSION = resolvePackageVersion();
+
+function resolvePackageVersion(): string {
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.resolve(here, "../package.json"), "utf8"));
+    if (pkg && pkg.version) return String(pkg.version);
+  } catch {}
+  return "0.0.0-dev";
+}
 
 // Workspace root resolution
 let workspaceRoot = process.cwd();

@@ -6,7 +6,7 @@ Plain words. Numbered steps. Every change must be safe, tested, and proven.
 
 1. Install bun: `curl -fsSL https://bun.sh/install | bash`.
 2. Clone and enter the repo.
-3. Run `bun install` at the root. The website is one static file in `website/` with no install step.
+3. Run `bun install` at the root. The website is a static page in `website/` (one `index.html` plus a video poster and `vercel.json`) with no install step.
 4. Run `./setup.sh` to install skills into your editors (or `kineti init`).
 5. Start the dashboard: `bun run companion`, open `http://127.0.0.1:8788`.
 
@@ -91,7 +91,7 @@ Every contribution follows a structured 5-step review process:
 ## 11. Packages: npm, website, Rust
 
 1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). Verify with `npm pack --dry-run`.
-2. Website: one static file `website/index.html`. No package, no lockfile, no build step. It is excluded from the npm pack.
+2. Website: static page `website/index.html` plus `website/kineti-cosmic-loop.mp4`, `website/kineti-cosmic-poster.jpg`, and `website/vercel.json`. No package, no lockfile, no build step. Excluded from the npm pack.
 3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.7` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
 4. Version rule: `package.json`, `kineti.config.json`, both Cargo workspaces, and every published crate move together. `tests/versions.test.ts` checks crate metadata, lockfiles, server registration, current docs, skill manifests, and Codex setup examples.
 

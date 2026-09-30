@@ -22,6 +22,14 @@ You can report vulnerabilities privately through either of these channels:
 
 Please do not open a public issue. We acknowledge all reports within 24 hours.
 
+### Disclosure policy
+
+1. **Private first**: we confirm the issue with you before anything is published.
+2. **Advisory**: fixed issues are published as a GitHub Security Advisory, usually alongside the patch release.
+3. **Timing**: we aim to publish within 14 days of your report (see the SLA below). If a fix needs longer, we agree a new date with you.
+4. **Credit**: researchers are credited in the advisory unless they ask to stay anonymous.
+5. **No PGP key**: we do not publish one. Use the email address or the GitHub advisory form above; both are private.
+
 ### What to include in your report
 
 Please include the following information:
@@ -61,5 +69,5 @@ Kineti is designed around defensive defaults:
 
 1. **Fail-closed spend limits**: Tools halt execution immediately if cost thresholds are reached.
 2. **Loopback-only binding**: The companion web server binds only to `127.0.0.1` and validates Host and Origin headers.
-3. **Local data isolation**: Runtime state in `.kineti/` uses strict file permissions and is excluded from git tracking.
-4. **Zero credential leakage**: Tools never print secrets, passwords, or raw auth tokens to logs or console outputs.
+3. **Local data isolation**: Runtime state in `.kineti/` is written with owner-only permissions (`0600`) and is excluded from git tracking.
+4. **No credentials in logs**: Secrets, passwords, and raw auth tokens are never written to log files or state files. The one deliberate exception is the companion's local authorization token, which is printed once to your terminal (never to a log file) so you can paste it into the login form on the same machine.

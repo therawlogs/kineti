@@ -21,7 +21,7 @@ npm install -g kineti
 kineti init
 ```
 
-`kineti init` creates the local `.kineti/` runtime folder, sets up safety hooks, and configures your detected AI editors.
+`kineti init` detects your installed editors, copies the Kineti workflow skills into each one, and prints the safety-hook block to paste into your host settings. It does not write MCP server config — do that in Step 2.
 
 ---
 
@@ -36,8 +36,8 @@ If `kineti init` did not configure your editor automatically, set it up manually
   claude mcp add kineti npx -y kineti mcp
   ```
 
-- **Cursor & Windsurf**:
-  Add to `.cursor/mcp.json` or your editor MCP settings:
+- **Cursor**:
+  Add to `.cursor/mcp.json` or your Cursor MCP settings (Windsurf uses `~/.codeium/windsurf/mcp_config.json`):
   ```json
   {
     "mcpServers": {
@@ -51,8 +51,20 @@ If `kineti init` did not configure your editor automatically, set it up manually
 
 - **OpenCode**:
   ```bash
-  opencode mcp add kineti npx -y kineti mcp
+  opencode mcp add kineti -- npx -y kineti mcp
   ```
+  Or add to `~/.config/opencode/opencode.jsonc`:
+  ```json
+  {
+    "mcp": {
+      "kineti": {
+        "type": "local",
+        "command": ["npx", "-y", "kineti", "mcp"]
+      }
+    }
+  }
+  ```
+  Confirm with `opencode mcp list`.
 
 - **Codex (CLI)**:
   Add to `${CODEX_HOME:-$HOME/.codex}/config.toml`:

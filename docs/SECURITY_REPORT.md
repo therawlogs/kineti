@@ -1,5 +1,9 @@
 # Security Report — v3.1 ship gate (2026-09-09)
 
+> Historical snapshot of the 2026-09-09 security pass. Endpoints and file
+> line numbers below describe that date; some routes have since been removed
+> or moved. The current policy, scope, and SLA live in `SECURITY.md`.
+
 Scope: commit `70bbc1d` plus working tree. Method: OWASP walk with file:line
 evidence, HTTP boundary threat walk, secret scan of tracked files and history,
 `bun audit`, agent-specific checks. No external scanners were downloaded.

@@ -58,11 +58,11 @@ Personalized agents must understand the full human context without hallucinating
 - **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
 - **Transactional SAGA Undo Stack**: Guarantees LIFO file reversibility before every mutation.
 - **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact workspace code fingerprints via `kineti-evidence.ts`.
-- **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (<12 KB payload, zero runtime JS frameworks).
-- **Universal Model Context Protocol (MCP)**: 12 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
+- **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (78 KB HTML, 15 KB gzipped, zero runtime JS frameworks).
+- **Universal Model Context Protocol (MCP)**: 14 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
 ### 4. Verified Test Counts & Evaluation Roadmap
-- **What is verified today**: 168 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (419 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+- **What is verified today**: 175 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (426 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Kineti Hostile 100 (in development)**: a public suite of 100 hostile tool calls against the gate with published method and published failures. This is the benchmark the project intends to be judged by.
 - **Directional Normalized Trust-Weighted Impact (DNTI)**: three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$) designed to resist Goodhart-style metric gaming.
@@ -96,7 +96,9 @@ Run Kineti's auto-configurator in your project directory:
 ```bash
 kineti init
 ```
-This automatically detects your installed hosts (Claude, Cursor, OpenCode, Codex, Antigravity, fx.sh, Gemini, Cline) and links project rules and MCP configurations.
+This detects your installed hosts (Claude, OpenCode, Codex, Cursor, Antigravity, Gemini, fx.sh), copies the 17 workflow skills into each one, writes the `~/.kineti/repo` pointer, and prints the safety-hook block to paste into your host settings. Use `kineti init --host <name>` to install into a single host, or `kineti init --install-root` to add the project rule files.
+
+MCP server config is **not** written automatically. Add it with the manual step below for your editor.
 
 #### Manual Configuration by Editor
 
@@ -105,7 +107,7 @@ This automatically detects your installed hosts (Claude, Cursor, OpenCode, Codex
 claude mcp add kineti npx -y kineti mcp
 ```
 
-**Cursor & Windsurf**:
+**Cursor**:
 Add to your project's `.cursor/mcp.json` or Cursor Settings $\to$ Features $\to$ MCP:
 ```json
 {
@@ -117,12 +119,24 @@ Add to your project's `.cursor/mcp.json` or Cursor Settings $\to$ Features $\to$
   }
 }
 ```
+Windsurf uses a different path: `~/.codeium/windsurf/mcp_config.json`, with the same `mcpServers` JSON.
 
 **OpenCode**:
 ```bash
-opencode mcp add kineti npx -y kineti mcp
+opencode mcp add kineti -- npx -y kineti mcp
 ```
-Or add to `~/.config/opencode/opencode.jsonc`.
+Or add the block below to `~/.config/opencode/opencode.jsonc`:
+```json
+{
+  "mcp": {
+    "kineti": {
+      "type": "local",
+      "command": ["npx", "-y", "kineti", "mcp"]
+    }
+  }
+}
+```
+Confirm with `opencode mcp list`.
 
 **Codex (CLI)**:
 Add to `${CODEX_HOME:-$HOME/.codex}/config.toml`:
@@ -137,11 +151,16 @@ codex mcp list
 ```
 Kineti should appear in the list.
 
-**Google Antigravity & Gemini**:
-Run the automated host configurator:
+**Google Antigravity**:
+Install the Kineti skills into Antigravity:
 ```bash
 kineti init --host antigravity
 ```
+Gemini uses the same installer:
+```bash
+kineti init --host gemini
+```
+Neither host ships an MCP config block here, so connect the MCP server through your editor's generic MCP settings with the fields in the next section.
 
 **Fx.sh**:
 Install skill rules directly to your fx environment:
@@ -163,7 +182,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 ```
 
 **Cline / Roo Code**:
-Add a new stdio MCP server in settings:
+Add a stdio MCP server in settings (Cline: `.clinerules/mcp_settings.json`, Roo Code: `.roo/mcp_settings.json`):
 - **Server Name**: `kineti`
 - **Command**: `npx`
 - **Args**: `["-y", "kineti", "mcp"]`
@@ -236,16 +255,20 @@ kineti/
 │       ├── kineti-harness/ # Outcome Verification Tickets (OVT) & Shadow workspaces
 │       └── kineti-cli/  # Standalone native CLI binary
 ├── src/                 # Shared TypeScript libraries (governance, scheduler, security)
-├── skills/              # 16 agent workflow skills (installed by setup.sh)
+├── skills/              # 17 agent workflow skills (installed by setup.sh)
 ├── hosts/               # 7 editor configurations (Claude, Cursor, Codex, OpenCode, Gemini, Antigravity, fx.sh)
 ├── hooks/               # 6 hook text blocks for host setup
 ├── public/              # Static documentation & legal assets
-├── website/             # Single static page (index.html only)
+├── website/             # Static landing page (index.html plus video poster assets)
 ├── docs/                # Architecture specifications & security reports
+│   ├── README.md        # Docs index
 │   ├── PLAN.md          # Canonical production architecture spec
 │   ├── SECURITY_REPORT.md # Security audit & origin gating analysis
-│   └── TUTORIAL-first-run.md # Developer quickstart
-├── tests/               # 168 TypeScript governance & causal test suites
+│   ├── TUTORIAL-first-run.md # Developer quickstart
+│   ├── HOWTO-daily-loop.md # Daily operating loop
+│   ├── SWARM_COORDINATION_AND_IDENTITY.md # Multi-agent identity & signing
+│   └── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet and integration design
+├── tests/               # 175 TypeScript governance & causal test suites
 ├── .github/             # GitHub Actions CI, issue forms, PR template, Dependabot
 ├── AGENTS.md            # Universal rules for AI agents in this repository
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
@@ -287,6 +310,6 @@ Humans and agents follow the same steps in [**CONTRIBUTING.md**](CONTRIBUTING.md
 ## Contact
 
 - **General & Community**: [hello@getkineti.com](mailto:hello@getkineti.com)
-- **Security Disclosures**: [security@getkineti.com](mailto:security@getkineti.com) (PGP/disclosure policy in [SECURITY.md](SECURITY.md))
+- **Security Disclosures**: [security@getkineti.com](mailto:security@getkineti.com) (disclosure policy and SLA in [SECURITY.md](SECURITY.md))
 - **Website**: [getkineti.com](https://getkineti.com)
 - **GitHub Issues**: [github.com/therawlogs/kineti/issues](https://github.com/therawlogs/kineti/issues)

@@ -86,6 +86,90 @@ describe("repo version and layout drift guards", () => {
     }
   });
 
+  test("README counts match the code they describe", () => {
+    const tsTests = fs
+      .readdirSync(path.join(ROOT, "tests"))
+      .filter((f) => f.endsWith(".ts"))
+      .reduce((n, f) => n + (read(`tests/${f}`).match(/\b(?:it|test)\s*\(/g) || []).length, 0);
+
+    let rustTests = 0;
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) {
+          if (entry.name === "target" || entry.name === "node_modules") continue;
+          walk(path.join(dir, entry.name));
+        } else if (entry.name.endsWith(".rs")) {
+          const src = fs.readFileSync(path.join(dir, entry.name), "utf8");
+          rustTests += (src.match(/#\[(?:test|tokio::test|rstest)\]/g) || []).length;
+        }
+      }
+    };
+    walk(path.join(ROOT, "core-native"));
+
+    const skills = fs.readdirSync(path.join(ROOT, "skills")).length;
+    const mcpTools = (read("bin/kineti-mcp.ts").match(/^\s+name: "kineti_[a-z_]+"/gm) || []).length;
+    const readme = read("README.md");
+
+    expect(readme).toContain(`${tsTests} TypeScript governance tests`);
+    expect(readme).toContain(`${rustTests} native Rust tests`);
+    expect(readme).toContain(`${tsTests + rustTests} total passed tests`);
+    expect(readme).toContain(`${tsTests} TypeScript governance & causal test suites`);
+    expect(readme).toContain(`${skills} agent workflow skills`);
+    expect(readme).toContain(`${mcpTools} native governance tools`);
+  });
+
+  test("host installer help lists every host config that exists", () => {
+    const hosts = fs
+      .readdirSync(path.join(ROOT, "hosts"))
+      .filter((f) => f.endsWith(".conf"))
+      .map((f) => f.replace(/\.conf$/, ""));
+    const setup = read("setup.sh");
+    // Help text must be derived from hosts/*.conf, not a hardcoded list.
+    expect(setup).toContain("host_list()");
+    expect(setup).not.toContain("--host opencode|claude|gemini|codex|cursor]");
+    const config = JSON.parse(read("kineti.config.json"));
+    expect((config.hosts || []).length).toBe(hosts.length);
+  });
+
+  test("MCP install commands match each host's documented CLI syntax", () => {
+    const readme = read("README.md");
+    const tutorial = read("docs/TUTORIAL-first-run.md");
+    // OpenCode takes the command after `--`; a positional form does not exist.
+    expect(readme).toContain("opencode mcp add kineti -- npx -y kineti mcp");
+    expect(tutorial).toContain("opencode mcp add kineti -- npx -y kineti mcp");
+    for (const content of [readme, tutorial]) {
+      expect(content).not.toMatch(/opencode mcp add kineti npx/);
+      // init does not write MCP config; docs must not claim otherwise.
+      expect(content).not.toContain("links project rules and MCP configurations");
+      expect(content).not.toContain("configures your detected AI editors");
+    }
+  });
+
+  test("README does not repeat stale capability claims", () => {
+    const readme = read("README.md");
+    const stale = [
+      "<12 KB payload",
+      "168 TypeScript",
+      "419 total",
+      "16 agent workflow",
+      "Single static page (index.html only)",
+      "(PGP/disclosure policy",
+      "Cursor & Windsurf",
+    ];
+    for (const claim of stale) expect(readme).not.toContain(claim);
+  });
+
+  test("SECURITY.md claims match what the code actually does", () => {
+    const policy = read("SECURITY.md");
+    // The companion prints its token to the terminal by design.
+    expect(policy).not.toContain("never print secrets, passwords, or raw auth tokens");
+    expect(policy).toContain("0600");
+    // The shared writers are what make the permission claim true.
+    const lib = read("bin/lib.ts");
+    expect(lib).toContain("mode: 0o600");
+    expect(lib).toContain("lockFileMode");
+  });
+
   test("router has no hardcoded release version fallback", () => {
     const src = read("bin/kineti.ts");
     expect(src).toContain("0.0.0-dev");
