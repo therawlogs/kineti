@@ -7,18 +7,20 @@
     <title>Kineti</title>
     <style>
       :root {
-        --background: #f7f5f1;
-        --foreground: #25211f;
-        --muted: #6f6660;
-        --link: #1a56db;
-        --link-hover: #0e3aa3;
+        --background: #080808;
+        --foreground: #f2ede6;
+        --muted: #c9c4bb;
+        --link: #f2ede6;
+        --link-hover: #ffffff;
       }
       * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      html { background: #080808; }
+      html, body { overflow-x: hidden; overflow-x: clip; }
       body {
-        margin: 0;
-        background: var(--background);
+        background: #080808 url("kineti-cosmic-poster.jpg") center / cover no-repeat;
         color: var(--foreground);
-        font-family: "Trebuchet MS", "Trebuchet", Verdana, sans-serif;
+        font-family: "Trebuchet MS", "Segoe UI", Verdana, sans-serif;
         -webkit-font-smoothing: antialiased;
         min-height: 100vh;
         display: flex;
@@ -26,7 +28,44 @@
         justify-content: center;
         padding: 24px;
       }
+      /* Decorative night-sky backdrop: outside text flow, never intercepts input. */
+      .cosmic-bg {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+        background: #080808 url("kineti-cosmic-poster.jpg") center / cover no-repeat;
+      }
+      .cosmic-bg video {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+        /* Slow drift so the sky always feels alive, even when the clip itself is calm. */
+        transform: scale(1.08);
+        animation: cosmic-drift 36s ease-in-out infinite alternate;
+        will-change: transform;
+      }
+      @keyframes cosmic-drift {
+        from { transform: scale(1.08) translate3d(-1.5%, 1%, 0); }
+        to { transform: scale(1.18) translate3d(1.5%, -1%, 0); }
+      }
+      /* Freeze the drift whenever the video itself is paused. */
+      .cosmic-bg.is-paused video { animation-play-state: paused; }
+      /* Quiet the haze so words stay the main event. */
+      .cosmic-bg::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+      }
       main {
+        position: relative;
+        z-index: 1;
         max-width: 640px;
         width: 100%;
         text-align: center;
@@ -41,6 +80,7 @@
         line-height: 1.6;
         color: var(--foreground);
         margin: 0 0 24px 0;
+        text-wrap: pretty;
       }
       .links {
         display: flex;
@@ -49,14 +89,42 @@
         flex-wrap: wrap;
         font-size: 15px;
       }
-      a { color: var(--link); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; transition: color 150ms ease; }
-      a:hover { color: var(--link-hover); }
+      a, a:visited { color: var(--link); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; transition: color 150ms ease; }
+      a:hover, a:active { color: var(--link-hover); }
       a:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
       .contact { color: var(--link); font-weight: 400; }
       .cta-line { font-size: 16px; margin: 0 0 24px 0; }
+      #bg-toggle {
+        position: fixed;
+        right: clamp(16px, 4vw, 32px);
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        z-index: 2;
+        font: inherit;
+        font-size: 12px;
+        color: #c9c4bb;
+        background: transparent;
+        border: 0;
+        padding: 4px 2px;
+        margin: 0;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+        cursor: pointer;
+      }
+      #bg-toggle:hover { color: #f2ede6; }
+      #bg-toggle:focus-visible {
+        outline: 2px solid #f2ede6;
+        outline-offset: 3px;
+      }
+      @media (max-width: 768px) {
+        .cosmic-bg video { display: none; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .cosmic-bg video { animation: none; }
+      }
     </style>
   </head>
   <body>
+    <div class="cosmic-bg" aria-hidden="true"><video autoplay muted loop playsinline disablepictureinpicture tabindex="-1" poster="kineti-cosmic-poster.jpg"></video></div>
     <main>
       <h1>Kineti</h1>
       <p>Kineti is an open-source (MIT) safety and memory layer for AI coding agents. It checks a project's spend against limits you set, saves proof receipts for test runs, and keeps a local record your agent can learn from.</p>
@@ -65,6 +133,105 @@
         <a href="https://github.com/therawlogs/kineti" target="_blank" rel="noreferrer">GitHub: https://github.com/therawlogs/kineti</a>
         <a class="contact" href="mailto:hello@getkineti.com">hello@getkineti.com</a>
       </div>
+      <button id="bg-toggle" type="button" hidden>Pause background</button>
     </main>
+    <script>
+      (function () {
+        var video = document.querySelector(".cosmic-bg video");
+        var bg = document.querySelector(".cosmic-bg");
+        var toggle = document.getElementById("bg-toggle");
+        if (!video || !bg || !toggle) return;
+        var SRC = "kineti-cosmic-loop.mp4";
+        var reducedMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var narrowMQ = window.matchMedia("(max-width: 768px)");
+        var saveData = !!(navigator.connection && navigator.connection.saveData);
+        var userPaused = false;
+        var sourceOn = false;
+        /* The clip itself is very calm, so play it a little faster. */
+        var RATE = 1.5;
+
+        function allowed() {
+          return !reducedMQ.matches && !narrowMQ.matches && !saveData;
+        }
+        function showPosterOnly() {
+          userPaused = false;
+          if (video) { try { video.pause(); } catch (e) {} video.removeAttribute("src"); }
+          var s = video.querySelector("source");
+          if (s) s.remove();
+          try { video.load(); } catch (e) {}
+          sourceOn = false;
+          toggle.hidden = true;
+        }
+        function attachSource() {
+          if (sourceOn || !allowed()) return;
+          var s = document.createElement("source");
+          s.src = SRC;
+          s.type = "video/mp4";
+          video.appendChild(s);
+          sourceOn = true;
+          try { video.load(); } catch (e) {}
+          try { video.playbackRate = RATE; } catch (e) {}
+          var p = null;
+          try { p = video.play(); } catch (e) { fallback(); return; }
+          if (p && p.catch) p.catch(fallback);
+        }
+        function fallback() {
+          showPosterOnly();
+        }
+        video.addEventListener("error", fallback, true);
+        video.addEventListener("playing", function () {
+          bg.classList.remove("is-paused");
+          if (allowed()) toggle.hidden = false;
+        });
+        /* Keep the CSS drift in step with the video: still video = still sky. */
+        video.addEventListener("pause", function () {
+          bg.classList.add("is-paused");
+        });
+        function sync() {
+          if (!allowed()) { showPosterOnly(); return; }
+          if (!sourceOn) { attachSource(); return; }
+          if (document.hidden || !isVisible || userPaused) {
+            try { video.pause(); } catch (e) {}
+          } else {
+            var p = null;
+            try { p = video.play(); } catch (e) {}
+            if (p && p.catch) p.catch(function () {});
+          }
+        }
+        var isVisible = true;
+        if ("IntersectionObserver" in window) {
+          new IntersectionObserver(function (entries) {
+            isVisible = entries[0].isIntersecting;
+            sync();
+          }, { threshold: 0 }).observe(bg);
+        }
+        document.addEventListener("visibilitychange", sync);
+        if (reducedMQ.addEventListener) {
+          reducedMQ.addEventListener("change", sync);
+        } else if (reducedMQ.addListener) {
+          reducedMQ.addListener(sync);
+        }
+        if (narrowMQ.addEventListener) {
+          narrowMQ.addEventListener("change", function () { userPaused = false; sync(); });
+        } else if (narrowMQ.addListener) {
+          narrowMQ.addListener(function () { userPaused = false; sync(); });
+        }
+        toggle.addEventListener("click", function () {
+          if (video.paused) {
+            userPaused = false;
+            toggle.textContent = "Pause background";
+            toggle.setAttribute("aria-pressed", "true");
+            try { var p = video.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+          } else {
+            userPaused = true;
+            try { video.pause(); } catch (e) {}
+            toggle.textContent = "Play background";
+            toggle.setAttribute("aria-pressed", "false");
+          }
+        });
+        toggle.setAttribute("aria-pressed", "true");
+        sync();
+      })();
+    </script>
   </body>
 </html>
