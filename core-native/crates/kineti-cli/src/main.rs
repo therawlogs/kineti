@@ -54,11 +54,15 @@ fn run_status() {
 
     println!("\n--- Kineti Assistant Status ---");
     println!("Architecture: Pure Native Rust (Zero Node/Python dependencies)");
-    println!("Spend Quota: Limit ${:.2} | Spent ${:.2}",
+    println!(
+        "Spend Quota: Limit ${:.2} | Spent ${:.2}",
         quota.limit_microcents() as f32 / 1_000_000.0,
         quota.spent_microcents() as f32 / 1_000_000.0,
     );
-    println!("Active Memory Nodes: {}", router.memory.query_facts("local_dev_user", None).len());
+    println!(
+        "Active Memory Nodes: {}",
+        router.memory.query_facts("local_dev_user", None).len()
+    );
     println!("Supported Channels: Apple iMessage (macOS bridge) & Meta WhatsApp Cloud API");
     println!("Real-World Actions: Active (Shopping, Tickets, Brave Search, FLUX.1)");
     println!("-------------------------------\n");
@@ -117,7 +121,10 @@ fn run_interactive_chat() {
                 println!("Kineti >\n{}", body);
             }
             OutboundReply::Image { media_url, caption } => {
-                println!("Kineti > [Photo Delivered: {}]\nCaption: {}", media_url, caption);
+                println!(
+                    "Kineti > [Photo Delivered: {}]\nCaption: {}",
+                    media_url, caption
+                );
             }
         }
 
@@ -129,22 +136,20 @@ fn run_interactive_chat() {
     }
 }
 
-fn print_profile_stats(
-    router: &GatewayRouter,
-    user_id: &str,
-    receipt: Option<&DispatchReceipt>,
-) {
+fn print_profile_stats(router: &GatewayRouter, user_id: &str, receipt: Option<&DispatchReceipt>) {
     let style = router.memory.get_user_style(user_id);
     let facts = router.memory.query_facts(user_id, None);
     let active_goal = router.get_active_root_goal(user_id);
 
     println!("  ┌── [Memory & Persona Profile] ──────────────────────────────────────────────┐");
-    println!("  │ Socio-Linguistic Style: Formality: {:.0}% | Brevity: {:.0}% | Slang: {:.0}%",
+    println!(
+        "  │ Socio-Linguistic Style: Formality: {:.0}% | Brevity: {:.0}% | Slang: {:.0}%",
         style.formality * 100.0,
         (1.0 - style.verbosity) * 100.0,
         style.slang_affinity * 100.0,
     );
-    println!("  │ Dialect: {:<12} Lowercase Pref: {:<5} Emoji Density: {:.0}%",
+    println!(
+        "  │ Dialect: {:<12} Lowercase Pref: {:<5} Emoji Density: {:.0}%",
         style.language_dialect,
         style.lowercase_preference,
         style.emoji_density * 100.0,
@@ -154,12 +159,17 @@ fn print_profile_stats(
         println!("  │   • [{}] {}", f.key, f.value);
     }
     if let Some(goal) = active_goal {
-        let spend_str = goal.boundaries.max_spend_microcents
+        let spend_str = goal
+            .boundaries
+            .max_spend_microcents
             .map(|c| format!("${:.2}", c as f64 / 1_000_000.0))
             .unwrap_or_else(|| "None".to_string());
         let cp_str = goal.boundaries.counterparty.as_deref().unwrap_or("None");
         println!("  │ Active Root Goal: \"{}\"", goal.raw_user_ask);
-        println!("  │ Boundaries: Spend Ceiling: {} | Counterparty: {}", spend_str, cp_str);
+        println!(
+            "  │ Boundaries: Spend Ceiling: {} | Counterparty: {}",
+            spend_str, cp_str
+        );
     } else {
         println!("  │ Active Root Goal: None (Set via 'Goal: <ask>')");
     }
@@ -170,7 +180,8 @@ fn print_profile_stats(
             Some(DriftEvaluation::GoalMutationBlocked { reason, .. }) => reason.as_str(),
             None => "N/A (Reflex / Fast-Path)",
         };
-        println!("  │ Last Cycle: Latency: {} µs | Spend: ${:.4} | Drift Status: {}",
+        println!(
+            "  │ Last Cycle: Latency: {} µs | Spend: ${:.4} | Drift Status: {}",
             r.triage_latency_micros,
             r.microcents_spent as f64 / 1_000_000.0,
             drift_str,
@@ -200,7 +211,12 @@ fn run_test_suite() {
     }
 
     // 3. Test memory capture
-    let r3 = router.process_message(user_id, "remember that my manager is Sarah Chen", None, &quota);
+    let r3 = router.process_message(
+        user_id,
+        "remember that my manager is Sarah Chen",
+        None,
+        &quota,
+    );
     if let OutboundReply::Text { body } = r3 {
         assert!(body.to_lowercase().contains("sarah chen"));
         println!("  [3/5] Memory capture & style-matching: PASS");
@@ -209,7 +225,12 @@ fn run_test_suite() {
     }
 
     // 4. Test price comparison
-    let r4 = router.process_message(user_id, "Find me the best price on Sony headphones", None, &quota);
+    let r4 = router.process_message(
+        user_id,
+        "Find me the best price on Sony headphones",
+        None,
+        &quota,
+    );
     if let OutboundReply::Text { body } = r4 {
         assert!(body.contains("Amazon: $328.00"));
         println!("  [4/5] Real-world price comparison: PASS");
@@ -218,7 +239,12 @@ fn run_test_suite() {
     }
 
     // 5. Test ticket search & confirmation gate
-    let r5 = router.process_message(user_id, "Look for 2 good tickets for Hans Zimmer", None, &quota);
+    let r5 = router.process_message(
+        user_id,
+        "Look for 2 good tickets for Hans Zimmer",
+        None,
+        &quota,
+    );
     if let OutboundReply::Text { body } = r5 {
         assert!(body.contains("Reply BUY to confirm"));
         println!("  [5/5] Two-step ticket booking confirmation gate: PASS");
@@ -330,7 +356,13 @@ fn run_epistemic_demo() {
     println!("\n--- Evaluating Candidate Food Actions Against Persona ---");
 
     // Candidate A: Chicken
-    let eval_a = engine.evaluate_candidate(user_id, &health, "Chicken Biryani", &["meat", "chicken"], 1020);
+    let eval_a = engine.evaluate_candidate(
+        user_id,
+        &health,
+        "Chicken Biryani",
+        &["meat", "chicken"],
+        1020,
+    );
     println!("Candidate: Chicken Biryani -> {:?}", eval_a);
     assert!(matches!(eval_a, ActionEvaluation::BlockedByRule { .. }));
 
@@ -340,9 +372,13 @@ fn run_epistemic_demo() {
     assert!(matches!(eval_b, ActionEvaluation::Permitted { .. }));
 
     // Candidate C: Peanuts
-    let eval_c = engine.evaluate_candidate(user_id, &health, "Pad Thai with Peanuts", &["peanut"], 1020);
+    let eval_c =
+        engine.evaluate_candidate(user_id, &health, "Pad Thai with Peanuts", &["peanut"], 1020);
     println!("Candidate: Pad Thai with Peanuts -> {:?}", eval_c);
-    assert!(matches!(eval_c, ActionEvaluation::BlockedBySafetyCeiling { .. }));
+    assert!(matches!(
+        eval_c,
+        ActionEvaluation::BlockedBySafetyCeiling { .. }
+    ));
 
     println!("\n--- Testing Epistemic Invariance (Inference vs Known Truth) ---");
     let conflicting_inference = EpistemicFact {
@@ -363,7 +399,10 @@ fn run_epistemic_demo() {
 
     let transition = engine.ingest(conflicting_inference, 1030).unwrap();
     println!("Result of conflicting inference: {:?}", transition);
-    assert!(matches!(transition, EpistemicTransition::ConflictNeedsClarification { .. }));
+    assert!(matches!(
+        transition,
+        EpistemicTransition::ConflictNeedsClarification { .. }
+    ));
 
     println!("\n>> All 360º Epistemic Invariants Verified Successfully! <<\n");
 }
@@ -567,7 +606,10 @@ fn run_anti_drift_demo() {
         1726520000000,
     );
     match step2_drift {
-        DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask } => {
+        DriftEvaluation::GoalMutationBlocked {
+            reason,
+            verbatim_ask,
+        } => {
             println!("  Step 2 (Budget overrun): BLOCKED!");
             println!("    Reason: {}", reason);
             println!("    Anchored to: \"{}\"", verbatim_ask);
@@ -611,7 +653,10 @@ fn run_anti_drift_demo() {
     };
     let res_clean_no = DriftInspector::triage_friction(&goal, real_constraint, 15_000_000);
     match res_clean_no {
-        FrictionResolution::EscalateCleanNo { clean_no_reason, banked_data } => {
+        FrictionResolution::EscalateCleanNo {
+            clean_no_reason,
+            banked_data,
+        } => {
             println!("  Friction 3 (Real Constraint): ESCALATED WITH CLEAN NO!");
             println!("    Clean No: {}", clean_no_reason);
             println!("    Banked Data: {}\n", banked_data);
@@ -622,27 +667,58 @@ fn run_anti_drift_demo() {
     // 4. Commitment-Time Verification
     println!("[4/5] Commitment-Time Verification (No Cached Snapshot Trust)...");
     let perishable = Perishability::Perishable { ttl_ms: 3_000 };
-    let commit_check_fresh = CommitmentTimeVerifier::verify_fact(1000, perishable, 2000, "$49.00", Some("$49.00"));
-    println!("  Commitment Check (Fresh, age 1s, TTL 3s): {:?}", commit_check_fresh);
+    let commit_check_fresh =
+        CommitmentTimeVerifier::verify_fact(1000, perishable, 2000, "$49.00", Some("$49.00"));
+    println!(
+        "  Commitment Check (Fresh, age 1s, TTL 3s): {:?}",
+        commit_check_fresh
+    );
 
-    let commit_check_expired = CommitmentTimeVerifier::verify_fact(1000, perishable, 6000, "$49.00", Some("$49.00"));
-    println!("  Commitment Check (Expired, age 5s, TTL 3s): {:?}", commit_check_expired);
+    let commit_check_expired =
+        CommitmentTimeVerifier::verify_fact(1000, perishable, 6000, "$49.00", Some("$49.00"));
+    println!(
+        "  Commitment Check (Expired, age 5s, TTL 3s): {:?}",
+        commit_check_expired
+    );
 
-    let commit_check_contradiction = CommitmentTimeVerifier::verify_fact(1000, perishable, 2000, "$49.00", Some("$79.00"));
-    println!("  Commitment Check (Live Contradiction): {:?}\n", commit_check_contradiction);
+    let commit_check_contradiction =
+        CommitmentTimeVerifier::verify_fact(1000, perishable, 2000, "$49.00", Some("$79.00"));
+    println!(
+        "  Commitment Check (Live Contradiction): {:?}\n",
+        commit_check_contradiction
+    );
 
     // 5. Asymmetric Gap-Filling & Durability Promotion
     println!("[5/5] Asymmetric Gap-Filling & Promotion Signals...");
-    let cheap_gap = GapFillingPolicy::evaluate_gap("pdf_watermark", ConsequenceLevel::Trivial, true, 0, Some("Confidential"));
+    let cheap_gap = GapFillingPolicy::evaluate_gap(
+        "pdf_watermark",
+        ConsequenceLevel::Trivial,
+        true,
+        0,
+        Some("Confidential"),
+    );
     println!("  Gap Filling (Reversible format): {:?}", cheap_gap);
 
-    let expensive_gap = GapFillingPolicy::evaluate_gap("payment_routing_number", ConsequenceLevel::HighConsequence, false, 50_000_000, None);
+    let expensive_gap = GapFillingPolicy::evaluate_gap(
+        "payment_routing_number",
+        ConsequenceLevel::HighConsequence,
+        false,
+        50_000_000,
+        None,
+    );
     println!("  Gap Filling (Irreversible payment): {:?}", expensive_gap);
 
-    let promo_always = PromotionSignalDetector::evaluate("I always require two-factor approval for Acme invoices", 0);
-    println!("  Promotion (\"Always\" linguistic signal): {:?}", promo_always);
+    let promo_always = PromotionSignalDetector::evaluate(
+        "I always require two-factor approval for Acme invoices",
+        0,
+    );
+    println!(
+        "  Promotion (\"Always\" linguistic signal): {:?}",
+        promo_always
+    );
 
-    let promo_oneoff = PromotionSignalDetector::evaluate("Use single column view for today's summary", 0);
+    let promo_oneoff =
+        PromotionSignalDetector::evaluate("Use single column view for today's summary", 0);
     println!("  Promotion (One-off instruction): {:?}", promo_oneoff);
 
     println!("\n✓ 360º Human Model Anti-Drift Verification Succeeded!\n");

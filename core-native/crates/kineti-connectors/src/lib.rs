@@ -30,10 +30,6 @@ pub mod team_comms;
 pub mod totp;
 pub mod vault;
 
-pub use protocol::{
-    compute_bytes_sha256, compute_payload_sha256, get_str_property, ActionAuthorizationToken,
-    ConnectorProtocolError, ConsequenceLevel, KinetiConnectorProtocol, Value,
-};
 pub use agent_email::{AgentEmailClient, InboundAgentEmail, OutboundAgentEmail};
 pub use brave::{BraveSearchClient, SearchHit};
 pub use engineering::{GitHubClient, LinearClient};
@@ -47,6 +43,10 @@ pub use onepassword::{
 };
 pub use opencode::{ChatMessage, InferenceRequest, InferenceResponse, OpenCodeClient};
 pub use otp::{OtpChallenge, OtpManager};
+pub use protocol::{
+    compute_bytes_sha256, compute_payload_sha256, get_str_property, ActionAuthorizationToken,
+    ConnectorProtocolError, ConsequenceLevel, KinetiConnectorProtocol, Value,
+};
 pub use team_comms::{GranolaClient, SlackClient, WisprFlowClient};
 pub use totp::{
     decode_base32, generate_hotp_code, parse_otpauth_uri, TotpAuthenticator,
@@ -66,8 +66,8 @@ pub mod prelude {
     pub use crate::opencode::{ChatMessage, InferenceRequest, InferenceResponse, OpenCodeClient};
     pub use crate::otp::{OtpChallenge, OtpManager};
     pub use crate::protocol::{
-        compute_bytes_sha256, compute_payload_sha256, get_str_property,
-        ActionAuthorizationToken, ConnectorProtocolError, ConsequenceLevel, KinetiConnectorProtocol, Value,
+        compute_bytes_sha256, compute_payload_sha256, get_str_property, ActionAuthorizationToken,
+        ConnectorProtocolError, ConsequenceLevel, KinetiConnectorProtocol, Value,
     };
     pub use crate::vault::{CredentialVault, EncryptedCredential};
 }

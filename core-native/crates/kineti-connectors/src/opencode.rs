@@ -91,7 +91,10 @@ impl OpenCodeClient {
     }
 
     /// Builds the HTTP request URL, headers, and JSON body for a chat completion.
-    pub fn build_request(&self, request: &InferenceRequest) -> (String, Vec<(&'static str, String)>, String) {
+    pub fn build_request(
+        &self,
+        request: &InferenceRequest,
+    ) -> (String, Vec<(&'static str, String)>, String) {
         let headers = vec![
             ("Authorization", format!("Bearer {}", self.api_key)),
             ("Content-Type", "application/json".to_string()),
@@ -136,7 +139,11 @@ impl OpenCodeClient {
         }
 
         Ok(InferenceResponse {
-            model: if model.is_empty() { self.model.clone() } else { model },
+            model: if model.is_empty() {
+                self.model.clone()
+            } else {
+                model
+            },
             content,
             prompt_tokens,
             completion_tokens,
@@ -262,7 +269,10 @@ mod tests {
     #[test]
     fn test_opencode_client_defaults() {
         let client = OpenCodeClient::new("test_key_123");
-        assert_eq!(client.endpoint(), "https://opencode.ai/zen/go/v1/chat/completions");
+        assert_eq!(
+            client.endpoint(),
+            "https://opencode.ai/zen/go/v1/chat/completions"
+        );
         assert_eq!(client.model(), "opencode-go/claude-3-7-sonnet");
     }
 
@@ -288,8 +298,12 @@ mod tests {
         let (url, headers, body) = client.build_request(&request);
 
         assert_eq!(url, "https://opencode.ai/zen/go/v1/chat/completions");
-        assert!(headers.iter().any(|(k, v)| *k == "Authorization" && v == "Bearer live_key_abc"));
-        assert!(headers.iter().any(|(k, v)| *k == "Content-Type" && v == "application/json"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| *k == "Authorization" && v == "Bearer live_key_abc"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| *k == "Content-Type" && v == "application/json"));
         assert!(body.contains("opencode-go/claude-3-7-sonnet"));
         assert!(body.contains("What is the weather?"));
         assert!(body.contains("\"role\":\"system\""));
@@ -320,7 +334,9 @@ mod tests {
             }
         }"#;
 
-        let resp = client.parse_response(response_json).expect("Parse should succeed");
+        let resp = client
+            .parse_response(response_json)
+            .expect("Parse should succeed");
         assert_eq!(resp.model, "opencode-go/claude-3-7-sonnet");
         assert_eq!(resp.content, "The weather in Tokyo is sunny, 24C.");
         assert_eq!(resp.finish_reason, "stop");
@@ -337,10 +353,7 @@ mod tests {
 
     #[test]
     fn test_simple_request_builder() {
-        let request = OpenCodeClient::build_simple_request(
-            "You are helpful.",
-            "Hello!",
-        );
+        let request = OpenCodeClient::build_simple_request("You are helpful.", "Hello!");
         assert_eq!(request.messages.len(), 2);
         assert_eq!(request.messages[0].role, "system");
         assert_eq!(request.messages[1].role, "user");
@@ -361,10 +374,22 @@ mod tests {
         let client = OpenCodeClient::new("key");
         let request = InferenceRequest {
             messages: vec![
-                ChatMessage { role: "system".to_string(), content: "You are Kineti.".to_string() },
-                ChatMessage { role: "user".to_string(), content: "Hi".to_string() },
-                ChatMessage { role: "assistant".to_string(), content: "Hey! What's up?".to_string() },
-                ChatMessage { role: "user".to_string(), content: "Book me a flight".to_string() },
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: "You are Kineti.".to_string(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: "Hi".to_string(),
+                },
+                ChatMessage {
+                    role: "assistant".to_string(),
+                    content: "Hey! What's up?".to_string(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: "Book me a flight".to_string(),
+                },
             ],
             temperature: 0.5,
             max_tokens: 512,

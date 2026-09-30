@@ -34,9 +34,18 @@ impl PendingFinancialAction {
     /// Constructs the canonical JSON payload representing this financial action.
     pub fn to_canonical_payload(&self) -> Value {
         let mut map = BTreeMap::new();
-        map.insert("action".to_string(), Value::String("execute_purchase".to_string()));
-        map.insert("amount_cents".to_string(), Value::from(self.amount_cents as u64));
-        map.insert("description".to_string(), Value::String(self.description.clone()));
+        map.insert(
+            "action".to_string(),
+            Value::String("execute_purchase".to_string()),
+        );
+        map.insert(
+            "amount_cents".to_string(),
+            Value::from(self.amount_cents as u64),
+        );
+        map.insert(
+            "description".to_string(),
+            Value::String(self.description.clone()),
+        );
         map.insert("id".to_string(), Value::String(self.id.clone()));
         map.insert("merchant".to_string(), Value::String(self.merchant.clone()));
         map.insert("user_id".to_string(), Value::String(self.user_id.clone()));
@@ -85,7 +94,14 @@ impl ActionConfirmationGate {
         amount_cents: u32,
         merchant: &str,
     ) {
-        self.propose_action_at(user_id, action_id, description, amount_cents, merchant, current_epoch_millis());
+        self.propose_action_at(
+            user_id,
+            action_id,
+            description,
+            amount_cents,
+            merchant,
+            current_epoch_millis(),
+        );
     }
 
     /// Proposes a financial action with an explicit timestamp.
@@ -204,13 +220,19 @@ impl KinetiConnectorProtocol for FinancialCheckoutConnector {
             "stage_order" => {
                 let mut map = BTreeMap::new();
                 map.insert("status".to_string(), Value::String("staged".to_string()));
-                map.insert("order_ref".to_string(), Value::String(format!("stg_{}", current_epoch_millis())));
+                map.insert(
+                    "order_ref".to_string(),
+                    Value::String(format!("stg_{}", current_epoch_millis())),
+                );
                 Ok(Value::Object(map))
             }
             "execute_purchase" => {
                 // High-consequence: verified token has already been validated and consumed!
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("purchase_executed".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("purchase_executed".to_string()),
+                );
                 map.insert(
                     "transaction_id".to_string(),
                     Value::String(format!("tx_{}", current_epoch_millis())),

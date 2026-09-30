@@ -80,7 +80,12 @@ impl VectorIndex {
     }
 
     /// Inserts a new vector embedding record into the index with global user scope.
-    pub fn insert(&self, id: impl Into<String>, vector: Vec<f32>, snippet: impl Into<String>) -> u32 {
+    pub fn insert(
+        &self,
+        id: impl Into<String>,
+        vector: Vec<f32>,
+        snippet: impl Into<String>,
+    ) -> u32 {
         self.insert_for_user("", id, vector, snippet)
     }
 
@@ -118,16 +123,23 @@ impl VectorIndex {
                 if tombstones.is_masked_index(rec.index_id) || tombstones.is_masked(&rec.id) {
                     continue;
                 }
-                let rec_norm = norms.get(&rec.index_id).copied().unwrap_or_else(|| norm(&rec.vector));
+                let rec_norm = norms
+                    .get(&rec.index_id)
+                    .copied()
+                    .unwrap_or_else(|| norm(&rec.vector));
                 if rec_norm == 0.0 {
                     continue;
                 }
                 let score = dot_product(query, &rec.vector) / (query_norm * rec_norm);
-                push_top_k(&mut heap, top_k, HeapItem {
-                    score,
-                    id: rec.id.clone(),
-                    snippet: rec.snippet.clone(),
-                });
+                push_top_k(
+                    &mut heap,
+                    top_k,
+                    HeapItem {
+                        score,
+                        id: rec.id.clone(),
+                        snippet: rec.snippet.clone(),
+                    },
+                );
             }
         }
 
@@ -140,23 +152,34 @@ impl VectorIndex {
                 if tombstones.is_masked_index(rec.index_id) || tombstones.is_masked(&rec.id) {
                     continue;
                 }
-                let rec_norm = norms.get(&rec.index_id).copied().unwrap_or_else(|| norm(&rec.vector));
+                let rec_norm = norms
+                    .get(&rec.index_id)
+                    .copied()
+                    .unwrap_or_else(|| norm(&rec.vector));
                 if rec_norm == 0.0 {
                     continue;
                 }
                 let score = dot_product(query, &rec.vector) / (query_norm * rec_norm);
-                push_top_k(&mut heap, top_k, HeapItem {
-                    score,
-                    id: rec.id.clone(),
-                    snippet: rec.snippet.clone(),
-                });
+                push_top_k(
+                    &mut heap,
+                    top_k,
+                    HeapItem {
+                        score,
+                        id: rec.id.clone(),
+                        snippet: rec.snippet.clone(),
+                    },
+                );
             }
         }
 
         heap.into_sorted_vec()
             .into_iter()
             .rev()
-            .map(|h| SearchMatch { id: h.id, score: h.score, snippet: h.snippet })
+            .map(|h| SearchMatch {
+                id: h.id,
+                score: h.score,
+                snippet: h.snippet,
+            })
             .collect()
     }
 
@@ -164,7 +187,12 @@ impl VectorIndex {
     /// excluding tombstoned nodes. Tenant records (non-empty user_id) are NEVER
     /// returned here; use `search_for_user` for tenant data. This closes the
     /// cross-tenant leakage path (Phase 1 trust base).
-    pub fn search(&self, query: &[f32], top_k: usize, tombstones: &TombstoneMask) -> Vec<SearchMatch> {
+    pub fn search(
+        &self,
+        query: &[f32],
+        top_k: usize,
+        tombstones: &TombstoneMask,
+    ) -> Vec<SearchMatch> {
         let records = self.records.read().unwrap();
         let query_norm = norm(query);
         if query_norm == 0.0 {
@@ -174,7 +202,9 @@ impl VectorIndex {
         let mut matches: Vec<SearchMatch> = records
             .iter()
             .filter(|rec| rec.user_id.is_empty())
-            .filter(|rec| !tombstones.is_masked_index(rec.index_id) && !tombstones.is_masked(&rec.id))
+            .filter(|rec| {
+                !tombstones.is_masked_index(rec.index_id) && !tombstones.is_masked(&rec.id)
+            })
             .filter_map(|rec| {
                 let rec_norm = norm(&rec.vector);
                 if rec_norm == 0.0 {
@@ -190,7 +220,11 @@ impl VectorIndex {
             })
             .collect();
 
-        matches.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        matches.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         matches.truncate(top_k);
         matches
     }
@@ -220,7 +254,11 @@ pub fn compute_hybrid_fusion_score(
     temperature: f32,
 ) -> f32 {
     let tau = if tau_cos <= 0.0 { 0.70 } else { tau_cos };
-    let temp = if temperature <= 0.0 { 0.15 } else { temperature };
+    let temp = if temperature <= 0.0 {
+        0.15
+    } else {
+        temperature
+    };
     let normalized_cos = cosine_sim / tau;
     let vector_score = 1.0 / (1.0 + (-normalized_cos / temp).exp());
     let graph_score = gamma.powi(graph_hop_distance as i32);
@@ -236,16 +274,19 @@ struct HeapItem {
 
 impl Eq for HeapItem {}
 
-impl PartialOrd for HeapItem {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+impl Ord for HeapItem {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Reversed: BinaryHeap is a max-heap; we keep the smallest of top-K on top.
-        other.score.partial_cmp(&self.score)
+        other
+            .score
+            .partial_cmp(&self.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
-impl Ord for HeapItem {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap_or(std::cmp::Ordering::Equal)
+impl PartialOrd for HeapItem {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -312,8 +353,18 @@ mod tests {
         let index = VectorIndex::new();
         let tombstones = TombstoneMask::new();
 
-        index.insert_for_user("tenant_alice", "alice_doc_1", vec![1.0, 0.0, 0.0], "Alice confidential");
-        index.insert_for_user("tenant_bob", "bob_doc_1", vec![1.0, 0.0, 0.0], "Bob confidential");
+        index.insert_for_user(
+            "tenant_alice",
+            "alice_doc_1",
+            vec![1.0, 0.0, 0.0],
+            "Alice confidential",
+        );
+        index.insert_for_user(
+            "tenant_bob",
+            "bob_doc_1",
+            vec![1.0, 0.0, 0.0],
+            "Bob confidential",
+        );
 
         let query = vec![1.0, 0.0, 0.0];
 
@@ -333,7 +384,12 @@ mod tests {
         let index = VectorIndex::new();
         let tombstones = TombstoneMask::new();
 
-        index.insert_for_user("tenant_alice", "alice_doc_1", vec![1.0, 0.0, 0.0], "Alice confidential");
+        index.insert_for_user(
+            "tenant_alice",
+            "alice_doc_1",
+            vec![1.0, 0.0, 0.0],
+            "Alice confidential",
+        );
         index.insert("global_doc_1", vec![1.0, 0.0, 0.0], "Global public");
 
         let query = vec![1.0, 0.0, 0.0];

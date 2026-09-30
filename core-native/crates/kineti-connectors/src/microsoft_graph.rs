@@ -78,7 +78,10 @@ impl KinetiConnectorProtocol for MicrosoftGraphClient {
         payload: &Value,
     ) -> Result<Value, ConnectorProtocolError> {
         let mut map = BTreeMap::new();
-        map.insert("provider".to_string(), Value::String("microsoft_graph".to_string()));
+        map.insert(
+            "provider".to_string(),
+            Value::String("microsoft_graph".to_string()),
+        );
         map.insert("action".to_string(), Value::String(action.to_string()));
 
         match action {
@@ -93,7 +96,10 @@ impl KinetiConnectorProtocol for MicrosoftGraphClient {
                 let subject = get_str_property(payload, "subject").unwrap_or("");
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
-                map.insert("status".to_string(), Value::String("draft_created".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("draft_created".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "send_outlook_mail" => {
@@ -111,33 +117,52 @@ impl KinetiConnectorProtocol for MicrosoftGraphClient {
             "create_outlook_event" => {
                 let title = get_str_property(payload, "title").unwrap_or("Event");
                 map.insert("title".to_string(), Value::String(title.to_string()));
-                map.insert("status".to_string(), Value::String("event_created".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("event_created".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "move_outlook_event" => {
                 let event_id = get_str_property(payload, "event_id").unwrap_or("");
                 if event_id.is_empty() {
-                    return Err(ConnectorProtocolError::InvalidPayload("Missing 'event_id'".to_string()));
+                    return Err(ConnectorProtocolError::InvalidPayload(
+                        "Missing 'event_id'".to_string(),
+                    ));
                 }
                 map.insert("event_id".to_string(), Value::String(event_id.to_string()));
-                map.insert("status".to_string(), Value::String("event_rescheduled".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("event_rescheduled".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "cancel_outlook_event" => {
                 let event_id = get_str_property(payload, "event_id").unwrap_or("");
                 if event_id.is_empty() {
-                    return Err(ConnectorProtocolError::InvalidPayload("Missing 'event_id'".to_string()));
+                    return Err(ConnectorProtocolError::InvalidPayload(
+                        "Missing 'event_id'".to_string(),
+                    ));
                 }
                 map.insert("event_id".to_string(), Value::String(event_id.to_string()));
-                map.insert("status".to_string(), Value::String("event_cancelled".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("event_cancelled".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "list_todo_tasks" => {
-                map.insert("status".to_string(), Value::String("tasks_listed".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("tasks_listed".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "create_todo_task" | "complete_todo_task" => {
-                map.insert("status".to_string(), Value::String("task_updated".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("task_updated".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),

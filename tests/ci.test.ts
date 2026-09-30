@@ -197,6 +197,20 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     expect(report.failures.some((f) => f.includes("No evidence records"))).toBe(true);
   });
 
+  it("blocks when state.json is missing instead of passing vacuously", () => {
+    writeJson(path.join(kinetiDir, "spend.json"), {
+      total_microcents: 0,
+      tripped: false,
+      limit_microcents: 50000000,
+    });
+
+    const report = generateCIReport(tmpDir);
+
+    expect(report.verified).toBe(false);
+    expect(report.failures.some((f) => f.includes("state.json missing"))).toBe(true);
+    expect(report.badgeUrl).toContain("Verification--Blocked");
+  });
+
   it("enforces packaging boundary exclusions in .npmignore", () => {
     const npmignorePath = path.join(import.meta.dir, "..", ".npmignore");
     const content = fs.readFileSync(npmignorePath, "utf-8");

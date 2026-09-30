@@ -22,6 +22,7 @@ use std::sync::Arc;
 use std::thread;
 
 // Helper to construct test facts quickly
+#[allow(clippy::too_many_arguments)]
 fn make_fact(
     id: &str,
     user_id: &str,
@@ -353,7 +354,10 @@ fn test_epistemic_inferred_cannot_overwrite_directly_known() {
     // `ingest` MUST return ConflictNeedsClarification
     let trans = engine.ingest(inference.clone(), 1050).unwrap();
     assert!(
-        matches!(trans, EpistemicTransition::ConflictNeedsClarification { .. }),
+        matches!(
+            trans,
+            EpistemicTransition::ConflictNeedsClarification { .. }
+        ),
         "Inferred fact MUST NOT overwrite DirectlyKnown fact; got {:?}",
         trans
     );
@@ -413,7 +417,10 @@ fn test_epistemic_observed_pattern_cannot_overwrite_directly_known() {
     // `ingest` MUST return ConflictNeedsClarification
     let trans = engine.ingest(pattern.clone(), 1050).unwrap();
     assert!(
-        matches!(trans, EpistemicTransition::ConflictNeedsClarification { .. }),
+        matches!(
+            trans,
+            EpistemicTransition::ConflictNeedsClarification { .. }
+        ),
         "ObservedPattern (Rank 2) MUST NOT overwrite DirectlyKnown (Rank 3); got {:?}",
         trans
     );
@@ -586,7 +593,10 @@ fn test_epistemic_identical_claim_reinforcement_does_not_demote() {
     );
 
     let trans = engine.ingest(incoming_inferred, 1050).unwrap();
-    assert_eq!(trans, EpistemicTransition::Confirmed("f_coffee".to_string()));
+    assert_eq!(
+        trans,
+        EpistemicTransition::Confirmed("f_coffee".to_string())
+    );
 
     // Verify certainty was NOT demoted to Inferred
     let facts = engine.query_facts_in_scope(u, &scope, 1060);
@@ -972,7 +982,10 @@ fn test_resolve_advice_inferred_exception_adversarial_investigation() {
     let trans = engine.ingest(inf_exc_same_attr, 105).unwrap();
     // Under same attribute, the conflict check fires first because rank 1 < rank 3!
     assert!(
-        matches!(trans, EpistemicTransition::ConflictNeedsClarification { .. }),
+        matches!(
+            trans,
+            EpistemicTransition::ConflictNeedsClarification { .. }
+        ),
         "Under same attribute, engine.ingest correctly blocks Inferred exception!"
     );
 }

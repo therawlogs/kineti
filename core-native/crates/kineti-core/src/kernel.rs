@@ -1345,13 +1345,17 @@ impl KernelEntity {
             }
             Self::Dependency(dep) => {
                 if dep.source_node_id.is_empty() || dep.target_node_id.is_empty() {
-                    return Err(err("Dependency source and target IDs must not be empty".to_string()));
+                    return Err(err(
+                        "Dependency source and target IDs must not be empty".to_string()
+                    ));
                 }
                 Ok(())
             }
             Self::Constraint(c) => {
                 if c.name.trim().is_empty() || c.expression.trim().is_empty() {
-                    return Err(err("Constraint name and expression must not be empty".to_string()));
+                    return Err(err(
+                        "Constraint name and expression must not be empty".to_string()
+                    ));
                 }
                 Ok(())
             }
@@ -1375,7 +1379,9 @@ impl KernelEntity {
             }
             Self::ReviewRequired(rev) => {
                 if rev.reason.trim().is_empty() || rev.required_role.trim().is_empty() {
-                    return Err(err("Review reason and required_role must not be empty".to_string()));
+                    return Err(err(
+                        "Review reason and required_role must not be empty".to_string()
+                    ));
                 }
                 Ok(())
             }
@@ -1385,7 +1391,10 @@ impl KernelEntity {
     /// Serializes this entity into canonical RFC 8785 JSON representation.
     pub fn to_canonical_json(&self) -> String {
         let mut map = BTreeMap::new();
-        map.insert("type".to_string(), JsonValue::String(self.type_name().to_string()));
+        map.insert(
+            "type".to_string(),
+            JsonValue::String(self.type_name().to_string()),
+        );
 
         let mut data_map = BTreeMap::new();
         data_map.insert("id".to_string(), JsonValue::String(self.id().to_string()));
@@ -1393,7 +1402,10 @@ impl KernelEntity {
         match self {
             Self::Actor(a) => {
                 data_map.insert("name".to_string(), JsonValue::String(a.name.clone()));
-                data_map.insert("actor_type".to_string(), JsonValue::String(a.actor_type.as_str().to_string()));
+                data_map.insert(
+                    "actor_type".to_string(),
+                    JsonValue::String(a.actor_type.as_str().to_string()),
+                );
                 if let Some(ref pk) = a.public_key {
                     data_map.insert("public_key".to_string(), JsonValue::String(pk.clone()));
                 }
@@ -1405,26 +1417,57 @@ impl KernelEntity {
                 data_map.insert("name".to_string(), JsonValue::String(r.name.clone()));
                 data_map.insert(
                     "permissions".to_string(),
-                    JsonValue::Array(r.permissions.iter().map(|p| JsonValue::String(p.clone())).collect()),
+                    JsonValue::Array(
+                        r.permissions
+                            .iter()
+                            .map(|p| JsonValue::String(p.clone()))
+                            .collect(),
+                    ),
                 );
-                data_map.insert("max_spend_microcents".to_string(), JsonValue::from(r.max_spend_microcents));
-                data_map.insert("trust_level".to_string(), JsonValue::from(r.trust_level as u64));
+                data_map.insert(
+                    "max_spend_microcents".to_string(),
+                    JsonValue::from(r.max_spend_microcents),
+                );
+                data_map.insert(
+                    "trust_level".to_string(),
+                    JsonValue::from(r.trust_level as u64),
+                );
             }
             Self::Authority(a) => {
-                data_map.insert("granter_id".to_string(), JsonValue::String(a.granter_id.clone()));
-                data_map.insert("grantee_id".to_string(), JsonValue::String(a.grantee_id.clone()));
+                data_map.insert(
+                    "granter_id".to_string(),
+                    JsonValue::String(a.granter_id.clone()),
+                );
+                data_map.insert(
+                    "grantee_id".to_string(),
+                    JsonValue::String(a.grantee_id.clone()),
+                );
                 data_map.insert(
                     "scope".to_string(),
-                    JsonValue::Array(a.scope.iter().map(|s| JsonValue::String(s.clone())).collect()),
+                    JsonValue::Array(
+                        a.scope
+                            .iter()
+                            .map(|s| JsonValue::String(s.clone()))
+                            .collect(),
+                    ),
                 );
-                data_map.insert("valid_from_ms".to_string(), JsonValue::from(a.valid_from_ms));
-                data_map.insert("valid_until_ms".to_string(), JsonValue::from(a.valid_until_ms));
+                data_map.insert(
+                    "valid_from_ms".to_string(),
+                    JsonValue::from(a.valid_from_ms),
+                );
+                data_map.insert(
+                    "valid_until_ms".to_string(),
+                    JsonValue::from(a.valid_until_ms),
+                );
                 if let Some(ref s) = a.signature {
                     data_map.insert("signature".to_string(), JsonValue::String(s.clone()));
                 }
             }
             Self::Intent(i) => {
-                data_map.insert("session_id".to_string(), JsonValue::String(i.session_id.clone()));
+                data_map.insert(
+                    "session_id".to_string(),
+                    JsonValue::String(i.session_id.clone()),
+                );
                 data_map.insert("prompt".to_string(), JsonValue::String(i.prompt.clone()));
                 if let Some(ref r) = i.raw_input {
                     data_map.insert("raw_input".to_string(), JsonValue::String(r.clone()));
@@ -1434,47 +1477,100 @@ impl KernelEntity {
                 }
             }
             Self::Goal(g) => {
-                data_map.insert("intent_id".to_string(), JsonValue::String(g.intent_id.clone()));
-                data_map.insert("description".to_string(), JsonValue::String(g.description.clone()));
+                data_map.insert(
+                    "intent_id".to_string(),
+                    JsonValue::String(g.intent_id.clone()),
+                );
+                data_map.insert(
+                    "description".to_string(),
+                    JsonValue::String(g.description.clone()),
+                );
                 data_map.insert(
                     "success_criteria".to_string(),
-                    JsonValue::Array(g.success_criteria.iter().map(|s| JsonValue::String(s.clone())).collect()),
+                    JsonValue::Array(
+                        g.success_criteria
+                            .iter()
+                            .map(|s| JsonValue::String(s.clone()))
+                            .collect(),
+                    ),
                 );
-                data_map.insert("status".to_string(), JsonValue::String(g.status.as_str().to_string()));
+                data_map.insert(
+                    "status".to_string(),
+                    JsonValue::String(g.status.as_str().to_string()),
+                );
             }
             Self::Task(t) => {
                 data_map.insert("goal_id".to_string(), JsonValue::String(t.goal_id.clone()));
-                data_map.insert("description".to_string(), JsonValue::String(t.description.clone()));
+                data_map.insert(
+                    "description".to_string(),
+                    JsonValue::String(t.description.clone()),
+                );
                 if let Some(ref a) = t.assigned_actor_id {
-                    data_map.insert("assigned_actor_id".to_string(), JsonValue::String(a.clone()));
+                    data_map.insert(
+                        "assigned_actor_id".to_string(),
+                        JsonValue::String(a.clone()),
+                    );
                 }
                 if let Some(d) = t.deadline_ms {
                     data_map.insert("deadline_ms".to_string(), JsonValue::from(d));
                 }
-                data_map.insert("status".to_string(), JsonValue::String(t.status.as_str().to_string()));
+                data_map.insert(
+                    "status".to_string(),
+                    JsonValue::String(t.status.as_str().to_string()),
+                );
             }
             Self::Action(a) => {
                 data_map.insert("task_id".to_string(), JsonValue::String(a.task_id.clone()));
-                data_map.insert("action_type".to_string(), JsonValue::String(a.action_type.clone()));
-                data_map.insert("description".to_string(), JsonValue::String(a.description.clone()));
+                data_map.insert(
+                    "action_type".to_string(),
+                    JsonValue::String(a.action_type.clone()),
+                );
+                data_map.insert(
+                    "description".to_string(),
+                    JsonValue::String(a.description.clone()),
+                );
                 data_map.insert("parameters".to_string(), a.parameters.clone());
             }
             Self::ToolCall(tc) => {
-                data_map.insert("action_id".to_string(), JsonValue::String(tc.action_id.clone()));
-                data_map.insert("tool_name".to_string(), JsonValue::String(tc.tool_name.clone()));
+                data_map.insert(
+                    "action_id".to_string(),
+                    JsonValue::String(tc.action_id.clone()),
+                );
+                data_map.insert(
+                    "tool_name".to_string(),
+                    JsonValue::String(tc.tool_name.clone()),
+                );
                 data_map.insert("arguments".to_string(), tc.arguments.clone());
                 data_map.insert("timeout_ms".to_string(), JsonValue::from(tc.timeout_ms));
-                data_map.insert("sandbox_level".to_string(), JsonValue::String(tc.sandbox_level.as_str().to_string()));
+                data_map.insert(
+                    "sandbox_level".to_string(),
+                    JsonValue::String(tc.sandbox_level.as_str().to_string()),
+                );
             }
             Self::RollbackStep(rs) => {
                 data_map.insert("task_id".to_string(), JsonValue::String(rs.task_id.clone()));
-                data_map.insert("step_index".to_string(), JsonValue::from(rs.step_index as u64));
-                data_map.insert("compensation_command".to_string(), JsonValue::String(rs.compensation_command.clone()));
-                data_map.insert("affected_resource".to_string(), JsonValue::String(rs.affected_resource.clone()));
-                data_map.insert("status".to_string(), JsonValue::String(rs.status.as_str().to_string()));
+                data_map.insert(
+                    "step_index".to_string(),
+                    JsonValue::from(rs.step_index as u64),
+                );
+                data_map.insert(
+                    "compensation_command".to_string(),
+                    JsonValue::String(rs.compensation_command.clone()),
+                );
+                data_map.insert(
+                    "affected_resource".to_string(),
+                    JsonValue::String(rs.affected_resource.clone()),
+                );
+                data_map.insert(
+                    "status".to_string(),
+                    JsonValue::String(rs.status.as_str().to_string()),
+                );
             }
             Self::Observation(o) => {
-                data_map.insert("action_id".to_string(), JsonValue::String(o.action_id.clone()));
+                data_map.insert(
+                    "action_id".to_string(),
+                    JsonValue::String(o.action_id.clone()),
+                );
                 if let Some(ref s) = o.stdout {
                     data_map.insert("stdout".to_string(), JsonValue::String(s.clone()));
                 }
@@ -1490,21 +1586,39 @@ impl KernelEntity {
                 if let Some(ref obs) = e.observation_id {
                     data_map.insert("observation_id".to_string(), JsonValue::String(obs.clone()));
                 }
-                data_map.insert("evidence_type".to_string(), JsonValue::String(e.evidence_type.clone()));
+                data_map.insert(
+                    "evidence_type".to_string(),
+                    JsonValue::String(e.evidence_type.clone()),
+                );
                 data_map.insert("digest".to_string(), JsonValue::String(e.digest.clone()));
-                data_map.insert("verification_method".to_string(), JsonValue::String(e.verification_method.clone()));
+                data_map.insert(
+                    "verification_method".to_string(),
+                    JsonValue::String(e.verification_method.clone()),
+                );
             }
             Self::StateChange(sc) => {
-                data_map.insert("entity_ref".to_string(), JsonValue::String(sc.entity_ref.clone()));
-                data_map.insert("before_hash".to_string(), JsonValue::String(sc.before_hash.clone()));
-                data_map.insert("after_hash".to_string(), JsonValue::String(sc.after_hash.clone()));
+                data_map.insert(
+                    "entity_ref".to_string(),
+                    JsonValue::String(sc.entity_ref.clone()),
+                );
+                data_map.insert(
+                    "before_hash".to_string(),
+                    JsonValue::String(sc.before_hash.clone()),
+                );
+                data_map.insert(
+                    "after_hash".to_string(),
+                    JsonValue::String(sc.after_hash.clone()),
+                );
                 data_map.insert("path".to_string(), JsonValue::String(sc.path.clone()));
                 if let Some(ref p) = sc.patch {
                     data_map.insert("patch".to_string(), JsonValue::String(p.clone()));
                 }
             }
             Self::Metric(m) => {
-                data_map.insert("metric_name".to_string(), JsonValue::String(m.metric_name.clone()));
+                data_map.insert(
+                    "metric_name".to_string(),
+                    JsonValue::String(m.metric_name.clone()),
+                );
                 data_map.insert("value".to_string(), JsonValue::from(m.value));
                 data_map.insert("unit".to_string(), JsonValue::String(m.unit.clone()));
                 if let Some(sp) = m.spend_microcents {
@@ -1515,27 +1629,59 @@ impl KernelEntity {
                 if let Some(ref t) = d.task_id {
                     data_map.insert("task_id".to_string(), JsonValue::String(t.clone()));
                 }
-                data_map.insert("chosen_option".to_string(), JsonValue::String(d.chosen_option.clone()));
+                data_map.insert(
+                    "chosen_option".to_string(),
+                    JsonValue::String(d.chosen_option.clone()),
+                );
                 data_map.insert(
                     "rejected_options".to_string(),
-                    JsonValue::Array(d.rejected_options.iter().map(|r| JsonValue::String(r.clone())).collect()),
+                    JsonValue::Array(
+                        d.rejected_options
+                            .iter()
+                            .map(|r| JsonValue::String(r.clone()))
+                            .collect(),
+                    ),
                 );
-                data_map.insert("rationale".to_string(), JsonValue::String(d.rationale.clone()));
+                data_map.insert(
+                    "rationale".to_string(),
+                    JsonValue::String(d.rationale.clone()),
+                );
             }
             Self::Dependency(dep) => {
-                data_map.insert("source_node_id".to_string(), JsonValue::String(dep.source_node_id.clone()));
-                data_map.insert("target_node_id".to_string(), JsonValue::String(dep.target_node_id.clone()));
-                data_map.insert("dependency_type".to_string(), JsonValue::String(dep.dependency_type.as_str().to_string()));
+                data_map.insert(
+                    "source_node_id".to_string(),
+                    JsonValue::String(dep.source_node_id.clone()),
+                );
+                data_map.insert(
+                    "target_node_id".to_string(),
+                    JsonValue::String(dep.target_node_id.clone()),
+                );
+                data_map.insert(
+                    "dependency_type".to_string(),
+                    JsonValue::String(dep.dependency_type.as_str().to_string()),
+                );
             }
             Self::Constraint(c) => {
                 data_map.insert("name".to_string(), JsonValue::String(c.name.clone()));
-                data_map.insert("expression".to_string(), JsonValue::String(c.expression.clone()));
-                data_map.insert("enforcement_level".to_string(), JsonValue::String(c.enforcement_level.as_str().to_string()));
+                data_map.insert(
+                    "expression".to_string(),
+                    JsonValue::String(c.expression.clone()),
+                );
+                data_map.insert(
+                    "enforcement_level".to_string(),
+                    JsonValue::String(c.enforcement_level.as_str().to_string()),
+                );
                 data_map.insert("is_active".to_string(), JsonValue::Bool(c.is_active));
             }
             Self::Approval(app) => {
-                data_map.insert("task_id".to_string(), JsonValue::String(app.task_id.clone()));
-                data_map.insert("approver_id".to_string(), JsonValue::String(app.approver_id.clone()));
+                data_map.insert(
+                    "task_id".to_string(),
+                    JsonValue::String(app.task_id.clone()),
+                );
+                data_map.insert(
+                    "approver_id".to_string(),
+                    JsonValue::String(app.approver_id.clone()),
+                );
                 data_map.insert("approved".to_string(), JsonValue::Bool(app.approved));
                 if let Some(ref r) = app.reason {
                     data_map.insert("reason".to_string(), JsonValue::String(r.clone()));
@@ -1545,16 +1691,28 @@ impl KernelEntity {
                 }
             }
             Self::Exception(exc) => {
-                data_map.insert("error_code".to_string(), JsonValue::String(exc.error_code.clone()));
-                data_map.insert("message".to_string(), JsonValue::String(exc.message.clone()));
+                data_map.insert(
+                    "error_code".to_string(),
+                    JsonValue::String(exc.error_code.clone()),
+                );
+                data_map.insert(
+                    "message".to_string(),
+                    JsonValue::String(exc.message.clone()),
+                );
                 if let Some(ref st) = exc.stack_trace {
                     data_map.insert("stack_trace".to_string(), JsonValue::String(st.clone()));
                 }
                 data_map.insert("fatal".to_string(), JsonValue::Bool(exc.fatal));
             }
             Self::Outcome(out) => {
-                data_map.insert("goal_id".to_string(), JsonValue::String(out.goal_id.clone()));
-                data_map.insert("status".to_string(), JsonValue::String(out.status.as_str().to_string()));
+                data_map.insert(
+                    "goal_id".to_string(),
+                    JsonValue::String(out.goal_id.clone()),
+                );
+                data_map.insert(
+                    "status".to_string(),
+                    JsonValue::String(out.status.as_str().to_string()),
+                );
                 if let Some(ref o) = out.ovt_ticket {
                     data_map.insert("ovt_ticket".to_string(), JsonValue::String(o.clone()));
                 }
@@ -1564,9 +1722,18 @@ impl KernelEntity {
             }
             Self::ReviewRequired(rev) => {
                 data_map.insert("reason".to_string(), JsonValue::String(rev.reason.clone()));
-                data_map.insert("required_role".to_string(), JsonValue::String(rev.required_role.clone()));
-                data_map.insert("urgency".to_string(), JsonValue::String(rev.urgency.as_str().to_string()));
-                data_map.insert("status".to_string(), JsonValue::String(rev.status.as_str().to_string()));
+                data_map.insert(
+                    "required_role".to_string(),
+                    JsonValue::String(rev.required_role.clone()),
+                );
+                data_map.insert(
+                    "urgency".to_string(),
+                    JsonValue::String(rev.urgency.as_str().to_string()),
+                );
+                data_map.insert(
+                    "status".to_string(),
+                    JsonValue::String(rev.status.as_str().to_string()),
+                );
             }
         }
 
@@ -1587,19 +1754,21 @@ pub fn to_canonical_rfc8785_json(val: &JsonValue) -> Result<String, KernelError>
 /// Pure Rust SHA-256 implementation conforming to FIPS 180-4.
 pub fn sha256(data: &[u8]) -> [u8; 32] {
     const K: [u32; 64] = [
-        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
     ];
 
     let mut state: [u32; 8] = [
-        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
     ];
 
     let bit_len = (data.len() as u64).wrapping_mul(8);
@@ -1611,15 +1780,23 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
     }
     msg.extend_from_slice(&bit_len.to_be_bytes());
 
-    for chunk in msg.chunks_exact(64) {
+    for chunk in msg.as_chunks::<64>().0 {
         let mut w = [0u32; 64];
         for i in 0..16 {
-            w[i] = u32::from_be_bytes([chunk[4 * i], chunk[4 * i + 1], chunk[4 * i + 2], chunk[4 * i + 3]]);
+            w[i] = u32::from_be_bytes([
+                chunk[4 * i],
+                chunk[4 * i + 1],
+                chunk[4 * i + 2],
+                chunk[4 * i + 3],
+            ]);
         }
         for i in 16..64 {
             let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
             let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-            w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
         }
 
         let mut a = state[0];
@@ -1634,7 +1811,11 @@ pub fn sha256(data: &[u8]) -> [u8; 32] {
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ ((!e) & g);
-            let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let temp1 = h
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(K[i])
+                .wrapping_add(w[i]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let temp2 = s0.wrapping_add(maj);
@@ -1706,8 +1887,8 @@ pub fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 /// Pure Rust BLAKE3 cryptographic hash implementation.
 pub fn blake3(data: &[u8]) -> [u8; 32] {
     const IV: [u32; 8] = [
-        0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
-        0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19,
+        0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A, 0x510E527F, 0x9B05688C, 0x1F83D9AB,
+        0x5BE0CD19,
     ];
 
     const CHUNK_START: u32 = 1;
@@ -1758,7 +1939,12 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
         let mut m = [0u32; 16];
         for i in 0..16 {
             if (i * 4 + 4) <= block.len() {
-                m[i] = u32::from_le_bytes([block[i * 4], block[i * 4 + 1], block[i * 4 + 2], block[i * 4 + 3]]);
+                m[i] = u32::from_le_bytes([
+                    block[i * 4],
+                    block[i * 4 + 1],
+                    block[i * 4 + 2],
+                    block[i * 4 + 3],
+                ]);
             } else if (i * 4) < block.len() {
                 let mut b = [0u8; 4];
                 let rem = block.len() - i * 4;
@@ -1768,8 +1954,18 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
         }
 
         let mut state = [
-            cv[0], cv[1], cv[2], cv[3], cv[4], cv[5], cv[6], cv[7],
-            IV[0], IV[1], IV[2], IV[3],
+            cv[0],
+            cv[1],
+            cv[2],
+            cv[3],
+            cv[4],
+            cv[5],
+            cv[6],
+            cv[7],
+            IV[0],
+            IV[1],
+            IV[2],
+            IV[3],
             counter as u32,
             (counter >> 32) as u32,
             block_len,
@@ -1802,13 +1998,13 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
     }
 
     // Process single chunk (data <= 1024 bytes) or multi-chunk
-    let total_chunks = (data.len() + 1023) / 1024;
+    let total_chunks = data.len().div_ceil(1024);
     let mut chunk_cvs = Vec::with_capacity(total_chunks);
 
     for (chunk_idx, chunk) in data.chunks(1024).enumerate() {
         let is_root = total_chunks == 1;
         let mut cur_cv = IV;
-        let block_count = (chunk.len() + 63) / 64;
+        let block_count = chunk.len().div_ceil(64);
 
         for (b_idx, block) in chunk.chunks(64).enumerate() {
             let mut flags = 0u32;
@@ -1822,9 +2018,7 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
                 }
             }
             let out = compress(&cur_cv, block, chunk_idx as u64, block.len() as u32, flags);
-            for i in 0..8 {
-                cur_cv[i] = out[i];
-            }
+            cur_cv.copy_from_slice(&out[..8]);
         }
         chunk_cvs.push(cur_cv);
     }
@@ -1840,7 +2034,7 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
     // Parent tree reduction
     let mut current_level = chunk_cvs;
     while current_level.len() > 1 {
-        let mut next_level = Vec::with_capacity((current_level.len() + 1) / 2);
+        let mut next_level = Vec::with_capacity(current_level.len().div_ceil(2));
         for pair in current_level.chunks(2) {
             if pair.len() == 2 {
                 let mut block = [0u8; 64];
@@ -1852,9 +2046,7 @@ pub fn blake3(data: &[u8]) -> [u8; 32] {
                 let flags = 4 | (if is_root { ROOT } else { 0 }); // 4 = PARENT
                 let out = compress(&IV, &block, 0, 64, flags);
                 let mut parent_cv = [0u32; 8];
-                for i in 0..8 {
-                    parent_cv[i] = out[i];
-                }
+                parent_cv.copy_from_slice(&out[..8]);
                 next_level.push(parent_cv);
             } else {
                 next_level.push(pair[0]);
@@ -2021,7 +2213,10 @@ mod tests {
 
         let canonical = canonicalize_json(&JsonValue::Object(root_map));
         let expected = "{\"apple\":\"pie\",\"banana\":{\"array\":[3,2,1],\"nested_a\":null,\"nested_z\":true},\"car\":42.0,\"zebra\":1}";
-        assert_eq!(canonical, expected, "Canonical RFC 8785 JSON output mismatch!");
+        assert_eq!(
+            canonical, expected,
+            "Canonical RFC 8785 JSON output mismatch!"
+        );
     }
 
     #[test]

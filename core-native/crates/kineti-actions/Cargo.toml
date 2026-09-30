@@ -9,6 +9,9 @@ homepage.workspace = true
 readme = "../../README.md"
 description = "Real-world actions: Headless price comparison, ticket search, and two-step confirmation safety gate"
 
+[lints]
+workspace = true
+
 [dependencies]
 kineti-core = { path = "../kineti-core", version = "0.3.7" }
 kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }

@@ -28,8 +28,16 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
       - name: Install Dependencies
         run: bun install
+
+      - name: Seed CI runtime state
+        run: bun scripts/ci-seed.ts
 
       - name: Router codegen freshness
         run: |
@@ -37,22 +45,34 @@ jobs:
           git diff --exit-code -- bin/kineti.js
 
       - name: Run Type Integrity Check
-        run: bun run typecheck
+        run: bun bin/kineti-evidence.ts run --label gate-typecheck --timeout 300 -- bun run typecheck
+
+      - name: Rust formatting check
+        run: cargo fmt --all --manifest-path core-native/Cargo.toml --check
+
+      - name: Rust lint check
+        run: cargo clippy --all-targets --manifest-path core-native/Cargo.toml -- -D warnings
 
       - name: Run Unit & Gate Test Suite
-        run: bun test tests/
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        run: bun bin/kineti-evidence.ts run --label gate-ts-tests --timeout 600 -- bun test tests/
 
       - name: Run Rust Engine Test Suite
-        run: cargo test --manifest-path core-native/Cargo.toml
+        run: bun bin/kineti-evidence.ts run --label gate-rust-tests --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
 
       - name: Run Installer Smoke Test
-        run: ./tests/test-setup.sh
+        run: bun bin/kineti-evidence.ts run --label gate-installer-smoke --timeout 600 -- bun run test:setup
+
+      - name: Verify every evidence record is fresh
+        if: always()
+        run: |
+          set -e
+          for label in gate-typecheck gate-ts-tests gate-rust-tests gate-installer-smoke; do
+            bun bin/kineti-evidence.ts check --label "$label"
+          done
 
       - name: Verify Kineti State & Evidence Gate
         id: kineti_gate
+        if: always()
         run: |
           bun bin/kineti-ci.ts --pr-comment-file pr_comment.md
 
@@ -75,7 +95,7 @@ jobs:
               issue_number: context.issue.number,
             });
 
-            const botComment = comments.find(c => c.body.includes('Kineti Causal Verification'));
+            const botComment = comments.find(c => c.body.includes('Context Integrity Verification'));
 
             if (botComment) {
               await github.rest.issues.updateComment({

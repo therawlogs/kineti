@@ -61,7 +61,9 @@ impl KinetiConnectorProtocol for WisprFlowClient {
     fn evaluate_consequence(&self, action: &str, _payload: &Value) -> ConsequenceLevel {
         match action {
             "mcp_ping" => ConsequenceLevel::Trivial,
-            "transcribe_audio" | "stream_dictation" | "voice_intent" => ConsequenceLevel::Operational,
+            "transcribe_audio" | "stream_dictation" | "voice_intent" => {
+                ConsequenceLevel::Operational
+            }
             _ => ConsequenceLevel::HighConsequence,
         }
     }
@@ -72,7 +74,10 @@ impl KinetiConnectorProtocol for WisprFlowClient {
         payload: &Value,
     ) -> Result<Value, ConnectorProtocolError> {
         let mut map = BTreeMap::new();
-        map.insert("provider".to_string(), Value::String("wispr_flow".to_string()));
+        map.insert(
+            "provider".to_string(),
+            Value::String("wispr_flow".to_string()),
+        );
         map.insert("endpoint".to_string(), Value::String(self.endpoint.clone()));
         map.insert("action".to_string(), Value::String(action.to_string()));
 
@@ -85,7 +90,8 @@ impl KinetiConnectorProtocol for WisprFlowClient {
                 let audio_path = get_str_property(payload, "audio_path");
                 let sample_text = get_str_property(payload, "sample_text");
 
-                let api_key = std::env::var("WISPR_FLOW_API_KEY").ok()
+                let api_key = std::env::var("WISPR_FLOW_API_KEY")
+                    .ok()
                     .or_else(|| std::env::var("OPENAI_API_KEY").ok());
 
                 if let Some(ref key) = api_key {
@@ -100,8 +106,14 @@ impl KinetiConnectorProtocol for WisprFlowClient {
                         if let Ok(out) = cmd.output() {
                             if out.status.success() {
                                 let body = String::from_utf8_lossy(&out.stdout);
-                                map.insert("transcription".to_string(), Value::String(body.to_string()));
-                                map.insert("status".to_string(), Value::String("transcribed".to_string()));
+                                map.insert(
+                                    "transcription".to_string(),
+                                    Value::String(body.to_string()),
+                                );
+                                map.insert(
+                                    "status".to_string(),
+                                    Value::String("transcribed".to_string()),
+                                );
                                 map.insert("live_dispatched".to_string(), Value::from(true));
                                 return Ok(Value::Object(map));
                             }
@@ -110,14 +122,20 @@ impl KinetiConnectorProtocol for WisprFlowClient {
                 }
                 let text = sample_text.unwrap_or("Transcribed voice stream from Wispr Flow");
                 map.insert("transcription".to_string(), Value::String(text.to_string()));
-                map.insert("status".to_string(), Value::String("transcribed".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("transcribed".to_string()),
+                );
                 map.insert("live_dispatched".to_string(), Value::from(false));
                 Ok(Value::Object(map))
             }
             "voice_intent" => {
                 let spoken = get_str_property(payload, "spoken_command").unwrap_or("");
                 map.insert("command".to_string(), Value::String(spoken.to_string()));
-                map.insert("status".to_string(), Value::String("intent_extracted".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("intent_extracted".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
@@ -199,12 +217,23 @@ impl KinetiConnectorProtocol for SlackClient {
                 } else {
                     std::env::var("SLACK_BOT_TOKEN").unwrap_or_default()
                 };
-                if !token.is_empty() && !token.starts_with("test_") && !token.starts_with("xoxb-mock") && !query.is_empty() {
-                    let url = format!("https://slack.com/api/search.messages?query={}", crate::brave::url_encode(query));
+                if !token.is_empty()
+                    && !token.starts_with("test_")
+                    && !token.starts_with("xoxb-mock")
+                    && !query.is_empty()
+                {
+                    let url = format!(
+                        "https://slack.com/api/search.messages?query={}",
+                        crate::brave::url_encode(query)
+                    );
                     let auth_hdr = format!("Bearer {}", token);
                     let headers = [("Authorization", auth_hdr.as_str())];
-                    let res = kineti_core::http_get(&url, &headers)
-                        .map_err(|e| ConnectorProtocolError::ExecutionFailed(format!("Slack search error: {}", e)))?;
+                    let res = kineti_core::http_get(&url, &headers).map_err(|e| {
+                        ConnectorProtocolError::ExecutionFailed(format!(
+                            "Slack search error: {}",
+                            e
+                        ))
+                    })?;
                     map.insert("status".to_string(), Value::String("queried".to_string()));
                     map.insert("results".to_string(), Value::String(res.body));
                     map.insert("live_dispatched".to_string(), Value::from(true));
@@ -235,13 +264,21 @@ impl KinetiConnectorProtocol for SlackClient {
                     channel, timestamp, clean_name
                 );
 
-                if !token.is_empty() && !token.starts_with("test_") && !token.starts_with("xoxb-mock") && !timestamp.is_empty() {
+                if !token.is_empty()
+                    && !token.starts_with("test_")
+                    && !token.starts_with("xoxb-mock")
+                    && !timestamp.is_empty()
+                {
                     let auth_hdr = format!("Bearer {}", token);
                     let headers = [
                         ("Authorization", auth_hdr.as_str()),
                         ("Content-Type", "application/json; charset=utf-8"),
                     ];
-                    let _ = kineti_core::http_post_json("https://slack.com/api/reactions.add", &headers, &json_body);
+                    let _ = kineti_core::http_post_json(
+                        "https://slack.com/api/reactions.add",
+                        &headers,
+                        &json_body,
+                    );
                     map.insert("status".to_string(), Value::String("reacted".to_string()));
                     map.insert("emoji".to_string(), Value::String(emoji.to_string()));
                     map.insert("live_dispatched".to_string(), Value::from(true));
@@ -257,17 +294,20 @@ impl KinetiConnectorProtocol for SlackClient {
                 let channel = get_str_property(payload, "channel").unwrap_or("general");
                 let text = get_str_property(payload, "text").unwrap_or("");
                 let as_user = if let Value::Object(m) = payload {
-                    m.get("as_user").map(|v| match v {
-                        Value::Bool(b) => *b,
-                        Value::String(s) => s == "true",
-                        _ => false,
-                    }).unwrap_or(false)
+                    m.get("as_user")
+                        .map(|v| match v {
+                            Value::Bool(b) => *b,
+                            Value::String(s) => s == "true",
+                            _ => false,
+                        })
+                        .unwrap_or(false)
                 } else {
                     false
                 };
 
                 let token_to_use = if as_user {
-                    self.user_token.clone()
+                    self.user_token
+                        .clone()
                         .or_else(|| std::env::var("SLACK_USER_TOKEN").ok())
                         .unwrap_or_else(|| self.bot_token.clone())
                 } else {
@@ -278,22 +318,40 @@ impl KinetiConnectorProtocol for SlackClient {
                     }
                 };
 
-                let escaped_text = text.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n");
+                let escaped_text = text
+                    .replace('\\', "\\\\")
+                    .replace('"', "\\\"")
+                    .replace('\n', "\\n");
                 let json_body = format!(
                     "{{\"channel\":\"{}\",\"text\":\"{}\",\"as_user\":{}}}",
                     channel, escaped_text, as_user
                 );
 
-                if !token_to_use.is_empty() && !token_to_use.starts_with("test_") && !token_to_use.starts_with("xoxb-mock") {
+                if !token_to_use.is_empty()
+                    && !token_to_use.starts_with("test_")
+                    && !token_to_use.starts_with("xoxb-mock")
+                {
                     let auth_hdr = format!("Bearer {}", token_to_use);
                     let headers = [
                         ("Authorization", auth_hdr.as_str()),
                         ("Content-Type", "application/json; charset=utf-8"),
                     ];
-                    let res = kineti_core::http_post_json("https://slack.com/api/chat.postMessage", &headers, &json_body)
-                        .map_err(|e| ConnectorProtocolError::ExecutionFailed(format!("Slack network error: {}", e)))?;
+                    let res = kineti_core::http_post_json(
+                        "https://slack.com/api/chat.postMessage",
+                        &headers,
+                        &json_body,
+                    )
+                    .map_err(|e| {
+                        ConnectorProtocolError::ExecutionFailed(format!(
+                            "Slack network error: {}",
+                            e
+                        ))
+                    })?;
                     if !res.success {
-                        return Err(ConnectorProtocolError::ExecutionFailed(format!("Slack HTTP error {}: {}", res.status, res.body)));
+                        return Err(ConnectorProtocolError::ExecutionFailed(format!(
+                            "Slack HTTP error {}: {}",
+                            res.status, res.body
+                        )));
                     }
                     map.insert("status".to_string(), Value::String("posted".to_string()));
                     map.insert("channel".to_string(), Value::String(channel.to_string()));
@@ -312,7 +370,10 @@ impl KinetiConnectorProtocol for SlackClient {
                 }
             }
             "update_canvas" => {
-                map.insert("status".to_string(), Value::String("canvas_updated".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("canvas_updated".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
@@ -346,7 +407,11 @@ impl KinetiConnectorProtocol for GranolaClient {
     }
 
     fn supported_actions(&self) -> &[&'static str] {
-        &["fetch_meeting_notes", "fetch_transcript", "extract_action_items"]
+        &[
+            "fetch_meeting_notes",
+            "fetch_transcript",
+            "extract_action_items",
+        ]
     }
 
     fn evaluate_consequence(&self, _action: &str, _payload: &Value) -> ConsequenceLevel {
@@ -363,7 +428,10 @@ impl KinetiConnectorProtocol for GranolaClient {
         map.insert("action".to_string(), Value::String(action.to_string()));
 
         let meeting_id = get_str_property(payload, "meeting_id").unwrap_or("latest");
-        map.insert("meeting_id".to_string(), Value::String(meeting_id.to_string()));
+        map.insert(
+            "meeting_id".to_string(),
+            Value::String(meeting_id.to_string()),
+        );
         map.insert("status".to_string(), Value::String("retrieved".to_string()));
         Ok(Value::Object(map))
     }
@@ -390,10 +458,19 @@ mod tests {
     #[test]
     fn test_slack_and_granola_consequences() {
         let slack = SlackClient::new("xoxb-test");
-        assert_eq!(slack.evaluate_consequence("react_emoji", &Value::Null), ConsequenceLevel::Operational);
-        assert_eq!(slack.evaluate_consequence("post_message", &Value::Null), ConsequenceLevel::HighConsequence);
+        assert_eq!(
+            slack.evaluate_consequence("react_emoji", &Value::Null),
+            ConsequenceLevel::Operational
+        );
+        assert_eq!(
+            slack.evaluate_consequence("post_message", &Value::Null),
+            ConsequenceLevel::HighConsequence
+        );
 
         let granola = GranolaClient::new("gr_test");
-        assert_eq!(granola.evaluate_consequence("fetch_meeting_notes", &Value::Null), ConsequenceLevel::Trivial);
+        assert_eq!(
+            granola.evaluate_consequence("fetch_meeting_notes", &Value::Null),
+            ConsequenceLevel::Trivial
+        );
     }
 }

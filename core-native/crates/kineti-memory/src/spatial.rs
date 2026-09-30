@@ -120,7 +120,10 @@ impl SpatialMemoryEngine {
     }
 
     /// Records or updates the user's latest location fix and detects geofence boundary transitions.
-    pub fn update_location(&self, coord: GeoCoordinate) -> Vec<(NamedGeofence, GeofenceTransition)> {
+    pub fn update_location(
+        &self,
+        coord: GeoCoordinate,
+    ) -> Vec<(NamedGeofence, GeofenceTransition)> {
         let geofences = self.geofences.read().unwrap();
         let mut prev_states = self.previous_geofence_states.write().unwrap();
         let mut transitions = Vec::new();
@@ -138,7 +141,9 @@ impl SpatialMemoryEngine {
             };
 
             prev_states.insert(id.clone(), is_inside);
-            if transition == GeofenceTransition::Entering || transition == GeofenceTransition::Exiting {
+            if transition == GeofenceTransition::Entering
+                || transition == GeofenceTransition::Exiting
+            {
                 transitions.push((fence.clone(), transition));
             }
         }
@@ -172,7 +177,9 @@ impl SpatialMemoryEngine {
     pub fn transit_guidance_to(&self, landmark_name: &str) -> Option<(f64, u32)> {
         let last_loc = self.last_known_location.read().unwrap().clone()?;
         let geofences = self.geofences.read().unwrap();
-        let landmark = geofences.values().find(|g| g.name.eq_ignore_ascii_case(landmark_name))?;
+        let landmark = geofences
+            .values()
+            .find(|g| g.name.eq_ignore_ascii_case(landmark_name))?;
 
         let distance_meters = last_loc.distance_to(&landmark.center);
         // Average driving speed estimate: 45 km/h = 12.5 m/s
@@ -203,7 +210,11 @@ mod tests {
         };
 
         let distance = ferry_building.distance_to(&coit_tower);
-        assert!((distance - 1300.0).abs() < 200.0, "Expected ~1300-1400m, got {}", distance);
+        assert!(
+            (distance - 1300.0).abs() < 200.0,
+            "Expected ~1300-1400m, got {}",
+            distance
+        );
     }
 
     #[test]

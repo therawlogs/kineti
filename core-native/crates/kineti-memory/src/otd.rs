@@ -94,7 +94,9 @@ pub enum OtdValue {
 }
 
 fn skip_ws(s: &[u8], pos: &mut usize) {
-    while *pos < s.len() && (s[*pos] == b' ' || s[*pos] == b'\t' || s[*pos] == b'\n' || s[*pos] == b'\r') {
+    while *pos < s.len()
+        && (s[*pos] == b' ' || s[*pos] == b'\t' || s[*pos] == b'\n' || s[*pos] == b'\r')
+    {
         *pos += 1;
     }
 }
@@ -161,10 +163,14 @@ fn parse_value(s: &[u8], pos: &mut usize) -> Result<OtdValue, String> {
         }
         c if c == b'-' || c.is_ascii_digit() => {
             let start = *pos;
-            while *pos < s.len() && (s[*pos].is_ascii_digit() || matches!(s[*pos], b'-' | b'+' | b'.' | b'e' | b'E')) {
+            while *pos < s.len()
+                && (s[*pos].is_ascii_digit() || matches!(s[*pos], b'-' | b'+' | b'.' | b'e' | b'E'))
+            {
                 *pos += 1;
             }
-            Ok(OtdValue::Num(String::from_utf8_lossy(&s[start..*pos]).into_owned()))
+            Ok(OtdValue::Num(
+                String::from_utf8_lossy(&s[start..*pos]).into_owned(),
+            ))
         }
         other => Err(format!("unexpected byte: {other}")),
     }
@@ -322,7 +328,11 @@ impl OtdSchema {
                     let entity = EntityType::from_str(&b.entity)
                         .map(|e| e.as_str().to_string())
                         .unwrap_or_else(|| b.entity.clone());
-                    out.push(BoundFact { entity, path: b.path.clone(), value });
+                    out.push(BoundFact {
+                        entity,
+                        path: b.path.clone(),
+                        value,
+                    });
                 }
                 None if b.required => return Err(OtdError::MissingRequired(b.path.clone())),
                 None => {}
@@ -341,9 +351,21 @@ mod tests {
             name: "support_ticket_v1".to_string(),
             version: 1,
             bindings: vec![
-                OtdBinding { entity: "intent".to_string(), path: "ticket.message".to_string(), required: true },
-                OtdBinding { entity: "goal".to_string(), path: "ticket.priority".to_string(), required: false },
-                OtdBinding { entity: "actor".to_string(), path: "items[0].id".to_string(), required: false },
+                OtdBinding {
+                    entity: "intent".to_string(),
+                    path: "ticket.message".to_string(),
+                    required: true,
+                },
+                OtdBinding {
+                    entity: "goal".to_string(),
+                    path: "ticket.priority".to_string(),
+                    required: false,
+                },
+                OtdBinding {
+                    entity: "actor".to_string(),
+                    path: "items[0].id".to_string(),
+                    required: false,
+                },
             ],
         }
     }
@@ -358,9 +380,16 @@ mod tests {
         let s = OtdSchema {
             name: "bad".to_string(),
             version: 1,
-            bindings: vec![OtdBinding { entity: "spaceship".to_string(), path: "a.b".to_string(), required: false }],
+            bindings: vec![OtdBinding {
+                entity: "spaceship".to_string(),
+                path: "a.b".to_string(),
+                required: false,
+            }],
         };
-        assert_eq!(s.validate(), Err(OtdError::UnknownEntity("spaceship".to_string())));
+        assert_eq!(
+            s.validate(),
+            Err(OtdError::UnknownEntity("spaceship".to_string()))
+        );
     }
 
     #[test]
@@ -368,15 +397,27 @@ mod tests {
         let bad = OtdSchema {
             name: "bad".to_string(),
             version: 1,
-            bindings: vec![OtdBinding { entity: "goal".to_string(), path: "a..b".to_string(), required: false }],
+            bindings: vec![OtdBinding {
+                entity: "goal".to_string(),
+                path: "a..b".to_string(),
+                required: false,
+            }],
         };
         assert!(matches!(bad.validate(), Err(OtdError::BadPath(_))));
         let dup = OtdSchema {
             name: "dup".to_string(),
             version: 1,
             bindings: vec![
-                OtdBinding { entity: "goal".to_string(), path: "a.b".to_string(), required: false },
-                OtdBinding { entity: "GOAL".to_string(), path: "a.b".to_string(), required: false },
+                OtdBinding {
+                    entity: "goal".to_string(),
+                    path: "a.b".to_string(),
+                    required: false,
+                },
+                OtdBinding {
+                    entity: "GOAL".to_string(),
+                    path: "a.b".to_string(),
+                    required: false,
+                },
             ],
         };
         assert!(matches!(dup.validate(), Err(OtdError::DuplicateBinding(_))));
@@ -385,8 +426,14 @@ mod tests {
     #[test]
     fn test_extract_nested_and_index_paths() {
         let root = parse_payload(r#"{"ticket":{"message":"refund please","tags":["billing","urgent"]},"items":[{"id":"u1"}]}"#).unwrap();
-        assert_eq!(extract_path(&root, "ticket.message"), Some("refund please".to_string()));
-        assert_eq!(extract_path(&root, "ticket.tags[1]"), Some("urgent".to_string()));
+        assert_eq!(
+            extract_path(&root, "ticket.message"),
+            Some("refund please".to_string())
+        );
+        assert_eq!(
+            extract_path(&root, "ticket.tags[1]"),
+            Some("urgent".to_string())
+        );
         assert_eq!(extract_path(&root, "items[0].id"), Some("u1".to_string()));
         assert_eq!(extract_path(&root, "ticket.missing"), None);
         assert_eq!(extract_path(&root, "ticket.tags[9]"), None);
@@ -415,10 +462,16 @@ mod tests {
 
     #[test]
     fn test_all_twenty_kernel_entities_accepted() {
-        let bindings = EntityType::ALL
-            .iter()
-            .map(|e| OtdBinding { entity: e.as_str().to_string(), path: "v".to_string(), required: false });
-        let s = OtdSchema { name: "all".to_string(), version: 1, bindings: bindings.collect() };
+        let bindings = EntityType::ALL.iter().map(|e| OtdBinding {
+            entity: e.as_str().to_string(),
+            path: "v".to_string(),
+            required: false,
+        });
+        let s = OtdSchema {
+            name: "all".to_string(),
+            version: 1,
+            bindings: bindings.collect(),
+        };
         assert!(s.validate().is_ok());
         let facts = s.apply(r#"{"v":"x"}"#).unwrap();
         assert_eq!(facts.len(), 20);

@@ -359,7 +359,9 @@ mod tests {
         let service = WebCompanionService::new();
 
         // 1. Request OTP
-        let otp = service.request_otp("+15551234567").expect("OTP request failed");
+        let otp = service
+            .request_otp("+15551234567")
+            .expect("OTP request failed");
         assert_eq!(otp.len(), 6);
 
         // 2. Verify with incorrect code fails

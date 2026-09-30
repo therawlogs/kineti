@@ -27,11 +27,11 @@ pub use epistemic::{
     ConsequenceLevel, ContextScope, DomainKind, EpistemicCertainty, EpistemicEngine,
     EpistemicError, EpistemicFact, EpistemicTransition, FactDurability, FactSource,
     GapFillingDecision, GapFillingPolicy, HlcWindow, IngressTrustLevel, OutboundGatingRule,
-    Perishability, PromotionDecision, PromotionSignalDetector, ProvenanceRecord,
-    ResolvedAdvice, ResolvedPersonaView, RuleConstraintType,
+    Perishability, PromotionDecision, PromotionSignalDetector, ProvenanceRecord, ResolvedAdvice,
+    ResolvedPersonaView, RuleConstraintType,
 };
 pub use hnsw::{cosine_similarity as hnsw_cosine, HnswGraph};
-pub use otd::{BoundFact, OtdBinding, OtdError, OtdSchema, OtdValue, extract_path, parse_payload};
+pub use otd::{extract_path, parse_payload, BoundFact, OtdBinding, OtdError, OtdSchema, OtdValue};
 pub use purge::{ExternalDataPurgeCoordinator, PurgeReceipt};
 pub use spatial::{
     GeoCoordinate, GeofenceCategory, GeofenceTransition, NamedGeofence, ParkedLocation,
@@ -107,7 +107,8 @@ impl MemoryEngine {
 
     /// Queries active facts for a user.
     pub fn query_facts(&self, user_id: &str, category: Option<&str>) -> Vec<UserFact> {
-        self.property_graph.query_active_facts(user_id, category, &self.tombstones)
+        self.property_graph
+            .query_active_facts(user_id, category, &self.tombstones)
     }
 
     /// Deletes a fact (for privacy or 'forget me' settings).
@@ -186,7 +187,8 @@ impl MemoryEngine {
         query_scope: &ContextScope,
         at_timestamp: u64,
     ) -> ResolvedPersonaView {
-        self.epistemic.resolve_scope(user_id, query_scope, at_timestamp)
+        self.epistemic
+            .resolve_scope(user_id, query_scope, at_timestamp)
     }
 
     /// Queries all active facts for a user strictly matching the scope isolation boundary.
@@ -196,7 +198,8 @@ impl MemoryEngine {
         query_scope: &ContextScope,
         at_timestamp: u64,
     ) -> Vec<EpistemicFact> {
-        self.epistemic.query_facts_in_scope(user_id, query_scope, at_timestamp)
+        self.epistemic
+            .query_facts_in_scope(user_id, query_scope, at_timestamp)
     }
 
     /// Scoped hybrid retrieval combining vector similarity with epistemic scope masking.
@@ -260,13 +263,8 @@ impl MemoryEngine {
         required_claim: &str,
         at_timestamp: u64,
     ) -> Result<bool, ActionEvaluation> {
-        self.epistemic.authorize_action(
-            user_id,
-            scope,
-            consequence,
-            required_claim,
-            at_timestamp,
-        )
+        self.epistemic
+            .authorize_action(user_id, scope, consequence, required_claim, at_timestamp)
     }
 
     /// Evaluates whether a proposed action with optional confirmation token can be authorized.
@@ -362,11 +360,8 @@ mod tests {
         let res = engine.ingest_epistemic_fact(epistemic_fact, 1000);
         assert!(res.is_ok());
 
-        let scoped_facts = engine.query_scoped_facts(
-            "user_01",
-            &ContextScope::Domain(DomainKind::Health),
-            1050,
-        );
+        let scoped_facts =
+            engine.query_scoped_facts("user_01", &ContextScope::Domain(DomainKind::Health), 1050);
         assert_eq!(scoped_facts.len(), 1);
         assert_eq!(scoped_facts[0].claim, "Vegetarian");
 
@@ -391,7 +386,10 @@ mod tests {
             &["meat", "beef"],
             1050,
         );
-        assert!(matches!(eval_blocked, ActionEvaluation::BlockedByRule { .. }));
+        assert!(matches!(
+            eval_blocked,
+            ActionEvaluation::BlockedByRule { .. }
+        ));
 
         let advice = engine.resolve_advice_for_candidate(
             "user_01",

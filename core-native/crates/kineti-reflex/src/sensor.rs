@@ -39,9 +39,14 @@ impl Modality {
             let lower = url.to_lowercase();
             if lower.ends_with(".ogg") || lower.ends_with(".mp3") || lower.ends_with(".m4a") {
                 return Self::VoiceNote;
-            } else if lower.ends_with(".jpg") || lower.ends_with(".jpeg") || lower.ends_with(".png") || lower.ends_with(".webp") {
+            } else if lower.ends_with(".jpg")
+                || lower.ends_with(".jpeg")
+                || lower.ends_with(".png")
+                || lower.ends_with(".webp")
+            {
                 return Self::Photo;
-            } else if lower.ends_with(".pdf") || lower.ends_with(".docx") || lower.ends_with(".csv") {
+            } else if lower.ends_with(".pdf") || lower.ends_with(".docx") || lower.ends_with(".csv")
+            {
                 return Self::Document;
             }
         }
@@ -139,7 +144,12 @@ impl SensoryClassifier {
     }
 
     /// Classifies an incoming message into a sensory perception in `< 0.2ms`.
-    pub fn classify(&self, text: &str, media_url: Option<&str>, mime_type: Option<&str>) -> SensoryPerception {
+    pub fn classify(
+        &self,
+        text: &str,
+        media_url: Option<&str>,
+        mime_type: Option<&str>,
+    ) -> SensoryPerception {
         let start = std::time::Instant::now();
         let modality = Modality::from_media(media_url, mime_type);
         let trimmed = text.trim();
@@ -188,9 +198,29 @@ impl SensoryClassifier {
 
 fn is_low_info_ack(lower: &str) -> bool {
     const ACKS: &[&str] = &[
-        "ok", "okay", "k", "kk", "got it", "thanks", "thx", "ty", "cool",
-        "bet", "sounds good", "leaving now", "heading out", "omw", "on my way",
-        "will do", "alright", "perfect", "done", "noted", "yep", "yeah", "sure",
+        "ok",
+        "okay",
+        "k",
+        "kk",
+        "got it",
+        "thanks",
+        "thx",
+        "ty",
+        "cool",
+        "bet",
+        "sounds good",
+        "leaving now",
+        "heading out",
+        "omw",
+        "on my way",
+        "will do",
+        "alright",
+        "perfect",
+        "done",
+        "noted",
+        "yep",
+        "yeah",
+        "sure",
     ];
     let trimmed = lower.trim_matches(|c: char| c == '.' || c == '!' || c == '?' || c == ',');
     if ACKS.contains(&trimmed)
@@ -203,10 +233,20 @@ fn is_low_info_ack(lower: &str) -> bool {
     }
     // Check compound acknowledgments like "ok got it", "ok thanks", "thanks so much"
     let words: Vec<&str> = trimmed.split_whitespace().collect();
-    if words.len() <= 4 && words.iter().all(|w| {
-        let clean = w.trim_matches(|c: char| !c.is_alphanumeric());
-        ACKS.contains(&clean) || clean == "it" || clean == "got" || clean == "now" || clean == "so" || clean == "much" || clean == "you" || clean == "see" || clean == "later"
-    }) {
+    if words.len() <= 4
+        && words.iter().all(|w| {
+            let clean = w.trim_matches(|c: char| !c.is_alphanumeric());
+            ACKS.contains(&clean)
+                || clean == "it"
+                || clean == "got"
+                || clean == "now"
+                || clean == "so"
+                || clean == "much"
+                || clean == "you"
+                || clean == "see"
+                || clean == "later"
+        })
+    {
         return true;
     }
     false
@@ -214,8 +254,18 @@ fn is_low_info_ack(lower: &str) -> bool {
 
 fn is_fast_greeting(lower: &str) -> bool {
     const GREETINGS: &[&str] = &[
-        "hi", "hello", "hey", "gm", "gn", "good morning", "good evening",
-        "sup", "yo", "wassup", "what's up", "hola",
+        "hi",
+        "hello",
+        "hey",
+        "gm",
+        "gn",
+        "good morning",
+        "good evening",
+        "sup",
+        "yo",
+        "wassup",
+        "what's up",
+        "hola",
     ];
     for &g in GREETINGS {
         if lower == g || lower.starts_with(&format!("{} ", g)) {
@@ -244,9 +294,11 @@ fn parse_memory_store(lower: &str, raw: &str) -> Option<(String, String)> {
 }
 
 fn parse_memory_recall(lower: &str) -> Option<String> {
-    if lower.starts_with("what is my ") || lower.starts_with("what's my ") {
-        Some(lower.trim_end_matches('?').to_string())
-    } else if lower.starts_with("who is my ") || lower.starts_with("who's my ") {
+    if lower.starts_with("what is my ")
+        || lower.starts_with("what's my ")
+        || lower.starts_with("who is my ")
+        || lower.starts_with("who's my ")
+    {
         Some(lower.trim_end_matches('?').to_string())
     } else {
         None
@@ -263,19 +315,24 @@ fn parse_image_generation(lower: &str, raw: &str) -> Option<String> {
     } else if lower.starts_with("make a photo of ") || lower.starts_with("make an image of ") {
         Some(raw[16..].trim().to_string())
     } else if lower.starts_with("image:") || lower.starts_with("generate image:") {
-        Some(raw.split(':').last().unwrap_or("").trim().to_string())
+        Some(raw.split(':').next_back().unwrap_or("").trim().to_string())
     } else {
         None
     }
 }
 
 fn parse_gmail_action(lower: &str, raw: &str) -> Option<String> {
-    if lower.contains("email") || lower.contains("gmail") || lower.contains("inbox") {
-        if lower.contains("check") || lower.contains("search") || lower.contains("send") || lower.contains("draft") || lower.contains("did ") {
-            return Some(raw.to_string());
-        }
+    let subject = lower.contains("email") || lower.contains("gmail") || lower.contains("inbox");
+    let verb = lower.contains("check")
+        || lower.contains("search")
+        || lower.contains("send")
+        || lower.contains("draft")
+        || lower.contains("did ");
+    if subject && verb {
+        Some(raw.to_string())
+    } else {
+        None
     }
-    None
 }
 
 fn parse_notion_action(lower: &str, raw: &str) -> Option<String> {
@@ -287,7 +344,11 @@ fn parse_notion_action(lower: &str, raw: &str) -> Option<String> {
 }
 
 fn parse_real_world_action(lower: &str, raw: &str) -> Option<String> {
-    if lower.contains("best price") || lower.contains("tickets for") || lower.contains("flight to") || lower.contains("compare prices") {
+    if lower.contains("best price")
+        || lower.contains("tickets for")
+        || lower.contains("flight to")
+        || lower.contains("compare prices")
+    {
         Some(raw.to_string())
     } else {
         None
@@ -295,7 +356,12 @@ fn parse_real_world_action(lower: &str, raw: &str) -> Option<String> {
 }
 
 fn parse_live_search(lower: &str, raw: &str) -> Option<String> {
-    if lower.contains("weather today") || lower.contains("latest update on") || lower.contains("this week") || lower.contains("stock price of") || lower.contains("breaking news") {
+    if lower.contains("weather today")
+        || lower.contains("latest update on")
+        || lower.contains("this week")
+        || lower.contains("stock price of")
+        || lower.contains("breaking news")
+    {
         Some(raw.to_string())
     } else {
         None
@@ -343,7 +409,11 @@ mod tests {
     #[test]
     fn test_gmail_and_notion_intent() {
         let classifier = SensoryClassifier::new();
-        let p1 = classifier.classify("Did Sarah send any notes on the quarterly budget via email?", None, None);
+        let p1 = classifier.classify(
+            "Did Sarah send any notes on the quarterly budget via email?",
+            None,
+            None,
+        );
         assert!(matches!(p1.intent, IntentCategory::GmailAction { .. }));
 
         let p2 = classifier.classify("Add this beta launch milestone to Notion", None, None);
@@ -353,17 +423,33 @@ mod tests {
     #[test]
     fn test_real_world_shopping_and_ticket_action() {
         let classifier = SensoryClassifier::new();
-        let p = classifier.classify("Find me the best price on Sony WH-1000XM5 headphones", None, None);
+        let p = classifier.classify(
+            "Find me the best price on Sony WH-1000XM5 headphones",
+            None,
+            None,
+        );
         assert!(matches!(p.intent, IntentCategory::RealWorldAction { .. }));
 
-        let p2 = classifier.classify("Look for 2 good tickets for Hans Zimmer this October", None, None);
+        let p2 = classifier.classify(
+            "Look for 2 good tickets for Hans Zimmer this October",
+            None,
+            None,
+        );
         assert!(matches!(p2.intent, IntentCategory::RealWorldAction { .. }));
     }
 
     #[test]
     fn test_triage_latency_under_1_millisecond() {
         let classifier = SensoryClassifier::new();
-        let p = classifier.classify("What is the latest update on SpaceX's Starship launch scheduled for this week?", None, None);
-        assert!(p.triage_duration_micros < 1000, "Triage took {}us (> 1000us)", p.triage_duration_micros);
+        let p = classifier.classify(
+            "What is the latest update on SpaceX's Starship launch scheduled for this week?",
+            None,
+            None,
+        );
+        assert!(
+            p.triage_duration_micros < 1000,
+            "Triage took {}us (> 1000us)",
+            p.triage_duration_micros
+        );
     }
 }

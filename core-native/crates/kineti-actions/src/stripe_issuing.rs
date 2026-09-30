@@ -164,10 +164,12 @@ impl KinetiConnectorProtocol for StripeIssuingEngine {
                 let user_id = get_str_property(payload, "user_id").unwrap_or("default");
                 let merchant = get_str_property(payload, "merchant").unwrap_or("merchant");
                 let cap_cents = if let Value::Object(m) = payload {
-                    m.get("spend_cap_cents").and_then(|v| match v {
-                        Value::Number(n) => n.as_str().parse::<u32>().ok(),
-                        _ => None,
-                    }).unwrap_or(5000)
+                    m.get("spend_cap_cents")
+                        .and_then(|v| match v {
+                            Value::Number(n) => n.as_str().parse::<u32>().ok(),
+                            _ => None,
+                        })
+                        .unwrap_or(5000)
                 } else {
                     5000
                 };
@@ -175,8 +177,17 @@ impl KinetiConnectorProtocol for StripeIssuingEngine {
                 let card = self.create_virtual_card(user_id, cap_cents, merchant);
                 let mut map = BTreeMap::new();
                 map.insert("card_id".to_string(), Value::String(card.card_id));
-                map.insert("masked_pan".to_string(), Value::String(format!("•••• {}", &card.pan[card.pan.len().saturating_sub(4)..])));
-                map.insert("spend_cap_cents".to_string(), Value::from(card.spend_cap_cents as u64));
+                map.insert(
+                    "masked_pan".to_string(),
+                    Value::String(format!(
+                        "•••• {}",
+                        &card.pan[card.pan.len().saturating_sub(4)..]
+                    )),
+                );
+                map.insert(
+                    "spend_cap_cents".to_string(),
+                    Value::from(card.spend_cap_cents as u64),
+                );
                 map.insert("status".to_string(), Value::String(card.status));
                 map.insert("expires_at_ms".to_string(), Value::from(card.expires_at_ms));
                 Ok(Value::Object(map))
@@ -184,10 +195,12 @@ impl KinetiConnectorProtocol for StripeIssuingEngine {
             "authorize_charge" => {
                 let card_id = get_str_property(payload, "card_id").unwrap_or("");
                 let amount_cents = if let Value::Object(m) = payload {
-                    m.get("amount_cents").and_then(|v| match v {
-                        Value::Number(n) => n.as_str().parse::<u32>().ok(),
-                        _ => None,
-                    }).unwrap_or(0)
+                    m.get("amount_cents")
+                        .and_then(|v| match v {
+                            Value::Number(n) => n.as_str().parse::<u32>().ok(),
+                            _ => None,
+                        })
+                        .unwrap_or(0)
                 } else {
                     0
                 };
@@ -196,7 +209,10 @@ impl KinetiConnectorProtocol for StripeIssuingEngine {
                 match self.authorize_charge(card_id, amount_cents, now) {
                     Ok(tx_id) => {
                         let mut map = BTreeMap::new();
-                        map.insert("status".to_string(), Value::String("charge_authorized".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("charge_authorized".to_string()),
+                        );
                         map.insert("transaction_id".to_string(), Value::String(tx_id));
                         Ok(Value::Object(map))
                     }
@@ -231,15 +247,21 @@ mod tests {
         let now = current_epoch_millis();
 
         // 1. Charge above cap ($330.01 = 33001 cents) is DECLINED
-        let over_err = engine.authorize_charge(&card.card_id, 33001, now).unwrap_err();
+        let over_err = engine
+            .authorize_charge(&card.card_id, 33001, now)
+            .unwrap_err();
         assert!(over_err.contains("exceeds approved spend cap"));
 
         // 2. Charge within cap ($330.00) SUCCEEDS
-        let ok_tx = engine.authorize_charge(&card.card_id, 33000, now).expect("Charge succeeds");
+        let ok_tx = engine
+            .authorize_charge(&card.card_id, 33000, now)
+            .expect("Charge succeeds");
         assert!(ok_tx.starts_with("ch_stripe_"));
 
         // 3. Second charge on consumed single-use card is DECLINED
-        let replay_err = engine.authorize_charge(&card.card_id, 1000, now).unwrap_err();
+        let replay_err = engine
+            .authorize_charge(&card.card_id, 1000, now)
+            .unwrap_err();
         assert_eq!(replay_err, "Virtual card is no longer active");
     }
 
@@ -251,7 +273,9 @@ mod tests {
         let canceled = engine.cancel_card(&card.card_id);
         assert!(canceled);
 
-        let err = engine.authorize_charge(&card.card_id, 1000, current_epoch_millis()).unwrap_err();
+        let err = engine
+            .authorize_charge(&card.card_id, 1000, current_epoch_millis())
+            .unwrap_err();
         assert_eq!(err, "Virtual card is no longer active");
     }
 }

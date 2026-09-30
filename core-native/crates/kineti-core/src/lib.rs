@@ -123,19 +123,18 @@ pub use hlc::{current_physical_ms, HlcError, HlcTimestamp, HybridLogicalClock};
 // Universal Provenance Kernel (all 20 entities, enums, JSON, hashing)
 pub use kernel::{
     blake3, canonicalize_json, constant_time_compare, hex_encode, hmac_sha256, sha256,
-    to_canonical_rfc8785_json, to_canonical_rfc8785_metadata,
-    Action, Actor, ActorType, Approval, Authority, Constraint, Decision, Dependency,
-    DependencyType, EnforcementLevel, EntityType, Evidence, Exception, Goal, GoalStatus,
-    HashAlgorithm, Intent, JsonNumber, JsonValue, KernelEntity, KernelError, Metric, NodeId,
-    Observation, Outcome, OutcomeStatus, ProvenanceNode, RelationType, ReviewRequired, ReviewStatus,
-    ReviewUrgency, Role, RollbackStatus, RollbackStep, SandboxLevel, StateChange, Task, TaskStatus,
-    ToolCall,
+    to_canonical_rfc8785_json, to_canonical_rfc8785_metadata, Action, Actor, ActorType, Approval,
+    Authority, Constraint, Decision, Dependency, DependencyType, EnforcementLevel, EntityType,
+    Evidence, Exception, Goal, GoalStatus, HashAlgorithm, Intent, JsonNumber, JsonValue,
+    KernelEntity, KernelError, Metric, NodeId, Observation, Outcome, OutcomeStatus, ProvenanceNode,
+    RelationType, ReviewRequired, ReviewStatus, ReviewUrgency, Role, RollbackStatus, RollbackStep,
+    SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
 };
 
 // HTTP Execution Engine
 pub use http::{
-    execute_http, http_delete, http_get, http_patch_json, http_post_json, HttpRequest, HttpResponse,
-    KINETI_USER_AGENT,
+    execute_http, http_delete, http_get, http_patch_json, http_post_json, HttpRequest,
+    HttpResponse, KINETI_USER_AGENT,
 };
 
 // Conversation Models
@@ -178,11 +177,11 @@ pub mod prelude {
         ProvenanceNode, RelationType, ReviewRequired, ReviewStatus, ReviewUrgency, Role,
         RollbackStatus, RollbackStep, SandboxLevel, StateChange, Task, TaskStatus, ToolCall,
     };
-    pub use crate::snapshot::{SnapshotEngine, SnapshotHandle, SnapshotNode};
     pub use crate::root_goal::{
         DriftEvaluation, DriftInspector, FrictionResolution, FrictionType, ImmutableBoundaries,
         VerbatimRootGoal,
     };
+    pub use crate::snapshot::{SnapshotEngine, SnapshotHandle, SnapshotNode};
     pub use crate::spend::{
         microcents_to_usd, usd_to_microcents, Reservation, SpendCircuitBreaker, SpendError,
         DEFAULT_CEILING_MICROCENTS, DEFAULT_CEILING_USD, DEFAULT_SAFETY_FACTOR,

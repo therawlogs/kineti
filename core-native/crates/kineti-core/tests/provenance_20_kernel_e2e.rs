@@ -163,7 +163,9 @@ fn test_all_20_provenance_kernel_entities_dag_commit_lifecycle() {
         HashAlgorithm::Blake3,
     )
     .expect("Constraint node created");
-    let rec_constraint = gate.commit(node_constraint.clone()).expect("Constraint commits");
+    let rec_constraint = gate
+        .commit(node_constraint.clone())
+        .expect("Constraint commits");
     assert_eq!(rec_constraint.topological_rank, 6);
 
     // 8. Decision
@@ -184,7 +186,9 @@ fn test_all_20_provenance_kernel_entities_dag_commit_lifecycle() {
         HashAlgorithm::Blake3,
     )
     .expect("Decision node created");
-    let rec_decision = gate.commit(node_decision.clone()).expect("Decision commits");
+    let rec_decision = gate
+        .commit(node_decision.clone())
+        .expect("Decision commits");
     assert_eq!(rec_decision.topological_rank, 7);
 
     // 9. Dependency
@@ -419,7 +423,9 @@ fn test_all_20_provenance_kernel_entities_dag_commit_lifecycle() {
         HashAlgorithm::Blake3,
     )
     .expect("ReviewRequired node created");
-    let rec_rr = gate.commit(node_rr.clone()).expect("ReviewRequired commits");
+    let rec_rr = gate
+        .commit(node_rr.clone())
+        .expect("ReviewRequired commits");
     assert_eq!(rec_rr.topological_rank, 18);
 
     // 20. Outcome
@@ -448,12 +454,32 @@ fn test_all_20_provenance_kernel_entities_dag_commit_lifecycle() {
 
     // Verify all 20 nodes pass content address integrity checks
     let nodes = [
-        &node_actor, &node_role, &node_auth, &node_intent, &node_goal,
-        &node_task, &node_constraint, &node_decision, &node_dep, &node_action,
-        &node_tool, &node_rb, &node_obs, &node_ev, &node_sc,
-        &node_metric, &node_ex, &node_app, &node_rr, &node_outcome,
+        &node_actor,
+        &node_role,
+        &node_auth,
+        &node_intent,
+        &node_goal,
+        &node_task,
+        &node_constraint,
+        &node_decision,
+        &node_dep,
+        &node_action,
+        &node_tool,
+        &node_rb,
+        &node_obs,
+        &node_ev,
+        &node_sc,
+        &node_metric,
+        &node_ex,
+        &node_app,
+        &node_rr,
+        &node_outcome,
     ];
     for (i, n) in nodes.iter().enumerate() {
-        assert!(n.verify_content_address().is_ok(), "Node #{} failed hash check", i + 1);
+        assert!(
+            n.verify_content_address().is_ok(),
+            "Node #{} failed hash check",
+            i + 1
+        );
     }
 }

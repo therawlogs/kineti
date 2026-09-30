@@ -9,6 +9,9 @@ homepage.workspace = true
 readme = "../../README.md"
 description = "High-performance messaging gateway: WhatsApp Cloud API, macOS iMessage bridge, Web Auth & Settings API"
 
+[lints]
+workspace = true
+
 [dependencies]
 kineti-core = { path = "../kineti-core", version = "0.3.7" }
 kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }

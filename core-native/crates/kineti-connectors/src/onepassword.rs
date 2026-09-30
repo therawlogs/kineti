@@ -35,21 +35,30 @@ impl OnePasswordCategory {
     pub fn consequence_level(&self) -> ConsequenceLevel {
         match self {
             Self::LoyaltyAccounts | Self::SubscriptionPortals => ConsequenceLevel::Operational,
-            Self::HealthcareDashboards | Self::TaxPayrollPlatforms => ConsequenceLevel::HighConsequence,
+            Self::HealthcareDashboards | Self::TaxPayrollPlatforms => {
+                ConsequenceLevel::HighConsequence
+            }
             Self::General => ConsequenceLevel::Operational,
         }
     }
 
-    /// Parses category string.
-    pub fn from_str(s: &str) -> Self {
+    /// Parses a category string into a [`OnePasswordCategory`].
+    pub fn parse_category(s: &str) -> Self {
         let lower = s.to_lowercase();
         if lower.contains("loyalty") || lower.contains("airline") || lower.contains("hotel") {
             Self::LoyaltyAccounts
         } else if lower.contains("sub") || lower.contains("streaming") || lower.contains("saas") {
             Self::SubscriptionPortals
-        } else if lower.contains("health") || lower.contains("medical") || lower.contains("pharmacy") {
+        } else if lower.contains("health")
+            || lower.contains("medical")
+            || lower.contains("pharmacy")
+        {
             Self::HealthcareDashboards
-        } else if lower.contains("tax") || lower.contains("payroll") || lower.contains("irs") || lower.contains("gusto") {
+        } else if lower.contains("tax")
+            || lower.contains("payroll")
+            || lower.contains("irs")
+            || lower.contains("gusto")
+        {
             Self::TaxPayrollPlatforms
         } else {
             Self::General
@@ -152,7 +161,7 @@ impl KinetiConnectorProtocol for OnePasswordBrokerClient {
             "list_vault_items" => ConsequenceLevel::Trivial,
             "fetch_item" | "fill_credentials" => {
                 let category_str = get_str_property(payload, "category").unwrap_or("general");
-                let cat = OnePasswordCategory::from_str(category_str);
+                let cat = OnePasswordCategory::parse_category(category_str);
                 cat.consequence_level()
             }
             _ => ConsequenceLevel::HighConsequence,
@@ -173,7 +182,10 @@ impl KinetiConnectorProtocol for OnePasswordBrokerClient {
                         let mut m = BTreeMap::new();
                         m.insert("item_id".to_string(), Value::String(it.item_id.clone()));
                         m.insert("title".to_string(), Value::String(it.title.clone()));
-                        m.insert("category".to_string(), Value::String(format!("{:?}", it.category)));
+                        m.insert(
+                            "category".to_string(),
+                            Value::String(format!("{:?}", it.category)),
+                        );
                         Value::Object(m)
                     })
                     .collect();
@@ -193,8 +205,14 @@ impl KinetiConnectorProtocol for OnePasswordBrokerClient {
                         map.insert("title".to_string(), Value::String(item.title));
                         map.insert("username".to_string(), Value::String(item.username));
                         map.insert("secret".to_string(), Value::String(item.secret));
-                        map.insert("category".to_string(), Value::String(format!("{:?}", item.category)));
-                        map.insert("audit_hash".to_string(), Value::String(receipt.item_id_hash));
+                        map.insert(
+                            "category".to_string(),
+                            Value::String(format!("{:?}", item.category)),
+                        );
+                        map.insert(
+                            "audit_hash".to_string(),
+                            Value::String(receipt.item_id_hash),
+                        );
                         Ok(Value::Object(map))
                     }
                     Err(err) => Err(ConnectorProtocolError::ExecutionFailed(err.to_string())),
@@ -245,7 +263,9 @@ mod tests {
         };
         client.register_item(item);
 
-        let (retrieved, receipt) = client.checkout_item("user_01", "op_item_delta", now + 1000).unwrap();
+        let (retrieved, receipt) = client
+            .checkout_item("user_01", "op_item_delta", now + 1000)
+            .unwrap();
         assert_eq!(retrieved.username, "alex_flyer");
         assert_eq!(receipt.user_id, "user_01");
         assert_eq!(receipt.category, "LoyaltyAccounts");

@@ -60,7 +60,10 @@ pub fn parse_otpauth_uri(uri: &str) -> Result<TotpParams, &'static str> {
     };
 
     let (mut service_name, account_name) = if let Some(pos) = label_part.find(':') {
-        (url_decode(&label_part[..pos]), url_decode(&label_part[pos + 1..]))
+        (
+            url_decode(&label_part[..pos]),
+            url_decode(&label_part[pos + 1..]),
+        )
     } else {
         (String::new(), url_decode(label_part))
     };
@@ -234,7 +237,7 @@ mod hmac {
         }
         msg.extend_from_slice(&ml.to_be_bytes());
 
-        for chunk in msg.chunks_exact(64) {
+        for chunk in msg.as_chunks::<64>().0 {
             let mut w = [0u32; 80];
             for i in 0..16 {
                 w[i] = u32::from_be_bytes([
@@ -254,7 +257,7 @@ mod hmac {
             let mut d = h3;
             let mut e = h4;
 
-            for i in 0..80 {
+            for (i, &wi) in w.iter().enumerate() {
                 let (f, k) = match i {
                     0..=19 => ((b & c) | ((!b) & d), 0x5A827999u32),
                     20..=39 => (b ^ c ^ d, 0x6ED9EBA1u32),
@@ -266,7 +269,7 @@ mod hmac {
                     .wrapping_add(f)
                     .wrapping_add(e)
                     .wrapping_add(k)
-                    .wrapping_add(w[i]);
+                    .wrapping_add(wi);
                 e = d;
                 d = c;
                 c = b.rotate_left(30);
@@ -292,7 +295,12 @@ mod hmac {
 }
 
 /// Generates a numeric TOTP code at a specific time step (RFC 4226 Section 5.4).
-pub fn generate_hotp_code(secret_bytes: &[u8], counter: u64, digits: u32, use_sha256: bool) -> String {
+pub fn generate_hotp_code(
+    secret_bytes: &[u8],
+    counter: u64,
+    digits: u32,
+    use_sha256: bool,
+) -> String {
     let counter_bytes = counter.to_be_bytes();
     let hash: Vec<u8> = if use_sha256 {
         hmac::hmac_sha256(secret_bytes, &counter_bytes).to_vec()
@@ -303,9 +311,9 @@ pub fn generate_hotp_code(secret_bytes: &[u8], counter: u64, digits: u32, use_sh
     // Dynamic Truncation
     let offset = (hash[hash.len() - 1] & 0x0f) as usize;
     let binary = (((hash[offset] & 0x7f) as u32) << 24)
-        | (((hash[offset + 1] & 0xff) as u32) << 16)
-        | (((hash[offset + 2] & 0xff) as u32) << 8)
-        | ((hash[offset + 3] & 0xff) as u32);
+        | ((hash[offset + 1] as u32) << 16)
+        | ((hash[offset + 2] as u32) << 8)
+        | (hash[offset + 3] as u32);
 
     let modulo = 10u32.pow(digits);
     let code_num = binary % modulo;
@@ -474,7 +482,10 @@ impl KinetiConnectorProtocol for TotpAuthenticatorConnector {
             }
             "verify_totp_code" => {
                 let submitted = get_str_property(payload, "code").unwrap_or("");
-                match self.authenticator.verify_code(user_id, service, submitted, now_sec) {
+                match self
+                    .authenticator
+                    .verify_code(user_id, service, submitted, now_sec)
+                {
                     Ok(verified) => {
                         let mut map = BTreeMap::new();
                         map.insert("verified".to_string(), Value::Bool(verified));
@@ -493,10 +504,12 @@ impl KinetiConnectorProtocol for TotpAuthenticatorConnector {
             "store_totp_seed" => {
                 let secret = get_str_property(payload, "secret_base32").unwrap_or("");
                 let digits = if let Value::Object(m) = payload {
-                    m.get("digits").and_then(|v| match v {
-                        Value::Number(n) => n.as_str().parse::<u32>().ok(),
-                        _ => None,
-                    }).unwrap_or(6)
+                    m.get("digits")
+                        .and_then(|v| match v {
+                            Value::Number(n) => n.as_str().parse::<u32>().ok(),
+                            _ => None,
+                        })
+                        .unwrap_or(6)
                 } else {
                     6
                 };
@@ -511,7 +524,10 @@ impl KinetiConnectorProtocol for TotpAuthenticatorConnector {
                 match self.authenticator.register_seed(user_id, &params) {
                     Ok(()) => {
                         let mut map = BTreeMap::new();
-                        map.insert("status".to_string(), Value::String("seed_stored".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("seed_stored".to_string()),
+                        );
                         Ok(Value::Object(map))
                     }
                     Err(err) => Err(ConnectorProtocolError::ExecutionFailed(err.to_string())),
@@ -580,18 +596,24 @@ mod tests {
         let (current_code, _) = auth.current_code("user_01", "GitHub", epoch).unwrap();
 
         // 1. Current code verifies
-        let ok = auth.verify_code("user_01", "GitHub", &current_code, epoch).unwrap();
+        let ok = auth
+            .verify_code("user_01", "GitHub", &current_code, epoch)
+            .unwrap();
         assert!(ok);
 
         // 2. Replay prevention: Same code in same window fails on second consumption
-        let replay = auth.verify_code("user_01", "GitHub", &current_code, epoch).unwrap();
+        let replay = auth
+            .verify_code("user_01", "GitHub", &current_code, epoch)
+            .unwrap();
         assert!(!replay);
 
         // 3. Next window (+30s) produces new code and verifies
         let epoch_next = epoch + 30;
         let (next_code, _) = auth.current_code("user_01", "GitHub", epoch_next).unwrap();
         assert_ne!(current_code, next_code);
-        let ok_next = auth.verify_code("user_01", "GitHub", &next_code, epoch_next).unwrap();
+        let ok_next = auth
+            .verify_code("user_01", "GitHub", &next_code, epoch_next)
+            .unwrap();
         assert!(ok_next);
     }
 }

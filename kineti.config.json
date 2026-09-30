@@ -2,6 +2,7 @@
   "version": "0.3.7",
   "name": "Kineti OS",
   "description": "Closed-loop software factory: skills propose, programs enforce, memory remembers",
+  "root_goal": "Build universal agent harness with cryptographic verification",
   "pipeline": [
     { "n": 1, "id": "officehours", "gate": false },
     { "n": 2, "id": "diagnose", "gate": false },
@@ -23,6 +24,7 @@
     "data_quality_threshold": 0.8,
     "hurdle_rate_min": 0.5,
     "verify_command": "bun test",
+    "ci_stage": 9,
     "freeze_during": ["build", "review", "qa"]
   },
   "memory": {

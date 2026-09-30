@@ -83,7 +83,10 @@ fn test_snapshot_monotonicity_100_writers_50_readers() {
                     inversions_clone.fetch_add(1, Ordering::SeqCst);
                     eprintln!(
                         "FATAL INVERSION on Reader {}: ver {} < last_version {} (diff: -{})",
-                        reader_idx, ver, last_version, last_version - ver
+                        reader_idx,
+                        ver,
+                        last_version,
+                        last_version - ver
                     );
                 }
                 last_version = ver;
@@ -117,7 +120,10 @@ fn test_snapshot_monotonicity_100_writers_50_readers() {
 
     assert!(writes > 500, "Must perform write operations");
     assert!(reads > 10_000, "Must perform substantial read operations");
-    assert_eq!(torn, 0, "EMPERICAL DEFECT: Torn reads detected under 100-writer contention!");
+    assert_eq!(
+        torn, 0,
+        "EMPERICAL DEFECT: Torn reads detected under 100-writer contention!"
+    );
     assert_eq!(
         inversions, 0,
         "EMPIRICAL DEFECT: Version inversions detected under 100-writer contention!"
@@ -149,7 +155,7 @@ fn test_snapshot_monotonicity_with_adversarial_thread_yielding() {
                 seq = seq.wrapping_add(1);
                 engine_clone.publish(MultiWordPayload::new(seq));
                 iter += 1;
-                if iter % 7 == 0 {
+                if iter.is_multiple_of(7) {
                     thread::yield_now();
                 }
             }
@@ -187,7 +193,7 @@ fn test_snapshot_monotonicity_with_adversarial_thread_yielding() {
 
                 reads_clone.fetch_add(1, Ordering::Relaxed);
                 iter += 1;
-                if iter % 11 == 0 {
+                if iter.is_multiple_of(11) {
                     thread::yield_now();
                 }
             }
@@ -212,18 +218,26 @@ fn test_snapshot_monotonicity_with_adversarial_thread_yielding() {
 
     assert!(reads > 10_000, "Substantial reads expected");
     assert_eq!(torn, 0, "Torn reads found during adversarial yielding");
-    assert_eq!(inversions, 0, "Version inversions found during adversarial yielding");
+    assert_eq!(
+        inversions, 0,
+        "Version inversions found during adversarial yielding"
+    );
 }
 
 #[test]
 fn test_spend_circuit_breaker_boundary_race_200_threads() {
     let ceiling = 50_000_000;
     let trip_threshold = 47_500_000;
-    let breaker = Arc::new(SpendCircuitBreaker::with_trip_threshold(ceiling, trip_threshold));
+    let breaker = Arc::new(SpendCircuitBreaker::with_trip_threshold(
+        ceiling,
+        trip_threshold,
+    ));
 
     // Fill up to exactly 1 microcent below trip threshold
     let prefill = trip_threshold - 1;
-    let res = breaker.reserve(prefill).expect("Prefill reservation succeeds");
+    let res = breaker
+        .reserve(prefill)
+        .expect("Prefill reservation succeeds");
     breaker.commit(res).expect("Prefill commit succeeds");
     assert_eq!(breaker.committed_microcents(), prefill);
     assert!(!breaker.is_tripped());
@@ -238,15 +252,13 @@ fn test_spend_circuit_breaker_boundary_race_200_threads() {
         let s_clone = Arc::clone(&successful);
         let r_clone = Arc::clone(&rejected);
 
-        handles.push(thread::spawn(move || {
-            match breaker_clone.reserve(1) {
-                Ok(res) => {
-                    let _ = breaker_clone.commit(res);
-                    s_clone.fetch_add(1, Ordering::SeqCst);
-                }
-                Err(_) => {
-                    r_clone.fetch_add(1, Ordering::SeqCst);
-                }
+        handles.push(thread::spawn(move || match breaker_clone.reserve(1) {
+            Ok(res) => {
+                let _ = breaker_clone.commit(res);
+                s_clone.fetch_add(1, Ordering::SeqCst);
+            }
+            Err(_) => {
+                r_clone.fetch_add(1, Ordering::SeqCst);
             }
         }));
     }
@@ -270,7 +282,10 @@ fn test_spend_circuit_breaker_boundary_race_200_threads() {
 fn test_spend_circuit_breaker_mixed_500_threads() {
     let ceiling = 50_000_000;
     let trip_threshold = 47_500_000;
-    let breaker = Arc::new(SpendCircuitBreaker::with_trip_threshold(ceiling, trip_threshold));
+    let breaker = Arc::new(SpendCircuitBreaker::with_trip_threshold(
+        ceiling,
+        trip_threshold,
+    ));
 
     let num_threads = 500;
     let completed = Arc::new(AtomicUsize::new(0));
@@ -332,7 +347,10 @@ fn test_spend_circuit_breaker_mixed_500_threads() {
         reserved
     );
 
-    assert_eq!(reserved, 0, "All reservations must resolve to 0 reserved microcents");
+    assert_eq!(
+        reserved, 0,
+        "All reservations must resolve to 0 reserved microcents"
+    );
     assert!(
         committed <= trip_threshold,
         "FATAL: committed microcents {} breached trip threshold {}",

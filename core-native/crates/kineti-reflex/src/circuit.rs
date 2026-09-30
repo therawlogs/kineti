@@ -66,13 +66,17 @@ impl ReflexCircuit {
         match &perception.intent {
             IntentCategory::LowInfoStatusAck => {
                 let lower = raw_text.to_lowercase();
-                let emoji = if lower.contains("thanks") || lower.contains("ty") || lower.contains("thx") {
-                    "❤️"
-                } else if lower.contains("leaving") || lower.contains("heading out") || lower.contains("omw") {
-                    "⚡"
-                } else {
-                    "👍"
-                };
+                let emoji =
+                    if lower.contains("thanks") || lower.contains("ty") || lower.contains("thx") {
+                        "❤️"
+                    } else if lower.contains("leaving")
+                        || lower.contains("heading out")
+                        || lower.contains("omw")
+                    {
+                        "⚡"
+                    } else {
+                        "👍"
+                    };
                 ReflexAction::ReactWithEmoji { emoji }
             }
             IntentCategory::FastReflexGreeting => {
@@ -84,15 +88,16 @@ impl ReflexCircuit {
                     "Hey! What can I help with?"
                 };
                 let calibrated = self.style_analyzer.calibrate_output(user_style, greeting);
-                ReflexAction::FastReply {
-                    text: calibrated,
-                }
+                ReflexAction::FastReply { text: calibrated }
             }
             IntentCategory::MemoryStore { subject, content } => {
                 let ack = if user_style.lowercase_preference {
                     format!("got it locked in 👍\n{}", content)
                 } else {
-                    format!("Got it locked in.\n• {}: {}\nI'll remember this.", subject, content)
+                    format!(
+                        "Got it locked in.\n• {}: {}\nI'll remember this.",
+                        subject, content
+                    )
                 };
                 let calibrated = self.style_analyzer.calibrate_output(user_style, &ack);
                 ReflexAction::StoreMemoryAndAck {
@@ -134,8 +139,10 @@ mod tests {
     fn test_fast_greeting_style_adaptation() {
         let classifier = SensoryClassifier::new();
         let circuit = ReflexCircuit::new();
-        let mut style = UserStyleProfile::default();
-        style.lowercase_preference = true;
+        let style = UserStyleProfile {
+            lowercase_preference: true,
+            ..UserStyleProfile::default()
+        };
 
         let p = classifier.classify("yo", None, None);
         let a = circuit.evaluate(&p, "yo", &style);
@@ -155,7 +162,12 @@ mod tests {
 
         let p = classifier.classify("my manager is Sarah Chen", None, None);
         let a = circuit.evaluate(&p, "my manager is Sarah Chen", &style);
-        if let ReflexAction::StoreMemoryAndAck { subject, content, ack_text } = a {
+        if let ReflexAction::StoreMemoryAndAck {
+            subject,
+            content,
+            ack_text,
+        } = a
+        {
             assert_eq!(subject, "manager");
             assert_eq!(content, "Sarah Chen");
             assert!(ack_text.contains("Sarah Chen"));

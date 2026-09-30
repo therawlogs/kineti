@@ -20,8 +20,8 @@ use kineti_actions::{
     PriceComparisonEngine, TicketSearchEngine, TicketSearchParams,
 };
 use kineti_connectors::{
-    ActionAuthorizationToken, BraveSearchClient, ConnectorProtocolError,
-    FluxClient, GmailClient, KinetiConnectorProtocol, OtpManager, Value,
+    ActionAuthorizationToken, BraveSearchClient, ConnectorProtocolError, FluxClient, GmailClient,
+    KinetiConnectorProtocol, OtpManager, Value,
 };
 use kineti_core::current_epoch_millis;
 use kineti_core::root_goal::{
@@ -76,7 +76,11 @@ pub struct IncomingStimulusEvent {
 
 impl IncomingStimulusEvent {
     /// Creates an incoming webhook stimulus event.
-    pub fn webhook(user_id: impl Into<String>, text: impl Into<String>, media_url: Option<String>) -> Self {
+    pub fn webhook(
+        user_id: impl Into<String>,
+        text: impl Into<String>,
+        media_url: Option<String>,
+    ) -> Self {
         Self {
             user_id: user_id.into(),
             text: text.into(),
@@ -106,7 +110,11 @@ impl IncomingStimulusEvent {
     }
 
     /// Creates an inbound stimulus event originating from iMessage bridge.
-    pub fn imessage(user_id: impl Into<String>, text: impl Into<String>, media_url: Option<String>) -> Self {
+    pub fn imessage(
+        user_id: impl Into<String>,
+        text: impl Into<String>,
+        media_url: Option<String>,
+    ) -> Self {
         Self::webhook(user_id, text, media_url)
     }
 
@@ -341,7 +349,10 @@ impl GatewayRouter {
             self.set_active_root_goal(&event.user_id, goal);
             return DispatchReceipt {
                 reply: OutboundReply::Text {
-                    body: format!("Locked Verbatim Root Goal: \"{}\". Anti-Drift Engine active.", raw_ask),
+                    body: format!(
+                        "Locked Verbatim Root Goal: \"{}\". Anti-Drift Engine active.",
+                        raw_ask
+                    ),
                 },
                 source: event.source,
                 triage_latency_micros: 50,
@@ -374,7 +385,10 @@ impl GatewayRouter {
         // -------------------------------------------------------------------
         // 1. External Data Purge
         if event.candidate_action.as_deref() == Some("purge_external_data") {
-            let receipt = self.memory.purge.execute_external_purge(&event.user_id, &[]);
+            let receipt = self
+                .memory
+                .purge
+                .execute_external_purge(&event.user_id, &[]);
             return DispatchReceipt {
                 reply: OutboundReply::Text {
                     body: format!(
@@ -413,13 +427,22 @@ impl GatewayRouter {
                 },
             });
             let reply_text = match result {
-                crate::k2k::K2KDeliveryResult::Accepted(_) => "K2K: Accepted peer message.".to_string(),
+                crate::k2k::K2KDeliveryResult::Accepted(_) => {
+                    "K2K: Accepted peer message.".to_string()
+                }
                 crate::k2k::K2KDeliveryResult::QueuedPendingApproval(req_id) => {
-                    format!("K2K: Unknown peer quarantined to pending queue (Request ID: {}).", req_id)
+                    format!(
+                        "K2K: Unknown peer quarantined to pending queue (Request ID: {}).",
+                        req_id
+                    )
                 }
                 crate::k2k::K2KDeliveryResult::Blocked => "K2K: Peer is blocked.".to_string(),
-                crate::k2k::K2KDeliveryResult::MeshPaused => "K2K: Mesh communication is currently paused.".to_string(),
-                crate::k2k::K2KDeliveryResult::UnauthorizedTier => "K2K: Action unauthorized for peer trust tier.".to_string(),
+                crate::k2k::K2KDeliveryResult::MeshPaused => {
+                    "K2K: Mesh communication is currently paused.".to_string()
+                }
+                crate::k2k::K2KDeliveryResult::UnauthorizedTier => {
+                    "K2K: Action unauthorized for peer trust tier.".to_string()
+                }
             };
             return DispatchReceipt {
                 reply: OutboundReply::Text { body: reply_text },
@@ -435,7 +458,10 @@ impl GatewayRouter {
         }
 
         // 3. Spatial Parking Query
-        if lower.contains("where is my car") || lower.contains("where did i park") || lower.contains("find my car") {
+        if lower.contains("where is my car")
+            || lower.contains("where did i park")
+            || lower.contains("find my car")
+        {
             let reply = match self.memory.spatial.recall_parking() {
                 Some((parked, dist_opt, elapsed_s)) => {
                     let note_str = parked.note.map(|n| format!(" ({})", n)).unwrap_or_default();
@@ -461,7 +487,9 @@ impl GatewayRouter {
         }
 
         // 4. Spatial Location Ingestion (e.g. Parking pin from iMessage/WhatsApp)
-        if let Some((lat, lon)) = crate::imessage::IMessageBridge::extract_location_coordinates(&event.text) {
+        if let Some((lat, lon)) =
+            crate::imessage::IMessageBridge::extract_location_coordinates(&event.text)
+        {
             if lower.contains("park") || lower.contains("car") || lower.contains("spot") {
                 let coord = kineti_memory::spatial::GeoCoordinate {
                     lat,
@@ -469,7 +497,9 @@ impl GatewayRouter {
                     accuracy_m: 5.0,
                     timestamp_ms: now_ms,
                 };
-                self.memory.spatial.record_parked_vehicle(coord, Some("Saved parking pin".to_string()));
+                self.memory
+                    .spatial
+                    .record_parked_vehicle(coord, Some("Saved parking pin".to_string()));
                 return DispatchReceipt {
                     reply: OutboundReply::Text {
                         body: format!("Got it! Saved your parking spot at {:.5}, {:.5}.", lat, lon),
@@ -490,7 +520,9 @@ impl GatewayRouter {
         // STAGE 2: SENSORY TRIAGE (< 1ms)
         // -------------------------------------------------------------------
         let triage_start = Instant::now();
-        let perception = self.classifier.classify(&event.text, event.media_url.as_deref(), None);
+        let perception = self
+            .classifier
+            .classify(&event.text, event.media_url.as_deref(), None);
         let triage_latency_micros = triage_start.elapsed().as_micros() as u64;
 
         // Dynamic style profiling
@@ -531,9 +563,14 @@ impl GatewayRouter {
                     microcents_spent: 500,
                 };
             }
-            ReflexAction::StoreMemoryAndAck { subject, content, ack_text } => {
+            ReflexAction::StoreMemoryAndAck {
+                subject,
+                content,
+                ack_text,
+            } => {
                 // Persist memory in property graph and epistemic engine
-                self.memory.remember_fact(&event.user_id, "general", &subject, &content, 1.0, None);
+                self.memory
+                    .remember_fact(&event.user_id, "general", &subject, &content, 1.0, None);
                 let epistemic_fact = EpistemicFact {
                     id: format!("ep_{}_{}", event.user_id, now_ms),
                     user_id: event.user_id.clone(),
@@ -571,7 +608,9 @@ impl GatewayRouter {
         // Check spend quota limit before proceeding with retrieval or actions
         if let Err(exceeded) = quota.check_spend(5_000) {
             return DispatchReceipt {
-                reply: OutboundReply::Text { body: exceeded.user_message },
+                reply: OutboundReply::Text {
+                    body: exceeded.user_message,
+                },
                 source: event.source,
                 triage_latency_micros,
                 reflex_short_circuit: false,
@@ -584,7 +623,9 @@ impl GatewayRouter {
         }
 
         // Two-step financial confirmation check
-        let confirmation = self.confirmation_gate.evaluate_reply(&event.user_id, &event.text);
+        let confirmation = self
+            .confirmation_gate
+            .evaluate_reply(&event.user_id, &event.text);
         match confirmation {
             ConfirmationDecision::Confirmed { action, mut token } => {
                 // If an active root goal is set, inspect against it
@@ -600,7 +641,11 @@ impl GatewayRouter {
                     )
                 });
 
-                if let Some(DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask }) = &drift_eval {
+                if let Some(DriftEvaluation::GoalMutationBlocked {
+                    reason,
+                    verbatim_ask,
+                }) = &drift_eval
+                {
                     return DispatchReceipt {
                         reply: OutboundReply::Text {
                             body: format!(
@@ -621,7 +666,11 @@ impl GatewayRouter {
 
                 // STAGE 4: ACTION GATE for confirmed financial purchase
                 let payload = action.to_canonical_payload();
-                match self.financial_connector.execute("execute_purchase", &payload, Some(&mut token)) {
+                match self.financial_connector.execute(
+                    "execute_purchase",
+                    &payload,
+                    Some(&mut token),
+                ) {
                     Ok(_) => {
                         // STAGE 5: CLOSURE
                         quota.record_spend(10_000);
@@ -645,7 +694,10 @@ impl GatewayRouter {
                     Err(err) => {
                         return DispatchReceipt {
                             reply: OutboundReply::Text {
-                                body: format!("Authorization failure for {}: {}", action.description, err),
+                                body: format!(
+                                    "Authorization failure for {}: {}",
+                                    action.description, err
+                                ),
                             },
                             source: event.source,
                             triage_latency_micros,
@@ -662,7 +714,10 @@ impl GatewayRouter {
             ConfirmationDecision::Cancelled(action) => {
                 return DispatchReceipt {
                     reply: OutboundReply::Text {
-                        body: format!("Cancelled order for {}. No charges were made.", action.description),
+                        body: format!(
+                            "Cancelled order for {}. No charges were made.",
+                            action.description
+                        ),
                     },
                     source: event.source,
                     triage_latency_micros,
@@ -697,12 +752,15 @@ impl GatewayRouter {
         // -------------------------------------------------------------------
         // STAGE 3: SCOPED RETRIEVAL (Epistemic Engine)
         // -------------------------------------------------------------------
-        let active_scope = event.scope_hint.clone().unwrap_or_else(|| {
-            infer_scope_from_text_and_intent(&event.text, &perception.intent)
-        });
+        let active_scope = event
+            .scope_hint
+            .clone()
+            .unwrap_or_else(|| infer_scope_from_text_and_intent(&event.text, &perception.intent));
 
         // Retrieve resolved persona facts strictly within the active scope
-        let persona_view = self.memory.resolve_scoped_persona(&event.user_id, &active_scope, now_ms);
+        let persona_view =
+            self.memory
+                .resolve_scoped_persona(&event.user_id, &active_scope, now_ms);
 
         // Check if candidate dietary/behavioral item should be evaluated against rule hierarchy
         let mut resolved_advice: Option<ResolvedAdvice> = None;
@@ -737,7 +795,11 @@ impl GatewayRouter {
                 )
             });
 
-            if let Some(DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask }) = &drift_eval {
+            if let Some(DriftEvaluation::GoalMutationBlocked {
+                reason,
+                verbatim_ask,
+            }) = &drift_eval
+            {
                 return DispatchReceipt {
                     reply: OutboundReply::Text {
                         body: format!(
@@ -768,7 +830,10 @@ impl GatewayRouter {
                     quota.record_spend(microcents);
                     return DispatchReceipt {
                         reply: OutboundReply::Text {
-                            body: format!("Action '{}' executed successfully: {:?}", action, output),
+                            body: format!(
+                                "Action '{}' executed successfully: {:?}",
+                                action, output
+                            ),
                         },
                         source: event.source,
                         triage_latency_micros,
@@ -811,7 +876,10 @@ impl GatewayRouter {
                     if recommendations.is_empty() {
                         "Permitted: This option matches your dietary guidelines.".to_string()
                     } else {
-                        format!("Permitted: Allowed. Note preference: {}.", recommendations.join(", "))
+                        format!(
+                            "Permitted: Allowed. Note preference: {}.",
+                            recommendations.join(", ")
+                        )
                     }
                 }
                 ActionEvaluation::NeedsClarification { question } => {
@@ -838,26 +906,37 @@ impl GatewayRouter {
         match perception.intent {
             IntentCategory::LiveWebSearch { query } => {
                 quota.record_spend(4_000);
-                let brave_key = std::env::var("BRAVE_API_KEY").unwrap_or_else(|_| "BSA_live".to_string());
+                let brave_key =
+                    std::env::var("BRAVE_API_KEY").unwrap_or_else(|_| "BSA_live".to_string());
                 let brave = BraveSearchClient::new(brave_key);
                 let reply_body = if let Ok(hits) = brave.search_live(&query, 3) {
                     if !hits.is_empty() {
-                        let mut text = format!("Here are the verified search results for \"{}\":\n\n", query);
+                        let mut text = format!(
+                            "Here are the verified search results for \"{}\":\n\n",
+                            query
+                        );
                         for (i, hit) in hits.iter().enumerate() {
-                            text.push_str(&format!("{}. {}\n   {}\n   Source: {}\n\n", i + 1, hit.title, hit.description, hit.url));
+                            text.push_str(&format!(
+                                "{}. {}\n   {}\n   Source: {}\n\n",
+                                i + 1,
+                                hit.title,
+                                hit.description,
+                                hit.url
+                            ));
                         }
                         text
                     } else {
-                        format!("Search completed for \"{}\", but no direct web matches were found.", query)
+                        format!(
+                            "Search completed for \"{}\", but no direct web matches were found.",
+                            query
+                        )
                     }
                 } else {
                     format!("Here's what's happening regarding {}:\n\n• Verified latest update received.\n• Information synthesized from web sources.", query)
                 };
 
                 DispatchReceipt {
-                    reply: OutboundReply::Text {
-                        body: reply_body,
-                    },
+                    reply: OutboundReply::Text { body: reply_body },
                     source: event.source,
                     triage_latency_micros,
                     reflex_short_circuit: false,
@@ -923,7 +1002,11 @@ impl GatewayRouter {
                                 now_ms,
                             )
                         });
-                        if let Some(DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask }) = &drift_eval {
+                        if let Some(DriftEvaluation::GoalMutationBlocked {
+                            reason,
+                            verbatim_ask,
+                        }) = &drift_eval
+                        {
                             return DispatchReceipt {
                                 reply: OutboundReply::Text {
                                     body: format!("Drift Engine Blocked Proposal: {} (Anchored to verbatim ask: \"{}\")", reason, verbatim_ask),
@@ -977,10 +1060,18 @@ impl GatewayRouter {
             }
             _ => {
                 quota.record_spend(8_000);
-                let inference = self.cortex.build_inference_prompt_from_persona(&event.text, &persona_view, &style);
+                let inference = self.cortex.build_inference_prompt_from_persona(
+                    &event.text,
+                    &persona_view,
+                    &style,
+                );
                 DispatchReceipt {
                     reply: OutboundReply::Text {
-                        body: format!("Processed query with {}: {}", inference.model.model_name(), event.text),
+                        body: format!(
+                            "Processed query with {}: {}",
+                            inference.model.model_name(),
+                            event.text
+                        ),
                     },
                     source: event.source,
                     triage_latency_micros,
@@ -996,7 +1087,11 @@ impl GatewayRouter {
     }
 
     /// Dispatches an incoming event through the 5-stage pipeline and returns the outbound reply.
-    pub fn process_event(&self, event: IncomingStimulusEvent, quota: &UserSpendQuota) -> OutboundReply {
+    pub fn process_event(
+        &self,
+        event: IncomingStimulusEvent,
+        quota: &UserSpendQuota,
+    ) -> OutboundReply {
         self.dispatch_event(event, quota).reply
     }
 
@@ -1033,7 +1128,8 @@ impl GatewayRouter {
         scope: &ContextScope,
         current_time: u64,
     ) -> ResolvedPersonaView {
-        self.memory.resolve_scoped_persona(user_id, scope, current_time)
+        self.memory
+            .resolve_scoped_persona(user_id, scope, current_time)
     }
 
     /// Resolves behavioral advice for a candidate item against the user's epistemic persona.
@@ -1045,7 +1141,13 @@ impl GatewayRouter {
         candidate_tags: &[&str],
         current_time: u64,
     ) -> ResolvedAdvice {
-        self.memory.resolve_advice_for_candidate(user_id, scope, candidate_item, candidate_tags, current_time)
+        self.memory.resolve_advice_for_candidate(
+            user_id,
+            scope,
+            candidate_item,
+            candidate_tags,
+            current_time,
+        )
     }
 
     /// Triages third-party friction against the active user root goal through the 3-level ladder.
@@ -1059,7 +1161,9 @@ impl GatewayRouter {
             DriftInspector::triage_friction(&goal, friction, accumulated_debris_cost)
         } else {
             match friction {
-                FrictionType::Noise { .. } => FrictionResolution::RetryWithBackoff { delay_ms: 1000 },
+                FrictionType::Noise { .. } => {
+                    FrictionResolution::RetryWithBackoff { delay_ms: 1000 }
+                }
                 FrictionType::BrokenSurface {
                     alternative_surface: Some(alt),
                     ..
@@ -1071,14 +1175,29 @@ impl GatewayRouter {
                     alternative_surface: None,
                     surface_name,
                 } => FrictionResolution::EscalateCleanNo {
-                    clean_no_reason: format!("Surface '{}' is unavailable and no viable alternative exists", surface_name),
-                    banked_data: format!("Sunk cost of ${:.2} written off", accumulated_debris_cost as f64 / 1_000_000.0),
+                    clean_no_reason: format!(
+                        "Surface '{}' is unavailable and no viable alternative exists",
+                        surface_name
+                    ),
+                    banked_data: format!(
+                        "Sunk cost of ${:.2} written off",
+                        accumulated_debris_cost as f64 / 1_000_000.0
+                    ),
                 },
-                FrictionType::RealConstraint { obstacle, mutates_done_definition } => {
+                FrictionType::RealConstraint {
+                    obstacle,
+                    mutates_done_definition,
+                } => {
                     if mutates_done_definition {
                         FrictionResolution::EscalateCleanNo {
-                            clean_no_reason: format!("Third party refused terms ('{}'). Impossibility reported cleanly.", obstacle),
-                            banked_data: format!("Sunk cost of ${:.2} written off", accumulated_debris_cost as f64 / 1_000_000.0),
+                            clean_no_reason: format!(
+                                "Third party refused terms ('{}'). Impossibility reported cleanly.",
+                                obstacle
+                            ),
+                            banked_data: format!(
+                                "Sunk cost of ${:.2} written off",
+                                accumulated_debris_cost as f64 / 1_000_000.0
+                            ),
                         }
                     } else {
                         FrictionResolution::RetryWithBackoff { delay_ms: 2000 }
@@ -1124,7 +1243,9 @@ impl GatewayRouter {
                 (res, 1_000)
             }
             _ => (
-                Err(ConnectorProtocolError::UnsupportedAction(action.to_string())),
+                Err(ConnectorProtocolError::UnsupportedAction(
+                    action.to_string(),
+                )),
                 0,
             ),
         }
@@ -1136,7 +1257,9 @@ fn infer_scope_from_text_and_intent(text: &str, intent: &IntentCategory) -> Cont
     let lower = text.to_lowercase();
     match intent {
         IntentCategory::RealWorldAction { .. } => ContextScope::Domain(DomainKind::Finance),
-        IntentCategory::GmailAction { .. } | IntentCategory::NotionAction { .. } => ContextScope::Domain(DomainKind::Work),
+        IntentCategory::GmailAction { .. } | IntentCategory::NotionAction { .. } => {
+            ContextScope::Domain(DomainKind::Work)
+        }
         _ => {
             if lower.contains("eat")
                 || lower.contains("food")
@@ -1246,7 +1369,11 @@ fn parse_spend_from_text(text: &str) -> Option<u64> {
     // Check for patterns like "under 350", "max 350", "budget 350", "350 dollars"
     let tokens: Vec<&str> = lower.split_whitespace().collect();
     for (i, token) in tokens.iter().enumerate() {
-        if (*token == "under" || *token == "max" || *token == "budget" || *token == "ceiling" || *token == "limit")
+        if (*token == "under"
+            || *token == "max"
+            || *token == "budget"
+            || *token == "ceiling"
+            || *token == "limit")
             && i + 1 < tokens.len()
         {
             let candidate = tokens[i + 1].trim_matches(|c: char| !c.is_ascii_digit() && c != '.');
@@ -1283,10 +1410,15 @@ fn parse_counterparty_from_text(text: &str) -> Option<String> {
     let tokens: Vec<&str> = text.split_whitespace().collect();
     for (i, token) in tokens.iter().enumerate() {
         let t_lower = token.to_lowercase();
-        if (t_lower == "from" || t_lower == "with" || t_lower == "on" || t_lower == "via" || t_lower == "vendor:")
+        if (t_lower == "from"
+            || t_lower == "with"
+            || t_lower == "on"
+            || t_lower == "via"
+            || t_lower == "vendor:")
             && i + 1 < tokens.len()
         {
-            let cp = tokens[i + 1].trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
+            let cp =
+                tokens[i + 1].trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-');
             if !cp.is_empty() && cp != "the" && cp != "a" && cp != "my" {
                 return Some(cp.to_string());
             }
@@ -1301,11 +1433,20 @@ fn extract_spend_from_payload(payload: &Value) -> Option<u64> {
         if let Some(Value::Number(num)) = map.get("spend_microcents") {
             return num.as_str().parse::<u64>().ok();
         }
-        if let Some(Value::Number(num)) = map.get("amount_cents").or_else(|| map.get("price_cents")) {
+        if let Some(Value::Number(num)) = map.get("amount_cents").or_else(|| map.get("price_cents"))
+        {
             return num.as_str().parse::<u64>().ok().map(|c| c * 10_000);
         }
-        if let Some(Value::Number(num)) = map.get("amount").or_else(|| map.get("price")).or_else(|| map.get("usd")) {
-            return num.as_str().parse::<f64>().ok().map(|d| (d * 1_000_000.0) as u64);
+        if let Some(Value::Number(num)) = map
+            .get("amount")
+            .or_else(|| map.get("price"))
+            .or_else(|| map.get("usd"))
+        {
+            return num
+                .as_str()
+                .parse::<f64>()
+                .ok()
+                .map(|d| (d * 1_000_000.0) as u64);
         }
     }
     None
@@ -1348,7 +1489,12 @@ mod tests {
         }
 
         // Flow 3: Memory storage -> saves fact and confirms (style calibrated to lowercase)
-        let reply3 = router.process_message("user_01", "remember that my manager is Sarah Chen", None, &quota);
+        let reply3 = router.process_message(
+            "user_01",
+            "remember that my manager is Sarah Chen",
+            None,
+            &quota,
+        );
         if let OutboundReply::Text { body } = reply3 {
             assert!(body.to_lowercase().contains("sarah chen"));
         } else {
@@ -1366,7 +1512,12 @@ mod tests {
         let quota = UserSpendQuota::new("user_01", UserTier::Pro.daily_quota_microcents());
 
         // Shopping price comparison
-        let reply = router.process_message("user_01", "Find me the best price on Sony headphones", None, &quota);
+        let reply = router.process_message(
+            "user_01",
+            "Find me the best price on Sony headphones",
+            None,
+            &quota,
+        );
         if let OutboundReply::Text { body } = reply {
             assert!(body.contains("Amazon: $328.00"));
             assert!(body.contains("Lowest price"));
@@ -1375,7 +1526,12 @@ mod tests {
         }
 
         // Ticket search and two-step confirmation proposal
-        let reply2 = router.process_message("user_01", "Look for 2 good tickets for Hans Zimmer", None, &quota);
+        let reply2 = router.process_message(
+            "user_01",
+            "Look for 2 good tickets for Hans Zimmer",
+            None,
+            &quota,
+        );
         if let OutboundReply::Text { body } = reply2 {
             assert!(body.contains("Found 2 matching tickets"));
             assert!(body.contains("Reply BUY to confirm"));
@@ -1422,15 +1578,36 @@ mod tests {
         let router = GatewayRouter::new();
         let quota = UserSpendQuota::new("u_triage", UserTier::Pro.daily_quota_microcents());
 
-        let low_info_signals = ["thanks", "ok", "got it", "leaving now", "omw", "heading out", "sure", "cool"];
+        let low_info_signals = [
+            "thanks",
+            "ok",
+            "got it",
+            "leaving now",
+            "omw",
+            "heading out",
+            "sure",
+            "cool",
+        ];
         for signal in low_info_signals {
             let event = IncomingStimulusEvent::webhook("u_triage", signal, None);
             let receipt = router.dispatch_event(event, &quota);
 
             // Sub-millisecond requirement: < 1ms (< 1000 µs)
-            assert!(receipt.triage_latency_micros < 1000, "Triage latency was {} µs, expected < 1000 µs", receipt.triage_latency_micros);
-            assert!(receipt.reflex_short_circuit, "Expected reflex short circuit for '{}'", signal);
-            assert!(matches!(receipt.reply, OutboundReply::Reaction { .. }), "Expected emoji reaction for '{}'", signal);
+            assert!(
+                receipt.triage_latency_micros < 1000,
+                "Triage latency was {} µs, expected < 1000 µs",
+                receipt.triage_latency_micros
+            );
+            assert!(
+                receipt.reflex_short_circuit,
+                "Expected reflex short circuit for '{}'",
+                signal
+            );
+            assert!(
+                matches!(receipt.reply, OutboundReply::Reaction { .. }),
+                "Expected emoji reaction for '{}'",
+                signal
+            );
             assert_eq!(receipt.microcents_spent, 100); // 0 tokens, $0.0001
         }
     }
@@ -1443,104 +1620,132 @@ mod tests {
 
         // Ingest Diet Persona:
         // 1. BaselineRule: Vegetarian
-        router.memory.ingest_epistemic_fact(
-            EpistemicFact {
-                id: "f_veg".to_string(),
-                user_id: "u_diet".to_string(),
-                scope: ContextScope::Domain(DomainKind::Health),
-                attribute: "diet".to_string(),
-                claim: "Vegetarian".to_string(),
-                constraint_type: RuleConstraintType::BaselineRule,
-                certainty: EpistemicCertainty::DirectlyKnown,
-                valid_from: now_ms,
-                valid_until: None,
-                contradiction_criteria: None,
-                consequence_level: kineti_memory::ConsequenceLevel::HighConsequence,
-            },
-            now_ms,
-        ).unwrap();
+        router
+            .memory
+            .ingest_epistemic_fact(
+                EpistemicFact {
+                    id: "f_veg".to_string(),
+                    user_id: "u_diet".to_string(),
+                    scope: ContextScope::Domain(DomainKind::Health),
+                    attribute: "diet".to_string(),
+                    claim: "Vegetarian".to_string(),
+                    constraint_type: RuleConstraintType::BaselineRule,
+                    certainty: EpistemicCertainty::DirectlyKnown,
+                    valid_from: now_ms,
+                    valid_until: None,
+                    contradiction_criteria: None,
+                    consequence_level: kineti_memory::ConsequenceLevel::HighConsequence,
+                },
+                now_ms,
+            )
+            .unwrap();
 
         // 2. PermittedException: Eats eggs
-        router.memory.ingest_epistemic_fact(
-            EpistemicFact {
-                id: "f_eggs".to_string(),
-                user_id: "u_diet".to_string(),
-                scope: ContextScope::Domain(DomainKind::Health),
-                attribute: "diet_exception".to_string(),
-                claim: "Eats eggs".to_string(),
-                constraint_type: RuleConstraintType::PermittedException,
-                certainty: EpistemicCertainty::DirectlyKnown,
-                valid_from: now_ms,
-                valid_until: None,
-                contradiction_criteria: None,
-                consequence_level: kineti_memory::ConsequenceLevel::HighConsequence,
-            },
-            now_ms,
-        ).unwrap();
+        router
+            .memory
+            .ingest_epistemic_fact(
+                EpistemicFact {
+                    id: "f_eggs".to_string(),
+                    user_id: "u_diet".to_string(),
+                    scope: ContextScope::Domain(DomainKind::Health),
+                    attribute: "diet_exception".to_string(),
+                    claim: "Eats eggs".to_string(),
+                    constraint_type: RuleConstraintType::PermittedException,
+                    certainty: EpistemicCertainty::DirectlyKnown,
+                    valid_from: now_ms,
+                    valid_until: None,
+                    contradiction_criteria: None,
+                    consequence_level: kineti_memory::ConsequenceLevel::HighConsequence,
+                },
+                now_ms,
+            )
+            .unwrap();
 
         // 3. Preference: Low dairy
-        router.memory.ingest_epistemic_fact(
-            EpistemicFact {
-                id: "f_dairy".to_string(),
-                user_id: "u_diet".to_string(),
-                scope: ContextScope::Domain(DomainKind::Health),
-                attribute: "dairy_preference".to_string(),
-                claim: "Low dairy".to_string(),
-                constraint_type: RuleConstraintType::Preference,
-                certainty: EpistemicCertainty::DirectlyKnown,
-                valid_from: now_ms,
-                valid_until: None,
-                contradiction_criteria: None,
-                consequence_level: kineti_memory::ConsequenceLevel::Operational,
-            },
-            now_ms,
-        ).unwrap();
+        router
+            .memory
+            .ingest_epistemic_fact(
+                EpistemicFact {
+                    id: "f_dairy".to_string(),
+                    user_id: "u_diet".to_string(),
+                    scope: ContextScope::Domain(DomainKind::Health),
+                    attribute: "dairy_preference".to_string(),
+                    claim: "Low dairy".to_string(),
+                    constraint_type: RuleConstraintType::Preference,
+                    certainty: EpistemicCertainty::DirectlyKnown,
+                    valid_from: now_ms,
+                    valid_until: None,
+                    contradiction_criteria: None,
+                    consequence_level: kineti_memory::ConsequenceLevel::Operational,
+                },
+                now_ms,
+            )
+            .unwrap();
 
         // 4. SafetyCeiling: Peanut allergy
-        router.memory.ingest_epistemic_fact(
-            EpistemicFact {
-                id: "f_peanut".to_string(),
-                user_id: "u_diet".to_string(),
-                scope: ContextScope::Domain(DomainKind::Health),
-                attribute: "allergy".to_string(),
-                claim: "Severe peanut allergy".to_string(),
-                constraint_type: RuleConstraintType::SafetyCeiling,
-                certainty: EpistemicCertainty::DirectlyKnown,
-                valid_from: now_ms,
-                valid_until: None,
-                contradiction_criteria: None,
-                consequence_level: kineti_memory::ConsequenceLevel::HighConsequence,
-            },
-            now_ms,
-        ).unwrap();
+        router
+            .memory
+            .ingest_epistemic_fact(
+                EpistemicFact {
+                    id: "f_peanut".to_string(),
+                    user_id: "u_diet".to_string(),
+                    scope: ContextScope::Domain(DomainKind::Health),
+                    attribute: "allergy".to_string(),
+                    claim: "Severe peanut allergy".to_string(),
+                    constraint_type: RuleConstraintType::SafetyCeiling,
+                    certainty: EpistemicCertainty::DirectlyKnown,
+                    valid_from: now_ms,
+                    valid_until: None,
+                    contradiction_criteria: None,
+                    consequence_level: kineti_memory::ConsequenceLevel::HighConsequence,
+                },
+                now_ms,
+            )
+            .unwrap();
 
         // 5. Unrelated Work fact: Sarah Chen manager
-        router.memory.ingest_epistemic_fact(
-            EpistemicFact {
-                id: "f_work".to_string(),
-                user_id: "u_diet".to_string(),
-                scope: ContextScope::Domain(DomainKind::Work),
-                attribute: "manager".to_string(),
-                claim: "Sarah Chen".to_string(),
-                constraint_type: RuleConstraintType::BaselineRule,
-                certainty: EpistemicCertainty::DirectlyKnown,
-                valid_from: now_ms,
-                valid_until: None,
-                contradiction_criteria: None,
-                consequence_level: kineti_memory::ConsequenceLevel::Operational,
-            },
-            now_ms,
-        ).unwrap();
+        router
+            .memory
+            .ingest_epistemic_fact(
+                EpistemicFact {
+                    id: "f_work".to_string(),
+                    user_id: "u_diet".to_string(),
+                    scope: ContextScope::Domain(DomainKind::Work),
+                    attribute: "manager".to_string(),
+                    claim: "Sarah Chen".to_string(),
+                    constraint_type: RuleConstraintType::BaselineRule,
+                    certainty: EpistemicCertainty::DirectlyKnown,
+                    valid_from: now_ms,
+                    valid_until: None,
+                    contradiction_criteria: None,
+                    consequence_level: kineti_memory::ConsequenceLevel::Operational,
+                },
+                now_ms,
+            )
+            .unwrap();
 
         // Test Scope Isolation: Query in Health scope MUST NOT leak Work facts
-        let health_facts = router.retrieve_scoped_persona("u_diet", &ContextScope::Domain(DomainKind::Health), now_ms);
-        assert!(health_facts.baseline_rules.iter().any(|f| f.claim == "Vegetarian"));
-        assert!(!health_facts.baseline_rules.iter().any(|f| f.claim == "Sarah Chen"));
+        let health_facts = router.retrieve_scoped_persona(
+            "u_diet",
+            &ContextScope::Domain(DomainKind::Health),
+            now_ms,
+        );
+        assert!(health_facts
+            .baseline_rules
+            .iter()
+            .any(|f| f.claim == "Vegetarian"));
+        assert!(!health_facts
+            .baseline_rules
+            .iter()
+            .any(|f| f.claim == "Sarah Chen"));
 
         // Case A: Beef Burger -> Blocked by Vegetarian Baseline Rule
         let burger_evt = IncomingStimulusEvent::cli("u_diet", "Can I have a beef burger?");
         let burger_receipt = router.dispatch_event(burger_evt, &quota);
-        assert_eq!(burger_receipt.resolved_scope, Some(ContextScope::Domain(DomainKind::Health)));
+        assert_eq!(
+            burger_receipt.resolved_scope,
+            Some(ContextScope::Domain(DomainKind::Health))
+        );
         assert!(!burger_receipt.action_gate_passed);
         if let OutboundReply::Text { body } = burger_receipt.reply {
             assert!(body.contains("Blocked") || body.contains("Prohibited"));
@@ -1549,9 +1754,13 @@ mod tests {
         }
 
         // Case B: Scrambled Eggs -> Permitted by Exception despite Vegetarian rule
-        let eggs_evt = IncomingStimulusEvent::cli("u_diet", "Can I eat scrambled eggs for breakfast?");
+        let eggs_evt =
+            IncomingStimulusEvent::cli("u_diet", "Can I eat scrambled eggs for breakfast?");
         let eggs_receipt = router.dispatch_event(eggs_evt, &quota);
-        assert_eq!(eggs_receipt.resolved_scope, Some(ContextScope::Domain(DomainKind::Health)));
+        assert_eq!(
+            eggs_receipt.resolved_scope,
+            Some(ContextScope::Domain(DomainKind::Health))
+        );
         assert!(eggs_receipt.action_gate_passed);
         if let OutboundReply::Text { body } = eggs_receipt.reply {
             assert!(body.contains("Permitted"));
@@ -1562,7 +1771,10 @@ mod tests {
         // Case C: Peanuts -> Hard Block by SafetyCeiling
         let peanut_evt = IncomingStimulusEvent::cli("u_diet", "Can I eat some peanuts?");
         let peanut_receipt = router.dispatch_event(peanut_evt, &quota);
-        assert_eq!(peanut_receipt.resolved_scope, Some(ContextScope::Domain(DomainKind::Health)));
+        assert_eq!(
+            peanut_receipt.resolved_scope,
+            Some(ContextScope::Domain(DomainKind::Health))
+        );
         assert!(!peanut_receipt.action_gate_passed);
         if let OutboundReply::Text { body } = peanut_receipt.reply {
             assert!(body.contains("Warning") && body.contains("safety ceiling"));
@@ -1580,7 +1792,10 @@ mod tests {
         // 1. High-consequence action without authorization token -> FAILS CLOSED
         let mut buy_payload = BTreeMap::new();
         buy_payload.insert("amount_cents".to_string(), Value::from(5000u64));
-        buy_payload.insert("description".to_string(), Value::String("Pro Subscription".to_string()));
+        buy_payload.insert(
+            "description".to_string(),
+            Value::String("Pro Subscription".to_string()),
+        );
         let payload_val = Value::Object(buy_payload.clone());
 
         let unauth_event = IncomingStimulusEvent::cli("u_gate", "Trigger buy")
@@ -1590,7 +1805,10 @@ mod tests {
         assert!(!unauth_receipt.action_gate_passed);
         if let OutboundReply::Text { body } = unauth_receipt.reply {
             assert!(body.contains("Action Gate blocked"));
-            assert!(body.contains("MissingAuthorizationToken") || body.contains("required authorization token"));
+            assert!(
+                body.contains("MissingAuthorizationToken")
+                    || body.contains("required authorization token")
+            );
         } else {
             panic!("Expected error reply for unauthorized purchase");
         }
@@ -1647,7 +1865,10 @@ mod tests {
 
         // 5. Trivial action (web_search) -> PASSES without token
         let mut search_map = BTreeMap::new();
-        search_map.insert("query".to_string(), Value::String("rust concurrency".to_string()));
+        search_map.insert(
+            "query".to_string(),
+            Value::String("rust concurrency".to_string()),
+        );
         let search_event = IncomingStimulusEvent::cli("u_gate", "Search query")
             .with_action("web_search", Value::Object(search_map));
         let search_receipt = router.dispatch_event(search_event, &quota);
@@ -1667,7 +1888,11 @@ mod tests {
         assert_eq!(quota.spent_microcents(), 100);
 
         // Step 2: Memory store spends 1000 microcents ($0.001)
-        let evt2 = IncomingStimulusEvent::webhook("u_closure", "remember that my favorite drink is matcha latte", None);
+        let evt2 = IncomingStimulusEvent::webhook(
+            "u_closure",
+            "remember that my favorite drink is matcha latte",
+            None,
+        );
         let r2 = router.dispatch_event(evt2, &quota);
         assert_eq!(r2.microcents_spent, 1000);
         assert_eq!(quota.spent_microcents(), 1100);
@@ -1697,12 +1922,18 @@ mod tests {
         assert!(active_goal.is_some());
         let goal = active_goal.unwrap();
         assert_eq!(goal.boundaries.max_spend_microcents, Some(350_000_000));
-        assert_eq!(goal.boundaries.counterparty.as_deref(), Some("Ticketmaster"));
+        assert_eq!(
+            goal.boundaries.counterparty.as_deref(),
+            Some("Ticketmaster")
+        );
 
         // 2. Step 1: In-bounds candidate action within budget and counterparty
         let mut valid_payload = BTreeMap::new();
         valid_payload.insert("spend_microcents".to_string(), Value::from(330_000_000u64));
-        valid_payload.insert("counterparty".to_string(), Value::String("Ticketmaster".to_string()));
+        valid_payload.insert(
+            "counterparty".to_string(),
+            Value::String("Ticketmaster".to_string()),
+        );
         let now_ms = current_epoch_millis();
         let valid_token = ActionAuthorizationToken::mint(
             "tok_drift_01",
@@ -1713,17 +1944,24 @@ mod tests {
             600,
             now_ms,
         );
-        let valid_step = IncomingStimulusEvent::webhook("u_drift_user", "Proceed with purchase", None)
-            .with_action("execute_purchase", Value::Object(valid_payload))
-            .with_token(valid_token);
+        let valid_step =
+            IncomingStimulusEvent::webhook("u_drift_user", "Proceed with purchase", None)
+                .with_action("execute_purchase", Value::Object(valid_payload))
+                .with_token(valid_token);
         let valid_receipt = router.dispatch_event(valid_step, &quota);
         assert!(valid_receipt.action_gate_passed);
-        assert_eq!(valid_receipt.drift_evaluation, Some(DriftEvaluation::InBounds));
+        assert_eq!(
+            valid_receipt.drift_evaluation,
+            Some(DriftEvaluation::InBounds)
+        );
 
         // 3. Step 2: Budget overrun (> $350) blocked by Anti-Drift Engine
         let mut overrun_payload = BTreeMap::new();
         overrun_payload.insert("spend_microcents".to_string(), Value::from(385_000_000u64)); // $385 (10% overrun)
-        overrun_payload.insert("counterparty".to_string(), Value::String("Ticketmaster".to_string()));
+        overrun_payload.insert(
+            "counterparty".to_string(),
+            Value::String("Ticketmaster".to_string()),
+        );
         let overrun_token = ActionAuthorizationToken::mint(
             "tok_drift_02",
             "u_drift_user",
@@ -1753,7 +1991,10 @@ mod tests {
         // 4. Step 3: Counterparty drift blocked (e.g. ScalperHub instead of Ticketmaster)
         let mut cp_drift_payload = BTreeMap::new();
         cp_drift_payload.insert("spend_microcents".to_string(), Value::from(300_000_000u64));
-        cp_drift_payload.insert("counterparty".to_string(), Value::String("ScalperHub".to_string()));
+        cp_drift_payload.insert(
+            "counterparty".to_string(),
+            Value::String("ScalperHub".to_string()),
+        );
         let cp_token = ActionAuthorizationToken::mint(
             "tok_drift_03",
             "u_drift_user",
@@ -1763,9 +2004,10 @@ mod tests {
             600,
             now_ms,
         );
-        let cp_step = IncomingStimulusEvent::webhook("u_drift_user", "Unauthorized vendor purchase", None)
-            .with_action("execute_purchase", Value::Object(cp_drift_payload))
-            .with_token(cp_token);
+        let cp_step =
+            IncomingStimulusEvent::webhook("u_drift_user", "Unauthorized vendor purchase", None)
+                .with_action("execute_purchase", Value::Object(cp_drift_payload))
+                .with_token(cp_token);
         let cp_receipt = router.dispatch_event(cp_step, &quota);
         assert!(!cp_receipt.action_gate_passed);
         assert!(matches!(
@@ -1806,10 +2048,15 @@ mod tests {
         // Ladder Level 1: Noise -> Retry with backoff
         let res1 = router.triage_action_friction(
             "u_traveler",
-            FrictionType::Noise { message: "503 Service Unavailable".to_string() },
+            FrictionType::Noise {
+                message: "503 Service Unavailable".to_string(),
+            },
             0,
         );
-        assert!(matches!(res1, FrictionResolution::RetryWithBackoff { delay_ms: 1000 }));
+        assert!(matches!(
+            res1,
+            FrictionResolution::RetryWithBackoff { delay_ms: 1000 }
+        ));
 
         // Ladder Level 2: Broken Surface with fallback -> Silent reroute
         let res2 = router.triage_action_friction(
@@ -1821,7 +2068,10 @@ mod tests {
             5_000,
         );
         match res2 {
-            FrictionResolution::SilentReroute { target_surface, verbatim_goal } => {
+            FrictionResolution::SilentReroute {
+                target_surface,
+                verbatim_goal,
+            } => {
                 assert_eq!(target_surface, "ANA Desktop API");
                 assert!(verbatim_goal.contains("Book flight to Tokyo"));
             }
@@ -1838,7 +2088,10 @@ mod tests {
             20_000,
         );
         match res3 {
-            FrictionResolution::EscalateCleanNo { clean_no_reason, banked_data } => {
+            FrictionResolution::EscalateCleanNo {
+                clean_no_reason,
+                banked_data,
+            } => {
                 assert!(clean_no_reason.contains("Third party refused terms"));
                 assert!(banked_data.contains("zero goal mutation permitted"));
             }
@@ -1852,7 +2105,8 @@ mod tests {
         let quota = UserSpendQuota::new("u_park_user", 500_000_000);
 
         // 1. Send parking pin from iMessage/Apple Maps
-        let pin_text = "I parked here: https://maps.apple.com/?ll=37.774929,-122.419416&q=My%20Spot";
+        let pin_text =
+            "I parked here: https://maps.apple.com/?ll=37.774929,-122.419416&q=My%20Spot";
         let pin_event = IncomingStimulusEvent::imessage("u_park_user", pin_text, None);
         let pin_receipt = router.dispatch_event(pin_event, &quota);
         assert!(pin_receipt.reflex_short_circuit);
@@ -1863,7 +2117,8 @@ mod tests {
         }
 
         // 2. Query parking location
-        let query_event = IncomingStimulusEvent::webhook("u_park_user", "Where did I park my car?", None);
+        let query_event =
+            IncomingStimulusEvent::webhook("u_park_user", "Where did I park my car?", None);
         let query_receipt = router.dispatch_event(query_event, &quota);
         assert!(query_receipt.reflex_short_circuit);
         if let OutboundReply::Text { body } = query_receipt.reply {

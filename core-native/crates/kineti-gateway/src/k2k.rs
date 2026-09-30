@@ -400,20 +400,20 @@ impl K2KCoordinator {
 
         // 5. Tier & Permission Verification
         match &message.intent {
-            K2KIntent::ScheduleAlignmentRequest { .. } | K2KIntent::ScheduleAlignmentResponse { .. } => {
+            K2KIntent::ScheduleAlignmentRequest { .. }
+            | K2KIntent::ScheduleAlignmentResponse { .. } => {
                 if !peer.can_query_availability {
                     return K2KDeliveryResult::UnauthorizedTier;
                 }
             }
-            K2KIntent::DiningCoordinationRequest { .. } | K2KIntent::DiningCoordinationResponse { .. } => {
+            K2KIntent::DiningCoordinationRequest { .. }
+            | K2KIntent::DiningCoordinationResponse { .. } => {
                 if !peer.can_coordinate_dining || peer.tier != TrustTier::InnerCircle {
                     return K2KDeliveryResult::UnauthorizedTier;
                 }
             }
-            K2KIntent::StandingSessionSync { .. } => {
-                if peer.tier != TrustTier::InnerCircle {
-                    return K2KDeliveryResult::UnauthorizedTier;
-                }
+            K2KIntent::StandingSessionSync { .. } if peer.tier != TrustTier::InnerCircle => {
+                return K2KDeliveryResult::UnauthorizedTier;
             }
             _ => {}
         }
@@ -430,7 +430,10 @@ impl K2KCoordinator {
         peer_slots: &[TimeSlot],
         duration_minutes: u32,
     ) -> Result<ScheduleStatus, &'static str> {
-        let peer = self.peers.get(peer_id).ok_or("Peer not in trusted network")?;
+        let peer = self
+            .peers
+            .get(peer_id)
+            .ok_or("Peer not in trusted network")?;
         if !peer.can_query_availability {
             return Err("Peer lacks availability query permission");
         }
@@ -472,7 +475,10 @@ impl K2KCoordinator {
         peer_favorites: &[&str],
         dietary_blocklist: &[&str],
     ) -> Result<Option<String>, &'static str> {
-        let peer = self.peers.get(peer_id).ok_or("Peer not in trusted network")?;
+        let peer = self
+            .peers
+            .get(peer_id)
+            .ok_or("Peer not in trusted network")?;
         if peer.tier != TrustTier::InnerCircle || !peer.can_coordinate_dining {
             return Err("Peer not authorized for dining coordination");
         }
@@ -480,7 +486,9 @@ impl K2KCoordinator {
         // Find intersection of favorites that do not violate dietary ceiling
         for &fav in local_favorites {
             let matches_peer = peer_favorites.iter().any(|&p| p.eq_ignore_ascii_case(fav));
-            let violates_diet = dietary_blocklist.iter().any(|&d| fav.to_lowercase().contains(&d.to_lowercase()));
+            let violates_diet = dietary_blocklist
+                .iter()
+                .any(|&d| fav.to_lowercase().contains(&d.to_lowercase()));
 
             if matches_peer && !violates_diet {
                 return Ok(Some(fav.to_string()));
@@ -524,11 +532,17 @@ impl KinetiConnectorProtocol for K2KCoordinator {
         let mut map = BTreeMap::new();
         match action {
             "pause_mesh" => {
-                map.insert("status".to_string(), Value::String("mesh_paused".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("mesh_paused".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "resume_mesh" => {
-                map.insert("status".to_string(), Value::String("mesh_active".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("mesh_active".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "approve_request" => {
@@ -630,7 +644,10 @@ mod tests {
 
         let dining_res = coord.receive_message(dining_msg);
         match dining_res {
-            K2KDeliveryResult::Accepted(K2KIntent::DiningCoordinationRequest { party_size, .. }) => {
+            K2KDeliveryResult::Accepted(K2KIntent::DiningCoordinationRequest {
+                party_size,
+                ..
+            }) => {
                 assert_eq!(party_size, 4);
             }
             other => panic!("Expected Accepted dining request, got {:?}", other),
@@ -717,17 +734,39 @@ mod tests {
         });
 
         let my_slots = vec![
-            TimeSlot { start_epoch: 1000, end_epoch: 2000, is_free: true },
-            TimeSlot { start_epoch: 2000, end_epoch: 3000, is_free: false },
-            TimeSlot { start_epoch: 3000, end_epoch: 4000, is_free: true },
+            TimeSlot {
+                start_epoch: 1000,
+                end_epoch: 2000,
+                is_free: true,
+            },
+            TimeSlot {
+                start_epoch: 2000,
+                end_epoch: 3000,
+                is_free: false,
+            },
+            TimeSlot {
+                start_epoch: 3000,
+                end_epoch: 4000,
+                is_free: true,
+            },
         ];
 
         let peer_slots = vec![
-            TimeSlot { start_epoch: 1500, end_epoch: 2500, is_free: true }, // overlap 1500..2000 (500s < 1800s)
-            TimeSlot { start_epoch: 3000, end_epoch: 5000, is_free: true }, // overlap 3000..4000 (1000s > 600s for 10 min)
+            TimeSlot {
+                start_epoch: 1500,
+                end_epoch: 2500,
+                is_free: true,
+            }, // overlap 1500..2000 (500s < 1800s)
+            TimeSlot {
+                start_epoch: 3000,
+                end_epoch: 5000,
+                is_free: true,
+            }, // overlap 3000..4000 (1000s > 600s for 10 min)
         ];
 
-        let alignment = coord.align_schedule("agent_partner", &my_slots, &peer_slots, 10).unwrap();
+        let alignment = coord
+            .align_schedule("agent_partner", &my_slots, &peer_slots, 10)
+            .unwrap();
         match alignment {
             ScheduleStatus::MutualSlotFound(slot) => {
                 assert_eq!(slot.start_epoch, 3000);
@@ -757,7 +796,12 @@ mod tests {
         let dietary_blocklist = ["Pork"];
 
         let match_res = coord
-            .coordinate_dining("agent_colleague", &my_favorites, &peer_favorites, &dietary_blocklist)
+            .coordinate_dining(
+                "agent_colleague",
+                &my_favorites,
+                &peer_favorites,
+                &dietary_blocklist,
+            )
             .unwrap();
 
         assert_eq!(match_res, Some("Shizen".to_string()));

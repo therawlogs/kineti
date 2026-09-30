@@ -36,7 +36,10 @@ impl PriceComparisonReport {
 
     /// Formats a clean conversational response for chat.
     pub fn format_for_chat(&self) -> String {
-        let mut out = format!("Here are the best current prices for {}:\n\n", self.product_name);
+        let mut out = format!(
+            "Here are the best current prices for {}:\n\n",
+            self.product_name
+        );
         for (i, offer) in self.offers.iter().enumerate() {
             let price_usd = offer.price_cents as f32 / 100.0;
             let badge = if i == 0 { " — Lowest price" } else { "" };
@@ -62,7 +65,9 @@ impl PriceComparisonReport {
                 }
             }
         }
-        out.push_str("\nWant me to send you the direct checkout link or monitor for a bigger drop?");
+        out.push_str(
+            "\nWant me to send you the direct checkout link or monitor for a bigger drop?",
+        );
         out
     }
 }
@@ -114,7 +119,11 @@ impl PriceComparisonEngine {
     }
 
     /// Compares prices across live retail endpoints using the Brave Shopping API.
-    pub fn compare_live(&self, product_query: &str, brave_api_key: &str) -> Result<PriceComparisonReport, String> {
+    pub fn compare_live(
+        &self,
+        product_query: &str,
+        brave_api_key: &str,
+    ) -> Result<PriceComparisonReport, String> {
         let brave = kineti_connectors::brave::BraveSearchClient::new(brave_api_key);
         let hits = brave.search_shopping_live(product_query, 5)?;
         if hits.is_empty() {

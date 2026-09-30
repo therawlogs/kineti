@@ -10,10 +10,10 @@ use kineti_core::kernel::{canonicalize_json, hex_encode, sha256};
 use std::collections::BTreeMap;
 use std::fmt;
 
-/// Lightweight JSON Value tree from the kernel.
-pub use kineti_core::kernel::JsonValue as Value;
 /// Numeric representation in JSON.
 pub use kineti_core::kernel::JsonNumber;
+/// Lightweight JSON Value tree from the kernel.
+pub use kineti_core::kernel::JsonValue as Value;
 
 /// Consequence risk level of a connector action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -85,20 +85,42 @@ impl fmt::Display for ConnectorProtocolError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::MissingAuthorizationToken => {
-                write!(f, "High-consequence action attempted without required authorization token")
+                write!(
+                    f,
+                    "High-consequence action attempted without required authorization token"
+                )
             }
             Self::TokenPayloadMismatch { expected, actual } => {
-                write!(f, "Token payload hash mismatch: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Token payload hash mismatch: expected {}, got {}",
+                    expected, actual
+                )
             }
-            Self::TokenExpired { expires_at, current_time } => {
-                write!(f, "Token expired: expires_at={}, current_time={}", expires_at, current_time)
+            Self::TokenExpired {
+                expires_at,
+                current_time,
+            } => {
+                write!(
+                    f,
+                    "Token expired: expires_at={}, current_time={}",
+                    expires_at, current_time
+                )
             }
             Self::TokenAlreadyConsumed => write!(f, "Single-use token has already been consumed"),
             Self::ConnectorMismatch { expected, actual } => {
-                write!(f, "Token connector mismatch: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Token connector mismatch: expected {}, got {}",
+                    expected, actual
+                )
             }
             Self::ActionTypeMismatch { expected, actual } => {
-                write!(f, "Token action type mismatch: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Token action type mismatch: expected {}, got {}",
+                    expected, actual
+                )
             }
             Self::UnsupportedAction(a) => write!(f, "Unsupported action: {}", a),
             Self::InvalidPayload(msg) => write!(f, "Invalid payload: {}", msg),
@@ -347,7 +369,9 @@ pub trait KinetiConnectorProtocol: Send + Sync {
     ) -> Result<Value, ConnectorProtocolError> {
         // 1. Verify action support
         if !self.supported_actions().contains(&action) {
-            return Err(ConnectorProtocolError::UnsupportedAction(action.to_string()));
+            return Err(ConnectorProtocolError::UnsupportedAction(
+                action.to_string(),
+            ));
         }
 
         // 2. Consequence Evaluation & Permission Gating
@@ -418,9 +442,15 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                     }
                     Err(e) => {
                         let (url, headers) = self.build_search_request(query, max_results);
-                        map.insert("status".to_string(), Value::String("request_prepared".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("request_prepared".to_string()),
+                        );
                         map.insert("url".to_string(), Value::String(url));
-                        map.insert("header_count".to_string(), Value::from(headers.len() as u64));
+                        map.insert(
+                            "header_count".to_string(),
+                            Value::from(headers.len() as u64),
+                        );
                         map.insert("note".to_string(), Value::String(e));
                     }
                 }
@@ -440,13 +470,19 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                 let mut map = BTreeMap::new();
                 match res {
                     Ok(resp) => {
-                        map.insert("status".to_string(), Value::String("draft_created".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("draft_created".to_string()),
+                        );
                         map.insert("to".to_string(), Value::String(to.to_string()));
                         map.insert("response".to_string(), Value::String(resp));
                     }
                     Err(e) => {
                         let raw_payload = self.build_draft_payload(&draft_req);
-                        map.insert("status".to_string(), Value::String("draft_created".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("draft_created".to_string()),
+                        );
                         map.insert("to".to_string(), Value::String(to.to_string()));
                         map.insert("raw_payload".to_string(), Value::String(raw_payload));
                         map.insert("note".to_string(), Value::String(e));
@@ -467,7 +503,10 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                 };
                 let res = self.send_email_live(&draft_req);
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("email_dispatched".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("email_dispatched".to_string()),
+                );
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
                 match res {
@@ -511,7 +550,10 @@ impl KinetiConnectorProtocol for crate::brave::BraveSearchClient {
         let mut map = BTreeMap::new();
         map.insert("action".to_string(), Value::String(action.to_string()));
         map.insert("url".to_string(), Value::String(url));
-        map.insert("headers_count".to_string(), Value::from(headers.len() as u64));
+        map.insert(
+            "headers_count".to_string(),
+            Value::from(headers.len() as u64),
+        );
         Ok(Value::Object(map))
     }
 }
@@ -556,8 +598,14 @@ impl KinetiConnectorProtocol for crate::flux::FluxClient {
                     guidance_scale: 3.5,
                 });
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("request_built".to_string()));
-                map.insert("endpoint".to_string(), Value::String(self.endpoint().to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("request_built".to_string()),
+                );
+                map.insert(
+                    "endpoint".to_string(),
+                    Value::String(self.endpoint().to_string()),
+                );
                 map.insert("body".to_string(), Value::String(body));
                 map.insert("enhanced_prompt".to_string(), Value::String(enhanced));
                 Ok(Value::Object(map))
@@ -597,7 +645,10 @@ mod tests {
             payload: &Value,
         ) -> Result<Value, ConnectorProtocolError> {
             let mut map = BTreeMap::new();
-            map.insert("executed_action".to_string(), Value::String(action.to_string()));
+            map.insert(
+                "executed_action".to_string(),
+                Value::String(action.to_string()),
+            );
             map.insert("echo".to_string(), payload.clone());
             Ok(Value::Object(map))
         }
@@ -606,7 +657,10 @@ mod tests {
     fn sample_payload(amount: u64, recipient: &str) -> Value {
         let mut map = BTreeMap::new();
         map.insert("amount".to_string(), Value::from(amount));
-        map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+        map.insert(
+            "recipient".to_string(),
+            Value::String(recipient.to_string()),
+        );
         Value::Object(map)
     }
 
@@ -707,7 +761,10 @@ mod tests {
         // Current time 12,000ms > 11,000ms expiration
         let res = connector.execute_at("commit_charge", &payload, Some(&mut token), 12000);
         match res {
-            Err(ConnectorProtocolError::TokenExpired { expires_at, current_time }) => {
+            Err(ConnectorProtocolError::TokenExpired {
+                expires_at,
+                current_time,
+            }) => {
                 assert_eq!(expires_at, 11000);
                 assert_eq!(current_time, 12000);
             }
@@ -783,7 +840,9 @@ mod tests {
         let res = connector.execute_at("unknown_wipe_disk", &payload, None, 1000);
         assert_eq!(
             res.err(),
-            Some(ConnectorProtocolError::UnsupportedAction("unknown_wipe_disk".to_string()))
+            Some(ConnectorProtocolError::UnsupportedAction(
+                "unknown_wipe_disk".to_string()
+            ))
         );
     }
 
@@ -803,15 +862,27 @@ mod tests {
 
         let email_payload = {
             let mut m = BTreeMap::new();
-            m.insert("to".to_string(), Value::String("sarah@example.com".to_string()));
-            m.insert("subject".to_string(), Value::String("Meeting update".to_string()));
-            m.insert("body".to_string(), Value::String("Confirming 2pm.".to_string()));
+            m.insert(
+                "to".to_string(),
+                Value::String("sarah@example.com".to_string()),
+            );
+            m.insert(
+                "subject".to_string(),
+                Value::String("Meeting update".to_string()),
+            );
+            m.insert(
+                "body".to_string(),
+                Value::String("Confirming 2pm.".to_string()),
+            );
             Value::Object(m)
         };
 
         // Outbound send_email is HighConsequence -> fails without token
         let blocked = client.execute_at("send_email", &email_payload, None, 1000);
-        assert_eq!(blocked.err(), Some(ConnectorProtocolError::MissingAuthorizationToken));
+        assert_eq!(
+            blocked.err(),
+            Some(ConnectorProtocolError::MissingAuthorizationToken)
+        );
 
         // With valid token -> succeeds
         let mut token = ActionAuthorizationToken::mint(
@@ -834,7 +905,10 @@ mod tests {
         let brave = crate::brave::BraveSearchClient::new("brave_key");
         let query_payload = {
             let mut m = BTreeMap::new();
-            m.insert("query".to_string(), Value::String("rust protocol".to_string()));
+            m.insert(
+                "query".to_string(),
+                Value::String("rust protocol".to_string()),
+            );
             Value::Object(m)
         };
         let res = brave.execute("web_search", &query_payload, None);
@@ -843,7 +917,10 @@ mod tests {
         let flux = crate::flux::FluxClient::new("flux_key");
         let prompt_payload = {
             let mut m = BTreeMap::new();
-            m.insert("prompt".to_string(), Value::String("A cozy coffee shop".to_string()));
+            m.insert(
+                "prompt".to_string(),
+                Value::String("A cozy coffee shop".to_string()),
+            );
             Value::Object(m)
         };
         let res_flux = flux.execute("enhance_prompt", &prompt_payload, None);
@@ -858,9 +935,18 @@ mod tests {
         // The agent knows the user's manager is Sarah Chen at sarah@chen.corp
         let outbound_payload = {
             let mut m = BTreeMap::new();
-            m.insert("to".to_string(), Value::String("sarah@chen.corp".to_string()));
-            m.insert("subject".to_string(), Value::String("Weekly Status".to_string()));
-            m.insert("body".to_string(), Value::String("Everything on track.".to_string()));
+            m.insert(
+                "to".to_string(),
+                Value::String("sarah@chen.corp".to_string()),
+            );
+            m.insert(
+                "subject".to_string(),
+                Value::String("Weekly Status".to_string()),
+            );
+            m.insert(
+                "body".to_string(),
+                Value::String("Everything on track.".to_string()),
+            );
             Value::Object(m)
         };
 

@@ -609,9 +609,10 @@ impl ResolvedPersonaView {
             .exceptions
             .iter()
             .filter(|exc| {
-                !self.safety_ceilings.iter().any(|sc| {
-                    safety_ceiling_conflicts_with_exception(&sc.claim, &exc.claim)
-                })
+                !self
+                    .safety_ceilings
+                    .iter()
+                    .any(|sc| safety_ceiling_conflicts_with_exception(&sc.claim, &exc.claim))
             })
             .collect();
 
@@ -783,15 +784,17 @@ pub fn resolve_advice(
         let rule_lower = rule.claim.to_lowercase();
         if rule_lower.contains("vegetarian") {
             let meat_indicators = [
-                "meat", "chicken", "beef", "pork", "fish", "seafood", "lamb", "bacon",
-                "mutton", "turkey", "duck", "veal", "steak", "poultry",
+                "meat", "chicken", "beef", "pork", "fish", "seafood", "lamb", "bacon", "mutton",
+                "turkey", "duck", "veal", "steak", "poultry",
             ];
 
             // 1. Check all candidate tags: ANY unexcepted meat tag blocks
             for &tag in candidate_tags {
                 let tag_is_meat = meat_indicators.iter().any(|&m| {
                     tag.eq_ignore_ascii_case(m)
-                        || extract_significant_words(tag).iter().any(|tw| token_matches(tw, m))
+                        || extract_significant_words(tag)
+                            .iter()
+                            .any(|tw| token_matches(tw, m))
                 });
                 if tag_is_meat && !has_exception_for(tag) {
                     return ResolvedAdvice {
@@ -817,15 +820,17 @@ pub fn resolve_advice(
             }
         } else if rule_lower.contains("vegan") {
             let animal_indicators = [
-                "meat", "chicken", "beef", "pork", "fish", "seafood", "dairy", "cheese",
-                "milk", "eggs", "egg", "honey", "gelatin",
+                "meat", "chicken", "beef", "pork", "fish", "seafood", "dairy", "cheese", "milk",
+                "eggs", "egg", "honey", "gelatin",
             ];
 
             // 1. Check all candidate tags: ANY unexcepted animal tag blocks
             for &tag in candidate_tags {
                 let tag_is_animal = animal_indicators.iter().any(|&a| {
                     tag.eq_ignore_ascii_case(a)
-                        || extract_significant_words(tag).iter().any(|tw| token_matches(tw, a))
+                        || extract_significant_words(tag)
+                            .iter()
+                            .any(|tw| token_matches(tw, a))
                 });
                 if tag_is_animal && !has_exception_for(tag) {
                     return ResolvedAdvice {
@@ -1066,7 +1071,10 @@ impl EpistemicEngine {
     ) -> Result<EpistemicTransition, &'static str> {
         let fact_id = new_fact.id.clone();
         let transition = self.ingest(new_fact, current_time)?;
-        self.provenance_sources.write().unwrap().insert(fact_id, source);
+        self.provenance_sources
+            .write()
+            .unwrap()
+            .insert(fact_id, source);
         Ok(transition)
     }
 
@@ -1108,9 +1116,13 @@ impl EpistemicEngine {
                 if fact.is_active(at_timestamp) && fact.scope.is_accessible_from(query_scope) {
                     match fact.constraint_type {
                         RuleConstraintType::BaselineRule => view.baseline_rules.push(fact.clone()),
-                        RuleConstraintType::PermittedException => view.exceptions.push(fact.clone()),
+                        RuleConstraintType::PermittedException => {
+                            view.exceptions.push(fact.clone())
+                        }
                         RuleConstraintType::Preference => view.preferences.push(fact.clone()),
-                        RuleConstraintType::SafetyCeiling => view.safety_ceilings.push(fact.clone()),
+                        RuleConstraintType::SafetyCeiling => {
+                            view.safety_ceilings.push(fact.clone())
+                        }
                     }
                 }
             }
@@ -1279,11 +1291,9 @@ impl EpistemicEngine {
             ActionEvaluation::BlockedByRule { rule } => {
                 EpistemicError::UnauthorizedHighConsequence { reason: rule }
             }
-            ActionEvaluation::Permitted { .. } => {
-                EpistemicError::UnauthorizedHighConsequence {
-                    reason: "Action not authorized".to_string(),
-                }
-            }
+            ActionEvaluation::Permitted { .. } => EpistemicError::UnauthorizedHighConsequence {
+                reason: "Action not authorized".to_string(),
+            },
         })
     }
 
@@ -1558,7 +1568,10 @@ impl GapFillingPolicy {
         suggested_default: Option<&str>,
     ) -> GapFillingDecision {
         // High consequence, irreversible, or non-trivial spend (> $1.00 = 1_000_000 microcents) mandates escalation
-        if consequence == ConsequenceLevel::HighConsequence || !is_reversible || cost_microcents > 1_000_000 {
+        if consequence == ConsequenceLevel::HighConsequence
+            || !is_reversible
+            || cost_microcents > 1_000_000
+        {
             GapFillingDecision::EscalateToUser {
                 missing_parameter: parameter_name.to_string(),
                 question: format!(
@@ -1730,13 +1743,12 @@ mod tests {
         assert_eq!(health_view.preferences[0].claim, "English");
 
         // Verify zero work facts and zero Alok relationship facts in Health scope
-        let health_facts = engine.query_facts_in_scope(
-            "alex",
-            &ContextScope::Domain(DomainKind::Health),
-            1050,
-        );
+        let health_facts =
+            engine.query_facts_in_scope("alex", &ContextScope::Domain(DomainKind::Health), 1050);
         assert_eq!(health_facts.len(), 2);
-        assert!(!health_facts.iter().any(|f| f.claim == "Systems Architecture"));
+        assert!(!health_facts
+            .iter()
+            .any(|f| f.claim == "Systems Architecture"));
         assert!(!health_facts.iter().any(|f| f.claim == "Afternoons"));
 
         // 3. Querying Sarah relationship scope should NEVER see Alok's meeting preference
@@ -2209,7 +2221,9 @@ mod tests {
             platform: "AppleMessages".to_string(),
         };
 
-        engine.ingest_with_source(fact, source.clone(), 1000).unwrap();
+        engine
+            .ingest_with_source(fact, source.clone(), 1000)
+            .unwrap();
 
         let prov = engine.get_provenance("alex", "fact_prov_1").unwrap();
         assert_eq!(prov.claim, "Cortado with oat milk");
@@ -2455,7 +2469,10 @@ mod tests {
             "$199.00",
             Some("$199.00"),
         );
-        assert!(matches!(fresh, CommitmentVerificationResult::VerifiedFresh { .. }));
+        assert!(matches!(
+            fresh,
+            CommitmentVerificationResult::VerifiedFresh { .. }
+        ));
 
         // Expired -> StaleFactExpired
         let expired = CommitmentTimeVerifier::verify_fact(
@@ -2465,7 +2482,10 @@ mod tests {
             "$199.00",
             Some("$199.00"),
         );
-        assert!(matches!(expired, CommitmentVerificationResult::StaleFactExpired { .. }));
+        assert!(matches!(
+            expired,
+            CommitmentVerificationResult::StaleFactExpired { .. }
+        ));
 
         // Contradiction -> StateContradiction
         let contradiction = CommitmentTimeVerifier::verify_fact(

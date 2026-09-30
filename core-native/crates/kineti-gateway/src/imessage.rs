@@ -45,7 +45,10 @@ impl IMessageBridge {
     /// Parses latitude and longitude coordinates from location URLs or raw coordinate strings.
     pub fn extract_location_coordinates(text: &str) -> Option<(f64, f64)> {
         // 1. Check for Apple Maps format: ?ll=lat,lon or ?q=lat,lon
-        if let Some(pos) = text.find("maps.apple.com/?ll=").or_else(|| text.find("maps.apple.com/?q=")) {
+        if let Some(pos) = text
+            .find("maps.apple.com/?ll=")
+            .or_else(|| text.find("maps.apple.com/?q="))
+        {
             let rest = &text[pos..];
             if let Some(eq_pos) = rest.find('=') {
                 let query_part = &rest[eq_pos + 1..];
@@ -55,7 +58,10 @@ impl IMessageBridge {
         }
 
         // 2. Check for Google Maps format: maps.google.com/?q=lat,lon
-        if let Some(pos) = text.find("google.com/maps?q=").or_else(|| text.find("maps.google.com/?q=")) {
+        if let Some(pos) = text
+            .find("google.com/maps?q=")
+            .or_else(|| text.find("maps.google.com/?q="))
+        {
             let rest = &text[pos..];
             if let Some(eq_pos) = rest.find('=') {
                 let query_part = &rest[eq_pos + 1..];
@@ -189,12 +195,18 @@ impl KinetiConnectorProtocol for IMessageBridge {
                 let mut map = BTreeMap::new();
                 match Self::read_recent_messages(limit) {
                     Ok(json_str) => {
-                        map.insert("status".to_string(), Value::String("read_success".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("read_success".to_string()),
+                        );
                         map.insert("messages".to_string(), Value::String(json_str));
                         map.insert("live_dispatched".to_string(), Value::from(true));
                     }
                     Err(err) => {
-                        map.insert("status".to_string(), Value::String("read_restricted".to_string()));
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("read_restricted".to_string()),
+                        );
                         map.insert("reason".to_string(), Value::String(err));
                         map.insert("live_dispatched".to_string(), Value::from(false));
                     }
@@ -211,24 +223,36 @@ impl KinetiConnectorProtocol for IMessageBridge {
                 }
                 let script = self.build_send_text_script(recipient, body);
                 let mut map = BTreeMap::new();
-                let live_send = std::env::var("KINETI_LIVE_IMESSAGE").map(|v| v == "1").unwrap_or(false);
+                let live_send = std::env::var("KINETI_LIVE_IMESSAGE")
+                    .map(|v| v == "1")
+                    .unwrap_or(false);
                 if live_send {
                     match Self::execute_applescript(&script) {
                         Ok(res) => {
                             map.insert("status".to_string(), Value::String("sent".to_string()));
-                            map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                            map.insert(
+                                "recipient".to_string(),
+                                Value::String(recipient.to_string()),
+                            );
                             map.insert("result".to_string(), Value::String(res));
                             map.insert("live_dispatched".to_string(), Value::from(true));
                         }
                         Err(err) => {
                             return Err(ConnectorProtocolError::ExecutionFailed(format!(
-                                "iMessage AppleScript execution failed: {}", err
+                                "iMessage AppleScript execution failed: {}",
+                                err
                             )));
                         }
                     }
                 } else {
-                    map.insert("status".to_string(), Value::String("script_generated".to_string()));
-                    map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                    map.insert(
+                        "status".to_string(),
+                        Value::String("script_generated".to_string()),
+                    );
+                    map.insert(
+                        "recipient".to_string(),
+                        Value::String(recipient.to_string()),
+                    );
                     map.insert("script".to_string(), Value::String(script));
                     map.insert("live_dispatched".to_string(), Value::from(false));
                 }
@@ -244,24 +268,36 @@ impl KinetiConnectorProtocol for IMessageBridge {
                 }
                 let script = self.build_send_file_script(recipient, file_path);
                 let mut map = BTreeMap::new();
-                let live_send = std::env::var("KINETI_LIVE_IMESSAGE").map(|v| v == "1").unwrap_or(false);
+                let live_send = std::env::var("KINETI_LIVE_IMESSAGE")
+                    .map(|v| v == "1")
+                    .unwrap_or(false);
                 if live_send {
                     match Self::execute_applescript(&script) {
                         Ok(res) => {
                             map.insert("status".to_string(), Value::String("sent".to_string()));
-                            map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                            map.insert(
+                                "recipient".to_string(),
+                                Value::String(recipient.to_string()),
+                            );
                             map.insert("result".to_string(), Value::String(res));
                             map.insert("live_dispatched".to_string(), Value::from(true));
                         }
                         Err(err) => {
                             return Err(ConnectorProtocolError::ExecutionFailed(format!(
-                                "iMessage AppleScript execution failed: {}", err
+                                "iMessage AppleScript execution failed: {}",
+                                err
                             )));
                         }
                     }
                 } else {
-                    map.insert("status".to_string(), Value::String("script_generated".to_string()));
-                    map.insert("recipient".to_string(), Value::String(recipient.to_string()));
+                    map.insert(
+                        "status".to_string(),
+                        Value::String("script_generated".to_string()),
+                    );
+                    map.insert(
+                        "recipient".to_string(),
+                        Value::String(recipient.to_string()),
+                    );
                     map.insert("script".to_string(), Value::String(script));
                     map.insert("live_dispatched".to_string(), Value::from(false));
                 }
@@ -299,8 +335,14 @@ mod tests {
     fn test_imessage_outbound_requires_authorization_token() {
         let bridge = IMessageBridge::new();
         let mut msg_map = BTreeMap::new();
-        msg_map.insert("recipient".to_string(), Value::String("+15551234567".to_string()));
-        msg_map.insert("body".to_string(), Value::String("Outbound update".to_string()));
+        msg_map.insert(
+            "recipient".to_string(),
+            Value::String("+15551234567".to_string()),
+        );
+        msg_map.insert(
+            "body".to_string(),
+            Value::String("Outbound update".to_string()),
+        );
         let payload = Value::Object(msg_map);
 
         // Invariant: Knowing recipient does NOT grant permission to contact.
@@ -346,7 +388,8 @@ mod tests {
     #[test]
     fn test_imessage_extract_location_coordinates() {
         // Apple Maps link
-        let apple_link = "I parked here: https://maps.apple.com/?ll=37.774929,-122.419416&q=My%20Location";
+        let apple_link =
+            "I parked here: https://maps.apple.com/?ll=37.774929,-122.419416&q=My%20Location";
         let (lat, lon) = IMessageBridge::extract_location_coordinates(apple_link).unwrap();
         assert!((lat - 37.774929).abs() < 1e-5);
         assert!((lon - (-122.419416)).abs() < 1e-5);

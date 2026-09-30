@@ -74,18 +74,27 @@ impl KinetiConnectorProtocol for GitHubClient {
             "create_pr_comment" => {
                 let body = get_str_property(payload, "body").unwrap_or("");
                 map.insert("body".to_string(), Value::String(body.to_string()));
-                map.insert("status".to_string(), Value::String("comment_created".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("comment_created".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "create_issue" => {
                 let title = get_str_property(payload, "title").unwrap_or("Issue");
                 map.insert("title".to_string(), Value::String(title.to_string()));
-                map.insert("status".to_string(), Value::String("issue_created".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("issue_created".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "merge_pull_request" => {
                 let pr_number = get_str_property(payload, "pr_number").unwrap_or("1");
-                map.insert("pr_number".to_string(), Value::String(pr_number.to_string()));
+                map.insert(
+                    "pr_number".to_string(),
+                    Value::String(pr_number.to_string()),
+                );
                 map.insert("status".to_string(), Value::String("pr_merged".to_string()));
                 Ok(Value::Object(map))
             }
@@ -151,13 +160,19 @@ impl KinetiConnectorProtocol for LinearClient {
             "add_comment" => {
                 let comment = get_str_property(payload, "comment").unwrap_or("");
                 map.insert("comment".to_string(), Value::String(comment.to_string()));
-                map.insert("status".to_string(), Value::String("comment_added".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("comment_added".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             "create_issue" => {
                 let title = get_str_property(payload, "title").unwrap_or("New issue");
                 map.insert("title".to_string(), Value::String(title.to_string()));
-                map.insert("status".to_string(), Value::String("issue_created".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("issue_created".to_string()),
+                );
                 Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
@@ -172,12 +187,27 @@ mod tests {
     #[test]
     fn test_github_and_linear_consequence_evaluation() {
         let gh = GitHubClient::new("ghp_test");
-        assert_eq!(gh.evaluate_consequence("search_repos", &Value::Null), ConsequenceLevel::Trivial);
-        assert_eq!(gh.evaluate_consequence("create_pr_comment", &Value::Null), ConsequenceLevel::Operational);
-        assert_eq!(gh.evaluate_consequence("merge_pull_request", &Value::Null), ConsequenceLevel::HighConsequence);
+        assert_eq!(
+            gh.evaluate_consequence("search_repos", &Value::Null),
+            ConsequenceLevel::Trivial
+        );
+        assert_eq!(
+            gh.evaluate_consequence("create_pr_comment", &Value::Null),
+            ConsequenceLevel::Operational
+        );
+        assert_eq!(
+            gh.evaluate_consequence("merge_pull_request", &Value::Null),
+            ConsequenceLevel::HighConsequence
+        );
 
         let linear = LinearClient::new("lin_api_test");
-        assert_eq!(linear.evaluate_consequence("search_issues", &Value::Null), ConsequenceLevel::Trivial);
-        assert_eq!(linear.evaluate_consequence("create_issue", &Value::Null), ConsequenceLevel::HighConsequence);
+        assert_eq!(
+            linear.evaluate_consequence("search_issues", &Value::Null),
+            ConsequenceLevel::Trivial
+        );
+        assert_eq!(
+            linear.evaluate_consequence("create_issue", &Value::Null),
+            ConsequenceLevel::HighConsequence
+        );
     }
 }

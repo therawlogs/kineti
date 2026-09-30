@@ -69,7 +69,12 @@ impl UserPropertyGraph {
     }
 
     /// Replaces an existing fact with a new fact, creating a `Replaces` edge and masking the old fact.
-    pub fn replace_fact(&self, old_fact_id: &NodeId, new_fact: UserFact, tombstones: &TombstoneMask) -> NodeId {
+    pub fn replace_fact(
+        &self,
+        old_fact_id: &NodeId,
+        new_fact: UserFact,
+        tombstones: &TombstoneMask,
+    ) -> NodeId {
         let new_id = self.insert_fact(new_fact);
 
         // Tombstone the old fact
@@ -97,7 +102,12 @@ impl UserPropertyGraph {
     }
 
     /// Queries all active (non-tombstoned) facts for a user, optionally filtered by category.
-    pub fn query_active_facts(&self, user_id: &str, category: Option<&str>, tombstones: &TombstoneMask) -> Vec<UserFact> {
+    pub fn query_active_facts(
+        &self,
+        user_id: &str,
+        category: Option<&str>,
+        tombstones: &TombstoneMask,
+    ) -> Vec<UserFact> {
         let user_idx = self.user_index.read().unwrap();
         let fact_ids = match user_idx.get(user_id) {
             Some(ids) => ids,

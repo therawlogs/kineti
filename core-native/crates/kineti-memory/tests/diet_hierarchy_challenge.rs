@@ -1,3 +1,5 @@
+//! Adversarial diet-hierarchy challenge tests for the memory resolver.
+
 use kineti_memory::{
     resolve_advice, ActionEvaluation, ConsequenceLevel, ContextScope, DomainKind,
     EpistemicCertainty, EpistemicFact, RuleConstraintType,
@@ -32,8 +34,18 @@ fn make_fact(
 fn test_complex_permutations_vegetarian_eggs_dairy_peanut() {
     let facts = vec![
         make_fact("f1", "Vegetarian", RuleConstraintType::BaselineRule, "diet"),
-        make_fact("f2", "eggs", RuleConstraintType::PermittedException, "diet_exc"),
-        make_fact("f3", "low dairy", RuleConstraintType::Preference, "dairy_pref"),
+        make_fact(
+            "f2",
+            "eggs",
+            RuleConstraintType::PermittedException,
+            "diet_exc",
+        ),
+        make_fact(
+            "f3",
+            "low dairy",
+            RuleConstraintType::Preference,
+            "dairy_pref",
+        ),
         make_fact("f4", "peanut", RuleConstraintType::SafetyCeiling, "allergy"),
     ];
 
@@ -62,16 +74,25 @@ fn test_complex_permutations_vegetarian_eggs_dairy_peanut() {
     );
 
     // 1d. Dairy item (Cheese Tortellini) -> MUST be permitted with preference, NOT treated as allergy
-    let cheese = resolve_advice(&facts, "Cheese Tortellini", &["vegetarian", "dairy", "cheese"]);
+    let cheese = resolve_advice(
+        &facts,
+        "Cheese Tortellini",
+        &["vegetarian", "dairy", "cheese"],
+    );
     match cheese.evaluation {
-        ActionEvaluation::Permitted { ref recommendations } => {
+        ActionEvaluation::Permitted {
+            ref recommendations,
+        } => {
             assert!(
                 recommendations.iter().any(|r| r.contains("low dairy")),
                 "Expected low dairy recommendation, got {:?}",
                 recommendations
             );
         }
-        other => panic!("Expected Cheese to be Permitted with preference, but got {:?}", other),
+        other => panic!(
+            "Expected Cheese to be Permitted with preference, but got {:?}",
+            other
+        ),
     }
 
     // 1e. Eggs + Peanut (e.g. egg dish garnished with peanuts) -> SafetyCeiling MUST take precedence over exception
@@ -85,7 +106,10 @@ fn test_complex_permutations_vegetarian_eggs_dairy_peanut() {
     // 1f. Eggs + Chicken (tags: ["chicken", "eggs"]) -> Chicken is blocked even though eggs are permitted
     let chicken_eggs_1 = resolve_advice(&facts, "Chicken & Egg Rice Bowl", &["chicken", "eggs"]);
     assert!(
-        matches!(chicken_eggs_1.evaluation, ActionEvaluation::BlockedByRule { .. }),
+        matches!(
+            chicken_eggs_1.evaluation,
+            ActionEvaluation::BlockedByRule { .. }
+        ),
         "Chicken must block even though eggs are permitted. Got: {:?}",
         chicken_eggs_1.evaluation
     );
@@ -93,7 +117,10 @@ fn test_complex_permutations_vegetarian_eggs_dairy_peanut() {
     // 1g. Eggs + Chicken (tags: ["eggs", "chicken"] - reversed tag order!)
     let chicken_eggs_2 = resolve_advice(&facts, "Egg & Chicken Rice Bowl", &["eggs", "chicken"]);
     assert!(
-        matches!(chicken_eggs_2.evaluation, ActionEvaluation::BlockedByRule { .. }),
+        matches!(
+            chicken_eggs_2.evaluation,
+            ActionEvaluation::BlockedByRule { .. }
+        ),
         "Tag order ['eggs', 'chicken'] must NOT bypass vegetarian rule for chicken! Got: {:?}",
         chicken_eggs_2.evaluation
     );
@@ -106,7 +133,12 @@ fn test_complex_permutations_vegetarian_eggs_dairy_peanut() {
 fn test_same_ingredient_exception_and_safety_ceiling_conflict() {
     let facts = vec![
         make_fact("f1", "Vegetarian", RuleConstraintType::BaselineRule, "diet"),
-        make_fact("f2", "peanut", RuleConstraintType::PermittedException, "diet_exc"),
+        make_fact(
+            "f2",
+            "peanut",
+            RuleConstraintType::PermittedException,
+            "diet_exc",
+        ),
         make_fact("f3", "peanut", RuleConstraintType::SafetyCeiling, "allergy"),
     ];
 
@@ -114,7 +146,10 @@ fn test_same_ingredient_exception_and_safety_ceiling_conflict() {
 
     // Safety ceiling must ALWAYS win
     assert!(
-        matches!(advice.evaluation, ActionEvaluation::BlockedBySafetyCeiling { .. }),
+        matches!(
+            advice.evaluation,
+            ActionEvaluation::BlockedBySafetyCeiling { .. }
+        ),
         "Safety ceiling MUST override exception for same ingredient. Got: {:?}",
         advice.evaluation
     );
@@ -142,7 +177,12 @@ fn test_same_ingredient_exception_and_safety_ceiling_conflict() {
 fn test_multi_meat_where_first_has_exception_and_second_is_blocked() {
     let facts = vec![
         make_fact("f1", "Vegetarian", RuleConstraintType::BaselineRule, "diet"),
-        make_fact("f2", "fish", RuleConstraintType::PermittedException, "diet_exc"),
+        make_fact(
+            "f2",
+            "fish",
+            RuleConstraintType::PermittedException,
+            "diet_exc",
+        ),
     ];
 
     // Tags ordered: ["fish", "chicken"]
@@ -160,7 +200,12 @@ fn test_multi_meat_where_first_has_exception_and_second_is_blocked() {
 fn test_vegan_with_egg_exception_and_chicken() {
     let facts = vec![
         make_fact("f1", "Vegan", RuleConstraintType::BaselineRule, "diet"),
-        make_fact("f2", "eggs", RuleConstraintType::PermittedException, "diet_exc"),
+        make_fact(
+            "f2",
+            "eggs",
+            RuleConstraintType::PermittedException,
+            "diet_exc",
+        ),
     ];
 
     // Tags ordered: ["eggs", "chicken"]
@@ -176,8 +221,18 @@ fn test_vegan_with_egg_exception_and_chicken() {
 #[test]
 fn test_preference_never_causes_hard_block() {
     let facts = vec![
-        make_fact("f1", "low dairy", RuleConstraintType::Preference, "dairy_pref"),
-        make_fact("f2", "no spicy", RuleConstraintType::Preference, "spice_pref"),
+        make_fact(
+            "f1",
+            "low dairy",
+            RuleConstraintType::Preference,
+            "dairy_pref",
+        ),
+        make_fact(
+            "f2",
+            "no spicy",
+            RuleConstraintType::Preference,
+            "spice_pref",
+        ),
     ];
 
     let full_dairy = resolve_advice(&facts, "Full Cream Milk", &["dairy", "milk"]);
@@ -197,9 +252,12 @@ fn test_preference_never_causes_hard_block() {
 /// or "severe peanut allergy", but candidate food has tag "peanut" or item is "Peanut Butter".
 #[test]
 fn test_safety_ceiling_natural_language_claim_matching() {
-    let facts = vec![
-        make_fact("f1", "peanut allergy", RuleConstraintType::SafetyCeiling, "allergy"),
-    ];
+    let facts = vec![make_fact(
+        "f1",
+        "peanut allergy",
+        RuleConstraintType::SafetyCeiling,
+        "allergy",
+    )];
 
     // Candidate is Peanut Butter, tag is "peanut"
     let peanut_butter = resolve_advice(&facts, "Peanut Butter Toast", &["peanut"]);
@@ -212,7 +270,10 @@ fn test_safety_ceiling_natural_language_claim_matching() {
     // Candidate is Pad Thai with tag "peanuts" (plural)
     let pad_thai = resolve_advice(&facts, "Pad Thai", &["peanuts"]);
     assert!(
-        matches!(pad_thai.evaluation, ActionEvaluation::BlockedBySafetyCeiling { .. }),
+        matches!(
+            pad_thai.evaluation,
+            ActionEvaluation::BlockedBySafetyCeiling { .. }
+        ),
         "BUG: SafetyCeiling failed to match plural tag 'peanuts' on item 'Pad Thai'! Got: {:?}",
         pad_thai.evaluation
     );
@@ -225,7 +286,12 @@ fn test_safety_ceiling_natural_language_claim_matching() {
 fn test_name_based_multi_meat_bypass() {
     let facts = vec![
         make_fact("f1", "Vegetarian", RuleConstraintType::BaselineRule, "diet"),
-        make_fact("f2", "chicken", RuleConstraintType::PermittedException, "diet_exc"),
+        make_fact(
+            "f2",
+            "chicken",
+            RuleConstraintType::PermittedException,
+            "diet_exc",
+        ),
     ];
 
     // No tags, only name. "chicken" appears before "beef" in meat_indicators slice.
@@ -236,5 +302,3 @@ fn test_name_based_multi_meat_bypass() {
         chicken_beef.evaluation
     );
 }
-
-

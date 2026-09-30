@@ -9,4 +9,7 @@ homepage.workspace = true
 readme = "../../README.md"
 description = "High-performance native Rust nervous system and context integrity harness"
 
+[lints]
+workspace = true
+
 [dependencies]

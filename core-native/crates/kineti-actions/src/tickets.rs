@@ -46,7 +46,10 @@ impl TicketSearchEngine {
 
     /// Searches for tickets matching criteria.
     pub fn search(&self, params: &TicketSearchParams) -> Option<TicketOption> {
-        let max_cents = params.max_price_usd.map(|p| (p * 100.0) as u32).unwrap_or(u32::MAX);
+        let max_cents = params
+            .max_price_usd
+            .map(|p| (p * 100.0) as u32)
+            .unwrap_or(u32::MAX);
 
         let candidate = TicketOption {
             event_name: params.artist_or_event.clone(),
@@ -66,7 +69,11 @@ impl TicketSearchEngine {
     }
 
     /// Searches for live tickets matching criteria using Brave Search.
-    pub fn search_live(&self, params: &TicketSearchParams, brave_api_key: &str) -> Result<Option<TicketOption>, String> {
+    pub fn search_live(
+        &self,
+        params: &TicketSearchParams,
+        brave_api_key: &str,
+    ) -> Result<Option<TicketOption>, String> {
         let brave = kineti_connectors::brave::BraveSearchClient::new(brave_api_key);
         let location = params.venue_or_city.as_deref().unwrap_or("");
         let query = format!("{} {} tickets", params.artist_or_event, location);
@@ -75,7 +82,10 @@ impl TicketSearchEngine {
             return Ok(self.search(params));
         }
 
-        let max_cents = params.max_price_usd.map(|p| (p * 100.0) as u32).unwrap_or(u32::MAX);
+        let max_cents = params
+            .max_price_usd
+            .map(|p| (p * 100.0) as u32)
+            .unwrap_or(u32::MAX);
         for hit in hits {
             let combined = format!("{} {}", hit.title, hit.description);
             let price_cents = extract_ticket_price(&combined).unwrap_or(16500);

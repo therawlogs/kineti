@@ -62,7 +62,7 @@ Personalized agents must understand the full human context without hallucinating
 - **Universal Model Context Protocol (MCP)**: 14 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
 ### 4. Verified Test Counts & Evaluation Roadmap
-- **What is verified today**: 175 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (426 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+- **What is verified today**: 176 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (427 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Kineti Hostile 100 (in development)**: a public suite of 100 hostile tool calls against the gate with published method and published failures. This is the benchmark the project intends to be judged by.
 - **Directional Normalized Trust-Weighted Impact (DNTI)**: three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$) designed to resist Goodhart-style metric gaming.
@@ -268,7 +268,7 @@ kineti/
 │   ├── HOWTO-daily-loop.md # Daily operating loop
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md # Multi-agent identity & signing
 │   └── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet and integration design
-├── tests/               # 175 TypeScript governance & causal test suites
+├── tests/               # 176 TypeScript governance & causal test suites
 ├── .github/             # GitHub Actions CI, issue forms, PR template, Dependabot
 ├── AGENTS.md            # Universal rules for AI agents in this repository
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs

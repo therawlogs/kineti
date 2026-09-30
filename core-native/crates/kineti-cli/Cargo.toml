@@ -9,6 +9,9 @@ homepage.workspace = true
 readme = "../../README.md"
 description = "Native CLI and server runner for Kineti AI assistant"
 
+[lints]
+workspace = true
+
 [dependencies]
 kineti-core = { path = "../kineti-core", version = "0.3.7" }
 kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }
@@ -20,4 +23,4 @@ kineti-gateway = { path = "../kineti-gateway", version = "0.3.7" }
 [[bench]]
 name = "benchmarks"
 harness = false
-path = "../../benches/benchmarks.rs"
+path = "benches/benchmarks.rs"

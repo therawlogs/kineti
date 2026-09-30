@@ -52,12 +52,19 @@ pub enum OvtError {
 impl fmt::Display for OvtError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::WorkerCannotReviewSelf => write!(f, "Authority separation violation: worker cannot review self"),
-            Self::IdenticalPublicKeys => write!(f, "Authority separation violation: identical public keys"),
+            Self::WorkerCannotReviewSelf => write!(
+                f,
+                "Authority separation violation: worker cannot review self"
+            ),
+            Self::IdenticalPublicKeys => {
+                write!(f, "Authority separation violation: identical public keys")
+            }
             Self::InvalidWorkerSignature => write!(f, "Invalid worker cryptographic signature"),
             Self::InvalidReviewerSignature => write!(f, "Invalid reviewer cryptographic signature"),
             Self::TestsFailed => write!(f, "Outcome verification rejected: tests failed"),
-            Self::GoalDriftDetected => write!(f, "Outcome verification rejected: root goal drift detected"),
+            Self::GoalDriftDetected => {
+                write!(f, "Outcome verification rejected: root goal drift detected")
+            }
         }
     }
 }
@@ -81,6 +88,10 @@ impl OvtCoordinator {
     }
 
     /// Generates a verified Outcome Verification Ticket enforcing authority separation.
+    ///
+    /// The nine arguments are the ticket's signed fields; the ticket structure itself
+    /// is protocol-defined, so the signature stays as-is rather than being grouped.
+    #[allow(clippy::too_many_arguments)]
     pub fn generate_ticket(
         task_id: &str,
         root_goal_hash: &str,
@@ -104,12 +115,18 @@ impl OvtCoordinator {
         }
 
         // 1. Worker signs task and evidence
-        let worker_payload = format!("{}:{}:{}:{}", task_id, worker_id, root_goal_hash, evidence_hash);
+        let worker_payload = format!(
+            "{}:{}:{}:{}",
+            task_id, worker_id, root_goal_hash, evidence_hash
+        );
         let worker_sig = Self::sign_digest(worker_key, &worker_payload);
 
         // 2. Reviewer signs ticket, task, evidence, and worker signature
         let ticket_id = format!("ovt_{}_{}", task_id, timestamp);
-        let reviewer_payload = format!("{}:{}:{}:{}:{}:{}", ticket_id, task_id, reviewer_id, evidence_hash, worker_sig, timestamp);
+        let reviewer_payload = format!(
+            "{}:{}:{}:{}:{}:{}",
+            ticket_id, task_id, reviewer_id, evidence_hash, worker_sig, timestamp
+        );
         let reviewer_sig = Self::sign_digest(reviewer_key, &reviewer_payload);
 
         Ok(OutcomeVerificationTicket {
@@ -137,16 +154,28 @@ impl OvtCoordinator {
             return Err(OvtError::WorkerCannotReviewSelf);
         }
 
-        let worker_payload = format!("{}:{}:{}:{}", ticket.task_id, ticket.worker_id, ticket.root_goal_hash, ticket.evidence_hash);
+        let worker_payload = format!(
+            "{}:{}:{}:{}",
+            ticket.task_id, ticket.worker_id, ticket.root_goal_hash, ticket.evidence_hash
+        );
         if !Self::verify_signature(worker_key, &worker_payload, &ticket.worker_signature_hex) {
             return Err(OvtError::InvalidWorkerSignature);
         }
 
         let reviewer_payload = format!(
             "{}:{}:{}:{}:{}:{}",
-            ticket.ticket_id, ticket.task_id, ticket.reviewer_id, ticket.evidence_hash, ticket.worker_signature_hex, ticket.verified_at
+            ticket.ticket_id,
+            ticket.task_id,
+            ticket.reviewer_id,
+            ticket.evidence_hash,
+            ticket.worker_signature_hex,
+            ticket.verified_at
         );
-        if !Self::verify_signature(reviewer_key, &reviewer_payload, &ticket.reviewer_signature_hex) {
+        if !Self::verify_signature(
+            reviewer_key,
+            &reviewer_payload,
+            &ticket.reviewer_signature_hex,
+        ) {
             return Err(OvtError::InvalidReviewerSignature);
         }
 
@@ -215,22 +244,29 @@ mod tests {
             "evidence_hash_123",
             true,
             1789000000,
-        ).expect("Ticket generation should succeed");
+        )
+        .expect("Ticket generation should succeed");
 
         assert_eq!(ticket.task_id, "task_100");
         assert_eq!(ticket.worker_id, "worker_01");
         assert_eq!(ticket.reviewer_id, "reviewer_02");
 
         // Verify with valid keys
-        let valid = OvtCoordinator::verify_ticket(&ticket, "worker_priv_secret_abc", "reviewer_priv_secret_xyz");
+        let valid = OvtCoordinator::verify_ticket(
+            &ticket,
+            "worker_priv_secret_abc",
+            "reviewer_priv_secret_xyz",
+        );
         assert_eq!(valid, Ok(true));
 
         // Tampered worker key fails
-        let bad_w = OvtCoordinator::verify_ticket(&ticket, "tampered_key", "reviewer_priv_secret_xyz");
+        let bad_w =
+            OvtCoordinator::verify_ticket(&ticket, "tampered_key", "reviewer_priv_secret_xyz");
         assert_eq!(bad_w, Err(OvtError::InvalidWorkerSignature));
 
         // Tampered reviewer key fails
-        let bad_r = OvtCoordinator::verify_ticket(&ticket, "worker_priv_secret_abc", "tampered_key");
+        let bad_r =
+            OvtCoordinator::verify_ticket(&ticket, "worker_priv_secret_abc", "tampered_key");
         assert_eq!(bad_r, Err(OvtError::InvalidReviewerSignature));
     }
 
@@ -268,7 +304,14 @@ mod tests {
         )
         .expect("generation succeeds");
         // Verifier holding a different root goal hash sees a different worker payload.
-        let worker_payload = format!("{}:{}:{}:{}", ticket.task_id, ticket.worker_id, "goal_hash_drifted", ticket.evidence_hash);
-        assert!(!OvtCoordinator::verify_signature("worker_secret_1", &worker_payload, &ticket.worker_signature_hex));
+        let worker_payload = format!(
+            "{}:{}:{}:{}",
+            ticket.task_id, ticket.worker_id, "goal_hash_drifted", ticket.evidence_hash
+        );
+        assert!(!OvtCoordinator::verify_signature(
+            "worker_secret_1",
+            &worker_payload,
+            &ticket.worker_signature_hex
+        ));
     }
 }

@@ -10,13 +10,9 @@
 use kineti_connectors::{ActionAuthorizationToken, Value};
 use kineti_core::conversation::UserTier;
 use kineti_core::current_epoch_millis;
-use kineti_core::root_goal::{
-    DriftEvaluation, FrictionResolution, FrictionType,
-};
+use kineti_core::root_goal::{DriftEvaluation, FrictionResolution, FrictionType};
 use kineti_core::spend::UserSpendQuota;
-use kineti_gateway::router::{
-    EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply,
-};
+use kineti_gateway::router::{EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply};
 use std::collections::BTreeMap;
 
 #[test]
@@ -36,12 +32,18 @@ fn test_e2e_multi_step_drift_rejection_and_telephone_game_prevention() {
     );
     let lock_receipt = router.dispatch_event(lock_stimulus, &quota);
     assert_eq!(lock_receipt.source, EventSource::Webhook);
-    assert_eq!(lock_receipt.drift_evaluation, Some(DriftEvaluation::InBounds));
+    assert_eq!(
+        lock_receipt.drift_evaluation,
+        Some(DriftEvaluation::InBounds)
+    );
 
     let active_goal = router
         .get_active_root_goal(user_id)
         .expect("Expected active root goal to be registered");
-    assert_eq!(active_goal.boundaries.max_spend_microcents, Some(350_000_000));
+    assert_eq!(
+        active_goal.boundaries.max_spend_microcents,
+        Some(350_000_000)
+    );
     assert_eq!(
         active_goal.boundaries.counterparty.as_deref(),
         Some("Ticketmaster")
@@ -75,7 +77,10 @@ fn test_e2e_multi_step_drift_rejection_and_telephone_game_prevention() {
     let step1_receipt = router.dispatch_event(step1_event, &quota);
 
     assert!(step1_receipt.action_gate_passed);
-    assert_eq!(step1_receipt.drift_evaluation, Some(DriftEvaluation::InBounds));
+    assert_eq!(
+        step1_receipt.drift_evaluation,
+        Some(DriftEvaluation::InBounds)
+    );
     if let OutboundReply::Text { body } = step1_receipt.reply {
         assert!(body.contains("executed successfully"));
     } else {
@@ -177,7 +182,10 @@ fn test_e2e_multi_step_drift_rejection_and_telephone_game_prevention() {
                 "Book 2 floor seats for Hans Zimmer at MSG under $350 on Ticketmaster"
             );
         }
-        other => panic!("Expected GoalMutationBlocked for counterparty, got: {:?}", other),
+        other => panic!(
+            "Expected GoalMutationBlocked for counterparty, got: {:?}",
+            other
+        ),
     }
 
     // -------------------------------------------------------------------

@@ -29,6 +29,7 @@ coverage/
 .vscode/
 .idea/
 *.local
+pr_comment.md
 
 
 # Local-only planning documents & sprint archives

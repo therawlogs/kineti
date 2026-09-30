@@ -10,8 +10,8 @@
 //! - The graph proposes candidates; exact re-ranking plus tenant and
 //!   tombstone filters in `vector.rs` stay authoritative for correctness.
 
-use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap, HashSet};
 
 /// Cosine similarity between two vectors over their shared prefix.
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
@@ -30,9 +30,6 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     dot / (na.sqrt() * nb.sqrt())
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-struct NodeKey(u32);
-
 #[derive(Clone, Debug)]
 struct Node {
     layer: usize,
@@ -49,15 +46,17 @@ struct Scored {
 
 impl Eq for Scored {}
 
-impl PartialOrd for Scored {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.score.partial_cmp(&other.score)
+impl Ord for Scored {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.score
+            .partial_cmp(&other.score)
+            .unwrap_or(Ordering::Equal)
     }
 }
 
-impl Ord for Scored {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap_or(Ordering::Equal)
+impl PartialOrd for Scored {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -110,12 +109,13 @@ impl HnswGraph {
                 neighbors[l] = cands.into_iter().take(self.m).collect();
             }
             // Back-link from existing neighbors.
-            for l in 0..=layer {
-                let targets = neighbors[l].clone();
+            for (l, targets) in neighbors.iter().enumerate().take(layer + 1) {
                 for t in targets {
                     let needs_prune = {
-                        match self.nodes.get_mut(&t) {
-                            Some(node) if l < node.neighbors.len() && !node.neighbors[l].contains(&id) => {
+                        match self.nodes.get_mut(t) {
+                            Some(node)
+                                if l < node.neighbors.len() && !node.neighbors[l].contains(&id) =>
+                            {
                                 node.neighbors[l].push(id);
                                 node.neighbors[l].len() > self.m * 2
                             }
@@ -123,12 +123,12 @@ impl HnswGraph {
                         }
                     };
                     if needs_prune {
-                        let (nvec, nlist) = match self.nodes.get(&t) {
+                        let (nvec, nlist) = match self.nodes.get(t) {
                             Some(n) => (n.vector.clone(), n.neighbors[l].clone()),
                             None => continue,
                         };
                         let keep = self.prune(&nvec, &nlist);
-                        if let Some(n) = self.nodes.get_mut(&t) {
+                        if let Some(n) = self.nodes.get_mut(t) {
                             if l < n.neighbors.len() {
                                 n.neighbors[l] = keep;
                             }
@@ -137,11 +137,20 @@ impl HnswGraph {
                 }
             }
         }
-        self.nodes.insert(id, Node { layer, vector, neighbors });
+        self.nodes.insert(
+            id,
+            Node {
+                layer,
+                vector,
+                neighbors,
+            },
+        );
         let promote = match self.entry {
             None => true,
-            Some(e) => self.nodes.get(&id).map(|n| n.layer).unwrap_or(0)
-                > self.nodes.get(&e).map(|n| n.layer).unwrap_or(0),
+            Some(e) => {
+                self.nodes.get(&id).map(|n| n.layer).unwrap_or(0)
+                    > self.nodes.get(&e).map(|n| n.layer).unwrap_or(0)
+            }
         };
         if promote {
             self.entry = Some(id);
@@ -151,7 +160,11 @@ impl HnswGraph {
     fn prune(&self, base: &[f32], ids: &[u32]) -> Vec<u32> {
         let mut scored: Vec<(u32, f32)> = ids
             .iter()
-            .filter_map(|id| self.nodes.get(id).map(|n| (*id, cosine_similarity(base, &n.vector))))
+            .filter_map(|id| {
+                self.nodes
+                    .get(id)
+                    .map(|n| (*id, cosine_similarity(base, &n.vector)))
+            })
             .collect();
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
         scored.into_iter().take(self.m).map(|(id, _)| id).collect()
@@ -162,11 +175,17 @@ impl HnswGraph {
         let mut heap: BinaryHeap<Scored> = BinaryHeap::new();
         visited.insert(start);
         if let Some(n) = self.nodes.get(&start) {
-            heap.push(Scored { score: cosine_similarity(query, &n.vector), id: start });
+            heap.push(Scored {
+                score: cosine_similarity(query, &n.vector),
+                id: start,
+            });
         }
         let mut best: Vec<Scored> = Vec::new();
         while let Some(top) = heap.pop() {
-            best.push(Scored { score: top.score, id: top.id });
+            best.push(Scored {
+                score: top.score,
+                id: top.id,
+            });
             if let Some(node) = self.nodes.get(&top.id) {
                 if layer < node.neighbors.len() {
                     for nb in &node.neighbors[layer] {
@@ -301,6 +320,9 @@ mod tests {
         }
         let cands = g.search(&[1.0, 0.1, 0.0], 10);
         let hits = cands.iter().filter(|c| **c < 50).count();
-        assert!(hits >= 8, "expected >=8/10 from correct cluster, got {hits}");
+        assert!(
+            hits >= 8,
+            "expected >=8/10 from correct cluster, got {hits}"
+        );
     }
 }

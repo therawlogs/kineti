@@ -25,4 +25,6 @@ pub use dnti::{
 };
 pub use ovt::{OutcomeVerificationTicket, OvtCoordinator, OvtError};
 pub use shadow::ShadowWorkspace;
-pub use signer::{confirm_prompt, enclave_available, needs_human_confirm, HardwareSigner, SoftwareSigner};
+pub use signer::{
+    confirm_prompt, enclave_available, needs_human_confirm, HardwareSigner, SoftwareSigner,
+};

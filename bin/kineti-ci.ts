@@ -91,6 +91,9 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
   // 1. Check state
   const statePath = path.join(kdir, "state.json");
   const state = fs.existsSync(statePath) ? readJson<KinetiState>(statePath) : null;
+  if (!state) {
+    failures.push("state.json missing: seed it with `bun scripts/ci-seed.ts` before running the gate");
+  }
   
   const rawStage = state?.stage ?? state?.current_stage ?? 1;
   let stageNum = 1;

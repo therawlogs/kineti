@@ -8,4 +8,4 @@ Pure Rust workspace (8 crates) with zero external crate dependencies and `#![for
 
 ## Performance figures
 
-Do not quote latency or concurrency numbers for this engine unless they come from reproducible benchmark scripts in `benches/`. Module doc comments state only what the implementation does.
+Do not quote latency or concurrency numbers for this engine unless they come from reproducible benchmark scripts in `crates/kineti-cli/benches/`. Module doc comments state only what the implementation does.

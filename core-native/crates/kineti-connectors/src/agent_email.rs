@@ -151,7 +151,10 @@ impl AgentEmailClient {
                 // Check surrounding context words
                 let is_likely_code = if i > 0 {
                     let prev = tokens[i - 1].to_lowercase();
-                    prev.contains("code") || prev.contains("is") || prev.contains("verification") || prev.contains("pin")
+                    prev.contains("code")
+                        || prev.contains("is")
+                        || prev.contains("verification")
+                        || prev.contains("pin")
                 } else {
                     false
                 };
@@ -172,13 +175,18 @@ impl AgentEmailClient {
                 return Some(("UPS".to_string(), clean.to_string()));
             }
             // FedEx is 12 or 15 digits
-            if (clean.len() == 12 || clean.len() == 15) && clean.chars().all(|c| c.is_ascii_digit()) {
-                if body.to_lowercase().contains("fedex") {
-                    return Some(("FedEx".to_string(), clean.to_string()));
-                }
+            if (clean.len() == 12 || clean.len() == 15)
+                && clean.chars().all(|c| c.is_ascii_digit())
+                && body.to_lowercase().contains("fedex")
+            {
+                return Some(("FedEx".to_string(), clean.to_string()));
             }
             // USPS is 20-22 digits starting with 9
-            if clean.len() >= 20 && clean.len() <= 22 && clean.starts_with('9') && clean.chars().all(|c| c.is_ascii_digit()) {
+            if clean.len() >= 20
+                && clean.len() <= 22
+                && clean.starts_with('9')
+                && clean.chars().all(|c| c.is_ascii_digit())
+            {
                 return Some(("USPS".to_string(), clean.to_string()));
             }
         }
@@ -208,7 +216,10 @@ impl AgentEmailClient {
         let res = kineti_core::http_post_json(endpoint, &header_refs, &payload)
             .map_err(|e| format!("Agent email network error: {}", e))?;
         if !res.success {
-            return Err(format!("Agent email HTTP error {}: {}", res.status, res.body));
+            return Err(format!(
+                "Agent email HTTP error {}: {}",
+                res.status, res.body
+            ));
         }
         Ok(res.body)
     }
@@ -273,14 +284,20 @@ impl KinetiConnectorProtocol for AgentEmailClient {
                 let body = get_str_property(payload, "body").unwrap_or("");
                 let link = self.extract_verification_link(body);
                 let mut map = BTreeMap::new();
-                map.insert("link".to_string(), link.map(Value::String).unwrap_or(Value::Null));
+                map.insert(
+                    "link".to_string(),
+                    link.map(Value::String).unwrap_or(Value::Null),
+                );
                 Ok(Value::Object(map))
             }
             "extract_otp_code" => {
                 let body = get_str_property(payload, "body").unwrap_or("");
                 let code = self.extract_otp_code(body);
                 let mut map = BTreeMap::new();
-                map.insert("code".to_string(), code.map(Value::String).unwrap_or(Value::Null));
+                map.insert(
+                    "code".to_string(),
+                    code.map(Value::String).unwrap_or(Value::Null),
+                );
                 Ok(Value::Object(map))
             }
             "extract_tracking_number" => {
@@ -300,7 +317,10 @@ impl KinetiConnectorProtocol for AgentEmailClient {
                 let subject = get_str_property(payload, "subject").unwrap_or("");
                 let body = get_str_property(payload, "body").unwrap_or("");
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("draft_created".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("draft_created".to_string()),
+                );
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
                 map.insert("body".to_string(), Value::String(body.to_string()));
@@ -314,8 +334,14 @@ impl KinetiConnectorProtocol for AgentEmailClient {
                 let endpoint = get_str_property(payload, "endpoint");
                 let api_token = get_str_property(payload, "api_token");
                 let mut map = BTreeMap::new();
-                map.insert("status".to_string(), Value::String("email_dispatched".to_string()));
-                map.insert("from".to_string(), Value::String(format!("agent@{}", self.default_domain)));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("email_dispatched".to_string()),
+                );
+                map.insert(
+                    "from".to_string(),
+                    Value::String(format!("agent@{}", self.default_domain)),
+                );
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
                 map.insert("body".to_string(), Value::String(body.to_string()));

@@ -164,7 +164,10 @@ impl DriftInspector {
         }
 
         // 2. Check Financial Ceiling Boundary
-        if let (Some(max_spend), Some(proposed)) = (goal.boundaries.max_spend_microcents, proposed_spend_microcents) {
+        if let (Some(max_spend), Some(proposed)) = (
+            goal.boundaries.max_spend_microcents,
+            proposed_spend_microcents,
+        ) {
             if proposed > max_spend {
                 return DriftEvaluation::GoalMutationBlocked {
                     reason: format!(
@@ -179,7 +182,9 @@ impl DriftInspector {
         }
 
         // 3. Check Counterparty Boundary
-        if let (Some(expected_cp), Some(target_cp)) = (&goal.boundaries.counterparty, target_counterparty) {
+        if let (Some(expected_cp), Some(target_cp)) =
+            (&goal.boundaries.counterparty, target_counterparty)
+        {
             if !target_cp.eq_ignore_ascii_case(expected_cp) {
                 return DriftEvaluation::GoalMutationBlocked {
                     reason: format!(
@@ -199,7 +204,8 @@ impl DriftInspector {
             || lower.contains("waive requirement")
         {
             return DriftEvaluation::GoalMutationBlocked {
-                reason: "Action attempts to silently compromise user terms to fabricate success".to_string(),
+                reason: "Action attempts to silently compromise user terms to fabricate success"
+                    .to_string(),
                 verbatim_ask: goal.raw_user_ask.clone(),
             };
         }
@@ -226,8 +232,14 @@ impl DriftInspector {
                 alternative_surface: None,
                 surface_name,
             } => FrictionResolution::EscalateCleanNo {
-                clean_no_reason: format!("Required surface '{}' is unavailable and no viable alternative exists", surface_name),
-                banked_data: format!("Sunk cost of ${:.2} written off; progress banked", accumulated_debris_cost as f64 / 1_000_000.0),
+                clean_no_reason: format!(
+                    "Required surface '{}' is unavailable and no viable alternative exists",
+                    surface_name
+                ),
+                banked_data: format!(
+                    "Sunk cost of ${:.2} written off; progress banked",
+                    accumulated_debris_cost as f64 / 1_000_000.0
+                ),
             },
             FrictionType::RealConstraint {
                 obstacle,
@@ -289,9 +301,15 @@ mod tests {
             3000,
         );
         match eval_blocked {
-            DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask } => {
+            DriftEvaluation::GoalMutationBlocked {
+                reason,
+                verbatim_ask,
+            } => {
                 assert!(reason.contains("exceeds user ceiling"));
-                assert_eq!(verbatim_ask, "Sign service contract with Acme Corp under $50 by Friday");
+                assert_eq!(
+                    verbatim_ask,
+                    "Sign service contract with Acme Corp under $50 by Friday"
+                );
             }
             _ => panic!("Expected budget overrun to be blocked"),
         }
@@ -319,7 +337,10 @@ mod tests {
             message: "HTTP 503 Service Unavailable".to_string(),
         };
         let res_noise = DriftInspector::triage_friction(&goal, noise, 5_000_000);
-        assert_eq!(res_noise, FrictionResolution::RetryWithBackoff { delay_ms: 1000 });
+        assert_eq!(
+            res_noise,
+            FrictionResolution::RetryWithBackoff { delay_ms: 1000 }
+        );
 
         // Level 2: Broken Surface with Alternative -> Silent Reroute
         let surface_broken = FrictionType::BrokenSurface {
@@ -328,7 +349,10 @@ mod tests {
         };
         let res_reroute = DriftInspector::triage_friction(&goal, surface_broken, 5_000_000);
         match res_reroute {
-            FrictionResolution::SilentReroute { target_surface, verbatim_goal } => {
+            FrictionResolution::SilentReroute {
+                target_surface,
+                verbatim_goal,
+            } => {
                 assert_eq!(target_surface, "PartnerAPI");
                 assert_eq!(verbatim_goal, "Book flight under $200 on Delta");
             }
@@ -342,7 +366,10 @@ mod tests {
         };
         let res_constraint = DriftInspector::triage_friction(&goal, constraint, 15_000_000);
         match res_constraint {
-            FrictionResolution::EscalateCleanNo { clean_no_reason, banked_data } => {
+            FrictionResolution::EscalateCleanNo {
+                clean_no_reason,
+                banked_data,
+            } => {
                 assert!(clean_no_reason.contains("Delta lowest fare is $280"));
                 assert!(clean_no_reason.contains("Impossibility reported cleanly"));
                 assert!(banked_data.contains("written off"));
@@ -378,9 +405,15 @@ mod tests {
         );
 
         match drift {
-            DriftEvaluation::GoalMutationBlocked { reason, verbatim_ask } => {
+            DriftEvaluation::GoalMutationBlocked {
+                reason,
+                verbatim_ask,
+            } => {
                 assert!(reason.contains("does not match authorized counterparty"));
-                assert_eq!(verbatim_ask, "Send quarterly report to OriginalRecipient only");
+                assert_eq!(
+                    verbatim_ask,
+                    "Send quarterly report to OriginalRecipient only"
+                );
             }
             _ => panic!("Expected counterparty mismatch drift to be blocked"),
         }

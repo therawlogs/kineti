@@ -20,7 +20,11 @@ impl StyleAnalyzer {
     }
 
     /// Analyzes a single message and returns an updated style profile.
-    pub fn update_profile(&self, current: &UserStyleProfile, incoming_text: &str) -> UserStyleProfile {
+    pub fn update_profile(
+        &self,
+        current: &UserStyleProfile,
+        incoming_text: &str,
+    ) -> UserStyleProfile {
         let trimmed = incoming_text.trim();
         if trimmed.is_empty() {
             return current.clone();
@@ -40,25 +44,41 @@ impl StyleAnalyzer {
         let words: Vec<&str> = trimmed.split_whitespace().collect();
         let word_count = words.len();
 
-        let slang_tokens = ["ngl", "tbh", "bet", "w", "fr", "yo", "sup", "bhai", "yaar", "vamos", "kinda", "gonna"];
+        let slang_tokens = [
+            "ngl", "tbh", "bet", "w", "fr", "yo", "sup", "bhai", "yaar", "vamos", "kinda", "gonna",
+        ];
         let slang_count = words
             .iter()
             .filter(|w| {
-                let clean = w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                let clean = w
+                    .trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_lowercase();
                 slang_tokens.contains(&clean.as_str())
             })
             .count();
-        let message_slang_affinity = (slang_count as f32 / (word_count.max(1) as f32) * 3.0).min(1.0);
+        let message_slang_affinity =
+            (slang_count as f32 / (word_count.max(1) as f32) * 3.0).min(1.0);
 
-        let formal_markers = ["dear", "sincerely", "regarding", "please", "kindly", "furthermore", "apologies"];
+        let formal_markers = [
+            "dear",
+            "sincerely",
+            "regarding",
+            "please",
+            "kindly",
+            "furthermore",
+            "apologies",
+        ];
         let formal_count = words
             .iter()
             .filter(|w| {
-                let clean = w.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase();
+                let clean = w
+                    .trim_matches(|c: char| !c.is_alphanumeric())
+                    .to_lowercase();
                 formal_markers.contains(&clean.as_str())
             })
             .count();
-        let message_formality = if formal_count > 0 || (!is_all_lowercase && trimmed.ends_with('.')) {
+        let message_formality = if formal_count > 0 || (!is_all_lowercase && trimmed.ends_with('.'))
+        {
             0.8
         } else if is_all_lowercase || message_slang_affinity > 0.2 {
             0.2
@@ -80,8 +100,13 @@ impl StyleAnalyzer {
         // Exponential moving average update (alpha = 0.25)
         let alpha = 0.25;
         UserStyleProfile {
-            verbosity: current.verbosity * (1.0 - alpha) + (word_count as f32 / 50.0).min(1.0) * alpha,
-            lowercase_preference: if is_all_lowercase { true } else { current.lowercase_preference },
+            verbosity: current.verbosity * (1.0 - alpha)
+                + (word_count as f32 / 50.0).min(1.0) * alpha,
+            lowercase_preference: if is_all_lowercase {
+                true
+            } else {
+                current.lowercase_preference
+            },
             emoji_density: current.emoji_density * (1.0 - alpha) + message_emoji_density * alpha,
             formality: current.formality * (1.0 - alpha) + message_formality * alpha,
             slang_affinity: current.slang_affinity * (1.0 - alpha) + message_slang_affinity * alpha,
@@ -99,11 +124,12 @@ impl StyleAnalyzer {
         }
 
         // 2. If user is extremely terse/executive, strip opening pleasantries
-        if profile.verbosity < 0.3 && profile.formality >= 0.5 {
-            if output.starts_with("Sure, ") || output.starts_with("Certainly! ") {
-                if let Some(rest) = output.splitn(2, ' ').nth(1) {
-                    output = rest.to_string();
-                }
+        let terse = profile.verbosity < 0.3 && profile.formality >= 0.5;
+        let opens_with_pleasantry =
+            output.starts_with("Sure, ") || output.starts_with("Certainly! ");
+        if terse && opens_with_pleasantry {
+            if let Some((_, rest)) = output.split_once(' ') {
+                output = rest.to_string();
             }
         }
 
@@ -131,7 +157,10 @@ mod tests {
     fn test_lowercase_and_slang_detection() {
         let analyzer = StyleAnalyzer::new();
         let current = UserStyleProfile::default();
-        let updated = analyzer.update_profile(&current, "yo can u check if sarah sent the deck ngl kinda stressing");
+        let updated = analyzer.update_profile(
+            &current,
+            "yo can u check if sarah sent the deck ngl kinda stressing",
+        );
 
         assert!(updated.lowercase_preference);
         assert!(updated.slang_affinity > 0.2);
@@ -147,7 +176,10 @@ mod tests {
     fn test_executive_formal_detection() {
         let analyzer = StyleAnalyzer::new();
         let current = UserStyleProfile::default();
-        let updated = analyzer.update_profile(&current, "Good morning. Please review the quarterly financial deck.");
+        let updated = analyzer.update_profile(
+            &current,
+            "Good morning. Please review the quarterly financial deck.",
+        );
 
         assert!(!updated.lowercase_preference);
         assert!(updated.formality > 0.5);
@@ -157,7 +189,10 @@ mod tests {
     fn test_bilingual_code_switching_detection() {
         let analyzer = StyleAnalyzer::new();
         let current = UserStyleProfile::default();
-        let updated = analyzer.update_profile(&current, "bhai check karo if the meeting is still on thoda urgent hai");
+        let updated = analyzer.update_profile(
+            &current,
+            "bhai check karo if the meeting is still on thoda urgent hai",
+        );
 
         assert_eq!(updated.language_dialect, "hi-en");
     }

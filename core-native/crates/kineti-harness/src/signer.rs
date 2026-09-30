@@ -42,7 +42,10 @@ impl SoftwareSigner {
     /// Creates a software signer. The secret stays in process memory,
     /// unlike a hardware backend.
     pub fn new(label: impl Into<String>, secret: impl Into<String>) -> Self {
-        Self { label: label.into(), secret: secret.into() }
+        Self {
+            label: label.into(),
+            secret: secret.into(),
+        }
     }
 }
 

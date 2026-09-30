@@ -9,6 +9,9 @@ homepage.workspace = true
 readme = "../../README.md"
 description = "High-speed backend connectors: Brave Search, FLUX.1, Gmail, Notion, and WhatsApp OTP Auth"
 
+[lints]
+workspace = true
+
 [dependencies]
 kineti-core = { path = "../kineti-core", version = "0.3.7" }
 kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }

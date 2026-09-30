@@ -165,8 +165,14 @@ impl Drop for Reservation {
             )
             .is_ok()
         {
-            let mut balance = self.breaker.balance.lock().unwrap_or_else(|e| e.into_inner());
-            balance.reserved_microcents = balance.reserved_microcents.saturating_sub(self.amount_microcents);
+            let mut balance = self
+                .breaker
+                .balance
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            balance.reserved_microcents = balance
+                .reserved_microcents
+                .saturating_sub(self.amount_microcents);
         }
     }
 }
@@ -377,7 +383,9 @@ impl SpendCircuitBreaker {
         };
         let total = committed.saturating_add(reserved);
 
-        if total >= self.inner.trip_threshold_microcents || self.inner.tripped.load(Ordering::Acquire) {
+        if total >= self.inner.trip_threshold_microcents
+            || self.inner.tripped.load(Ordering::Acquire)
+        {
             self.inner.tripped.store(true, Ordering::SeqCst);
 
             if self.inner.exit_on_halt.load(Ordering::Acquire) {
@@ -398,18 +406,28 @@ impl SpendCircuitBreaker {
 
     /// Returns currently committed microcents.
     pub fn committed_microcents(&self) -> u64 {
-        self.inner.balance.lock().unwrap_or_else(|e| e.into_inner()).committed_microcents
+        self.inner
+            .balance
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .committed_microcents
     }
 
     /// Returns currently active reserved microcents.
     pub fn reserved_microcents(&self) -> u64 {
-        self.inner.balance.lock().unwrap_or_else(|e| e.into_inner()).reserved_microcents
+        self.inner
+            .balance
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .reserved_microcents
     }
 
     /// Returns total active spend exposure (`committed + reserved`).
     pub fn total_microcents(&self) -> u64 {
         let balance = self.inner.balance.lock().unwrap_or_else(|e| e.into_inner());
-        balance.committed_microcents.saturating_add(balance.reserved_microcents)
+        balance
+            .committed_microcents
+            .saturating_add(balance.reserved_microcents)
     }
 
     /// Returns remaining microcents under the hard ceiling.
@@ -551,20 +569,22 @@ impl UserSpendQuota {
     /// Resets daily quota if current physical day exceeds last recorded epoch day.
     pub fn maybe_reset_daily(&self, current_day_epoch: u64) {
         let prev = self.last_reset_epoch_days.load(Ordering::Acquire);
-        if current_day_epoch > prev {
-            if self
+        if current_day_epoch > prev
+            && self
                 .last_reset_epoch_days
                 .compare_exchange(prev, current_day_epoch, Ordering::AcqRel, Ordering::Relaxed)
                 .is_ok()
-            {
-                self.spent_microcents.store(0, Ordering::Release);
-                self.reserved_microcents.store(0, Ordering::Release);
-            }
+        {
+            self.spent_microcents.store(0, Ordering::Release);
+            self.reserved_microcents.store(0, Ordering::Release);
         }
     }
 
     /// Checks if a spend amount is within budget, returning soft warnings or hard cap error.
-    pub fn check_spend(&self, requested_microcents: u64) -> Result<UserSpendStatus, UserQuotaExceeded> {
+    pub fn check_spend(
+        &self,
+        requested_microcents: u64,
+    ) -> Result<UserSpendStatus, UserQuotaExceeded> {
         let limit = self.limit_microcents.load(Ordering::Relaxed);
         let spent = self.spent_microcents.load(Ordering::Relaxed);
         let projected = spent.saturating_add(requested_microcents);
@@ -606,7 +626,8 @@ impl UserSpendQuota {
 
     /// Records committed spend for a user interaction.
     pub fn record_spend(&self, microcents: u64) {
-        self.spent_microcents.fetch_add(microcents, Ordering::AcqRel);
+        self.spent_microcents
+            .fetch_add(microcents, Ordering::AcqRel);
     }
 }
 
@@ -651,7 +672,9 @@ mod tests {
         assert_eq!(breaker.trip_threshold_microcents(), 47_500_000);
 
         // Reserve exactly $47.50 -> succeeds
-        let res1 = breaker.reserve(47_500_000).expect("Reservation at 95% threshold succeeds");
+        let res1 = breaker
+            .reserve(47_500_000)
+            .expect("Reservation at 95% threshold succeeds");
         assert_eq!(breaker.reserved_microcents(), 47_500_000);
         assert!(!breaker.is_tripped());
 
@@ -705,7 +728,9 @@ mod tests {
         assert_eq!(breaker.reserved_microcents(), 10_000_000);
 
         // Actual spend is $6.50
-        let committed = breaker.commit_with_actual(res, 6_500_000).expect("Partial commit succeeds");
+        let committed = breaker
+            .commit_with_actual(res, 6_500_000)
+            .expect("Partial commit succeeds");
         assert_eq!(committed, 6_500_000);
         assert_eq!(breaker.committed_microcents(), 6_500_000);
         assert_eq!(breaker.reserved_microcents(), 0);
@@ -749,7 +774,9 @@ mod tests {
     #[test]
     fn test_record_spend_fast_path() {
         let breaker = SpendCircuitBreaker::new(50_000_000);
-        let total = breaker.record_spend(2_500_000).expect("Fast path spend succeeds");
+        let total = breaker
+            .record_spend(2_500_000)
+            .expect("Fast path spend succeeds");
         assert_eq!(total, 2_500_000);
         assert_eq!(breaker.committed_microcents(), 2_500_000);
         assert_eq!(breaker.reserved_microcents(), 0);
@@ -777,7 +804,9 @@ mod tests {
         assert!(breaker.is_tripped());
 
         // Human reset succeeds
-        breaker.reset_human("--i-am-human").expect("Human reset succeeds");
+        breaker
+            .reset_human("--i-am-human")
+            .expect("Human reset succeeds");
         assert!(!breaker.is_tripped());
     }
 
@@ -800,7 +829,10 @@ mod tests {
     fn test_concurrent_spend_exhaustion_no_overdraft() {
         let ceiling = 50_000_000;
         let trip_threshold = 47_500_000;
-        let breaker = Arc::new(SpendCircuitBreaker::with_trip_threshold(ceiling, trip_threshold));
+        let breaker = Arc::new(SpendCircuitBreaker::with_trip_threshold(
+            ceiling,
+            trip_threshold,
+        ));
 
         let num_threads = 100;
         let reservation_amount = 1_000_000; // $1.00 per thread
@@ -836,8 +868,18 @@ mod tests {
         assert_eq!(successes + rejects, num_threads);
 
         let total_committed = breaker.committed_microcents();
-        assert!(total_committed <= trip_threshold, "Total committed {} > trip threshold {}", total_committed, trip_threshold);
-        assert!(total_committed <= ceiling, "Total committed {} > ceiling {}", total_committed, ceiling);
+        assert!(
+            total_committed <= trip_threshold,
+            "Total committed {} > trip threshold {}",
+            total_committed,
+            trip_threshold
+        );
+        assert!(
+            total_committed <= ceiling,
+            "Total committed {} > ceiling {}",
+            total_committed,
+            ceiling
+        );
         assert!(breaker.is_tripped());
     }
 
@@ -856,8 +898,13 @@ mod tests {
         assert_eq!(tracker.spent_microcents(), 50_000);
 
         // Step 2: Push into 90% soft warning zone ($0.18 total, requested $0.13)
-        let status2 = tracker.check_spend(130_000).expect("Soft warning zone allowed");
-        if let UserSpendStatus::SoftWarning { advisory_message, .. } = status2 {
+        let status2 = tracker
+            .check_spend(130_000)
+            .expect("Soft warning zone allowed");
+        if let UserSpendStatus::SoftWarning {
+            advisory_message, ..
+        } = status2
+        {
             assert!(advisory_message.contains("90%"));
             assert!(advisory_message.contains("getkineti.com"));
         } else {

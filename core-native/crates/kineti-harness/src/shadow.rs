@@ -26,7 +26,14 @@ impl ShadowWorkspace {
 
         // Try to add git worktree
         let output = Command::new("git")
-            .args(["worktree", "add", "-b", &branch, shadow_dir.to_str().unwrap(), "HEAD"])
+            .args([
+                "worktree",
+                "add",
+                "-b",
+                &branch,
+                shadow_dir.to_str().unwrap(),
+                "HEAD",
+            ])
             .current_dir(base_dir)
             .output();
 
@@ -51,7 +58,12 @@ impl ShadowWorkspace {
     pub fn rollback(self) -> std::io::Result<()> {
         if self.worktree_path.exists() {
             let _ = Command::new("git")
-                .args(["worktree", "remove", "--force", self.worktree_path.to_str().unwrap()])
+                .args([
+                    "worktree",
+                    "remove",
+                    "--force",
+                    self.worktree_path.to_str().unwrap(),
+                ])
                 .output();
             let _ = Command::new("git")
                 .args(["branch", "-D", &self.branch_name])

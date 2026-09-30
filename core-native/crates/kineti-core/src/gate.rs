@@ -194,11 +194,12 @@ impl CommitGate {
         let mut max_parent_rank: u64 = 0;
 
         for parent_id in &candidate.parents {
-            let parent_node = nodes.get(parent_id).ok_or_else(|| {
-                CommitGateError::MissingParent {
-                    parent_id: parent_id.0.clone(),
-                }
-            })?;
+            let parent_node =
+                nodes
+                    .get(parent_id)
+                    .ok_or_else(|| CommitGateError::MissingParent {
+                        parent_id: parent_id.0.clone(),
+                    })?;
 
             // Gate 2: Causal monotonicity HLC(P) < HLC(C)
             if parent_node.node.hlc >= candidate.hlc {
@@ -256,16 +257,22 @@ impl CommitGate {
 
     /// Verifies candidate node against all 3 commit gate invariants without committing.
     pub fn verify(&self, candidate: &ProvenanceNode) -> Result<u64, CommitGateError> {
-        let nodes = self.nodes.read().expect("CommitGate nodes read lock poisoned");
-        Self::verify_invariants(&*nodes, candidate)
+        let nodes = self
+            .nodes
+            .read()
+            .expect("CommitGate nodes read lock poisoned");
+        Self::verify_invariants(&nodes, candidate)
     }
 
     /// Validates all 3 invariants and atomically commits node to Merkle DAG.
     pub fn commit(&self, candidate: ProvenanceNode) -> Result<CommitReceipt, CommitGateError> {
         let start = Instant::now();
 
-        let mut nodes = self.nodes.write().expect("CommitGate nodes write lock poisoned");
-        let rank = Self::verify_invariants(&*nodes, &candidate)?;
+        let mut nodes = self
+            .nodes
+            .write()
+            .expect("CommitGate nodes write lock poisoned");
+        let rank = Self::verify_invariants(&nodes, &candidate)?;
 
         let node_id = candidate.id.clone();
         let hlc = candidate.hlc;
@@ -305,7 +312,10 @@ impl CommitGate {
 
     /// Retrieves a committed node by its NodeId.
     pub fn get(&self, id: &NodeId) -> Option<CommittedNode> {
-        let nodes = self.nodes.read().expect("CommitGate nodes read lock poisoned");
+        let nodes = self
+            .nodes
+            .read()
+            .expect("CommitGate nodes read lock poisoned");
         nodes.get(id).cloned()
     }
 
@@ -330,14 +340,8 @@ mod tests {
             role_id: None,
         });
 
-        ProvenanceNode::new(
-            entity,
-            parents,
-            hlc,
-            BTreeMap::new(),
-            HashAlgorithm::Blake3,
-        )
-        .expect("Valid node creation")
+        ProvenanceNode::new(entity, parents, hlc, BTreeMap::new(), HashAlgorithm::Blake3)
+            .expect("Valid node creation")
     }
 
     #[test]
@@ -381,7 +385,11 @@ mod tests {
         let rec_c = gate.commit(c.clone()).unwrap();
         assert_eq!(rec_c.topological_rank, 1);
 
-        let d = make_test_node("Join", vec![b.id.clone(), c.id.clone()], HlcTimestamp::new(1000, 3, 1));
+        let d = make_test_node(
+            "Join",
+            vec![b.id.clone(), c.id.clone()],
+            HlcTimestamp::new(1000, 3, 1),
+        );
         let rec_d = gate.commit(d.clone()).unwrap();
         assert_eq!(rec_d.topological_rank, 2);
         assert_eq!(rec_d.parent_count, 2);
@@ -395,12 +403,20 @@ mod tests {
         gate.commit(parent.clone()).expect("Parent commits");
 
         // Candidate with lower HLC
-        let child_lower = make_test_node("ChildLower", vec![parent.id.clone()], HlcTimestamp::new(2000, 4, 1));
+        let child_lower = make_test_node(
+            "ChildLower",
+            vec![parent.id.clone()],
+            HlcTimestamp::new(2000, 4, 1),
+        );
         let err_lower = gate.commit(child_lower).unwrap_err();
         assert!(matches!(err_lower, CommitGateError::CausalInversion { .. }));
 
         // Candidate with equal HLC
-        let child_equal = make_test_node("ChildEqual", vec![parent.id.clone()], HlcTimestamp::new(2000, 5, 1));
+        let child_equal = make_test_node(
+            "ChildEqual",
+            vec![parent.id.clone()],
+            HlcTimestamp::new(2000, 5, 1),
+        );
         let err_equal = gate.commit(child_equal).unwrap_err();
         assert!(matches!(err_equal, CommitGateError::CausalInversion { .. }));
     }
@@ -415,7 +431,11 @@ mod tests {
         // Mutate single character in declared NodeId
         let mut id_bytes = tampered_node.id.0.into_bytes();
         let last_idx = id_bytes.len() - 1;
-        id_bytes[last_idx] = if id_bytes[last_idx] == b'a' { b'b' } else { b'a' };
+        id_bytes[last_idx] = if id_bytes[last_idx] == b'a' {
+            b'b'
+        } else {
+            b'a'
+        };
         tampered_node.id = NodeId::new(String::from_utf8(id_bytes).unwrap());
 
         let err = gate.commit(tampered_node).unwrap_err();
@@ -425,7 +445,11 @@ mod tests {
     #[test]
     fn test_commit_gate_missing_parent() {
         let gate = CommitGate::new();
-        let orphan = make_test_node("Orphan", vec![NodeId::new("non_existent_parent")], HlcTimestamp::new(1000, 1, 1));
+        let orphan = make_test_node(
+            "Orphan",
+            vec![NodeId::new("non_existent_parent")],
+            HlcTimestamp::new(1000, 1, 1),
+        );
         let err = gate.commit(orphan).unwrap_err();
         assert!(matches!(err, CommitGateError::MissingParent { .. }));
     }

@@ -81,7 +81,9 @@ impl FluxClient {
     /// Enhances a user's short prompt with photographic realism keywords.
     pub fn enhance_prompt(&self, raw_prompt: &str) -> String {
         let trimmed = raw_prompt.trim();
-        if trimmed.to_lowercase().contains("photorealistic") || trimmed.to_lowercase().contains("lens") {
+        if trimmed.to_lowercase().contains("photorealistic")
+            || trimmed.to_lowercase().contains("lens")
+        {
             trimmed.to_string()
         } else {
             format!(

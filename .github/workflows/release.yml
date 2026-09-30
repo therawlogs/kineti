@@ -20,8 +20,63 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - run: bun install
-      - run: bun test tests/
+
+      - name: Seed CI runtime state
+        run: bun scripts/ci-seed.ts
+
+      - name: Check tag matches package version
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -e
+          TAG="${INPUT_TAG:-$GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+          json_ver() { grep -m1 '"version"' "$1" | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/'; }
+          PKG=$(json_ver package.json)
+          CFG=$(json_ver kineti.config.json)
+          RUST=$(grep -m1 '^version = ' core-native/Cargo.toml | sed -E 's/.*"(.*)".*/\1/')
+          echo "tag=$TAG pkg=$PKG config=$CFG rust=$RUST"
+          if [ "$VER" != "$PKG" ] || [ "$VER" != "$CFG" ] || [ "$VER" != "$RUST" ]; then
+            echo "version mismatch: tag $VER vs $PKG/$CFG/$RUST"
+            exit 1
+          fi
+
+      - name: Router codegen freshness
+        run: |
+          bun run build:router
+          git diff --exit-code -- bin/kineti.js
+
+      - name: Run Type Integrity Check
+        run: bun bin/kineti-evidence.ts run --label release-typecheck --timeout 300 -- bun run typecheck
+
+      - name: Rust formatting check
+        run: cargo fmt --all --manifest-path core-native/Cargo.toml --check
+
+      - name: Rust lint check
+        run: cargo clippy --all-targets --manifest-path core-native/Cargo.toml -- -D warnings
+
+      - name: Run Unit & Gate Test Suite
+        run: bun bin/kineti-evidence.ts run --label release-ts-tests --timeout 600 -- bun test tests/
+
+      - name: Run Rust Engine Test Suite
+        run: bun bin/kineti-evidence.ts run --label release-rust-tests --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
+
+      - name: Run Installer Smoke Test
+        run: bun bin/kineti-evidence.ts run --label release-installer-smoke --timeout 600 -- bun run test:setup
+
+      - name: Verify every evidence record is fresh
+        run: |
+          set -e
+          for label in release-typecheck release-ts-tests release-rust-tests release-installer-smoke; do
+            bun bin/kineti-evidence.ts check --label "$label"
+          done
+
+      - name: Verify Kineti State & Evidence Gate
+        run: bun bin/kineti-ci.ts
 
   build-and-publish:
     name: Build binaries and publish release
@@ -43,6 +98,11 @@ jobs:
           bun build --compile --minify --target=bun-darwin-arm64 ./bin/kineti.ts --outfile dist/kineti-darwin-arm64
           bun build --compile --minify --target=bun-darwin-x64 ./bin/kineti.ts --outfile dist/kineti-darwin-x64
           cd dist && sha256sum * > SHA256SUMS
+
+      - name: Smoke test the built linux binary
+        run: |
+          chmod +x dist/kineti-linux-x64
+          dist/kineti-linux-x64 --version
 
       - name: Upload binaries as run artifact
         uses: actions/upload-artifact@v4

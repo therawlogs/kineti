@@ -82,7 +82,9 @@ mod tests {
         let receipt = coordinator.execute_external_purge("user_01", &external_nodes);
         assert_eq!(receipt.records_purged, 4);
         assert!(receipt.root_goal_intact);
-        assert!(receipt.sources_cleared.contains(&"google_workspace".to_string()));
+        assert!(receipt
+            .sources_cleared
+            .contains(&"google_workspace".to_string()));
 
         // Verify nodes are masked by tombstones
         for &id in &external_nodes {

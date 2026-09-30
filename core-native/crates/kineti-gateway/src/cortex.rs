@@ -75,7 +75,9 @@ impl LlmProvider {
     /// Automatically detects LLM provider from environment variables.
     /// Checks `OPENCODE_API_KEY` / `OPENCODE_GO_KEY` first.
     pub fn from_env() -> Option<Self> {
-        if let Ok(key) = std::env::var("OPENCODE_API_KEY").or_else(|_| std::env::var("OPENCODE_GO_KEY")) {
+        if let Ok(key) =
+            std::env::var("OPENCODE_API_KEY").or_else(|_| std::env::var("OPENCODE_GO_KEY"))
+        {
             let model = std::env::var("OPENCODE_MODEL").ok();
             return Some(Self::opencode_go(&key, model.as_deref()));
         }
@@ -95,10 +97,21 @@ impl LlmProvider {
     }
 
     /// Builds HTTP URL, headers, and JSON request payload for this provider.
-    pub fn build_http_request(&self, prompt: &InferencePrompt) -> (String, Vec<(String, String)>, String) {
+    pub fn build_http_request(
+        &self,
+        prompt: &InferencePrompt,
+    ) -> (String, Vec<(String, String)>, String) {
         match self {
-            Self::OpenCodeGo { api_key, endpoint, model }
-            | Self::OpenAICompatible { api_key, endpoint, model } => {
+            Self::OpenCodeGo {
+                api_key,
+                endpoint,
+                model,
+            }
+            | Self::OpenAICompatible {
+                api_key,
+                endpoint,
+                model,
+            } => {
                 let headers = vec![
                     ("Authorization".to_string(), format!("Bearer {}", api_key)),
                     ("Content-Type".to_string(), "application/json".to_string()),
@@ -129,7 +142,11 @@ impl LlmProvider {
                     kineti_core::kernel::escape_json_string(&prompt.user_message),
                 );
 
-                ("https://api.anthropic.com/v1/messages".to_string(), headers, body)
+                (
+                    "https://api.anthropic.com/v1/messages".to_string(),
+                    headers,
+                    body,
+                )
             }
             Self::OpenAI { api_key, model } => {
                 let headers = vec![
@@ -144,7 +161,11 @@ impl LlmProvider {
                     kineti_core::kernel::escape_json_string(&prompt.user_message),
                 );
 
-                ("https://api.openai.com/v1/chat/completions".to_string(), headers, body)
+                (
+                    "https://api.openai.com/v1/chat/completions".to_string(),
+                    headers,
+                    body,
+                )
             }
         }
     }
@@ -185,7 +206,11 @@ impl CortexOrchestrator {
     /// Selects model tier based on query complexity.
     pub fn select_model(&self, query: &str) -> ModelTier {
         let len = query.split_whitespace().count();
-        if len > 30 || query.contains("compare") || query.contains("analyze") || query.contains("explain") {
+        if len > 30
+            || query.contains("compare")
+            || query.contains("analyze")
+            || query.contains("explain")
+        {
             ModelTier::DeepReasoning
         } else {
             ModelTier::FastMicro
@@ -278,7 +303,9 @@ mod tests {
         let cortex = CortexOrchestrator::new();
         assert_eq!(cortex.select_model("what time is it"), ModelTier::FastMicro);
         assert_eq!(
-            cortex.select_model("Please analyze and compare the optical characteristics of Leica lenses"),
+            cortex.select_model(
+                "Please analyze and compare the optical characteristics of Leica lenses"
+            ),
             ModelTier::DeepReasoning
         );
     }
@@ -295,8 +322,10 @@ mod tests {
             None,
             1710000000,
         );
-        let mut style = UserStyleProfile::default();
-        style.lowercase_preference = true;
+        let style = UserStyleProfile {
+            lowercase_preference: true,
+            ..Default::default()
+        };
 
         let prompt = cortex.build_inference_prompt("did sarah email me", &[fact], &style);
         assert!(prompt.system_prompt.contains("Sarah Chen"));
@@ -314,14 +343,19 @@ mod tests {
         let (url, headers, body) = provider.build_http_request(&prompt);
 
         assert_eq!(url, "https://opencode.ai/zen/go/v1/chat/completions");
-        assert!(headers.iter().any(|(k, v)| k == "Authorization" && v == "Bearer opencode_live_12345"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "Authorization" && v == "Bearer opencode_live_12345"));
         assert!(body.contains("opencode-go/claude-3-7-sonnet"));
         assert!(body.contains("What is my name?"));
     }
 
     #[test]
     fn test_cortex_prompt_hydration_from_persona() {
-        use kineti_memory::{ContextScope, DomainKind, EpistemicCertainty, EpistemicFact, ResolvedPersonaView, RuleConstraintType};
+        use kineti_memory::{
+            ContextScope, DomainKind, EpistemicCertainty, EpistemicFact, ResolvedPersonaView,
+            RuleConstraintType,
+        };
         let cortex = CortexOrchestrator::new();
         let fact = EpistemicFact {
             id: "ep_01".to_string(),
@@ -342,11 +376,16 @@ mod tests {
             preferences: vec![],
             safety_ceilings: vec![],
         };
-        let mut style = UserStyleProfile::default();
-        style.formality = 0.8;
+        let style = UserStyleProfile {
+            formality: 0.8,
+            ..Default::default()
+        };
 
-        let prompt = cortex.build_inference_prompt_from_persona("what should I order?", &persona, &style);
-        assert!(prompt.system_prompt.contains("RESOLVED USER PERSONA DIRECTIVES"));
+        let prompt =
+            cortex.build_inference_prompt_from_persona("what should I order?", &persona, &style);
+        assert!(prompt
+            .system_prompt
+            .contains("RESOLVED USER PERSONA DIRECTIVES"));
         assert!(prompt.system_prompt.contains("Vegetarian"));
         assert!(prompt.system_prompt.contains("executive tone"));
     }

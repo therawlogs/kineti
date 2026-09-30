@@ -51,7 +51,11 @@ impl fmt::Display for HlcError {
                 physical_ms, hlc_physical_ms, max_skew_ms
             ),
             Self::CounterOverflow { physical_ms } => {
-                write!(f, "HLC logical counter overflow at physical time {}ms", physical_ms)
+                write!(
+                    f,
+                    "HLC logical counter overflow at physical time {}ms",
+                    physical_ms
+                )
             }
         }
     }
@@ -115,7 +119,11 @@ impl fmt::Display for HlcTimestamp {
 
 impl fmt::Debug for HlcTimestamp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "HlcTimestamp({}.{}#{})", self.physical_ms, self.logical, self.node_id)
+        write!(
+            f,
+            "HlcTimestamp({}.{}#{})",
+            self.physical_ms, self.logical, self.node_id
+        )
     }
 }
 
@@ -173,9 +181,12 @@ impl HybridLogicalClock {
                 });
             }
 
-            state.logical = state.logical.checked_add(1).ok_or(HlcError::CounterOverflow {
-                physical_ms: state.latest_physical_ms,
-            })?;
+            state.logical = state
+                .logical
+                .checked_add(1)
+                .ok_or(HlcError::CounterOverflow {
+                    physical_ms: state.latest_physical_ms,
+                })?;
         }
 
         Ok(HlcTimestamp {
@@ -203,17 +214,25 @@ impl HybridLogicalClock {
 
         if max_phys == state.latest_physical_ms && max_phys == remote.physical_ms {
             let max_logical = state.logical.max(remote.logical);
-            state.logical = max_logical.checked_add(1).ok_or(HlcError::CounterOverflow {
-                physical_ms: max_phys,
-            })?;
+            state.logical = max_logical
+                .checked_add(1)
+                .ok_or(HlcError::CounterOverflow {
+                    physical_ms: max_phys,
+                })?;
         } else if max_phys == state.latest_physical_ms {
-            state.logical = state.logical.checked_add(1).ok_or(HlcError::CounterOverflow {
-                physical_ms: max_phys,
-            })?;
+            state.logical = state
+                .logical
+                .checked_add(1)
+                .ok_or(HlcError::CounterOverflow {
+                    physical_ms: max_phys,
+                })?;
         } else if max_phys == remote.physical_ms {
-            state.logical = remote.logical.checked_add(1).ok_or(HlcError::CounterOverflow {
-                physical_ms: max_phys,
-            })?;
+            state.logical = remote
+                .logical
+                .checked_add(1)
+                .ok_or(HlcError::CounterOverflow {
+                    physical_ms: max_phys,
+                })?;
         } else {
             state.logical = 0;
         }
@@ -248,7 +267,12 @@ mod tests {
         let mut prev = hlc.now().unwrap();
         for _ in 0..1000 {
             let next = hlc.now().unwrap();
-            assert!(next > prev, "HLC must be strictly monotonic: prev={}, next={}", prev, next);
+            assert!(
+                next > prev,
+                "HLC must be strictly monotonic: prev={}, next={}",
+                prev,
+                next
+            );
             prev = next;
         }
     }

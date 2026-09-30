@@ -42,7 +42,8 @@ pub fn execute_http(req: &HttpRequest) -> Result<HttpResponse, String> {
     cmd.arg("-w").arg("\n%{http_code}"); // Write HTTP status code on trailing line
     cmd.arg("-X").arg(&req.method);
     cmd.arg("-A").arg(KINETI_USER_AGENT);
-    cmd.arg("--max-time").arg(req.timeout_secs.max(1).to_string());
+    cmd.arg("--max-time")
+        .arg(req.timeout_secs.max(1).to_string());
 
     for (k, v) in &req.headers {
         cmd.arg("-H").arg(format!("{}: {}", k, v));
@@ -54,11 +55,17 @@ pub fn execute_http(req: &HttpRequest) -> Result<HttpResponse, String> {
 
     cmd.arg(&req.url);
 
-    let output = cmd.output().map_err(|e| format!("Failed to execute curl: {}", e))?;
+    let output = cmd
+        .output()
+        .map_err(|e| format!("Failed to execute curl: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("curl failed with code {:?}: {}", output.status.code(), stderr.trim()));
+        return Err(format!(
+            "curl failed with code {:?}: {}",
+            output.status.code(),
+            stderr.trim()
+        ));
     }
 
     let raw_out = String::from_utf8_lossy(&output.stdout);
@@ -85,7 +92,10 @@ pub fn http_get(url: &str, headers: &[(&str, &str)]) -> Result<HttpResponse, Str
     let req = HttpRequest {
         method: "GET".to_string(),
         url: url.to_string(),
-        headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        headers: headers
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
         body: None,
         timeout_secs: 15,
     };
@@ -93,9 +103,19 @@ pub fn http_get(url: &str, headers: &[(&str, &str)]) -> Result<HttpResponse, Str
 }
 
 /// Helper for HTTP POST JSON requests.
-pub fn http_post_json(url: &str, headers: &[(&str, &str)], json_body: &str) -> Result<HttpResponse, String> {
-    let mut hdrs: Vec<(String, String)> = headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-    if !hdrs.iter().any(|(k, _)| k.eq_ignore_ascii_case("content-type")) {
+pub fn http_post_json(
+    url: &str,
+    headers: &[(&str, &str)],
+    json_body: &str,
+) -> Result<HttpResponse, String> {
+    let mut hdrs: Vec<(String, String)> = headers
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    if !hdrs
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+    {
         hdrs.push(("Content-Type".to_string(), "application/json".to_string()));
     }
     let req = HttpRequest {
@@ -109,9 +129,19 @@ pub fn http_post_json(url: &str, headers: &[(&str, &str)], json_body: &str) -> R
 }
 
 /// Helper for HTTP PATCH JSON requests.
-pub fn http_patch_json(url: &str, headers: &[(&str, &str)], json_body: &str) -> Result<HttpResponse, String> {
-    let mut hdrs: Vec<(String, String)> = headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-    if !hdrs.iter().any(|(k, _)| k.eq_ignore_ascii_case("content-type")) {
+pub fn http_patch_json(
+    url: &str,
+    headers: &[(&str, &str)],
+    json_body: &str,
+) -> Result<HttpResponse, String> {
+    let mut hdrs: Vec<(String, String)> = headers
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect();
+    if !hdrs
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+    {
         hdrs.push(("Content-Type".to_string(), "application/json".to_string()));
     }
     let req = HttpRequest {
@@ -129,7 +159,10 @@ pub fn http_delete(url: &str, headers: &[(&str, &str)]) -> Result<HttpResponse, 
     let req = HttpRequest {
         method: "DELETE".to_string(),
         url: url.to_string(),
-        headers: headers.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        headers: headers
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect(),
         body: None,
         timeout_secs: 15,
     };
@@ -142,6 +175,9 @@ mod tests {
 
     #[test]
     fn test_user_agent_format() {
-        assert_eq!(KINETI_USER_AGENT, "OpenAI File Downloader, XaiImageApiFetch/1.0");
+        assert_eq!(
+            KINETI_USER_AGENT,
+            "OpenAI File Downloader, XaiImageApiFetch/1.0"
+        );
     }
 }

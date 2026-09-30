@@ -23,7 +23,9 @@ pub use k2k::{
     ConnectionRequest, K2KCoordinator, K2KDeliveryResult, K2KIntent, K2KProtocolMessage,
     RequestStatus, ScheduleStatus, TimeSlot, TrustTier, TrustedPeer,
 };
-pub use router::{DispatchReceipt, EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply};
+pub use router::{
+    DispatchReceipt, EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply,
+};
 pub use web_api::{ConnectedAppStatus, UserSettingsPayload, VibePreferences, WebCompanionService};
 pub use whatsapp::{InboundWhatsAppMessage, OutboundWhatsAppPayload, WhatsAppGateway};
 
@@ -35,7 +37,11 @@ pub mod prelude {
         ConnectionRequest, K2KCoordinator, K2KDeliveryResult, K2KIntent, K2KProtocolMessage,
         RequestStatus, ScheduleStatus, TimeSlot, TrustTier, TrustedPeer,
     };
-    pub use crate::router::{DispatchReceipt, EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply};
-    pub use crate::web_api::{ConnectedAppStatus, UserSettingsPayload, VibePreferences, WebCompanionService};
+    pub use crate::router::{
+        DispatchReceipt, EventSource, GatewayRouter, IncomingStimulusEvent, OutboundReply,
+    };
+    pub use crate::web_api::{
+        ConnectedAppStatus, UserSettingsPayload, VibePreferences, WebCompanionService,
+    };
     pub use crate::whatsapp::{InboundWhatsAppMessage, OutboundWhatsAppPayload, WhatsAppGateway};
 }

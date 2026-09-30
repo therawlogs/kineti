@@ -51,8 +51,8 @@ impl UserTier {
     /// Returns the daily microcent spend quota for this tier.
     pub fn daily_quota_microcents(&self) -> u64 {
         match self {
-            Self::Free => 200_000,       // $0.20 USD = 200,000 microcents
-            Self::Pro => 2_000_000,      // $2.00 USD = 2,000,000 microcents
+            Self::Free => 200_000,          // $0.20 USD = 200,000 microcents
+            Self::Pro => 2_000_000,         // $2.00 USD = 2,000,000 microcents
             Self::Enterprise => 10_000_000, // $10.00 USD
         }
     }
@@ -344,7 +344,12 @@ mod tests {
 
     #[test]
     fn test_user_creation_and_content_addressing() {
-        let user = User::new("+15551234567", Platform::WhatsApp, UserTier::Pro, 1710000000);
+        let user = User::new(
+            "+15551234567",
+            Platform::WhatsApp,
+            UserTier::Pro,
+            1710000000,
+        );
         assert!(!user.id.as_str().is_empty());
         assert_eq!(user.tier, UserTier::Pro);
         assert_eq!(user.tier.daily_quota_microcents(), 2_000_000);

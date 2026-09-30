@@ -138,7 +138,9 @@ impl<T: Send + Sync + 'static> SnapshotEngine<T> {
     pub fn acquire(&self) -> SnapshotHandle<T> {
         loop {
             let slot = self.active_slot.load(Ordering::Acquire);
-            let guard = self.slots[slot].read().expect("Snapshot read lock poisoned");
+            let guard = self.slots[slot]
+                .read()
+                .expect("Snapshot read lock poisoned");
             if self.active_slot.load(Ordering::Acquire) == slot {
                 return SnapshotHandle {
                     inner: Arc::clone(&*guard),
@@ -340,8 +342,14 @@ mod tests {
         let inversions = version_inversions_detected.load(Ordering::SeqCst);
 
         assert!(reads > 10_000, "Should execute substantial read operations");
-        assert_eq!(torn, 0, "FATAL: Torn reads detected under 80-writer contention!");
-        assert_eq!(inversions, 0, "FATAL: Version inversions detected under 80-writer contention!");
+        assert_eq!(
+            torn, 0,
+            "FATAL: Torn reads detected under 80-writer contention!"
+        );
+        assert_eq!(
+            inversions, 0,
+            "FATAL: Version inversions detected under 80-writer contention!"
+        );
     }
 
     #[test]

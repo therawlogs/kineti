@@ -233,7 +233,9 @@ impl CredentialVault {
     /// Deletes a stored credential for privacy or disconnecting an app.
     pub fn delete_token(&self, user_id: &str, provider: &str) -> bool {
         let mut tokens = self.tokens.write().unwrap();
-        tokens.remove(&(user_id.to_string(), provider.to_string())).is_some()
+        tokens
+            .remove(&(user_id.to_string(), provider.to_string()))
+            .is_some()
     }
 
     // -----------------------------------------------------------------------
@@ -287,7 +289,8 @@ impl CredentialVault {
     /// Deletes a web login credential.
     pub fn delete_web_login(&self, user_id: &str, service: &str) -> bool {
         let mut map = self.logins.write().unwrap();
-        map.remove(&(user_id.to_string(), service.to_string())).is_some()
+        map.remove(&(user_id.to_string(), service.to_string()))
+            .is_some()
     }
 
     // -----------------------------------------------------------------------
@@ -296,7 +299,10 @@ impl CredentialVault {
 
     /// Stores a payment card credential.
     pub fn store_payment_card(&self, user_id: &str, card: &PaymentCardEntry) {
-        let cap_str = card.spend_cap_cents.map(|c| c.to_string()).unwrap_or_default();
+        let cap_str = card
+            .spend_cap_cents
+            .map(|c| c.to_string())
+            .unwrap_or_default();
         let serialized = format!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
             card.card_id,
@@ -350,7 +356,8 @@ impl CredentialVault {
     /// Deletes a payment card credential.
     pub fn delete_payment_card(&self, user_id: &str, card_id: &str) -> bool {
         let mut map = self.cards.write().unwrap();
-        map.remove(&(user_id.to_string(), card_id.to_string())).is_some()
+        map.remove(&(user_id.to_string(), card_id.to_string()))
+            .is_some()
     }
 
     // -----------------------------------------------------------------------
@@ -369,7 +376,11 @@ impl CredentialVault {
     }
 
     /// Retrieves a personal info entry.
-    pub fn retrieve_personal_info(&self, user_id: &str, field_key: &str) -> Option<PersonalInfoEntry> {
+    pub fn retrieve_personal_info(
+        &self,
+        user_id: &str,
+        field_key: &str,
+    ) -> Option<PersonalInfoEntry> {
         let map = self.personal_info.read().unwrap();
         let entry = map.get(&(user_id.to_string(), field_key.to_string()))?;
         let decrypted = self.decrypt_payload(entry)?;
@@ -397,7 +408,8 @@ impl CredentialVault {
     /// Deletes a personal info entry.
     pub fn delete_personal_info(&self, user_id: &str, field_key: &str) -> bool {
         let mut map = self.personal_info.write().unwrap();
-        map.remove(&(user_id.to_string(), field_key.to_string())).is_some()
+        map.remove(&(user_id.to_string(), field_key.to_string()))
+            .is_some()
     }
 
     // -----------------------------------------------------------------------
@@ -451,7 +463,8 @@ impl CredentialVault {
     /// Deletes an autonomous agent item.
     pub fn delete_agent_item(&self, user_id: &str, item_id: &str) -> bool {
         let mut map = self.agent_items.write().unwrap();
-        map.remove(&(user_id.to_string(), item_id.to_string())).is_some()
+        map.remove(&(user_id.to_string(), item_id.to_string()))
+            .is_some()
     }
 
     // -----------------------------------------------------------------------
@@ -462,13 +475,10 @@ impl CredentialVault {
     pub fn store_totp_seed(&self, user_id: &str, seed: &TotpSeedEntry) {
         let serialized = format!(
             "{}\t{}\t{}\t{}\t{}",
-            seed.service_name,
-            seed.secret_base32,
-            seed.digits,
-            seed.period_secs,
-            seed.algorithm
+            seed.service_name, seed.secret_base32, seed.digits, seed.period_secs, seed.algorithm
         );
-        let entry = self.encrypt_payload(user_id, &format!("totp:{}", seed.service_name), &serialized);
+        let entry =
+            self.encrypt_payload(user_id, &format!("totp:{}", seed.service_name), &serialized);
         let mut map = self.totp_seeds.write().unwrap();
         map.insert((user_id.to_string(), seed.service_name.clone()), entry);
     }
@@ -503,7 +513,8 @@ impl CredentialVault {
     /// Deletes a TOTP seed.
     pub fn delete_totp_seed(&self, user_id: &str, service_name: &str) -> bool {
         let mut map = self.totp_seeds.write().unwrap();
-        map.remove(&(user_id.to_string(), service_name.to_string())).is_some()
+        map.remove(&(user_id.to_string(), service_name.to_string()))
+            .is_some()
     }
 }
 
@@ -551,7 +562,9 @@ mod tests {
             spend_cap_cents: Some(33000),
         };
         vault.store_payment_card("user_01", &card);
-        let fetched_card = vault.retrieve_payment_card("user_01", "card_stripe_01").unwrap();
+        let fetched_card = vault
+            .retrieve_payment_card("user_01", "card_stripe_01")
+            .unwrap();
         assert_eq!(fetched_card, card);
 
         // 3. Personal Info
@@ -562,7 +575,9 @@ mod tests {
             sensitivity_tier: "medium".to_string(),
         };
         vault.store_personal_info("user_01", &pii);
-        let fetched_pii = vault.retrieve_personal_info("user_01", "home_address").unwrap();
+        let fetched_pii = vault
+            .retrieve_personal_info("user_01", "home_address")
+            .unwrap();
         assert_eq!(fetched_pii, pii);
 
         // 4. Agent Items
@@ -575,7 +590,9 @@ mod tests {
             provisioned_at_ms: 1710000000,
         };
         vault.store_agent_item("user_01", &agent_item);
-        let fetched_agent = vault.retrieve_agent_item("user_01", "agent_acc_uber").unwrap();
+        let fetched_agent = vault
+            .retrieve_agent_item("user_01", "agent_acc_uber")
+            .unwrap();
         assert_eq!(fetched_agent, agent_item);
 
         // 5. TOTP Seeds

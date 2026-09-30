@@ -48,7 +48,11 @@ impl GmailClient {
     }
 
     /// Builds a search request URL and headers.
-    pub fn build_search_request(&self, query: &str, max_results: u32) -> (String, Vec<(&'static str, String)>) {
+    pub fn build_search_request(
+        &self,
+        query: &str,
+        max_results: u32,
+    ) -> (String, Vec<(&'static str, String)>) {
         let max_results = max_results.clamp(1, 10);
         let encoded_q = query.replace(' ', "+");
         let url = format!(
@@ -75,7 +79,8 @@ impl GmailClient {
     /// Executes a live inbox search against Gmail REST API.
     pub fn search_inbox_live(&self, query: &str, max_results: u32) -> Result<String, String> {
         let (url, headers) = self.build_search_request(query, max_results);
-        let header_refs: Vec<(&str, &str)> = headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        let header_refs: Vec<(&str, &str)> =
+            headers.iter().map(|(k, v)| (*k, v.as_str())).collect();
         let res = kineti_core::http_get(&url, &header_refs)
             .map_err(|e| format!("Gmail API network error: {}", e))?;
         if !res.success {
@@ -96,7 +101,10 @@ impl GmailClient {
         let res = kineti_core::http_post_json(url, &header_refs, &payload)
             .map_err(|e| format!("Gmail create draft network error: {}", e))?;
         if !res.success {
-            return Err(format!("Gmail create draft error {}: {}", res.status, res.body));
+            return Err(format!(
+                "Gmail create draft error {}: {}",
+                res.status, res.body
+            ));
         }
         Ok(res.body)
     }
@@ -113,7 +121,10 @@ impl GmailClient {
         let res = kineti_core::http_post_json(url, &header_refs, &payload)
             .map_err(|e| format!("Gmail send email network error: {}", e))?;
         if !res.success {
-            return Err(format!("Gmail send email error {}: {}", res.status, res.body));
+            return Err(format!(
+                "Gmail send email error {}: {}",
+                res.status, res.body
+            ));
         }
         Ok(res.body)
     }
@@ -125,8 +136,16 @@ fn base64_url_encode(data: &[u8]) -> String {
     let mut i = 0;
     while i < data.len() {
         let b0 = data[i] as usize;
-        let b1 = if i + 1 < data.len() { data[i + 1] as usize } else { 0 };
-        let b2 = if i + 2 < data.len() { data[i + 2] as usize } else { 0 };
+        let b1 = if i + 1 < data.len() {
+            data[i + 1] as usize
+        } else {
+            0
+        };
+        let b2 = if i + 2 < data.len() {
+            data[i + 2] as usize
+        } else {
+            0
+        };
 
         out.push(TABLE[(b0 >> 2) & 0x3F] as char);
         out.push(TABLE[((b0 << 4) | (b1 >> 4)) & 0x3F] as char);

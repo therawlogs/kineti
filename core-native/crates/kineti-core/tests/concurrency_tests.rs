@@ -99,8 +99,14 @@ fn test_80_writer_zero_torn_reads_stress() {
     let inversions = version_inversions_detected.load(Ordering::SeqCst);
 
     assert!(reads > 10_000, "Should execute substantial read operations");
-    assert_eq!(torn, 0, "FATAL: Torn reads detected under 80-writer contention!");
-    assert_eq!(inversions, 0, "FATAL: Version inversions detected under 80-writer contention!");
+    assert_eq!(
+        torn, 0,
+        "FATAL: Torn reads detected under 80-writer contention!"
+    );
+    assert_eq!(
+        inversions, 0,
+        "FATAL: Version inversions detected under 80-writer contention!"
+    );
 }
 
 #[test]

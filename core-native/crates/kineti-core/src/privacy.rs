@@ -39,7 +39,8 @@ impl PrivacyController {
     /// `true` means user opts OUT (no training).
     /// `false` means user allows telemetry to improve models.
     pub fn set_training_opt_out(&self, opted_out: bool) {
-        self.model_training_opted_out.store(opted_out, Ordering::SeqCst);
+        self.model_training_opted_out
+            .store(opted_out, Ordering::SeqCst);
     }
 
     /// Invariant check: validates whether an outbound telemetry payload is allowed.

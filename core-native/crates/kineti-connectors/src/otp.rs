@@ -68,7 +68,11 @@ impl OtpManager {
     }
 
     /// Verifies an OTP code for a phone number.
-    pub fn verify_otp(&self, phone_number: &str, submitted_code: &str) -> Result<bool, &'static str> {
+    pub fn verify_otp(
+        &self,
+        phone_number: &str,
+        submitted_code: &str,
+    ) -> Result<bool, &'static str> {
         let mut map = self.active_challenges.write().unwrap();
         let challenge = match map.get_mut(phone_number) {
             Some(c) => c,
@@ -110,7 +114,9 @@ mod tests {
         assert_eq!(code.len(), 6);
         assert!(wa_message.contains(&code));
 
-        let verified = manager.verify_otp(phone, &code).expect("OTP verification succeeds");
+        let verified = manager
+            .verify_otp(phone, &code)
+            .expect("OTP verification succeeds");
         assert!(verified);
 
         // Subsequent verification must fail (one-time use)
@@ -130,7 +136,9 @@ mod tests {
         assert_eq!(err1, "Incorrect verification code. Please try again.");
 
         // Attempt 2: correct code
-        let verified = manager.verify_otp(phone, &code).expect("Succeeds on second attempt");
+        let verified = manager
+            .verify_otp(phone, &code)
+            .expect("Succeeds on second attempt");
         assert!(verified);
     }
 }

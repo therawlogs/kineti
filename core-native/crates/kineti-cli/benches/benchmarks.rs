@@ -9,7 +9,7 @@
 
 use kineti_core::conversation::UserFact;
 use kineti_core::gate::CommitGate;
-use kineti_core::hlc::{HybridLogicalClock, HlcTimestamp};
+use kineti_core::hlc::{HlcTimestamp, HybridLogicalClock};
 use kineti_core::kernel::{Actor, ActorType, HashAlgorithm, KernelEntity, NodeId, ProvenanceNode};
 use kineti_core::snapshot::SnapshotEngine;
 use kineti_core::spend::SpendCircuitBreaker;
@@ -86,7 +86,11 @@ fn bench_sensory_triage() -> (f64, f64, f64) {
     }
 
     let (p50, p90, p99, _) = calculate_percentiles(latencies_nanos);
-    (p50 as f64 / 1_000_000.0, p90 as f64 / 1_000_000.0, p99 as f64 / 1_000_000.0)
+    (
+        p50 as f64 / 1_000_000.0,
+        p90 as f64 / 1_000_000.0,
+        p99 as f64 / 1_000_000.0,
+    )
 }
 
 fn bench_snapshot_acquisition_under_80_writers() -> (f64, f64, f64) {
@@ -129,7 +133,11 @@ fn bench_snapshot_acquisition_under_80_writers() -> (f64, f64, f64) {
     }
 
     let (p50, p90, p99, _) = calculate_percentiles(latencies_nanos);
-    (p50 as f64 / 1_000_000.0, p90 as f64 / 1_000_000.0, p99 as f64 / 1_000_000.0)
+    (
+        p50 as f64 / 1_000_000.0,
+        p90 as f64 / 1_000_000.0,
+        p99 as f64 / 1_000_000.0,
+    )
 }
 
 fn bench_causal_graph_traversal() -> (f64, f64, f64) {
@@ -163,7 +171,11 @@ fn bench_causal_graph_traversal() -> (f64, f64, f64) {
     }
 
     let (p50, p90, p99, _) = calculate_percentiles(latencies_nanos);
-    (p50 as f64 / 1_000_000.0, p90 as f64 / 1_000_000.0, p99 as f64 / 1_000_000.0)
+    (
+        p50 as f64 / 1_000_000.0,
+        p90 as f64 / 1_000_000.0,
+        p99 as f64 / 1_000_000.0,
+    )
 }
 
 fn bench_spend_circuit_breaker() -> (f64, f64, f64) {
@@ -184,7 +196,11 @@ fn bench_spend_circuit_breaker() -> (f64, f64, f64) {
     }
 
     let (p50, p90, p99, _) = calculate_percentiles(latencies_nanos);
-    (p50 as f64 / 1_000_000.0, p90 as f64 / 1_000_000.0, p99 as f64 / 1_000_000.0)
+    (
+        p50 as f64 / 1_000_000.0,
+        p90 as f64 / 1_000_000.0,
+        p99 as f64 / 1_000_000.0,
+    )
 }
 
 fn make_bench_node(name: &str, parents: Vec<NodeId>, hlc: HlcTimestamp) -> ProvenanceNode {
@@ -196,19 +212,13 @@ fn make_bench_node(name: &str, parents: Vec<NodeId>, hlc: HlcTimestamp) -> Prove
         role_id: None,
     });
 
-    ProvenanceNode::new(
-        entity,
-        parents,
-        hlc,
-        BTreeMap::new(),
-        HashAlgorithm::Blake3,
-    )
-    .expect("Valid node creation")
+    ProvenanceNode::new(entity, parents, hlc, BTreeMap::new(), HashAlgorithm::Blake3)
+        .expect("Valid node creation")
 }
 
 fn bench_gate_lineage_verification() -> (f64, f64, f64) {
     let gate = CommitGate::new();
-    let mut hlc = HybridLogicalClock::new(1);
+    let hlc = HybridLogicalClock::new(1);
 
     // Create root node
     let root_hlc = hlc.now().expect("HLC now");
@@ -231,11 +241,17 @@ fn bench_gate_lineage_verification() -> (f64, f64, f64) {
     }
 
     let (p50, p90, p99, _) = calculate_percentiles(latencies_nanos);
-    (p50 as f64 / 1_000_000.0, p90 as f64 / 1_000_000.0, p99 as f64 / 1_000_000.0)
+    (
+        p50 as f64 / 1_000_000.0,
+        p90 as f64 / 1_000_000.0,
+        p99 as f64 / 1_000_000.0,
+    )
 }
 
 fn main() {
-    println!("\n===================================================================================");
+    println!(
+        "\n==================================================================================="
+    );
     println!("             KINETI OS EMPIRICAL ARCHITECTURE BENCHMARK SUITE");
     println!("===================================================================================");
 
@@ -244,37 +260,59 @@ fn main() {
     println!("DONE");
     println!("  - p50: {:.6} ms ({:.3} µs)", t_p50, t_p50 * 1000.0);
     println!("  - p90: {:.6} ms ({:.3} µs)", t_p90, t_p90 * 1000.0);
-    println!("  - p99: {:.6} ms ({:.3} µs) [TARGET: < 1.0 ms] => PASS", t_p99, t_p99 * 1000.0);
+    println!(
+        "  - p99: {:.6} ms ({:.3} µs) [TARGET: < 1.0 ms] => PASS",
+        t_p99,
+        t_p99 * 1000.0
+    );
 
     print!("Benchmarking Context Snapshot Acquisition under 80 Writers (p99 < 0.1 ms)... ");
     let (s_p50, s_p90, s_p99) = bench_snapshot_acquisition_under_80_writers();
     println!("DONE");
     println!("  - p50: {:.6} ms ({:.3} µs)", s_p50, s_p50 * 1000.0);
     println!("  - p90: {:.6} ms ({:.3} µs)", s_p90, s_p90 * 1000.0);
-    println!("  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.1 ms] => PASS", s_p99, s_p99 * 1000.0);
+    println!(
+        "  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.1 ms] => PASS",
+        s_p99,
+        s_p99 * 1000.0
+    );
 
     print!("Benchmarking Causal Property Graph Traversal (p99 < 0.8 ms)... ");
     let (g_p50, g_p90, g_p99) = bench_causal_graph_traversal();
     println!("DONE");
     println!("  - p50: {:.6} ms ({:.3} µs)", g_p50, g_p50 * 1000.0);
     println!("  - p90: {:.6} ms ({:.3} µs)", g_p90, g_p90 * 1000.0);
-    println!("  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.8 ms] => PASS", g_p99, g_p99 * 1000.0);
+    println!(
+        "  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.8 ms] => PASS",
+        g_p99,
+        g_p99 * 1000.0
+    );
 
     print!("Benchmarking Spend Circuit Breaker Atomic Reservation (p99 < 0.05 ms)... ");
     let (b_p50, b_p90, b_p99) = bench_spend_circuit_breaker();
     println!("DONE");
     println!("  - p50: {:.6} ms ({:.3} µs)", b_p50, b_p50 * 1000.0);
     println!("  - p90: {:.6} ms ({:.3} µs)", b_p90, b_p90 * 1000.0);
-    println!("  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.05 ms] => PASS", b_p99, b_p99 * 1000.0);
+    println!(
+        "  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.05 ms] => PASS",
+        b_p99,
+        b_p99 * 1000.0
+    );
 
     print!("Benchmarking 3-Way Graph Commit Gate Lineage (p99 < 0.5 ms)... ");
     let (l_p50, l_p90, l_p99) = bench_gate_lineage_verification();
     println!("DONE");
     println!("  - p50: {:.6} ms ({:.3} µs)", l_p50, l_p50 * 1000.0);
     println!("  - p90: {:.6} ms ({:.3} µs)", l_p90, l_p90 * 1000.0);
-    println!("  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.5 ms] => PASS", l_p99, l_p99 * 1000.0);
+    println!(
+        "  - p99: {:.6} ms ({:.3} µs) [TARGET: < 0.5 ms] => PASS",
+        l_p99,
+        l_p99 * 1000.0
+    );
 
     println!("===================================================================================");
     println!("                   ALL EMPIRICAL BENCHMARKS PASSED (100%)");
-    println!("===================================================================================\n");
+    println!(
+        "===================================================================================\n"
+    );
 }

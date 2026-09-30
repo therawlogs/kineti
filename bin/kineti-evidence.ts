@@ -10,7 +10,7 @@ interface Record {
 
 const EXCLUDE_DIRS = new Set([
   ".git", ".kineti", ".agents", "node_modules", "dist", "build", ".next",
-  "coverage", "tmp", ".cache", "legacy",
+  "coverage", "tmp", ".cache", "legacy", "target",
 ]);
 const EXCLUDE_FILES = new Set([".DS_Store"]);
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
@@ -56,18 +56,21 @@ function main() {
   if (cmd0 === "run") {
     let label = "";
     let allowShell = false;
+    let timeoutSec = 60;
     const dd = argv.indexOf("--");
-    if (dd === -1) die("run requires: run --label L [--allow-shell] -- <command...>");
+    if (dd === -1) die("run requires: run --label L [--allow-shell] [--timeout <seconds>] -- <command...>");
     for (let i = 1; i < dd; i++) {
       if (argv[i] === "--label") label = argv[i + 1] ?? "";
       if (argv[i] === "--allow-shell") allowShell = true;
+      if (argv[i] === "--timeout") timeoutSec = Number(argv[++i]);
     }
+    if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) die("--timeout must be a positive number of seconds");
     const cmdArgv = argv.slice(dd + 1);
     const command = cmdArgv.join(" ");
     if (!label || cmdArgv.length === 0) die("run requires --label and a command after --");
     const fpBefore = fingerprint();
     const verifyCmd = loadVerifyCommand();
-    const res = runSafeCommand(cmdArgv, { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: 60000, allowShell, verifyCmd });
+    const res = runSafeCommand(cmdArgv, { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: timeoutSec * 1000, allowShell, verifyCmd });
     if (res.stdout) process.stdout.write(res.stdout);
     if (res.stderr) process.stderr.write(res.stderr + (res.stderr.endsWith("\n") ? "" : "\n"));
     const code = res.exitCode;
