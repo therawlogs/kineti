@@ -117,6 +117,7 @@ export const MAX_PROJECT_CEILING_USD = 1000;
 export const DEFAULT_PROJECT_CEILING_USD = 50;
 
 export function loadLimits(cwd: string = process.cwd()): Limits {
+  warnOnUnknownConfigKeys(cwd);
   const cfg = readJson<any>(path.join(cwd, "kineti.config.json"));
   const s = cfg?.settings?.spend_limit_usd ?? {};
   // Clamp every limit to a positive-finite number, else fall back to defaults.
@@ -151,11 +152,125 @@ export function loadLimits(cwd: string = process.cwd()): Limits {
 }
 
 export function loadVerifyCommand(cwd: string = process.cwd()): string | null {
+  warnOnUnknownConfigKeys(cwd);
   const envCmd = process.env.KINETI_VERIFY_CMD;
   if (envCmd && envCmd.trim().length > 0) return envCmd.trim();
   const cfg = readJson<any>(path.join(cwd, "kineti.config.json"));
   const cmd = cfg?.settings?.verify_command;
   return typeof cmd === "string" && cmd.trim().length > 0 ? cmd.trim() : null;
+}
+
+const KNOWN_CONFIG_TOP_KEYS = new Set([
+  "version", "name", "description", "root_goal", "pipeline",
+  "settings", "memory", "asset_paths", "hosts",
+]);
+
+const KNOWN_CONFIG_SETTINGS_KEYS = new Set([
+  "spend_limit_usd", "qa_max_self_repair_attempts", "data_quality_threshold",
+  "hurdle_rate_min", "verify_command", "ci_stage", "freeze_during",
+]);
+
+const warnedConfigKeys = new Set<string>();
+
+/**
+ * Warn about unrecognized kineti.config.json keys (typos fail silently
+ * otherwise). Lists unknown top-level keys and unknown settings.* keys.
+ * Never throws and never exits.
+ */
+export function warnOnUnknownConfigKeys(cwd: string = process.cwd()): void {
+  try {
+    const cfg = readJson<any>(path.join(cwd, "kineti.config.json"));
+    if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) return;
+    const unknownTop = Object.keys(cfg).filter((k) => !KNOWN_CONFIG_TOP_KEYS.has(k));
+    const s = (cfg as any).settings;
+    const unknownSettings =
+      s && typeof s === "object" && !Array.isArray(s)
+        ? Object.keys(s).filter((k) => !KNOWN_CONFIG_SETTINGS_KEYS.has(k))
+        : [];
+    if (unknownTop.length === 0 && unknownSettings.length === 0) return;
+    const dedupe = JSON.stringify([path.resolve(cwd), unknownTop, unknownSettings]);
+    if (warnedConfigKeys.has(dedupe)) return;
+    warnedConfigKeys.add(dedupe);
+    const parts: string[] = [];
+    if (unknownTop.length > 0) parts.push(`unknown top-level keys: ${unknownTop.join(", ")}`);
+    if (unknownSettings.length > 0) parts.push(`unknown settings keys: ${unknownSettings.join(", ")}`);
+    console.warn(`kineti: warning: unrecognized kineti.config.json keys (${parts.join("; ")}); check spelling`);
+  } catch {
+    // Warning must never break config loading.
+  }
+}
+
+/**
+ * Strict subcommand allowlist for model-supplied evidence commands.
+ * The base binary allowlist permits package runners, but those can fetch
+ * and run remote code (bun x, npx <pkg>), so evidence recording restricts
+ * them to local test subcommands only. Returns a deny reason when refused.
+ */
+export function isAllowedEvidenceCommand(
+  argv: string[],
+  verifyCmd: string | null = null,
+): { allowed: boolean; reason: string } {
+  if (argv.length === 0) return { allowed: false, reason: "empty command" };
+  if (hasShellMetachars(argv)) {
+    return { allowed: false, reason: `shell metachars detected in: ${argv.join(" ")}` };
+  }
+  const bin = argv[0].split("/").pop() || argv[0];
+  const rest = argv.slice(1);
+  let verifyBin: string | null = null;
+  try {
+    const t = (verifyCmd || "").trim();
+    if (t) verifyBin = t.split(/\s+/)[0]?.split("/").pop() || null;
+  } catch {
+    verifyBin = null;
+  }
+  switch (bin) {
+    case "bun":
+      if (rest[0] === "test" || rest[0] === "run") {
+        return { allowed: true, reason: "bun test/run" };
+      }
+      return { allowed: false, reason: "bun only allows `test` and `run` subcommands (never `bun x`)" };
+    case "pytest":
+      return { allowed: true, reason: "pytest" };
+    case "python":
+    case "python3":
+      if (rest[0] === "-m" && String(rest[1] || "").startsWith("pip")) {
+        return { allowed: false, reason: "python -m pip is not allowed" };
+      }
+      if (rest[0] === "-c") {
+        return { allowed: false, reason: "python -c is not allowed" };
+      }
+      return { allowed: true, reason: "python script" };
+    case "npm":
+      if (rest[0] === "test") return { allowed: true, reason: "npm test" };
+      if (rest[0] === "exec" || rest[0] === "dlx") {
+        return { allowed: false, reason: `npm ${rest[0]} is not allowed` };
+      }
+      return { allowed: false, reason: "npm only allows the `test` subcommand" };
+    case "node": {
+      const target = rest[0];
+      if (!target || target.startsWith("-")) {
+        return { allowed: false, reason: "node only allows a repo-relative .js/.ts file" };
+      }
+      if (!/\.[cm]?[jt]s$/.test(target)) {
+        return { allowed: false, reason: "node only allows repo-relative .js/.ts files" };
+      }
+      if (path.isAbsolute(target) || target.split("/").includes("..")) {
+        return { allowed: false, reason: "node target must stay inside the project" };
+      }
+      return { allowed: true, reason: "node script" };
+    }
+    case "npx":
+      return { allowed: false, reason: "npx is not allowed (it fetches remote packages)" };
+    case "echo":
+    case "true":
+    case "false":
+      return { allowed: true, reason: `${bin} (no side effects)` };
+    default:
+      if (verifyBin && bin === verifyBin) {
+        return { allowed: true, reason: "project verify command binary" };
+      }
+      return { allowed: false, reason: `binary not in evidence allowlist: ${bin}` };
+  }
 }
 
 /**
@@ -345,15 +460,41 @@ export function runSafeCommand(
 
 /**
  * Split a legacy single-string command into argv without shell.
- * Simple whitespace split. Callers should prefer arrays.
- * If the string contains shell metachars, it will be blocked downstream
- * unless --allow-shell + TTY is given.
+ * Quote-aware: single quotes, double quotes, and backslash escapes group
+ * words that contain spaces (for example file paths). Quotes are consumed,
+ * so the result has no quote characters for the metachar check to trip on.
+ * Unquoted input splits on whitespace exactly as before.
  */
 export function splitLegacyCommand(cmd: string): string[] {
   const trimmed = cmd.trim();
   if (!trimmed) return [];
-  // Simple split on whitespace. No quote handling — quotes are metachars and will block.
-  return trimmed.split(/\s+/);
+  const out: string[] = [];
+  let cur = "";
+  let hasToken = false;
+  let inSingle = false;
+  let inDouble = false;
+  for (let i = 0; i < trimmed.length; i++) {
+    const c = trimmed[i];
+    if (inSingle) {
+      if (c === "'") inSingle = false;
+      else cur += c;
+      continue;
+    }
+    if (inDouble) {
+      if (c === '"') inDouble = false;
+      else if (c === "\\" && i + 1 < trimmed.length) { cur += trimmed[i + 1]; i++; }
+      else cur += c;
+      continue;
+    }
+    if (c === "'") { inSingle = true; hasToken = true; }
+    else if (c === '"') { inDouble = true; hasToken = true; }
+    else if (c === "\\" && i + 1 < trimmed.length) { cur += trimmed[i + 1]; i++; hasToken = true; }
+    else if (/\s/.test(c)) {
+      if (hasToken) { out.push(cur); cur = ""; hasToken = false; }
+    } else { cur += c; hasToken = true; }
+  }
+  if (hasToken) out.push(cur);
+  return out;
 }
 
 /**

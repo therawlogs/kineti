@@ -13,7 +13,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
-import { readJson, projectKdir, loadLimits, Limits, splitLegacyCommand, assertInsideProject } from "./lib.ts";
+import { readJson, projectKdir, loadLimits, loadVerifyCommand, Limits, splitLegacyCommand, assertInsideProject, isAllowedEvidenceCommand } from "./lib.ts";
 
 // Works under bun (import.meta.dir) and plain node (file URL fallback)
 const here: string =
@@ -313,6 +313,10 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
 
       case "kineti_evidence_record": {
         const cmdArgv = Array.isArray(args.command) ? (args.command as string[]).map(String) : splitLegacyCommand(String(args.command || ""));
+        const gate = isAllowedEvidenceCommand(cmdArgv, loadVerifyCommand(workspaceRoot));
+        if (!gate.allowed) {
+          return { content: [{ type: "text", text: `kineti: blocked: ${gate.reason}` }], isError: true };
+        }
         const runArgs = ["run", "--label", String(args.label), "--", ...cmdArgv];
         // MCP has no TTY, so shell is never allowed here. Never forward allow_shell.
         const res = runBin("kineti-evidence.ts", runArgs);

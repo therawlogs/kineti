@@ -5,7 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir, loadLimits, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD, DEFAULT_PROJECT_CEILING_USD } from "./lib.ts";
+import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir, loadLimits, microcentsToUsd, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD, DEFAULT_PROJECT_CEILING_USD } from "./lib.ts";
+import { fingerprint } from "./kineti-evidence.ts";
 import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
 import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
@@ -133,12 +134,18 @@ export function getHarnessStatus() {
     stage: state.stage || 13,
     stages: STAGES,
     spend: {
-      total_usd: (spend.total_microcents || 0) / 100_000_000,
+      total_usd: microcentsToUsd(spend.total_microcents || 0),
       ceiling_usd: configuredCeiling,
       tripped: spend.tripped || false,
     },
-    gates: state.gates || { spec: "pass", ship: "pass", security: "pass" },
+    gates: state.gates || {},
   };
+}
+
+export function describeGate(gates: Record<string, string> | undefined | null, name: string): string {
+  const v = gates?.[name];
+  if (v === "pass" || v === "fail" || v === "pending") return v;
+  return "not evaluated";
 }
 
 export function getMiniStatus() {
@@ -164,7 +171,16 @@ export function getMiniStatus() {
       proofLabel = String(last.label || "check");
       const ageMin = Math.max(0, Math.round((Date.now() - new Date(last.at).getTime()) / 60000));
       proofAgeMin = Number.isFinite(ageMin) ? ageMin : null;
-      proofState = last.exit_code === 0 && (proofAgeMin ?? 9999) <= 240 ? "FRESH" : "STALE";
+      const recentPass = last.exit_code === 0 && (proofAgeMin ?? 9999) <= 240;
+      if (!recentPass) {
+        proofState = "STALE";
+      } else {
+        try {
+          proofState = last.fingerprint === fingerprint() ? "FRESH" : "STALE";
+        } catch {
+          proofState = "STALE";
+        }
+      }
     }
   } catch { /* no proofs yet */ }
   const syncOn = toggle?.sync_enabled === true;

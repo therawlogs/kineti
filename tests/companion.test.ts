@@ -1,5 +1,9 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { startServer, getHarnessStatus, getFleetStatus, AUTH_TOKEN } from "../bin/kineti-companion.ts";
+import fs from "node:fs";
+import path from "node:path";
+import { startServer, getHarnessStatus, getMiniStatus, describeGate, getFleetStatus, AUTH_TOKEN } from "../bin/kineti-companion.ts";
+import { fingerprint } from "../bin/kineti-evidence.ts";
+import { microcentsToUsd } from "../bin/lib.ts";
 
 describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   let server: any;
@@ -765,6 +769,66 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
       if (machineBackup === undefined) delete process.env.KINETI_MACHINE_DIR;
       else process.env.KINETI_MACHINE_DIR = machineBackup;
       fs.rmSync(tmpMachine, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("harness status fixes (A1/A3/A5)", () => {
+  test("A1: 50,000,000 microcents renders as $50.00", () => {
+    const spendFile = path.join(process.cwd(), ".kineti", "spend.json");
+    const had = fs.existsSync(spendFile) ? fs.readFileSync(spendFile, "utf8") : null;
+    try {
+      fs.writeFileSync(spendFile, JSON.stringify({ total_microcents: 50_000_000, tripped: false }));
+      expect(microcentsToUsd(50_000_000)).toBe(50);
+      const status = getHarnessStatus();
+      expect(status.spend.total_usd).toBe(50);
+    } finally {
+      if (had === null) fs.rmSync(spendFile, { force: true });
+      else fs.writeFileSync(spendFile, had);
+    }
+  });
+
+  test("A3: fresh project gates default to unknown, rendered as not evaluated", () => {
+    const stateFile = path.join(process.cwd(), ".kineti", "state.json");
+    const had = fs.readFileSync(stateFile, "utf8");
+    try {
+      const state = JSON.parse(had);
+      delete state.gates;
+      fs.writeFileSync(stateFile, JSON.stringify(state));
+      const status = getHarnessStatus();
+      expect(status.gates).toEqual({});
+      expect(status.gates.spec).toBeUndefined();
+      expect(describeGate(status.gates, "spec")).toBe("not evaluated");
+      expect(describeGate(status.gates, "security")).toBe("not evaluated");
+      expect(describeGate(status.gates, "ship")).toBe("not evaluated");
+      expect(describeGate({ spec: "pass", security: "pending" }, "spec")).toBe("pass");
+      expect(describeGate({ spec: "pass", security: "pending" }, "security")).toBe("pending");
+      expect(describeGate(null, "spec")).toBe("not evaluated");
+    } finally {
+      fs.writeFileSync(stateFile, had);
+    }
+  });
+
+  test("A5: proof is STALE on fingerprint mismatch, FRESH on match", () => {
+    const evFile = path.join(process.cwd(), ".kineti", "evidence.jsonl");
+    const had = fs.existsSync(evFile) ? fs.readFileSync(evFile, "utf8") : null;
+    try {
+      fs.writeFileSync(
+        evFile,
+        JSON.stringify({ at: new Date().toISOString(), label: "fp-probe", cmd: "bun test", exit_code: 0, fingerprint: "mismatch-canary" }) + "\n",
+      );
+      expect(getMiniStatus().proof_state).toBe("STALE");
+      const fp = fingerprint();
+      fs.writeFileSync(
+        evFile,
+        JSON.stringify({ at: new Date().toISOString(), label: "fp-probe", cmd: "bun test", exit_code: 0, fingerprint: fp }) + "\n",
+      );
+      const mini = getMiniStatus();
+      expect(mini.proof_label).toBe("fp-probe");
+      expect(mini.proof_state).toBe("FRESH");
+    } finally {
+      if (had === null) fs.rmSync(evFile, { force: true });
+      else fs.writeFileSync(evFile, had);
     }
   });
 });

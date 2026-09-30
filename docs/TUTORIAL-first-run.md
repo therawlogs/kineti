@@ -96,7 +96,7 @@ Watch how Kineti works with your agent:
 
 ## Step 4: Check spending and limits
 
-Every token spent by the agent is recorded with exact dollar amounts.
+The agent records each model call with exact dollar amounts.
 
 Check your spending anytime in your terminal:
 
@@ -110,7 +110,7 @@ Expected output:
 total $0.15 of $50; entries 2; tripped=false
 ```
 
-- **Automatic spend breaker**: If spending reaches 95% of the $50 limit ($47.50), Kineti immediately trips the breaker and stops all agent actions.
+- **Recorded-totals spend breaker**: the agent records each model call; when recorded totals reach 95% of the $50 limit ($47.50), the breaker trips on recorded totals and the agent must stop all actions.
 - **Human-only reset**: An agent can never reset the spend limit on its own. Only you can reset it:
   ```bash
   kineti spend reset --i-am-human

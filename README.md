@@ -52,7 +52,7 @@ Personalized agents must understand the full human context without hallucinating
 - **3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
 - **Sensory Reflex Triage**: Fast sensory classification dispatching zero-token emoji reactions for low-information conversational stimuli.
 - **Protocolized Connectors**: Standard `KinetiConnectorProtocol` trait with consequence level gating (`Trivial`, `Operational`, `HighConsequence`) and single-use SHA-256 payload authorization tokens.
-- **Spend Circuit Breaker**: Deterministic trip at 95% of limit ($47.50 of $50.00 ceiling) with OS exit code 3 halt.
+- **Spend Circuit Breaker**: Deterministic trip at 95% of recorded totals ($47.50 of $50.00 ceiling) with OS exit code 3 halt.
 
 ### 3. TypeScript Governance Control Plane (`bin/`, `src/`)
 - **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
@@ -62,7 +62,7 @@ Personalized agents must understand the full human context without hallucinating
 - **Universal Model Context Protocol (MCP)**: 14 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
 ### 4. Verified Test Counts & Evaluation Roadmap
-- **What is verified today**: 176 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (427 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+- **What is verified today**: 190 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (441 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Kineti Hostile 100 (in development)**: a public suite of 100 hostile tool calls against the gate with published method and published failures. This is the benchmark the project intends to be judged by.
 - **Directional Normalized Trust-Weighted Impact (DNTI)**: three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$) designed to resist Goodhart-style metric gaming.
@@ -89,7 +89,7 @@ npx kineti --help
 
 ### 2. Connect to Your AI Editor or Agent Host
 
-Run Kineti directly as an MCP governance server inside your AI editor to enforce spend caps ($50 ceiling), transactional SAGA undo, and cryptographic test verification.
+Run Kineti directly as an MCP governance server inside your AI editor to record spend against caps ($50 ceiling; the agent records each model call and the breaker trips on recorded totals), transactional SAGA undo, and cryptographic test verification.
 
 #### Automatic Setup for All Hosts
 Run Kineti's auto-configurator in your project directory:
@@ -238,7 +238,7 @@ cargo run --package kineti-cli -- test-all
 kineti/
 ├── bin/                 # TypeScript Governance CLI tools (single router: kineti.js)
 │   ├── kineti.ts        # CLI router source (spend, saga, evidence, companion, mcp, ci)
-│   ├── kineti-spend.ts  # Hardware spend circuit breaker ($50 ceiling, exit code 3)
+│   ├── kineti-spend.ts  # Self-reported spend circuit breaker ($50 ceiling, exit code 3, trips on recorded totals)
 │   ├── kineti-saga.ts   # LIFO undo stack & transactional rollback
 │   ├── kineti-evidence.ts # Delimited SHA-256 test proofs bound to git tree hashes
 │   ├── kineti-companion.ts # Apple HIG visual companion server (loopback only)
@@ -268,7 +268,7 @@ kineti/
 │   ├── HOWTO-daily-loop.md # Daily operating loop
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md # Multi-agent identity & signing
 │   └── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet and integration design
-├── tests/               # 176 TypeScript governance & causal test suites
+├── tests/               # 190 TypeScript governance & causal test suites
 ├── .github/             # GitHub Actions CI, issue forms, PR template, Dependabot
 ├── AGENTS.md            # Universal rules for AI agents in this repository
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
@@ -284,7 +284,7 @@ kineti/
 Today Kineti provides local ledger tooling, spend circuit breakers, and evidence verification that agents invoke during their lifecycle (conventions in `hooks/` plus self-reported proofs via `kineti-spend.ts` and `kineti-evidence.ts`). An in-line MCP proxy gate with deterministic allow/ask/deny interception is in active sprint.
 
 1. **Safe Rust**: `#![forbid(unsafe_code)]` enforced across all critical crates.
-2. **Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); tooling exits with code 3 at 95%.
+2. **Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); tooling exits with code 3 at 95% of recorded totals.
 3. **Cryptographic Proof Binding**: Test runs recorded as SHA-256 evidence receipts bound to the exact code fingerprint.
 4. **Clean No over Dirty Yes**: Agents report genuine impossibilities clearly rather than silently violating budget or counterparty boundaries.
 5. **Outcome Verification**: DNTI loss-averse scoring plus dollars-per-verified-outcome, targeting the Hostile 100 suite as the public bar.

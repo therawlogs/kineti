@@ -2,6 +2,7 @@ import { describe, test, expect } from "bun:test";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { isAllowedEvidenceCommand } from "../bin/lib.ts";
 
 const REPO = path.resolve(import.meta.dir, "..");
 const MCP_SCRIPT = path.join(REPO, "bin", "kineti-mcp.ts");
@@ -316,5 +317,78 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
       env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO },
     });
     expect(res.exitCode).toBe(2);
+  });
+
+  test("A2 unit: evidence allowlist refuses remote-fetch, accepts local tests", () => {
+    expect(isAllowedEvidenceCommand(["bun", "x", "evil-pkg"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["npx", "evil"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["npx", "-y", "kineti", "mcp"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["npm", "exec", "evil"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["npm", "dlx", "evil"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["python3", "-m", "pip", "install", "evil"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["node", "-e", "evil()"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["echo", "hi; touch pwned"]).allowed).toBe(false);
+    expect(isAllowedEvidenceCommand(["bun", "test", "tests/"]).allowed).toBe(true);
+    expect(isAllowedEvidenceCommand(["bun", "run", "check.ts"]).allowed).toBe(true);
+    expect(isAllowedEvidenceCommand(["pytest", "tests/"]).allowed).toBe(true);
+    expect(isAllowedEvidenceCommand(["npm", "test"]).allowed).toBe(true);
+    expect(isAllowedEvidenceCommand(["node", "scripts/check.js"]).allowed).toBe(true);
+    expect(isAllowedEvidenceCommand(["node", "/etc/evil.js"]).allowed).toBe(false);
+  });
+
+  test("A2 integration: evidence_record refuses bun x / npx, accepts bun test", async () => {
+    const tmpDir = makeTmpDir();
+    fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
+    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
+
+    const session = createMcpSession(tmpDir);
+
+    try {
+      await session.sendRpc({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2024-11-05" },
+      });
+
+      const evil1 = await session.sendRpc({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "kineti_evidence_record",
+          arguments: { label: "evil1", command: ["bun", "x", "evil-pkg"] },
+        },
+      });
+      expect(evil1.result.isError).toBe(true);
+      expect(evil1.result.content[0].text).toContain("blocked");
+
+      const evil2 = await session.sendRpc({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: {
+          name: "kineti_evidence_record",
+          arguments: { label: "evil2", command: "npx evil" },
+        },
+      });
+      expect(evil2.result.isError).toBe(true);
+      expect(evil2.result.content[0].text).toContain("blocked");
+
+      const okRes = await session.sendRpc({
+        jsonrpc: "2.0",
+        id: 4,
+        method: "tools/call",
+        params: {
+          name: "kineti_evidence_record",
+          arguments: { label: "help-probe", command: ["bun", "test", "--help"] },
+        },
+      });
+      expect(okRes.result.isError).toBeFalsy();
+      expect(okRes.result.content[0].text).toContain("proof recorded: help-probe");
+    } finally {
+      session.close();
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

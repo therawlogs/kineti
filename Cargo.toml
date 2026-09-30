@@ -21,6 +21,12 @@ description = "Universal agent harness with cryptographic verification"
 homepage = "https://github.com/therawlogs/kineti"
 repository = "https://github.com/therawlogs/kineti"
 
+[workspace.lints.rust]
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+
 [profile.release]
 opt-level = 3
 lto = "thin"

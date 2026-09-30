@@ -67,7 +67,7 @@ The following components are in scope for security reports:
 
 Kineti is designed around defensive defaults:
 
-1. **Fail-closed spend limits**: Tools halt execution immediately if cost thresholds are reached.
+1. **Self-reported spend limits**: the agent records each model call; the breaker trips on recorded totals once cost thresholds are reached.
 2. **Loopback-only binding**: The companion web server binds only to `127.0.0.1` and validates Host and Origin headers.
 3. **Local data isolation**: Runtime state in `.kineti/` is written with owner-only permissions (`0600`) and is excluded from git tracking.
 4. **No credentials in logs**: Secrets, passwords, and raw auth tokens are never written to log files or state files. The one deliberate exception is the companion's local authorization token, which is printed once to your terminal (never to a log file) so you can paste it into the login form on the same machine.
