@@ -2,7 +2,7 @@
 name: watch
 description: Watch the live system for errors and speed regressions. Stage 12 of 13.
 stage: ship
-version: 0.3.6
+version: 0.3.7
 triggers:
   - watch production
   - monitor the deploy

@@ -10,6 +10,6 @@ readme = "../../README.md"
 description = "High-speed backend connectors: Brave Search, FLUX.1, Gmail, Notion, and WhatsApp OTP Auth"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.6" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.6" }
-kineti-memory = { path = "../kineti-memory", version = "0.3.6" }
+kineti-core = { path = "../kineti-core", version = "0.3.7" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }
+kineti-memory = { path = "../kineti-memory", version = "0.3.7" }

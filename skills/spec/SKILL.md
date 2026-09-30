@@ -2,7 +2,7 @@
 name: spec
 description: Remove every ambiguity into typed shapes and pass/fail tests. Stage 6 — hard stop.
 stage: contract
-version: 0.3.6
+version: 0.3.7
 triggers:
   - write the spec
   - specification

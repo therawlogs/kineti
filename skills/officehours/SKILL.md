@@ -2,7 +2,7 @@
 name: officehours
 description: Turn a rough idea into one clear, testable goal. Stage 1 of 13.
 stage: intake
-version: 0.3.6
+version: 0.3.7
 triggers:
   - new idea
   - start a product

@@ -57,10 +57,15 @@ If `kineti init` did not configure your editor automatically, set it up manually
 - **Codex (CLI)**:
   Add to `${CODEX_HOME:-$HOME/.codex}/config.toml`:
   ```toml
-  [mcp.servers.kineti]
+  [mcp_servers.kineti]
   command = "npx"
   args = ["-y", "kineti", "mcp"]
   ```
+  Confirm Codex sees Kineti:
+  ```bash
+  codex mcp list
+  ```
+  Kineti should appear in the list.
 
 ---
 

@@ -9,7 +9,7 @@ on:
       tag:
         description: 'Tag to attach binaries to'
         required: true
-        default: 'v0.3.6'
+        default: 'v0.3.7'
 
 jobs:
   test:

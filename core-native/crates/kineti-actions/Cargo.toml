@@ -10,6 +10,6 @@ readme = "../../README.md"
 description = "Real-world actions: Headless price comparison, ticket search, and two-step confirmation safety gate"
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.6" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.6" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.3.6" }
+kineti-core = { path = "../kineti-core", version = "0.3.7" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.7" }

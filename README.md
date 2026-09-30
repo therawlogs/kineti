@@ -1,4 +1,4 @@
-# Kineti OS `v0.3.6`
+# Kineti OS `v0.3.7`
 
 [![npm version](https://img.shields.io/npm/v/kineti.svg?color=teal)](https://www.npmjs.com/package/kineti)
 [![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
@@ -81,7 +81,7 @@ Personalized agents must understand the full human context without hallucinating
 npm install -g kineti
 
 # Or pin to the current stable release
-npm install -g kineti@0.3.6
+npm install -g kineti@0.3.7
 
 # Or run directly with npx
 npx kineti --help
@@ -127,10 +127,15 @@ Or add to `~/.config/opencode/opencode.jsonc`.
 **Codex (CLI)**:
 Add to `${CODEX_HOME:-$HOME/.codex}/config.toml`:
 ```toml
-[mcp.servers.kineti]
+[mcp_servers.kineti]
 command = "npx"
 args = ["-y", "kineti", "mcp"]
 ```
+Confirm Codex sees Kineti:
+```bash
+codex mcp list
+```
+Kineti should appear in the list.
 
 **Google Antigravity & Gemini**:
 Run the automated host configurator:
@@ -197,7 +202,7 @@ All 8 native crates are published on [crates.io](https://crates.io):
 cargo add kineti-core
 
 # Or install the native CLI binary directly
-cargo install kineti-cli@0.3.6
+cargo install kineti-cli@0.3.7
 
 # Run all 251 native Rust unit and integration tests locally
 cargo test --manifest-path core-native/Cargo.toml
@@ -246,7 +251,7 @@ kineti/
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
 ├── CONTRIBUTING.md      # Development setup, testing, and DCO sign-off
 ├── LICENSE              # MIT License
-└── package.json         # kineti@0.3.6 npm package manifest
+└── package.json         # kineti@0.3.7 npm package manifest
 ```
 
 ---
@@ -285,4 +290,3 @@ Humans and agents follow the same steps in [**CONTRIBUTING.md**](CONTRIBUTING.md
 - **Security Disclosures**: [security@getkineti.com](mailto:security@getkineti.com) (PGP/disclosure policy in [SECURITY.md](SECURITY.md))
 - **Website**: [getkineti.com](https://getkineti.com)
 - **GitHub Issues**: [github.com/therawlogs/kineti/issues](https://github.com/therawlogs/kineti/issues)
-
