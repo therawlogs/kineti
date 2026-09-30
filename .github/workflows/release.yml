@@ -9,7 +9,7 @@ on:
       tag:
         description: 'Tag to attach binaries to'
         required: true
-        default: 'v0.3.7'
+        default: 'v0.3.8'
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"

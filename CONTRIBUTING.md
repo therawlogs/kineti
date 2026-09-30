@@ -92,7 +92,7 @@ Every contribution follows a structured 5-step review process:
 
 1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). Verify with `npm pack --dry-run`.
 2. Website: static page `website/index.html` plus `website/kineti-cosmic-loop.mp4`, `website/kineti-cosmic-poster.jpg`, and `website/vercel.json`. No package, no lockfile, no build step. Excluded from the npm pack.
-3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.7` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
+3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.8` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
 4. Version rule: `package.json`, `kineti.config.json`, both Cargo workspaces, and every published crate move together. `tests/versions.test.ts` checks crate metadata, lockfiles, server registration, current docs, skill manifests, and Codex setup examples.
 
 ## 12. Docs rules

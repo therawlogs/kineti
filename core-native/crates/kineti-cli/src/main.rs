@@ -28,7 +28,7 @@ fn main() {
         "epistemic" => run_epistemic_demo(),
         "epistemic-eval" => run_epistemic_eval_json(&args),
         "anti-drift" => run_anti_drift_demo(),
-        "--version" | "-v" | "version" => println!("kineti-cli 0.3.7"),
+        "--version" | "-v" | "version" => println!("kineti-cli 0.3.8"),
         _ => print_help(),
     }
 }
@@ -36,7 +36,7 @@ fn main() {
 fn print_help() {
     println!(
         "\n=======================================================\n\
-           Kineti v0.3.7 — Agent Safety & Context Harness\n\
+           Kineti v0.3.8 — Agent Safety & Context Harness\n\
            Website: getkineti.com | Crates.io: kineti-cli\n\
          =======================================================\n\n\
          Usage:\n\
@@ -44,7 +44,7 @@ fn print_help() {
            kineti-cli test-all    Run end-to-end verification checks\n\
            kineti-cli epistemic   Demonstrate 360º Human Model & Epistemic Engine\n\
            kineti-cli anti-drift  Demonstrate Verbatim Root Goal & Anti-Drift Engine\n\
-           kineti-cli --version   Print version (0.3.7)\n"
+           kineti-cli --version   Print version (0.3.8)\n"
     );
 }
 

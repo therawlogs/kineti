@@ -2,7 +2,7 @@
 name: second-opinion
 description: Independent bug review from a different model, when one is available.
 stage: verify
-version: 0.3.7
+version: 0.3.8
 triggers:
   - second opinion
   - another model review

@@ -13,6 +13,6 @@ description = "Real-world actions: Headless price comparison, ticket search, and
 workspace = true
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.7" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.3.7" }
+kineti-core = { path = "../kineti-core", version = "0.3.8" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.8" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.8" }

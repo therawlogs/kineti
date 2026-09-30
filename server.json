@@ -6,12 +6,12 @@
     "url": "https://github.com/therawlogs/kineti",
     "source": "github"
   },
-  "version": "0.3.7",
+  "version": "0.3.8",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "kineti",
-      "version": "0.3.7",
+      "version": "0.3.8",
       "transport": {
         "type": "stdio"
       }

@@ -1,6 +1,6 @@
 {
   "name": "kineti",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "author": "Kineti Team <hello@getkineti.com>",
   "type": "module",
   "mcpName": "io.github.therawlogs/kineti",

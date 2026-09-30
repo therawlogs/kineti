@@ -13,4 +13,4 @@ description = "Sub-millisecond sensory triage, style analyzer, and reflex circui
 workspace = true
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.7" }
+kineti-core = { path = "../kineti-core", version = "0.3.8" }

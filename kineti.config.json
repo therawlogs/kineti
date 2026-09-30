@@ -1,5 +1,5 @@
 {
-  "version": "0.3.7",
+  "version": "0.3.8",
   "name": "Kineti OS",
   "description": "Closed-loop software factory: skills propose, programs enforce, memory remembers",
   "root_goal": "Build universal agent harness with cryptographic verification",

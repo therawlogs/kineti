@@ -13,6 +13,6 @@ description = "High-speed backend connectors: Brave Search, FLUX.1, Gmail, Notio
 workspace = true
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.7" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.7" }
-kineti-memory = { path = "../kineti-memory", version = "0.3.7" }
+kineti-core = { path = "../kineti-core", version = "0.3.8" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.8" }
+kineti-memory = { path = "../kineti-memory", version = "0.3.8" }
