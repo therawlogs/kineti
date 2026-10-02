@@ -90,7 +90,7 @@ Open your AI coding agent (in Cursor, Claude Code, etc.) and give it a real task
 Watch how Kineti works with your agent:
 1. **Goal anchoring**: The agent locks the goal so it does not drift during multi-step tasks.
 2. **Plan approval**: For new features or structural changes, the agent presents a clear plan before modifying code.
-3. **Undo recording**: Before modifying files, the agent records an undo command in the SAGA stack.
+3. **Undo recording**: Before modifying files, the agent should register an inverse with Kineti. Kineti only undoes registered steps.
 
 ---
 
@@ -136,14 +136,14 @@ If any file in the repository changes after running tests, the proof receipt imm
 
 ## Step 6: Test undo safety
 
-If an agent makes unwanted changes or breaks a file, you can roll back changes cleanly:
+If an agent makes unwanted changes or breaks a file, you can roll back registered inverses:
 
 ```bash
-# Review and rollback the most recent changes
+# Review and rollback the most recent registered changes
 kineti undo
 ```
 
-Kineti unwinds changes in reverse order (newest first).
+Kineti unwinds registered steps in reverse order (newest first). A failed inverse prints `rollback incomplete`, exits 1, and that step stays pending.
 
 ---
 

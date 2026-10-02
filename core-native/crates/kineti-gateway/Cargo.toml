@@ -13,8 +13,8 @@ description = "High-performance messaging gateway: WhatsApp Cloud API, macOS iMe
 workspace = true
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.3.8" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.3.8" }
-kineti-memory = { path = "../kineti-memory", version = "0.3.8" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.3.8" }
-kineti-actions = { path = "../kineti-actions", version = "0.3.8" }
+kineti-core = { path = "../kineti-core", version = "0.3.9" }
+kineti-reflex = { path = "../kineti-reflex", version = "0.3.9" }
+kineti-memory = { path = "../kineti-memory", version = "0.3.9" }
+kineti-connectors = { path = "../kineti-connectors", version = "0.3.9" }
+kineti-actions = { path = "../kineti-actions", version = "0.3.9" }

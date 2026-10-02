@@ -23,7 +23,7 @@ Kineti locks the goal into `.kineti/state.json` to prevent scope creep during au
 
 ### Step 3: Let the agent build with undo safety
 As the agent makes code edits:
-- Kineti automatically records an undo command before each mutation in the SAGA undo stack.
+- The agent should register an inverse before each mutation. Kineti only undoes registered steps.
 - You can inspect active progress or roll back unwanted changes anytime with:
   ```bash
   kineti undo

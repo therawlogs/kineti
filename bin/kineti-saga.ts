@@ -142,7 +142,9 @@ function main() {
     checkGuard();
     const regs = lines().filter((l) => l.kind === "register" && l.run_id === targetRun);
     const undone = new Set(
-      lines().filter((l) => l.kind === "rollback_step" && l.run_id === targetRun).map((l) => l.label),
+      lines()
+        .filter((l) => l.kind === "rollback_step" && l.run_id === targetRun && l.exit_code === 0)
+        .map((l) => l.label),
     );
     const pending = regs.filter((r) => !undone.has(r.label!)).reverse();
     if (pending.length === 0) { ok(`nothing to roll back for ${targetRun}`); return; }
@@ -172,6 +174,8 @@ function main() {
       console.error(`kineti: confirmed via --yes (automation); running ${pending.length} steps newest-first`);
     }
     const verifyCmd = loadVerifyCommand();
+    let failed = 0;
+    let succeeded = 0;
     for (const r of pending) {
       const cmdArgv = splitLegacyCommand(r.inverse || "");
       const res = runSafeCommand(cmdArgv, { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: 60000, allowShell, verifyCmd });
@@ -183,8 +187,16 @@ function main() {
         label: r.label, exit_code: code,
       } satisfies Line);
       updateGuard();
-      if (code !== 0) console.error(`kineti: CRITICAL undo failed for "${r.label}" (exit ${code}); continuing`);
-      else ok(`undone: ${r.label}`);
+      if (code !== 0) {
+        failed += 1;
+        console.error(`kineti: CRITICAL undo failed for "${r.label}" (exit ${code}); continuing`);
+      } else {
+        succeeded += 1;
+        ok(`undone: ${r.label}`);
+      }
+    }
+    if (failed > 0) {
+      die(`rollback incomplete for ${targetRun} (${failed} failed, ${succeeded} undone). Failed steps are still pending.`, 1);
     }
     appendJsonl(file(), { at: nowIso(), kind: "rollback_done", run_id: targetRun } satisfies Line);
     updateGuard();

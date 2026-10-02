@@ -90,9 +90,10 @@ describe("0.1 shell removal", () => {
     expect(noYes.err).toContain("needs a human");
     // With --yes: runs, shell inverse blocked by safe exec, reported as failed.
     const rb = s(["rollback", "--run-id", "evil", "--yes"]);
-    expect(rb.status).toBe(0);
+    expect(rb.status).toBe(1);
     expect(rb.err).toContain("CRITICAL undo failed");
     expect(rb.err).toContain("blocked");
+    expect(rb.err).toContain("rollback incomplete");
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 

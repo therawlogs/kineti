@@ -107,7 +107,7 @@ describe("kineti-saga", () => {
     expect(s(["register", "--run-id", "r1", "--label", "step-c", "--inverse", "true"]).status).toBe(0);
 
     const rb = s(["rollback", "--run-id", "r1", "--yes"]);
-    expect(rb.status).toBe(0);
+    expect(rb.status).toBe(1);
     // Prints each inverse with its hash before running
     expect(rb.out).toContain("hash:");
     // newest-first across all pending steps; the failing undo does not stop the rest
@@ -119,12 +119,35 @@ describe("kineti-saga", () => {
     expect(idxA).toBeGreaterThan(-1);
     expect(idxC).toBeLessThan(idxB);
     expect(idxB).toBeLessThan(idxA);
-    // failing step is reported but does not stop the rest
+    // failing step is reported, later steps still run, overall result is incomplete
     expect(rb.err).toContain('CRITICAL undo failed for "step-bad"');
+    expect(rb.err).toContain("rollback incomplete");
+    expect(rb.out).not.toContain("rollback complete");
     expect(rb.out).toContain("newest-first");
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
 
-    // idempotent: second rollback has nothing pending
-    expect(s(["rollback", "--run-id", "r1", "--yes"]).out).toContain("nothing to roll back");
+  test("failed undo stays pending and a retry does not skip it", () => {
+    const c = makeCtx();
+    const s = (a: string[]) => run("kineti-saga.ts", a, c);
+
+    expect(s(["begin", "--run-id", "r-fail"]).status).toBe(0);
+    expect(s(["register", "--run-id", "r-fail", "--label", "ok-step", "--inverse", "true"]).status).toBe(0);
+    expect(s(["register", "--run-id", "r-fail", "--label", "bad-step", "--inverse", "false"]).status).toBe(0);
+
+    const first = s(["rollback", "--run-id", "r-fail", "--yes"]);
+    expect(first.status).toBe(1);
+    expect(first.err).toContain("rollback incomplete");
+    expect(first.out).toContain("undone: ok-step");
+    expect(first.err).toContain('CRITICAL undo failed for "bad-step"');
+
+    const retry = s(["rollback", "--run-id", "r-fail", "--yes"]);
+    expect(retry.status).toBe(1);
+    expect(retry.out).not.toContain("nothing to roll back");
+    expect(retry.out).toContain("[bad-step]");
+    expect(retry.out).not.toContain("[ok-step]");
+    expect(retry.err).toContain('CRITICAL undo failed for "bad-step"');
+    expect(retry.err).toContain("rollback incomplete");
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 

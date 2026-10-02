@@ -1,4 +1,4 @@
-# Kineti OS `v0.3.8`
+# Kineti OS `v0.3.9`
 
 [![npm version](https://img.shields.io/npm/v/kineti.svg?color=teal)](https://www.npmjs.com/package/kineti)
 [![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
@@ -36,13 +36,13 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 
 ### 2. TypeScript Governance Control Plane (`bin/`, `src/`)
 - **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
-- **Transactional SAGA Undo Stack**: Guarantees LIFO file reversibility before every mutation.
+- **Transactional SAGA Undo Stack**: Newest-first rollback of inverses the agent registered. A failed inverse prints `rollback incomplete`, exits 1, and that step stays pending.
 - **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact workspace code fingerprints via `kineti-evidence.ts`.
 - **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (78 KB HTML, 15 KB gzipped, zero runtime JS frameworks).
 - **Universal Model Context Protocol (MCP)**: 14 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
 ### 3. Verified Test Counts & Evaluation Roadmap
-- **What is verified today**: 190 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (441 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+- **What is verified today**: 191 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (442 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Planned, not built**: a public set of 100 hostile tool calls. Nothing else in this list is shipped.
 
@@ -59,7 +59,7 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 npm install -g kineti
 
 # Or pin to the current stable release
-npm install -g kineti@0.3.8
+npm install -g kineti@0.3.9
 
 # Or run directly with npx
 npx kineti --help
@@ -199,7 +199,7 @@ All 8 native crates are published on [crates.io](https://crates.io):
 cargo add kineti-core
 
 # Or install the native CLI binary directly
-cargo install kineti-cli@0.3.8
+cargo install kineti-cli@0.3.9
 
 # Run all 251 native Rust unit and integration tests locally
 cargo test --manifest-path core-native/Cargo.toml
@@ -248,13 +248,13 @@ kineti/
 │   ├── HOWTO-daily-loop.md # Daily operating loop
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md # Multi-agent identity & signing
 │   └── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet and integration design
-├── tests/               # 190 TypeScript governance & causal test suites
+├── tests/               # 191 TypeScript governance & causal test suites
 ├── .github/             # GitHub Actions CI, issue forms, PR template, Dependabot
 ├── AGENTS.md            # Universal rules for AI agents in this repository
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
 ├── CONTRIBUTING.md      # Development setup, testing, and DCO sign-off
 ├── LICENSE              # MIT License
-└── package.json         # kineti@0.3.8 npm package manifest
+└── package.json         # kineti@0.3.9 npm package manifest
 ```
 
 ---
