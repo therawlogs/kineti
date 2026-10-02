@@ -23,10 +23,7 @@ var COMMAND_MAP = {
   swarm: { script: "bin/kineti-swarm.ts" },
   ci: { script: "bin/kineti-ci.ts" },
   egress: { script: "bin/kineti-egress.ts" },
-  memory: { script: "bin/kineti-memory-job.ts" },
-  stripe: { script: "bin/kineti-stripe.ts" },
-  privacy: { script: "bin/kineti-privacy.ts" },
-  invite: { script: "bin/kineti-invite.ts" }
+  memory: { script: "bin/kineti-memory-job.ts" }
 };
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
   printHelp();
@@ -103,8 +100,5 @@ Commands:
   kineti verify        Check test proof before commit
   kineti swarm <goal>  Run multi-agent task
   kineti ci            Run PR check
-  kineti stripe        Manage virtual cards with spend caps and SAGA undo   [experimental]
-  kineti privacy       Self-serve external data purge & model training opt-out
-  kineti invite        Viral vanity referrals and tier quotas               [experimental]
 `);
 }
