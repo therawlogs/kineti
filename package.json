@@ -35,7 +35,8 @@
     "mcp": "bun bin/kineti-mcp.ts",
     "mcp:init": "bun bin/kineti-mcp.ts init",
     "companion": "bun bin/kineti-companion.ts",
-    "ci": "bun bin/kineti-ci.ts"
+    "ci": "bun bin/kineti-ci.ts",
+    "demo": "./demo-no-key.sh"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
