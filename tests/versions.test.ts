@@ -155,6 +155,9 @@ describe("repo version and layout drift guards", () => {
       "Single static page (index.html only)",
       "(PGP/disclosure policy",
       "Cursor & Windsurf",
+      "exact dollar amounts",
+      "must stop all actions",
+      "The agent records each model call with exact",
     ];
     for (const claim of stale) expect(readme).not.toContain(claim);
   });

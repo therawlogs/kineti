@@ -17,6 +17,7 @@ The papers were removed from the tree and will be re-added when ready. The figur
 
 ## 2. Core Architecture & Specifications
 - [**PLAN.md**](./PLAN.md) — Comprehensive technical architecture specification: wait-free EBR snapshots, 20-entity provenance kernel, HLC temporal monotonicity, Merkle DAG commit gate, and SAGA transactional reversibility.
+- [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Rust core internals moved off the product README (hash-chained ledger, commit gate, snapshots, connectors).
 - [**SECURITY_REPORT.md**](./SECURITY_REPORT.md) — Vulnerability assessment, origin validation, CSRF/CSWSH protection, and secret scan results.
 
 ---
@@ -30,4 +31,9 @@ The papers were removed from the tree and will be re-added when ready. The figur
 ## 4. Guides & Tutorials
 - [**TUTORIAL-first-run.md**](./TUTORIAL-first-run.md) — Getting started with Kineti OS from installation to first verified task execution.
 - [**HOWTO-daily-loop.md**](./HOWTO-daily-loop.md) — Daily developer workflow: stage gating, test evidence recording, and spend tracking.
+
+---
+
+## 5. Research notes, not part of the CLI
+- [**research/**](./research/) — Research notes, not part of the CLI.
 

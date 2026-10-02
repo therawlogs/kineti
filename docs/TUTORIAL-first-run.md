@@ -96,7 +96,7 @@ Watch how Kineti works with your agent:
 
 ## Step 4: Check spending and limits
 
-The agent records each model call with exact dollar amounts.
+The agent reports each model call and its cost. Kineti adds up what is reported, so the total is only as accurate as those reports. At 95% of $50 ($47.50) the log command exits with code 3. Your agent or hooks need to act on that code. Kineti does not stop the agent itself yet.
 
 Check your spending anytime in your terminal:
 
@@ -110,7 +110,7 @@ Expected output:
 total $0.15 of $50; entries 2; tripped=false
 ```
 
-- **Recorded-totals spend breaker**: the agent records each model call; when recorded totals reach 95% of the $50 limit ($47.50), the breaker trips on recorded totals and the agent must stop all actions.
+- **Recorded-totals spend breaker**: the agent reports each model call and its cost. When reported totals reach 95% of the $50 limit ($47.50), `kineti spend log` exits with code 3. Your agent or hooks need to act on that code.
 - **Human-only reset**: An agent can never reset the spend limit on its own. Only you can reset it:
   ```bash
   kineti spend reset --i-am-human

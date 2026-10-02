@@ -4,8 +4,8 @@
 [![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **Spend cap, transactional undo, and proof receipts for AI coding agents.**  
-> A lightweight open-source (MIT) safety harness that runs under Claude Code, Cursor, OpenCode, Codex, Antigravity, Cline, and fx.sh.
+> **File-bound test receipts and registered rollback for AI coding agents.**  
+> Also a spend log with a cap. MIT. Works with Claude Code, Cursor, OpenCode, Codex and Antigravity through MCP.
 
 ```text
 $ kineti spend status
@@ -31,42 +31,20 @@ breaker reset by human (exit code 0)
 
 ## Key Pillars
 
-### 1. The 360º Human Model & Epistemic Engine
-Personalized agents must understand the full human context without hallucinating, overriding user statements, or quietly mutating goals when third-party systems push back:
-- **Multi-Scope Context Isolation**: Strict context isolation across `Global`, `Domain` (Health, Work, Finance, Schedule, Taste), and `Relationship` (person-to-person) scopes. Scoped facts never leak into generic or un-scoped queries.
-- **Epistemic Certainty Tiers**: Enforces `DirectlyKnown` (explicit user ground truth) > `ObservedPattern` (behavioral patterns) > `Inferred` (hypotheses). Machine inferences are strictly blocked from overwriting explicit user statements.
-- **Rule-Exception Hierarchies**: Resolves complex user lifestyles unambiguously: `BaselineRule` (e.g. Vegetarian) $\to$ `PermittedException` (e.g. Eats eggs) $\to$ `Preference` (e.g. Prefers low dairy) $\to$ `SafetyCeiling` (e.g. Peanut allergy).
-- **Verbatim Root Goal & Anti-Drift Engine**: Anchors autonomous task chains to the exact, unmodified words uttered by the user and their explicit definition of "Done". Every step is inspected against the original ask, eliminating the multi-step "telephone game". Intermediate steps and tools are treated as expendable scaffolding.
-- **Friction Triage Ladder ("Clean No over Dirty Yes")**: Triages real-world obstacles through 3 levels:
-  1. *Noise*: Transient blips auto-retry with exponential backoff.
-  2. *Broken Surface*: Broken websites or portals silently reroute to alternatives.
-  3. *Real Constraint*: Hard third-party refusals escalate immediately with a clean impossibility report. Sunk costs are written off ($0 sunk-cost fallacy), and quiet compromises (such as accepting budget overruns) are strictly blocked.
-- **Commitment-Time Verification**: Re-checks perishable facts (fares, seat availability, stock levels, auth tokens) at the exact millisecond of external or financial commit, never trusting cached plan snapshots.
-- **Asymmetric Gap-Filling**: Cheap, reversible gaps are filled automatically and disclosed in audit evidence; expensive or irreversible gaps halt execution to ask the user.
-- **Reputation Gating & Ingress Defense**: Outbound communication is treated as a non-regenerating resource (knowing an identity does not equal permission to contact). Incoming external messages and webhooks arrive as untrusted data, never instructions.
+### 1. Rust core (`core-native/`)
+Rust core with a hash-chained ledger and a commit check. Spend breaker exits with code 3 at 95% of recorded spend.
 
-### 2. Native Rust Nervous System Substrate (`core-native/`)
-- **Double-Buffered Atomic Snapshots**: Two-slot `RwLock` snapshot design with thread-safe read paths and deferred epoch reclamation of retired instances. Latency figures are withheld until reproducible benchmark scripts land in the repo.
-- **Universal 20-Entity Provenance Kernel**: Content-addressed RFC 8785 JSON canonicalization with BLAKE3 and SHA-256 digests (hand-rolled under a zero-external-dependency constraint; see `docs/PLAN.md` for rationale and test vectors).
-- **Monotonic Hybrid Logical Clock (HLC)**: Physical and logical causality tracking under clock skew.
-- **3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
-- **Sensory Reflex Triage**: Fast sensory classification dispatching zero-token emoji reactions for low-information conversational stimuli.
-- **Protocolized Connectors**: Standard `KinetiConnectorProtocol` trait with consequence level gating (`Trivial`, `Operational`, `HighConsequence`) and single-use SHA-256 payload authorization tokens.
-- **Spend Circuit Breaker**: Deterministic trip at 95% of recorded totals ($47.50 of $50.00 ceiling) with OS exit code 3 halt.
-
-### 3. TypeScript Governance Control Plane (`bin/`, `src/`)
+### 2. TypeScript Governance Control Plane (`bin/`, `src/`)
 - **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
 - **Transactional SAGA Undo Stack**: Guarantees LIFO file reversibility before every mutation.
 - **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact workspace code fingerprints via `kineti-evidence.ts`.
 - **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (78 KB HTML, 15 KB gzipped, zero runtime JS frameworks).
 - **Universal Model Context Protocol (MCP)**: 14 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
 
-### 4. Verified Test Counts & Evaluation Roadmap
+### 3. Verified Test Counts & Evaluation Roadmap
 - **What is verified today**: 190 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (441 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
-- **Kineti Hostile 100 (in development)**: a public suite of 100 hostile tool calls against the gate with published method and published failures. This is the benchmark the project intends to be judged by.
-- **Directional Normalized Trust-Weighted Impact (DNTI)**: three-factor loss-averse outcome verification ($\Phi \times \sigma_\tau(SE) \times \Psi(\mathcal{T})$) designed to resist Goodhart-style metric gaming.
-- **Cost Per Verified Outcome ($/Outcome)**: design goal of pricing work in verified business outcomes instead of raw token consumption.
+- **Planned, not built**: a public set of 100 hostile tool calls. Nothing else in this list is shipped.
 
 ---
 
@@ -89,7 +67,7 @@ npx kineti --help
 
 ### 2. Connect to Your AI Editor or Agent Host
 
-Run Kineti directly as an MCP governance server inside your AI editor to record spend against caps ($50 ceiling; the agent records each model call and the breaker trips on recorded totals), transactional SAGA undo, and cryptographic test verification.
+Run Kineti as an MCP server in your editor for test receipts, registered rollback, and a spend log with a cap. The agent reports each model call and its cost. Kineti adds up what is reported. At 95% of $50 ($47.50) the log command exits with code 3. Your agent or hooks need to act on that code. Kineti does not stop the agent itself yet.
 
 #### Automatic Setup for All Hosts
 Run Kineti's auto-configurator in your project directory:
@@ -263,6 +241,8 @@ kineti/
 ├── docs/                # Architecture specifications & security reports
 │   ├── README.md        # Docs index
 │   ├── PLAN.md          # Canonical production architecture spec
+│   ├── ARCHITECTURE.md  # Rust core internals (not the CLI pitch)
+│   ├── research/        # Research notes, not part of the CLI
 │   ├── SECURITY_REPORT.md # Security audit & origin gating analysis
 │   ├── TUTORIAL-first-run.md # Developer quickstart
 │   ├── HOWTO-daily-loop.md # Daily operating loop
@@ -287,7 +267,7 @@ Today Kineti provides local ledger tooling, spend circuit breakers, and evidence
 2. **Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); tooling exits with code 3 at 95% of recorded totals.
 3. **Cryptographic Proof Binding**: Test runs recorded as SHA-256 evidence receipts bound to the exact code fingerprint.
 4. **Clean No over Dirty Yes**: Agents report genuine impossibilities clearly rather than silently violating budget or counterparty boundaries.
-5. **Outcome Verification**: DNTI loss-averse scoring plus dollars-per-verified-outcome, targeting the Hostile 100 suite as the public bar.
+5. **Planned, not built**: a public set of 100 hostile tool calls. Nothing else in this list is shipped.
 
 ---
 
