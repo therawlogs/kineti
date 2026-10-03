@@ -14,7 +14,7 @@
   "bugs": {
     "url": "https://github.com/therawlogs/kineti/issues"
   },
-  "keywords": ["ai-agents", "spend-cap", "undo", "test-evidence", "mcp"],
+  "keywords": ["ai-agents", "spend-cap", "undo", "test-evidence", "mcp", "bun", "cryptographic-proof", "saga-pattern"],
   "bin": {
     "kineti": "bin/kineti.js"
   },
