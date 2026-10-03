@@ -31,6 +31,7 @@ The papers were removed from the tree and will be re-added when ready. The figur
 ## 4. Guides & Tutorials
 - [**TUTORIAL-first-run.md**](./TUTORIAL-first-run.md) — Getting started with Kineti OS from installation to first verified task execution.
 - [**HOWTO-daily-loop.md**](./HOWTO-daily-loop.md) — Daily developer workflow: stage gating, test evidence recording, and spend tracking.
+- [**UNDO_LIMITATIONS.md**](./UNDO_LIMITATIONS.md) — What undo can and cannot reverse (SAGA rollback boundaries).
 
 ---
 
