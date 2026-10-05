@@ -229,7 +229,6 @@ jobs:
         run: |
           bun bin/kineti-egress.ts record --host api.github.com --description "Create the verified v0.4.0 GitHub release with native binaries and checksums"
           bun bin/kineti-egress.ts verify
-          cp .kineti/egress.jsonl dist/egress.jsonl
 
       - name: Upload binaries as run artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -240,7 +239,6 @@ jobs:
             dist/kineti-darwin-arm64
             dist/kineti-darwin-x64
             dist/SHA256SUMS
-            dist/egress.jsonl
 
   create-github-release:
     name: Create GitHub release
