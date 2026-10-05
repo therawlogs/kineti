@@ -17,7 +17,7 @@ cd "$DEMO_DIR"
 mkdir -p .kineti
 cat << 'EOF' > kineti.config.json
 {
-  "version": "0.3.9",
+  "version": "0.4.0",
   "project": "demo",
   "spend_limit_usd": {
     "global": 50.0,

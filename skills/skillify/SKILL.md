@@ -2,7 +2,7 @@
 name: skillify
 description: Package a proven workflow into a new skill.
 stage: meta
-version: 0.3.9
+version: 0.4.0
 triggers:
   - make a skill
   - package this workflow

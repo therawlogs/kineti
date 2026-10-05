@@ -8,13 +8,12 @@
 //! - **[`gmail`]**: Google Workspace & Gmail inbox search and draft creation.
 //! - **[`notion`]**: Notion database query and page/task management.
 //! - **[`opencode`]**: OpenCode Go LLM inference connector (OpenAI-compatible).
-//! - **[`vault`]**: Authenticated encrypted vault for storing user OAuth tokens.
+//! - **[`vault`]**: Legacy in-memory credential demo. Its custom transformation is not secure encryption and must not be used for real secrets.
 
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 #![allow(clippy::manual_is_multiple_of)]
 
-pub mod agent_email;
 pub mod brave;
 pub mod engineering;
 pub mod flux;
@@ -30,7 +29,6 @@ pub mod team_comms;
 pub mod totp;
 pub mod vault;
 
-pub use agent_email::{AgentEmailClient, InboundAgentEmail, OutboundAgentEmail};
 pub use brave::{BraveSearchClient, SearchHit};
 pub use engineering::{GitHubClient, LinearClient};
 pub use flux::{AspectRatio, FluxClient, FluxGenerationRequest, FluxImageResult};

@@ -33,4 +33,8 @@ scripts/
 GOOD_ROADMAP.md
 ROADMAP.md
 *.tgz
+*.bun-build
+.*.bun-build
+**/*.bun-build
+**/.*.bun-build
 .DS_Store

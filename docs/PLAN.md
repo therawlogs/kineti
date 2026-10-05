@@ -1,6 +1,8 @@
 # Kineti OS: Canonical Implementation Plan & Production Roadmap
 
-> Historical snapshot dated 2026-09-16. Current version is 0.3.x and the live plan is `GOOD_ROADMAP.md`. Version strings, dates, and counts below are frozen as audited.
+> Historical architecture proposal dated 2026-09-16, not a description of all shipped behavior. Several items below are design targets or simulations, including durable memory, external-data deletion, sandbox isolation, and signed outcome attestations. Check `README.md` and the release notes for current support.
+
+> **v0.4.0 note (2026-10-05):** This file is retained as a historical proposal. Its old production-status labels, benchmarks, counts, service features, and release targets are not current v0.4.0 facts. The implementation status is described in `README.md`, `CHANGELOG.md`, and `docs/ARCHITECTURE.md`. The historical body is intentionally unchanged.
 
 **Document Status:** Canonical & Production-Approved  
 **Target Release:** Kineti OS v1.0.0-LTS  
@@ -85,7 +87,7 @@ This document serves as the **definitive production implementation plan**, estab
 ---
 
 ### 3.2 Milestone 2: Native Rust Systems Substrate (COMPLETED)
-- **Objective:** Build the core native Rust workspace (`core-native/`) implementing high-performance systems primitives in 100% Safe Rust (0 `unsafe` blocks) with zero external crate dependencies in release.
+- **Historical objective:** Build the core native Rust workspace (`core-native/`) implementing high-performance systems primitives in Safe Rust. The original zero-dependency target is no longer universal: `kineti-harness` uses `ed25519-dalek` for OVT signatures in v0.4.0.
 - **Deliverables & Verification Status:**
   1. `kineti-core`:
      - Double-buffered RCU snapshot engine (`snapshot.rs`) achieving zero torn reads across >10,000 reads under 80-thread writer contention.

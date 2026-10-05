@@ -46,7 +46,9 @@ beforeEach(() => {
   }
   // Keep test audit entries out of the real ~/.kineti log.
   machineBackup = process.env.KINETI_MACHINE_DIR;
-  tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "kineti-test-"));
+  const machineScratch = path.join(process.cwd(), ".kineti", "test-router-machine");
+  fs.mkdirSync(machineScratch, { recursive: true });
+  tmpMachine = fs.mkdtempSync(path.join(machineScratch, "run-"));
   process.env.KINETI_MACHINE_DIR = tmpMachine;
   setEnabled(true, "router-test");
 });
@@ -95,51 +97,50 @@ describe("kineti-router intent classification", () => {
   test("swarm budget ask routes correctly", () => {
     expect(classifyIntent("we have a team, separate budgets?")).toBe("swarm_budget");
   });
-  test("forget words route to forget with proof promise", () => {
+  test("forget words route to a clear unsupported response without claiming deletion", () => {
     expect(classifyIntent("forget my diet")).toBe("forget");
     const r = route("forget my diet");
-    expect(r.reply).toContain("proof receipt");
-    expect(r.reply).toContain("Nothing is deleted until you say yes");
+    expect(r.reply).toContain("cannot delete or verify deletion");
+    expect(r.reply).toContain("Nothing was changed");
+    expect(r.reply).not.toContain("proof receipt");
   });
   test("risky tasks warn and ask first", () => {
     const r = route("please pay the invoice now");
     expect(r.reply).toContain("hard to undo");
-    expect(r.reply).toContain("nothing goes out until you say yes");
+    expect(r.reply).toContain("does not execute or block the action");
   });
   test("model words route to model with ask-first suggestion", () => {
     expect(classifyIntent("which model is best for this bug?")).toBe("model");
     const r = route("which model is best for this bug?");
     expect(r.intent).toBe("model");
-    expect(r.reply).toContain("fits best");
-    expect(r.reply).toContain("will not move without your yes");
+    expect(r.reply).toContain("Static suggestion");
+    expect(r.reply).toContain("does not switch your active tool or model");
     expect(r.reply).toContain("Choices:");
   });
-  test("auto-switch toggles from plain words", () => {
+  test("auto-switch requests are only static suggestions", () => {
     const on = route("turn auto switch on");
-    expect(on.reply).toContain("Auto-switch is on");
+    expect(on.reply).toContain("does not switch your active tool or model");
     const off = route("turn auto switch off");
-    expect(off.reply).toContain("Auto-switch is off");
+    expect(off.reply).toContain("does not switch your active tool or model");
   });
-  test("sync words route to sync with on/off choices", () => {
+  test("sync words explain that transfer is manual", () => {
     expect(classifyIntent("sync my devices")).toBe("sync");
     const r = route("sync my devices");
-    expect(r.reply).toContain("Device sync is off");
+    expect(r.reply).toContain("manual encrypted export and import only");
     expect(r.reply).toContain("Choices:");
   });
-  test("dashboard words ask first, yes makes a code", () => {
+  test("dashboard words do not claim that cloud pairing is available", () => {
     expect(classifyIntent("kineti-dashboard")).toBe("dashboard");
     const ask = route("kineti-dashboard");
     expect(ask.intent).toBe("dashboard");
-    expect(ask.reply).toContain("Do you want a UI cloud link?");
+    expect(ask.reply).toContain("Cloud dashboard linking is not available");
     expect(ask.reply).toContain("Choices:");
     const made = route("yes, make a cloud link");
     expect(made.intent).toBe("dashboard");
-    expect(made.reply).toContain("KIN-");
-    expect(made.reply).toContain("app.getkineti.com/pair");
-    const again = route("kineti-dashboard");
-    expect(again.reply).toContain("Your code is");
+    expect(made.reply).toContain("no pairing code was made");
+    expect(made.reply).not.toContain("KIN-");
     const dropped = route("revoke cloud link");
-    expect(dropped.reply).toContain("dropped");
+    expect(dropped.reply).toContain("No cloud service is connected");
   });
   test("swarm budgets save from plain words with audit-safe store", () => {
     const r = route("separate budgets: coder 15, reviewer 10");
@@ -162,14 +163,14 @@ describe("kineti-router replies stay plain", () => {
     expect(r.reply).not.toContain("kineti-");
     expect(r.reply).not.toContain("bin/");
   });
-  test("off blocks checks until turned back on", () => {
+  test("off pauses this helper without claiming to stop the agent", () => {
     const off = route("Kineti off");
-    expect(off.reply).toContain("off now");
+    expect(off.reply).toContain("plain-talk helper is off");
     expect(isEnabled()).toBe(false);
     const blocked = route("how much have I spent?");
-    expect(blocked.reply).toContain("Kineti is off");
+    expect(blocked.reply).toContain("This does not stop your coding agent");
     const on = route("Kineti on");
-    expect(on.reply).toContain("on now");
+    expect(on.reply).toContain("plain-talk helper is on");
     expect(isEnabled()).toBe(true);
   });
   test("every reply offers numbered choices", () => {

@@ -5,10 +5,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir, loadLimits, microcentsToUsd, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD, DEFAULT_PROJECT_CEILING_USD } from "./lib.ts";
+import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso, machineDir, loadLimits, microcentsToUsd, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD } from "./lib.ts";
 import { fingerprint } from "./kineti-evidence.ts";
 import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
-import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
 import { route as routeTalk } from "./kineti-router.ts";
 
@@ -277,32 +276,35 @@ export function getActivity(limit = 50, actorFilter = "", actionFilter = ""): Ac
 
 export function getFleetStatus() {
   const ceiling = loadLimits().globalUsd;
+  const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
+  const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
+  const evidence = readJsonl<any>(path.join(projectKdir(), "evidence.jsonl"));
   return {
     active_repo_id: activeRepoId,
-    total_fleet_spend: 0,
-    total_fleet_budget: 100,
+    total_fleet_spend: Number(spend.total_usd ?? microcentsToUsd(spend.total_microcents ?? 0)),
+    total_fleet_budget: ceiling,
     repos: [
       {
         id: activeRepoId,
-        name: activeRepoId,
+        name: typeof state.project === "string" ? state.project : activeRepoId,
         path: REPO_ROOT,
-        owner: "Kineti User",
+        owner: "Local user",
         branch: "main",
         status: "active",
-        active_task: "Universal Autonomous Assistant Integration",
-        spend_usd: 0,
+        active_task: state.task?.name || "No task recorded",
+        spend_usd: Number(spend.total_usd ?? microcentsToUsd(spend.total_microcents ?? 0)),
         ceiling_usd: ceiling,
-        tests_passing: 100,
-        ide: "antigravity",
+        tests_passing: evidence.filter((record) => record.exit_code === 0).length,
+        ide: "not reported",
         is_local: true,
       },
     ],
     settings: {
-      github: { connected: true, account: "kineti-org", repo_count: 1, webhook_status: "active" },
+      github: { connected: false, account: "Not configured", repo_count: 0, webhook_status: "inactive" },
       ides: { cursor: true, claude_code: true, antigravity: true, codex: true },
-      team_members: [{ name: "Kineti User", email: "user@mail.kineti.com", role: "Owner" }],
+      team_members: [{ name: "Local user", role: "Owner" }],
       repo_budgets: { [activeRepoId]: 50 },
-      repo_owners: { [activeRepoId]: "Kineti User" },
+      repo_owners: { [activeRepoId]: "Local user" },
     },
   };
 }
@@ -310,9 +312,7 @@ export function getFleetStatus() {
 export interface SwarmAgentBudget {
   name: string;
   budget: number;
-  used: number;
-  left: number;
-  pct: number;
+  usageTracked: false;
 }
 
 export function getSwarmStatus(): { mode: string; agents: SwarmAgentBudget[]; updated_at: string | null } {
@@ -321,26 +321,19 @@ export function getSwarmStatus(): { mode: string; agents: SwarmAgentBudget[]; up
   );
   const mode = store?.mode === "separate" ? "separate" : "shared";
   const budgets = store?.budgets && typeof store.budgets === "object" ? store.budgets : {};
-  const spend = readJson<any>(path.join(projectKdir(), "spend.json")) || {};
-  const totalUsed = typeof spend.total_usd === "number" ? spend.total_usd : 0;
   const names = Object.keys(budgets);
   const agents: SwarmAgentBudget[] = names.map((name) => {
     const budget = Number(budgets[name]) || 0;
-    // No per-agent spend ledger yet: attribute proportionally when shared, zero when separate.
-    const used = mode === "shared" && names.length > 0 ? Math.round((totalUsed / names.length) * 100) / 100 : 0;
-    const left = Math.max(0, Math.round((budget - used) * 100) / 100);
-    const pct = budget > 0 ? Math.min(100, Math.round((used / budget) * 100)) : 0;
-    return { name, budget, used, left, pct };
+    return { name, budget, usageTracked: false };
   });
   return { mode, agents, updated_at: typeof store?.updated_at === "string" ? store.updated_at : null };
 }
 
 export function getModelStatus(): {
-  auto_switch: boolean;
+  automatic_switching: false;
   table: Record<string, { host: string; model: string; reason: string }>;
   history: Array<{ at: string; actor: string; action: string; detail: string }>;
 } {
-  const toggle = readJson<{ auto_switch?: boolean }>(path.join(projectKdir(), "kineti.json"));
   const table = {
     code: { host: "cursor", model: "default-code", reason: "code edits stay in your editor with full file context" },
     plan: { host: "claude", model: "default-reasoning", reason: "long plans need careful step-by-step reasoning" },
@@ -351,7 +344,7 @@ export function getModelStatus(): {
   try {
     const chain = readJsonl<any>(path.join(machineDir(), "audit.log.jsonl"));
     history = chain
-      .filter((e) => String(e.action || "").startsWith("model."))
+       .filter((e) => String(e.action || "") === "model.suggest")
       .slice(-10)
       .map((e) => ({
         at: String(e.at || ""),
@@ -360,120 +353,35 @@ export function getModelStatus(): {
         detail: String(e.detail || "").slice(0, 200),
       }));
   } catch { /* audit may not exist */ }
-  return { auto_switch: toggle?.auto_switch === true, table, history };
-}
-
-// Vault Storage Helper
-const vaultFile = path.join(projectKdir(), "vault_entries.json");
-
-export function base32Decode(input: string): Buffer {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const cleaned = input.toUpperCase().replace(/=+$/, "").replace(/[^A-Z2-7]/g, "");
-  let bits = 0;
-  let value = 0;
-  const output: number[] = [];
-  for (let i = 0; i < cleaned.length; i++) {
-    const val = alphabet.indexOf(cleaned[i]);
-    if (val === -1) continue;
-    value = (value << 5) | val;
-    bits += 5;
-    if (bits >= 8) {
-      output.push((value >>> (bits - 8)) & 255);
-      bits -= 8;
-    }
-  }
-  return Buffer.from(output);
-}
-
-export function computeRfc6238Totp(secretBase32: string, timeSec: number = Math.floor(Date.now() / 1000), period: number = 30, digits: number = 6): string {
-  try {
-    const key = base32Decode(secretBase32);
-    if (key.length === 0) return "000000";
-    const counter = Math.floor(timeSec / period);
-    const buf = Buffer.alloc(8);
-    buf.writeBigUInt64BE(BigInt(counter));
-    const hmac = crypto.createHmac("sha1", key).update(buf).digest();
-    const offset = hmac[hmac.length - 1] & 0x0f;
-    const codeInt = ((hmac.readUInt32BE(offset) & 0x7fffffff) % Math.pow(10, digits));
-    return codeInt.toString().padStart(digits, "0");
-  } catch (err) {
-    console.warn(`kineti: warning: failed to compute TOTP: ${(err as Error).message}`);
-    return "000000";
-  }
-}
-
-interface VaultStorage {
-  logins: Array<{ id: string; domain: string; username: string; created_at: string; password?: string }>;
-  cards: Array<{ id: string; brand: string; last4: string; exp: string; spend_cap: number }>;
-  personal_info: Array<{ id: string; label: string; value_masked: string }>;
-  agent_items: Array<{ id: string; service: string; identifier: string; scope: string }>;
-  totp_items: Array<{ id: string; issuer: string; account: string; secret_masked: string; secret_raw?: string; code?: string }>;
-}
-
-function loadVault(): VaultStorage {
-  ensureDir(projectKdir());
-  return (
-    readJson<VaultStorage>(vaultFile) || {
-      logins: [],
-      cards: [],
-      personal_info: [],
-      agent_items: [],
-      totp_items: [],
-    }
-  );
-}
-
-function saveVault(vault: VaultStorage): void {
-  try {
-    ensureDir(projectKdir());
-    const tmpFile = path.join(projectKdir(), `vault_entries.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
-    fs.writeFileSync(tmpFile, JSON.stringify(vault, null, 2) + "\n", { mode: 0o600 });
-    fs.renameSync(tmpFile, vaultFile);
-    try {
-      fs.chmodSync(vaultFile, 0o600);
-    } catch (chmodErr) {
-      console.warn(`kineti: warning: could not chmod vault file: ${(chmodErr as Error).message}`);
-    }
-  } catch (err) {
-    console.warn(`kineti: warning: could not save vault: ${(err as Error).message}`);
-  }
+  return { automatic_switching: false, table, history };
 }
 
 const COMPANION_SETTINGS_FILE = path.join(process.cwd(), ".kineti", "companion_settings.json");
 
+let legacyConnectorSettings: Record<string, unknown> | undefined;
+
 let companionSettings = {
-  github: { connected: true, account: "kineti-org", repo_count: 1, webhook_status: "active" },
+  github: { connected: false, account: "Not configured", repo_count: 0, webhook_status: "inactive" },
   ides: { cursor: true, claude_code: true, antigravity: true, codex: true },
-  team_members: [{ name: "Kineti User", email: "user@mail.kineti.com", role: "Owner" }],
+  team_members: [{ name: "Local user", role: "Owner" }],
   repo_budgets: { [activeRepoId]: 50 } as Record<string, number>,
   repo_owners: { [activeRepoId]: "Kineti User" } as Record<string, string>,
   imessage_number: process.env.KINETI_IMESSAGE_NUMBER || "Not Configured",
   whatsapp_number: process.env.KINETI_WHATSAPP_NUMBER || "Not Configured",
-  agent_email: "agent@mail.kineti.com",
   user_name: "Kineti User",
   user_phone: "Not Configured",
-  connectors: {
-    google: { connected: true, account: "user@example.com", name: "Google Workspace", desc: "Gmail, Calendar, Tasks, Drive, Docs, Sheets, and Slides" },
-    outlook: { connected: false, account: "corp@example.com", name: "Outlook", desc: "Read, search, draft, and organize mail via Microsoft Graph" },
-    linear: { connected: true, account: "Linear Workspace", name: "Linear", desc: "Search and update issues, create issues and comments" },
-    notion: { connected: true, account: "Team Notion", name: "Notion", desc: "Search, read, and manage Notion pages and databases" },
-    github: { connected: true, account: "kineti-org", name: "GitHub", desc: "Read repositories, files, issues, pull requests, and code search" },
-    slack: { connected: false, account: "Team Slack", name: "Slack", desc: "Read channels, send messages, reactions, and canvas notes" },
-    brave: { connected: true, account: "Brave Search API", name: "Brave Search", desc: "Live web research, price discovery, and event ticketing" },
-    twilio: { connected: false, account: "Twilio Voice", name: "Twilio Telephony", desc: "Outbound and inbound telephone calls with IVR" },
-    granola: { connected: false, account: "Meeting Notes", name: "Granola", desc: "Read meeting notes, transcripts, and AI summaries" },
-    wispr: { connected: true, account: "Wispr Flow MCP", name: "Wispr Flow", desc: "Voice dictation & speech-to-text MCP integration" },
-  } as Record<string, { connected: boolean; account: string; name: string; desc: string; apiKey?: string }>,
 };
 
 function loadCompanionSettings(): void {
   try {
     if (fs.existsSync(COMPANION_SETTINGS_FILE)) {
       const disk = JSON.parse(fs.readFileSync(COMPANION_SETTINGS_FILE, "utf-8"));
+      legacyConnectorSettings = disk.connectors && typeof disk.connectors === "object" ? disk.connectors : undefined;
+      const { connectors: _ignoredConnectors, github: _ignoredGithub, ...safeDisk } = disk;
       companionSettings = {
         ...companionSettings,
-        ...disk,
-        connectors: { ...companionSettings.connectors, ...(disk.connectors || {}) },
+        ...safeDisk,
+        github: { connected: false, account: "Not configured", repo_count: 0, webhook_status: "inactive" },
       };
     }
   } catch (err) {
@@ -485,7 +393,11 @@ export function saveCompanionSettings(): void {
   try {
     ensureDir(path.dirname(COMPANION_SETTINGS_FILE));
     const tmpFile = path.join(path.dirname(COMPANION_SETTINGS_FILE), `settings.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
-    fs.writeFileSync(tmpFile, JSON.stringify(companionSettings, null, 2) + "\n", { mode: 0o600, encoding: "utf-8" });
+    const persisted = {
+      ...companionSettings,
+      ...(legacyConnectorSettings ? { connectors: legacyConnectorSettings } : {}),
+    };
+    fs.writeFileSync(tmpFile, JSON.stringify(persisted, null, 2) + "\n", { mode: 0o600, encoding: "utf-8" });
     fs.renameSync(tmpFile, COMPANION_SETTINGS_FILE);
     try {
       fs.chmodSync(COMPANION_SETTINGS_FILE, 0o600);
@@ -497,38 +409,24 @@ export function saveCompanionSettings(): void {
   }
 }
 
-loadCompanionSettings();
-
-export function renderConnectorsHtml(connectors: Record<string, any>): string {
-  return Object.keys(connectors).map(k => {
-    const c = connectors[k];
-    const btnClass = c.connected ? 'btn btn-connected' : 'btn btn-primary';
-    const btnText = c.connected ? 'Connected' : 'Connect';
-    const badgeHtml = c.connected
-      ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;margin-left:8px;">Active</span>'
-      : '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);margin-left:8px;">Off</span>';
-    
-    return `<div class="item-row" id="connector-row-${escapeHtml(k)}">
-      <div class="item-icon icon-service">${escapeHtml(k.slice(0, 2).toUpperCase())}</div>
-      <div class="item-body">
-        <div class="item-title">${escapeHtml(c.name)}${badgeHtml}</div>
-        <div class="item-subtitle">${escapeHtml(c.desc)}</div>
-        ${c.account ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Account: ${escapeHtml(c.account)}</div>` : ''}
-      </div>
-      <div class="item-action">
-        <button class="${btnClass}" data-action="toggle-connector" data-key="${escapeHtml(k)}">${btnText}</button>
-        <button class="copy-btn" title="Configure credentials" data-action="config-connector" data-key="${escapeHtml(k)}" data-name="${escapeHtml(c.name)}" data-account="${escapeHtml(c.account || '')}">✎</button>
-        <button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" data-action="delete-connector" data-key="${escapeHtml(k)}">🗑️</button>
-      </div>
-    </div>`;
-  }).join('');
+function publicCompanionSettings(): Record<string, unknown> {
+  return {
+    ides: companionSettings.ides,
+    repo_budgets: companionSettings.repo_budgets,
+    repo_owners: companionSettings.repo_owners,
+    imessage_number: companionSettings.imessage_number,
+    whatsapp_number: companionSettings.whatsapp_number,
+    user_name: companionSettings.user_name,
+    user_phone: companionSettings.user_phone,
+  };
 }
+
+loadCompanionSettings();
 
 // Settings App HTML Generator
 function generateSettingsHtml(): string {
   const imessageNum = escapeHtml(companionSettings.imessage_number);
   const whatsappNum = escapeHtml(companionSettings.whatsapp_number);
-  const agentEmail = escapeHtml(companionSettings.agent_email);
   const userName = escapeHtml(companionSettings.user_name);
   const userPhone = escapeHtml(companionSettings.user_phone);
 
@@ -656,7 +554,6 @@ function generateSettingsHtml(): string {
     }
     .icon-messages { background: #34c759; color: #fff; }
     .icon-whatsapp { background: #25d366; color: #fff; }
-    .icon-email { background: #0071e3; color: #fff; }
     .icon-service { background: #f5f5f7; color: #333; border: 1px solid var(--border-color); font-weight: 600; font-size: 13px; }
     .item-body { flex: 1; }
     .item-title { font-size: 14px; font-weight: 500; color: #1d1d1f; }
@@ -930,7 +827,6 @@ function generateSettingsHtml(): string {
         <button class="btn" onclick="quickTalk('Undo that')">Undo</button>
         <button class="btn" onclick="quickTalk('Did tests pass?')">Tests</button>
         <button class="btn" onclick="quickTalk('Where are we?')">Status</button>
-        <button class="btn" onclick="quickTalk('kineti-dashboard')">Cloud link</button>
       </div>
     </div>
 
@@ -964,15 +860,15 @@ function generateSettingsHtml(): string {
     <!-- TAB 2: TEAM & MONEY -->
     <div id="tab-team" class="tab-pane" style="display: none;">
       <h2 class="section-title">Team &amp; money</h2>
-      <p class="section-desc">Per-agent budgets with used and left bars. <span id="team-ceiling-note">Project ceiling $50.00.</span></p>
+      <p class="section-desc">Saved budget targets only; Kineti does not track or enforce per-agent usage. <span id="team-ceiling-note">Project ceiling $50.00.</span></p>
       <div class="item-row">
         <div class="item-body">
-          <div class="item-title">Budget mode</div>
+          <div class="item-title">Saved target mode</div>
           <div class="item-subtitle" id="team-mode">Loading…</div>
         </div>
         <div class="item-action">
-          <button class="btn" onclick="setSwarmMode('shared')">Share one</button>
-          <button class="btn" onclick="setSwarmMode('separate')">Separate</button>
+          <button class="btn" onclick="setSwarmMode('shared')">One shared target</button>
+          <button class="btn" onclick="setSwarmMode('separate')">Separate targets</button>
         </div>
       </div>
       <div id="team-agents-list"></div>
@@ -982,27 +878,21 @@ function generateSettingsHtml(): string {
         <button class="btn btn-primary" onclick="saveSwarmAgent()">Save</button>
       </div>
       <hr class="section-divider">
-      <h2 class="section-title">Model routing</h2>
-      <p class="section-desc">Ask-first default. Auto only if you turn it on. Every switch is logged.</p>
+      <h2 class="section-title">Model suggestions</h2>
+      <p class="section-desc">Static suggestions only. Kineti does not switch your active model or tool.</p>
       <div class="item-row">
         <div class="item-body">
-          <div class="item-title">Auto-switch</div>
+          <div class="item-title">Automatic switching</div>
           <div class="item-subtitle" id="team-model-state">Loading…</div>
-        </div>
-        <div class="item-action">
-          <label class="switch">
-            <input type="checkbox" id="toggle-auto-switch" onchange="toggleAutoSwitch(this.checked)">
-            <span class="slider"></span>
-          </label>
         </div>
       </div>
       <div id="team-model-history" style="font-size: 13px; color: var(--text-secondary);"></div>
       <hr class="section-divider">
-      <h2 class="section-title">Sync</h2>
-      <p class="section-desc">Encrypted sync across devices. Off by default.</p>
+      <h2 class="section-title">Export and import</h2>
+      <p class="section-desc">Manual passphrase-encrypted file transfer; no automatic sync service.</p>
       <div class="item-row" style="border: none;">
         <div class="item-body">
-          <div class="item-title">Device sync</div>
+          <div class="item-title">Manual export and import</div>
           <div class="item-subtitle" id="team-sync-state">Loading…</div>
         </div>
         <div class="item-action">
@@ -1017,7 +907,7 @@ function generateSettingsHtml(): string {
     <!-- TAB 3: SETTINGS -->
     <div id="tab-settings" class="tab-pane" style="display: none;">
       <h2 class="section-title">Settings</h2>
-      <p class="section-desc">Account and privacy in one place.</p>
+      <p class="section-desc">Local preferences and contact details.</p>
 
       <div class="item-row">
         <div class="item-body">
@@ -1053,18 +943,6 @@ function generateSettingsHtml(): string {
         </div>
       </div>
 
-      <div class="item-row">
-        <div class="item-icon icon-email">✉️</div>
-        <div class="item-body">
-          <div class="item-title">Email</div>
-          <div class="item-subtitle" id="val-email">${agentEmail}</div>
-        </div>
-        <div class="item-action">
-          <button class="copy-btn" title="Copy email" data-copy="${agentEmail}">📋</button>
-          <button class="copy-btn" title="Edit alias" data-action="open-email-modal">✎</button>
-        </div>
-      </div>
-
       <hr class="section-divider">
 
       <h2 class="section-title">Trusted people</h2>
@@ -1085,42 +963,8 @@ function generateSettingsHtml(): string {
 
       <div class="item-row">
         <div class="item-body">
-          <div class="item-title">Improve Kineti for everyone</div>
-          <div class="item-subtitle">Allow anonymized interactions to improve autonomous models. You can opt out anytime.</div>
-        </div>
-        <div class="item-action">
-          <label class="switch">
-            <input type="checkbox" id="toggle-training" onchange="toggleTraining(this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="item-row">
-        <div class="item-body">
-          <div class="item-title">Forget</div>
-          <div class="item-subtitle">Delete something everywhere plus proof line. Goal and identity stay.</div>
-          <div class="item-subtitle" id="forget-receipt" style="font-size: 12px;"></div>
-        </div>
-        <div class="item-action">
-          <button class="btn" onclick="openForgetModal()">Forget…</button>
-        </div>
-      </div>
-
-      <div class="item-row">
-        <div class="item-body">
-          <div class="item-title">WhatsApp Connection</div>
-          <div class="item-subtitle" id="pref-wa-status">${whatsappNum}</div>
-        </div>
-        <div class="item-action">
-          <a href="/whatsapp-onboarding?t=wa_demo" target="_blank" class="btn">Pair New</a>
-        </div>
-      </div>
-
-      <div class="item-row">
-        <div class="item-body">
-          <div class="item-title">Device sync export and import</div>
-          <div class="item-subtitle">Passphrase-encrypted. Imports never touch your goal.</div>
+          <div class="item-title">Manual export and import</div>
+          <div class="item-subtitle">Passphrase-encrypted file transfer. No automatic cloud sync is available.</div>
         </div>
         <div class="item-action">
           <label class="switch">
@@ -1132,144 +976,21 @@ function generateSettingsHtml(): string {
 
       <hr class="section-divider">
 
-      <h2 class="section-title">Cloud link</h2>
-      <p class="section-desc">Same screens on the web. Local only until you make a code.</p>
-      <div class="item-row">
-        <div class="item-body">
-          <div class="item-title">Pairing code</div>
-          <div class="item-subtitle" id="cloud-code-state">Loading…</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-primary" onclick="makePairingCode()">Make code</button>
-          <button class="btn btn-danger" onclick="dropCloudLink()">Drop link</button>
-        </div>
-      </div>
-      <div class="item-row">
-        <div class="item-body">
-          <div class="item-title">Mirror this project to cloud</div>
-          <div class="item-subtitle">Ciphertext only. Files and vault secrets never leave this device. Journal notes excluded unless you include them.</div>
-        </div>
-        <div class="item-action">
-          <label class="switch">
-            <input type="checkbox" id="toggle-mirror" onchange="toggleMirror(this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
+      <h2 class="section-title">Local project budget</h2>
+      <p class="section-desc">This local ceiling affects recorded-spend checks. No project data is mirrored to a cloud service.</p>
       <div class="item-row">
         <div class="item-body">
           <div class="item-title">Project ceiling</div>
-          <div class="item-subtitle">Set once at mirror time. The breaker stops at 95% of it. Only you can raise it.</div>
+          <div class="item-subtitle">A local setting. Spend is based on amounts reported to Kineti.</div>
         </div>
         <div class="item-action">
           <input type="number" id="mirror-ceiling" class="input-field" min="1" max="1000" step="1" style="margin: 0; width: 110px;" onchange="saveMirrorCeiling()">
-        </div>
-      </div>
-      <div class="item-row" style="border: none;">
-        <div class="item-body">
-          <div class="item-title">Include journal notes in mirror</div>
-          <div class="item-subtitle">Off by default. Per project.</div>
-        </div>
-        <div class="item-action">
-          <label class="switch">
-            <input type="checkbox" id="toggle-mirror-notes" onchange="toggleMirrorNotes(this.checked)">
-            <span class="slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <hr class="section-divider">
-
-      <h2 class="section-title" style="color: var(--danger);">Danger zone</h2>
-      <p class="section-desc">One danger zone at the bottom.</p>
-      <div class="item-row">
-        <div class="item-body">
-          <div class="item-title">External data</div>
-          <div class="item-subtitle">Manage emails, messages, and other data imported from your connected services</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-danger" onclick="triggerPurge()">Delete data</button>
-        </div>
-      </div>
-      <div class="item-row" style="border: none;">
-        <div class="item-body">
-          <div class="item-title" style="color: var(--danger);">Delete account</div>
-          <div class="item-subtitle">Permanently delete your account, credentials vault, and data.</div>
-        </div>
-        <div class="item-action">
-          <button class="btn btn-danger" onclick="confirmDeleteAccount()">Delete account</button>
         </div>
       </div>
     </div>
   </main>
 
   <!-- MODALS -->
-  <!-- Add Login Modal -->
-  <div id="modal-add-login" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Add Web Login</h3>
-      <p class="modal-desc">Save a website domain and credentials to your secure local vault.</p>
-      <label class="input-label">Website Domain</label>
-      <input type="text" id="login-domain" class="input-field" placeholder="e.g. github.com">
-      <label class="input-label">Username / Email</label>
-      <input type="text" id="login-user" class="input-field" placeholder="e.g. user@example.com">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-add-login')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAddLogin()">Save to Vault</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Card Modal -->
-  <div id="modal-add-card" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Add Payment Card</h3>
-      <p class="modal-desc">Configure a payment method or dynamic single-use card with spend cap.</p>
-      <label class="input-label">Card Brand</label>
-      <input type="text" id="card-brand" class="input-field" placeholder="e.g. Visa, Mastercard, Amex">
-      <label class="input-label">Spend Cap ($ USD)</label>
-      <input type="number" id="card-cap" class="input-field" placeholder="100.00" value="100.00" min="1" step="5">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-add-card')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAddCard()">Issue Card</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Personal Info Modal -->
-  <div id="modal-add-personal" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Add Personal Info</h3>
-      <p class="modal-desc">Store travel credentials, airline loyalty numbers, or preferences.</p>
-      <label class="input-label">Label</label>
-      <input type="text" id="personal-label" class="input-field" placeholder="e.g. Passport, United MileagePlus">
-      <label class="input-label">Value</label>
-      <input type="text" id="personal-val" class="input-field" placeholder="e.g. USA •••• 9210">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-add-personal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAddPersonal()">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add TOTP Modal -->
-  <div id="modal-add-totp" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Add Authenticator (TOTP)</h3>
-      <p class="modal-desc">Provide RFC 6238 Base32 secret for automated multi-factor code generation.</p>
-      <label class="input-label">Service / Issuer</label>
-      <input type="text" id="totp-issuer" class="input-field" placeholder="e.g. AWS Root, GitHub, Cloudflare">
-      <label class="input-label">Account</label>
-      <input type="text" id="totp-account" class="input-field" placeholder="e.g. user@example.com">
-      <label class="input-label">Base32 Secret</label>
-      <input type="text" id="totp-secret" class="input-field" placeholder="e.g. JBSWY3DPEHPK3PXP">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-add-totp')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAddTotp()">Add Authenticator</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Edit Name Modal -->
   <div id="modal-edit-name" class="modal-overlay">
     <div class="modal-card">
@@ -1280,77 +1001,6 @@ function generateSettingsHtml(): string {
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-edit-name')">Cancel</button>
         <button class="btn btn-primary" onclick="submitEditName()">Save Name</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Forget Modal -->
-  <div id="modal-forget" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Forget something</h3>
-      <p class="modal-desc">Delete this everywhere plus proof line. Goal and identity stay. Nothing is deleted until you say yes.</p>
-      <label class="input-label">What should be forgotten</label>
-      <input type="text" id="forget-input" class="input-field" placeholder="e.g. my old phone number">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-forget')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitForget()">Yes, delete it</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Email Modal -->
-  <div id="modal-email" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Update Kineti Email</h3>
-      <p class="modal-desc">Set your dedicated agent email alias. Emails sent here are processed autonomously.</p>
-      <label class="input-label">Alias</label>
-      <input type="text" id="email-alias-input" class="input-field" value="agent">
-      <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 16px;">@mail.kineti.com</div>
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-email')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveEmailAlias()">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Add Connector Modal -->
-  <div id="modal-add-connector" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Add Service Connector</h3>
-      <p class="modal-desc">Connect a new tool, external API, or service to your Kineti autonomous agent.</p>
-      <label class="input-label">Service Name</label>
-      <input type="text" id="add-conn-name" class="input-field" placeholder="e.g. Linear, Brave Search, PostgreSQL">
-      <label class="input-label">Identifier Key</label>
-      <input type="text" id="add-conn-key" class="input-field" placeholder="e.g. linear, brave, postgres">
-      <label class="input-label">Account / Workspace</label>
-      <input type="text" id="add-conn-account" class="input-field" placeholder="e.g. team-workspace or user@company.com">
-      <label class="input-label">API Key / Token (Optional)</label>
-      <input type="password" id="add-conn-token" class="input-field" placeholder="e.g. lin_api_... or ya29....">
-      <label class="input-label">Description</label>
-      <input type="text" id="add-conn-desc" class="input-field" placeholder="e.g. Issue tracking and ticket management">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-add-connector')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAddConnector()">+ Add Connector</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Configure Connector Modal -->
-  <div id="modal-config-connector" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Configure <span id="cfg-conn-title">Connector</span></h3>
-      <p class="modal-desc">Update credentials, API token, or account details.</p>
-      <input type="hidden" id="cfg-conn-key">
-      <label class="input-label">Account / Workspace Identifier</label>
-      <input type="text" id="cfg-conn-account" class="input-field">
-      <label class="input-label">API Key / Access Token</label>
-      <input type="password" id="cfg-conn-token" class="input-field" placeholder="Enter new token or leave blank to keep">
-      <label class="input-label">Description</label>
-      <input type="text" id="cfg-conn-desc" class="input-field">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-config-connector')">Cancel</button>
-        <button class="btn btn-danger" onclick="submitDeleteFromConfig()">Delete</button>
-        <button class="btn btn-primary" onclick="submitConfigConnector()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -1366,24 +1016,6 @@ function generateSettingsHtml(): string {
       <div class="modal-actions">
         <button class="btn" onclick="closeModal('modal-contact-edit')">Cancel</button>
         <button class="btn btn-primary" onclick="submitContactModal()">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Send Test Ping Modal -->
-  <div id="modal-test-ping" class="modal-overlay">
-    <div class="modal-card">
-      <h3 class="modal-title">Send Verification Ping</h3>
-      <p class="modal-desc">Verify that your Kineti agent can reach you over this channel.</p>
-      <input type="hidden" id="test-ping-channel">
-      <div id="test-ping-channel-desc" style="font-size: 13px; font-weight: 600; margin-bottom: 12px;"></div>
-      <label class="input-label">Recipient</label>
-      <input type="text" id="test-ping-to" class="input-field" placeholder="+1234567890 or email">
-      <label class="input-label">Message</label>
-      <input type="text" id="test-ping-msg" class="input-field" value="Kineti verification: agent nervous system online.">
-      <div class="modal-actions">
-        <button class="btn" onclick="closeModal('modal-test-ping')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitSendTestPing()">⚡ Send Test</button>
       </div>
     </div>
   </div>
@@ -1422,7 +1054,7 @@ function generateSettingsHtml(): string {
       if (tab === 'home') loadHome();
       if (tab === 'activity') loadActivity();
       if (tab === 'team') loadTeam();
-      if (tab === 'settings') { refreshMeshUI(); loadPrivacyState(); loadSyncState(); }
+      if (tab === 'settings') { refreshMeshUI(); loadSyncState(); }
     }
 
     function ageText(min) {
@@ -1451,7 +1083,7 @@ function generateSettingsHtml(): string {
           const labelsEl = document.getElementById('home-undo-labels');
           if (labelsEl) labelsEl.innerText = (m.undo_labels && m.undo_labels.length > 0) ? 'Latest: ' + m.undo_labels.join(', ') : '';
           const syncEl = document.getElementById('home-sync');
-          if (syncEl) syncEl.innerText = m.sync_enabled ? 'On' : 'Off';
+          if (syncEl) syncEl.innerText = m.sync_enabled ? 'Manual encrypted transfer enabled' : 'Manual encrypted transfer disabled';
           document.getElementById('toggle-power').checked = m.enabled !== false;
           document.getElementById('home-power-desc').innerText = m.enabled !== false ? 'All checks running' : 'Paused';
         })
@@ -1504,7 +1136,7 @@ function generateSettingsHtml(): string {
         .then(r => r.json())
         .then(s => {
           const modeEl = document.getElementById('team-mode');
-          if (modeEl) modeEl.innerText = s.mode === 'separate' ? 'Separate budgets' : 'One shared budget';
+          if (modeEl) modeEl.innerText = s.mode === 'separate' ? 'Separate target plan' : 'One shared target';
           const list = document.getElementById('team-agents-list');
           if (list) {
             if (!s.agents || s.agents.length === 0) {
@@ -1513,10 +1145,9 @@ function generateSettingsHtml(): string {
               list.innerHTML = s.agents.map(a =>
                 '<div class="item-row">' +
                 '<div class="item-body">' +
-                '<div class="item-title">' + escapeJsHtml(a.name) + ' $' + a.used.toFixed(2) + ' of $' + a.budget.toFixed(2) + ' ($' + a.left.toFixed(2) + ' left)</div>' +
-                '<div style="height: 6px; background: #f0f0f2; border-radius: 3px; margin-top: 6px;">' +
-                '<div style="height: 6px; width: ' + a.pct + '%; background: #0071e3; border-radius: 3px;"></div>' +
-                '</div></div></div>'
+                '<div class="item-title">' + escapeJsHtml(a.name) + ' target: $' + Number(a.budget).toFixed(2) + '</div>' +
+                '<div class="item-subtitle">Usage is not tracked or enforced per agent.</div>' +
+                '</div></div>'
               ).join('');
             }
           }
@@ -1526,14 +1157,12 @@ function generateSettingsHtml(): string {
         .then(r => r.json())
         .then(m => {
           const st = document.getElementById('team-model-state');
-          if (st) st.innerText = m.auto_switch ? 'Auto-switch on' : 'Ask-first (auto off)';
-          const tgl = document.getElementById('toggle-auto-switch');
-          if (tgl) tgl.checked = m.auto_switch === true;
+          if (st) st.innerText = 'Suggestions only — automatic switching is unavailable';
           const hist = document.getElementById('team-model-history');
           if (hist) {
             hist.innerHTML = (!m.history || m.history.length === 0)
-              ? 'No switches logged yet.'
-              : 'Last ' + m.history.length + ' switches:<br>' + m.history.slice().reverse().map(h =>
+              ? 'No suggestions logged yet.'
+              : 'Last ' + m.history.length + ' suggestions:<br>' + m.history.slice().reverse().map(h =>
                 escapeJsHtml((h.at || '').slice(0, 19).replace('T', ' ')) + ' ' + escapeJsHtml(h.action) + ' ' + escapeJsHtml(h.detail)
               ).join('<br>');
           }
@@ -1544,7 +1173,7 @@ function generateSettingsHtml(): string {
 
     function setSwarmMode(mode) {
       fetch('/api/swarm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) })
-        .then(() => { loadTeam(); showToast(mode === 'separate' ? 'Separate budgets on' : 'One shared budget'); });
+        .then(() => { loadTeam(); showToast(mode === 'separate' ? 'Separate target plan saved' : 'Shared target saved'); });
     }
 
     function saveSwarmAgent() {
@@ -1559,13 +1188,8 @@ function generateSettingsHtml(): string {
           if (nEl) nEl.value = '';
           if (bEl) bEl.value = '';
           loadTeam();
-          showToast('Budget saved');
+          showToast('Budget target saved; usage is not enforced');
         });
-    }
-
-    function toggleAutoSwitch(on) {
-      fetch('/api/models/auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
-        .then(() => { loadTeam(); showToast(on ? 'Auto-switch on' : 'Ask-first on'); });
     }
 
     function loadSyncState() {
@@ -1573,69 +1197,25 @@ function generateSettingsHtml(): string {
         .then(r => r.json())
         .then(s => {
           const t1 = document.getElementById('team-sync-state');
-          if (t1) t1.innerText = s.enabled ? 'On' : 'Off';
+          if (t1) t1.innerText = s.enabled ? 'Manual file transfer enabled' : 'Manual file transfer disabled';
           const t2 = document.getElementById('toggle-sync');
           if (t2) t2.checked = s.enabled === true;
           const t3 = document.getElementById('toggle-sync-settings');
           if (t3) t3.checked = s.enabled === true;
         })
         .catch(() => {});
-      loadCloudPanel();
+      loadProjectBudget();
     }
 
     function toggleSync(on) {
       fetch('/api/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ on }) })
-        .then(() => { loadSyncState(); loadHome(); showToast(on ? 'Sync on' : 'Sync off'); });
+        .then(() => { loadSyncState(); loadHome(); showToast(on ? 'Manual export/import enabled' : 'Manual export/import disabled'); });
     }
 
-    function loadPrivacyState() {
-      fetch('/api/privacy/state')
-        .then(r => r.json())
-        .then(s => {
-          const t = document.getElementById('toggle-training');
-          if (t) t.checked = s.improve_kineti_for_everyone === true;
-        })
-        .catch(() => {});
-    }
-
-    function openForgetModal() {
-      const inp = document.getElementById('forget-input');
-      if (inp) inp.value = '';
-      document.getElementById('modal-forget').classList.add('open');
-    }
-
-    function submitForget() {
-      const text = (document.getElementById('forget-input') || {}).value || '';
-      if (!text.trim()) { showToast('Type what to forget first'); return; }
-      fetch('/api/forget', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: text.trim() }) })
-        .then(r => r.json())
-        .then(d => {
-          closeModal('modal-forget');
-          const el = document.getElementById('forget-receipt');
-          if (el) el.innerText = 'Deleted "' + d.text + '" at ' + d.deleted_at + '. Proof ' + d.receipt_digest.slice(0, 12) + '.';
-          showToast('Forgotten with proof receipt');
-        });
-    }
-
-    function loadCloudPanel() {
-      fetch('/api/pairing')
-        .then(r => r.json())
-        .then(p => {
-          const el = document.getElementById('cloud-code-state');
-          if (el) {
-            el.innerText = p.live
-              ? p.code + ' — open ' + p.link + ', ' + p.minutes_left + ' min left, one use, project ' + p.project
-              : 'Local only. Make a code when you need a web link.';
-          }
-        })
-        .catch(() => {});
+    function loadProjectBudget() {
       fetch('/api/mirror')
         .then(r => r.json())
         .then(m => {
-          const t = document.getElementById('toggle-mirror');
-          if (t) t.checked = m.enabled === true;
-          const n = document.getElementById('toggle-mirror-notes');
-          if (n) n.checked = m.note_sync === true;
           const c = document.getElementById('mirror-ceiling');
           if (c) c.value = m.ceiling;
           const note = document.getElementById('team-ceiling-note');
@@ -1644,44 +1224,13 @@ function generateSettingsHtml(): string {
         .catch(() => {});
     }
 
-    function makePairingCode() {
-      fetch('/api/pairing', { method: 'POST' })
-        .then(() => { loadCloudPanel(); showToast('Code made. Valid 10 min, one use.'); });
-    }
-
-    function dropCloudLink() {
-      if (!confirm('Drop the cloud link? Stored tokens are deleted on this device.')) return;
-      fetch('/api/pairing/drop', { method: 'POST' })
-        .then(() => { loadCloudPanel(); showToast('Cloud link dropped'); });
-    }
-
-    function mirrorPayload(enabled, noteSync) {
-      const notes = (document.getElementById('toggle-mirror-notes') || {}).checked === true;
-      const was = (document.getElementById('toggle-mirror') || {}).checked === true;
-      const cEl = document.getElementById('mirror-ceiling');
-      const ceiling = cEl && cEl.value !== '' ? parseFloat(cEl.value) : undefined;
-      return { enabled: enabled !== undefined ? enabled : was, note_sync: noteSync !== undefined ? noteSync : notes, ceiling };
-    }
-
-    function toggleMirror(on) {
-      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorPayload(on)) })
-        .then(r => {
-          if (!r.ok) { showToast('Ceiling must be $1 to $1000'); loadCloudPanel(); return; }
-          loadCloudPanel(); loadHome(); showToast(on ? 'Mirror on for this project' : 'Mirror off');
-        });
-    }
-
-    function toggleMirrorNotes(on) {
-      const enabled = (document.getElementById('toggle-mirror') || {}).checked === true;
-      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorPayload(enabled, on)) })
-        .then(() => { loadCloudPanel(); showToast(on ? 'Journal notes included' : 'Journal notes excluded'); });
-    }
-
     function saveMirrorCeiling() {
-      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(mirrorPayload(undefined)) })
+      const field = document.getElementById('mirror-ceiling');
+      const ceiling = field && field.value !== '' ? parseFloat(field.value) : NaN;
+      fetch('/api/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ceiling }) })
         .then(r => {
-          if (!r.ok) { showToast('Ceiling must be $1 to $1000'); loadCloudPanel(); return; }
-          loadCloudPanel(); loadHome(); showToast('Ceiling saved');
+          if (!r.ok) { showToast('Ceiling must be $1 to $1000'); loadProjectBudget(); return; }
+          loadProjectBudget(); loadHome(); showToast('Local ceiling saved');
         });
     }
 
@@ -1740,13 +1289,6 @@ function generateSettingsHtml(): string {
 
     document.addEventListener('DOMContentLoaded', loadHome);
 
-    function openVaultModal(type) {
-      if (type === 'login') document.getElementById('modal-add-login').classList.add('open');
-      if (type === 'card') document.getElementById('modal-add-card').classList.add('open');
-      if (type === 'personal') document.getElementById('modal-add-personal').classList.add('open');
-      if (type === 'totp') document.getElementById('modal-add-totp').classList.add('open');
-    }
-
     function openEditNameModal() {
       document.getElementById('modal-edit-name').classList.add('open');
     }
@@ -1772,10 +1314,6 @@ function generateSettingsHtml(): string {
         });
     }
 
-    function openEmailModal() {
-      document.getElementById('modal-email').classList.add('open');
-    }
-
     function closeModal(id) {
       document.getElementById(id).classList.remove('open');
     }
@@ -1793,16 +1331,6 @@ function generateSettingsHtml(): string {
       navigator.clipboard.writeText(val);
       showToast('Invite link copied!');
       closeModal('modal-invite');
-    }
-
-    function triggerPurge() {
-      if (confirm('Are you sure you want to purge external third-party imported data? Your local vault and core identity remain safe.')) {
-        fetch('/api/privacy/purge', { method: 'POST' })
-          .then(r => r.json())
-          .then(data => {
-            showToast('Purged ' + (data.records_invalidated || 0) + ' external records.');
-          });
-      }
     }
 
     function toggleMeshPause() {
@@ -1825,29 +1353,6 @@ function generateSettingsHtml(): string {
         });
     }
 
-    function toggleTraining(enabled) {
-      fetch('/api/privacy/opt-out', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enable: enabled })
-      }).then(() => showToast(enabled ? 'Model training opted in' : 'Model training opted out'));
-    }
-
-    function saveEmailAlias() {
-      const alias = document.getElementById('email-alias-input').value.trim().slice(0, 32);
-      if (alias) {
-        fetch('/api/contact/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agent_email: alias + '@mail.kineti.com' })
-        }).then(() => {
-          document.getElementById('val-email').innerText = alias + '@mail.kineti.com';
-          closeModal('modal-email');
-          showToast('Email alias updated');
-        });
-      }
-    }
-
     function submitEditName() {
       const name = document.getElementById('edit-name-input').value.trim().slice(0, 100);
       if (name) {
@@ -1862,277 +1367,6 @@ function generateSettingsHtml(): string {
           showToast('Name saved');
         });
       }
-    }
-
-    // Connectors Management Actions
-    function openAddConnectorModal() {
-      document.getElementById('add-conn-name').value = '';
-      document.getElementById('add-conn-key').value = '';
-      document.getElementById('add-conn-account').value = '';
-      document.getElementById('add-conn-token').value = '';
-      document.getElementById('add-conn-desc').value = '';
-      document.getElementById('modal-add-connector').classList.add('open');
-    }
-
-    function submitAddConnector() {
-      const name = document.getElementById('add-conn-name').value.trim();
-      let key = document.getElementById('add-conn-key').value.trim().toLowerCase();
-      const account = document.getElementById('add-conn-account').value.trim();
-      const apiKey = document.getElementById('add-conn-token').value.trim();
-      const desc = document.getElementById('add-conn-desc').value.trim();
-
-      if (!name) { alert('Please enter a service name'); return; }
-      if (!key) key = name.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-
-      fetch('/api/connectors/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, name, account, apiKey, desc })
-      }).then(r => r.json()).then(() => {
-        closeModal('modal-add-connector');
-        refreshConnectorsUI();
-        showToast('Connector added: ' + name);
-      });
-    }
-
-    function openConfigConnectorModal(key, name, account) {
-      document.getElementById('cfg-conn-key').value = key;
-      document.getElementById('cfg-conn-title').innerText = name || key;
-      document.getElementById('cfg-conn-account').value = account || '';
-      document.getElementById('cfg-conn-token').value = '';
-      document.getElementById('cfg-conn-desc').value = '';
-      document.getElementById('modal-config-connector').classList.add('open');
-    }
-
-    function submitConfigConnector() {
-      const key = document.getElementById('cfg-conn-key').value;
-      const account = document.getElementById('cfg-conn-account').value.trim();
-      const apiKey = document.getElementById('cfg-conn-token').value.trim();
-      const desc = document.getElementById('cfg-conn-desc').value.trim();
-
-      fetch('/api/connectors/configure', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connector: key, account, apiKey, desc })
-      }).then(r => r.json()).then(() => {
-        closeModal('modal-config-connector');
-        refreshConnectorsUI();
-        showToast('Connector configured');
-      });
-    }
-
-    function submitDeleteFromConfig() {
-      const key = document.getElementById('cfg-conn-key').value;
-      closeModal('modal-config-connector');
-      deleteConnector(key);
-    }
-
-    function deleteConnector(key) {
-      if (!confirm('Are you sure you want to remove or reset connector "' + key + '"?')) return;
-      fetch('/api/connectors/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connector: key })
-      }).then(() => {
-        refreshConnectorsUI();
-        showToast('Connector updated');
-      });
-    }
-
-    function toggleConnector(key) {
-      fetch('/api/connectors/toggle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connector: key })
-      }).then(() => {
-        refreshConnectorsUI();
-        showToast('Connector toggled');
-      });
-    }
-
-    function refreshConnectorsUI() {
-      fetch('/api/settings')
-        .then(r => r.json())
-        .then(s => {
-          const list = document.getElementById('connectors-list');
-          if (!s.connectors) return;
-          list.innerHTML = Object.keys(s.connectors).map(k => {
-            const c = s.connectors[k];
-            const btnClass = c.connected ? 'btn btn-connected' : 'btn btn-primary';
-            const btnText = c.connected ? 'Connected' : 'Connect';
-            const badgeHtml = c.connected
-              ? '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:var(--success-bg);color:var(--success);border:1px solid #c8e6c9;margin-left:8px;">Active</span>'
-              : '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#f5f5f7;color:var(--text-secondary);border:1px solid var(--border-color);margin-left:8px;">Off</span>';
-            return '<div class="item-row" id="connector-row-' + escapeHtml(k) + '">' +
-              '<div class="item-icon icon-service">' + escapeHtml(k.slice(0, 2).toUpperCase()) + '</div>' +
-              '<div class="item-body">' +
-                '<div class="item-title">' + escapeHtml(c.name) + badgeHtml + '</div>' +
-                '<div class="item-subtitle">' + escapeHtml(c.desc) + '</div>' +
-                (c.account ? '<div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Account: ' + escapeHtml(c.account) + '</div>' : '') +
-              '</div>' +
-              '<div class="item-action">' +
-                '<button class="' + btnClass + '" data-action="toggle-connector" data-key="' + escapeHtml(k) + '">' + btnText + '</button>' +
-                '<button class="copy-btn" title="Configure credentials" data-action="config-connector" data-key="' + escapeHtml(k) + '" data-name="' + escapeHtml(c.name) + '" data-account="' + escapeHtml(c.account || '') + '">✎</button>' +
-                '<button class="copy-btn" style="color:var(--danger);" title="Delete or Reset connector" data-action="delete-connector" data-key="' + escapeHtml(k) + '">🗑️</button>' +
-              '</div>' +
-            '</div>';
-          }).join('');
-        });
-    }
-
-    // Vault CRUD & Delete Actions
-    function deleteVaultItem(type, index) {
-      if (!confirm('Are you sure you want to delete this ' + type + ' from your vault?')) return;
-      fetch('/api/vault/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, index })
-      }).then(() => {
-        refreshVaultUI();
-        showToast('Item deleted from vault');
-      });
-    }
-
-    function refreshVaultUI() {
-      fetch('/api/vault')
-        .then(r => r.json())
-        .then(v => {
-          // Logins
-          const loginsDiv = document.getElementById('vault-logins-list');
-          if (!v.logins || v.logins.length === 0) {
-            loginsDiv.innerHTML = '<div class="vault-empty">No logins saved. Click "+ Add Login" above.</div>';
-          } else {
-            loginsDiv.innerHTML = v.logins.map((l, idx) => 
-              '<div class="vault-item-row">' +
-                '<div><strong>' + escapeHtml(l.domain) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(l.username) + '</span></div>' +
-                '<div class="item-action">' +
-                  '<button class="copy-btn" title="Copy username" data-copy="' + escapeHtml(l.username) + '">📋</button>' +
-                  '<button class="copy-btn" title="Copy password" data-copy="' + escapeHtml(l.password || '••••••••') + '">🔑</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete login" data-action="delete-vault" data-type="login" data-index="' + idx + '">🗑️</button>' +
-                '</div>' +
-              '</div>'
-            ).join('');
-          }
-
-          // Cards
-          const cardsDiv = document.getElementById('vault-cards-list');
-          if (!v.cards || v.cards.length === 0) {
-            cardsDiv.innerHTML = '<div class="vault-empty">No cards saved. Click "+ Add Card" above.</div>';
-          } else {
-            cardsDiv.innerHTML = v.cards.map((c, idx) => 
-              '<div class="vault-item-row">' +
-                '<div><strong>' + escapeHtml(c.brand) + ' •••• ' + escapeHtml(c.last4) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">Exp ' + escapeHtml(c.exp) + ' • Cap $' + c.spend_cap.toFixed(2) + '</span></div>' +
-                '<div class="item-action">' +
-                  '<button class="copy-btn" title="Copy card details" data-copy="' + escapeHtml(c.last4) + '">📋</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete card" data-action="delete-vault" data-type="card" data-index="' + idx + '">🗑️</button>' +
-                '</div>' +
-              '</div>'
-            ).join('');
-          }
-
-          // Personal Info
-          const persDiv = document.getElementById('vault-personal-list');
-          if (!v.personal_info || v.personal_info.length === 0) {
-            persDiv.innerHTML = '<div class="vault-empty">No personal info saved. Click "+ Add Info" above.</div>';
-          } else {
-            persDiv.innerHTML = v.personal_info.map((p, idx) => 
-              '<div class="vault-item-row">' +
-                '<div><strong>' + escapeHtml(p.label) + '</strong><br><span style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(p.value_masked) + '</span></div>' +
-                '<div class="item-action">' +
-                  '<button class="copy-btn" title="Copy info" data-copy="' + escapeHtml(p.value_masked) + '">📋</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete info" data-action="delete-vault" data-type="personal" data-index="' + idx + '">🗑️</button>' +
-                '</div>' +
-              '</div>'
-            ).join('');
-          }
-
-          // TOTP
-          const totpDiv = document.getElementById('vault-totp-list');
-          if (!v.totp_items || v.totp_items.length === 0) {
-            totpDiv.innerHTML = '<div class="vault-empty">No authenticator seeds configured. Click "+ Add Authenticator" above.</div>';
-          } else {
-            totpDiv.innerHTML = v.totp_items.map((t, idx) => 
-              '<div class="totp-box">' +
-                '<div>' +
-                  '<div style="font-size: 13px; font-weight: 600;">' + escapeHtml(t.issuer) + ' (' + escapeHtml(t.account) + ')</div>' +
-                  '<div class="totp-timer" id="totp-timer-' + idx + '">Refreshes in 30s • RFC 6238</div>' +
-                '</div>' +
-                '<div style="display:flex;align-items:center;gap:8px;">' +
-                  '<div class="totp-code" id="totp-code-' + idx + '">' + escapeHtml(t.code ? (t.code.slice(0, 3) + ' ' + t.code.slice(3)) : '••• •••') + '</div>' +
-                  '<button class="copy-btn" title="Copy code" data-copy="' + escapeHtml((t.code || '').replace(/\s+/g, '')) + '">📋</button>' +
-                  '<button class="copy-btn" style="color:var(--danger);" title="Delete authenticator" data-action="delete-vault" data-type="totp" data-index="' + idx + '">🗑️</button>' +
-                '</div>' +
-              '</div>'
-            ).join('');
-          }
-        });
-    }
-
-    function submitAddLogin() {
-      const domain = document.getElementById('login-domain').value.trim();
-      const username = document.getElementById('login-user').value.trim();
-      if (!domain || !username) { alert('Please enter domain and username'); return; }
-      fetch('/api/vault', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'login', domain, username })
-      }).then(() => {
-        closeModal('modal-add-login');
-        document.getElementById('login-domain').value = '';
-        document.getElementById('login-user').value = '';
-        refreshVaultUI();
-        showToast('Login added to vault');
-      });
-    }
-
-    function submitAddCard() {
-      const brand = document.getElementById('card-brand').value.trim() || 'Visa';
-      const cap = parseFloat(document.getElementById('card-cap').value) || 100;
-      fetch('/api/vault', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'card', brand, spend_cap: cap })
-      }).then(() => {
-        closeModal('modal-add-card');
-        refreshVaultUI();
-        showToast('Card issued with $' + cap.toFixed(2) + ' cap');
-      });
-    }
-
-    function submitAddPersonal() {
-      const label = document.getElementById('personal-label').value.trim();
-      const value = document.getElementById('personal-val').value.trim();
-      if (!label || !value) { alert('Please enter label and value'); return; }
-      fetch('/api/vault', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'personal', label, value })
-      }).then(() => {
-        closeModal('modal-add-personal');
-        document.getElementById('personal-label').value = '';
-        document.getElementById('personal-val').value = '';
-        refreshVaultUI();
-        showToast('Personal info saved');
-      });
-    }
-
-    function submitAddTotp() {
-      const issuer = document.getElementById('totp-issuer').value.trim();
-      const account = document.getElementById('totp-account').value.trim();
-      const secret = document.getElementById('totp-secret').value.trim();
-      if (!issuer || !secret) { alert('Please enter issuer and secret key'); return; }
-      fetch('/api/vault', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'totp', issuer, account, secret })
-      }).then(() => {
-        closeModal('modal-add-totp');
-        document.getElementById('totp-issuer').value = '';
-        document.getElementById('totp-account').value = '';
-        document.getElementById('totp-secret').value = '';
-        refreshVaultUI();
-        showToast('Authenticator seed saved');
-      });
     }
 
     // Contact & Testing Actions
@@ -2161,30 +1395,6 @@ function generateSettingsHtml(): string {
         showToast('Contact updated');
       });
     }
-
-    function openTestPingModal(channel, recipient) {
-      document.getElementById('test-ping-channel').value = channel;
-      document.getElementById('test-ping-channel-desc').innerText = 'Channel: ' + channel.toUpperCase();
-      document.getElementById('test-ping-to').value = recipient === 'Not Configured' ? '' : recipient;
-      document.getElementById('modal-test-ping').classList.add('open');
-    }
-
-    function submitSendTestPing() {
-      const channel = document.getElementById('test-ping-channel').value;
-      const recipient = document.getElementById('test-ping-to').value.trim();
-      const message = document.getElementById('test-ping-msg').value.trim();
-
-      fetch('/api/contact/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel, recipient, message })
-      }).then(r => r.json()).then(() => {
-        closeModal('modal-test-ping');
-        showToast('Test ping dispatched over ' + channel);
-      });
-    }
-
-
 
     function copyTotp(idx, btn) {
       const code = document.getElementById('totp-code-' + idx)?.innerText.replace(/\s+/g, '');
@@ -2257,27 +1467,6 @@ function generateSettingsHtml(): string {
       });
     }
 
-    function confirmDeleteAccount() {
-      if (confirm('Permanently delete account and reset all stored vault credentials?')) {
-        fetch('/api/privacy/purge', { method: 'POST' }).then(() => {
-          alert('Account deletion complete.');
-          window.location.href = '/';
-        });
-      }
-    }
-
-    // Rotating live TOTP code generator using server-verified RFC 6238
-    function updateTotpCodes() {
-      const now = Math.floor(Date.now() / 1000);
-      const remaining = 30 - (now % 30);
-      const timers = document.querySelectorAll('.totp-timer');
-      timers.forEach(t => t.innerText = 'Refreshes in ' + remaining + 's • RFC 6238 HMAC-SHA1');
-      if (remaining === 30 || remaining === 1) {
-        refreshVaultUI();
-      }
-    }
-    setInterval(updateTotpCodes, 1000);
-
     // Global event delegation for data-copy and data-action attributes
     document.addEventListener('click', function(e) {
       const copyBtn = e.target.closest('[data-copy]');
@@ -2299,20 +1488,8 @@ function generateSettingsHtml(): string {
       const actionBtn = e.target.closest('[data-action]');
       if (actionBtn) {
         const action = actionBtn.getAttribute('data-action');
-        if (action === 'toggle-connector') {
-          toggleConnector(actionBtn.getAttribute('data-key'));
-        } else if (action === 'config-connector') {
-          openConfigConnectorModal(actionBtn.getAttribute('data-key'), actionBtn.getAttribute('data-name'), actionBtn.getAttribute('data-account'));
-        } else if (action === 'delete-connector') {
-          deleteConnector(actionBtn.getAttribute('data-key'));
-        } else if (action === 'edit-contact') {
+        if (action === 'edit-contact') {
           openContactModal(actionBtn.getAttribute('data-channel'), actionBtn.getAttribute('data-val'));
-        } else if (action === 'test-ping') {
-          openTestPingModal(actionBtn.getAttribute('data-channel'), actionBtn.getAttribute('data-val'));
-        } else if (action === 'delete-vault') {
-          deleteVaultItem(actionBtn.getAttribute('data-type'), parseInt(actionBtn.getAttribute('data-index'), 10));
-        } else if (action === 'open-email-modal') {
-          openEmailModal();
         } else if (action === 'open-url') {
           window.open(actionBtn.getAttribute('data-url'), '_blank');
         }
@@ -2320,10 +1497,7 @@ function generateSettingsHtml(): string {
     });
 
     // Initial page hydration
-    refreshVaultUI();
-    refreshConnectorsUI();
     refreshMeshUI();
-    loadPrivacyState();
     loadSyncState();
   </script>
 </body>
@@ -2632,7 +1806,6 @@ function withVary(headers: Record<string, string> = {}): Record<string, string> 
 // Server starter
 export function startServer(port: number = PORT) {
   const meshManager = new TrustedNetworkManager();
-  const privacyManager = new PrivacyGovernanceManager();
   const inviteEngine = new ViralInviteEngine();
 
   const server = Bun.serve({
@@ -2860,89 +2033,47 @@ export function startServer(port: number = PORT) {
         return Response.json(getModelStatus(), { headers: corsHeaders });
       }
 
-      // API: Model auto-switch toggle.
       if (url.pathname === "/api/models/auto" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          if (typeof body.on !== "boolean") return new Response("Bad Request", { status: 400, headers: corsHeaders });
-          const cur = readJson<Record<string, unknown>>(path.join(projectKdir(), "kineti.json")) || {};
-          writeJson(path.join(projectKdir(), "kineti.json"), {
-            ...cur, auto_switch: body.on, updated_by: "dashboard", at: new Date().toISOString(),
-          });
-          try {
-            const { appendAudit } = await import("./kineti-audit.ts");
-            appendAudit("dashboard-user", body.on ? "model.auto_on" : "model.auto_off", "model auto-switch toggled from dashboard");
-          } catch { /* audit must never block toggle */ }
-          return Response.json({ success: true, auto_switch: body.on }, { headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
+        return new Response("Automatic model switching is not available", { status: 410, headers: corsHeaders });
       }
 
-      // API: Cloud link pairing. Local half only: make, show, drop. No server yet.
       if (url.pathname === "/api/pairing") {
-        const { livePairing, makePairing, minutesLeft, PAIR_LINK } = await import("./kineti-pairing.ts");
         if (req.method === "GET") {
-          const live = livePairing();
-          return Response.json(
-            live
-              ? { live: true, code: live.code, link: PAIR_LINK, minutes_left: minutesLeft(live), project: live.project }
-              : { live: false, code: null, link: PAIR_LINK, minutes_left: 0, project: null },
-            { headers: corsHeaders },
-          );
+          return Response.json({ available: false, linked: false }, { headers: corsHeaders });
         }
-        if (req.method === "POST") {
-          const p = makePairing("dashboard-user");
-          return Response.json(
-            { live: true, code: p.code, link: PAIR_LINK, minutes_left: minutesLeft(p), project: p.project },
-            { headers: corsHeaders },
-          );
-        }
+        return new Response("Cloud pairing is not available in this release", { status: 410, headers: corsHeaders });
       }
 
-      // API: Cloud link claim (local simulation until the server lands) and drop.
-      if (url.pathname === "/api/pairing/claim" && req.method === "POST") {
-        const { claimPairing } = await import("./kineti-pairing.ts");
-        const c = claimPairing("dashboard-user");
-        if (!c) return new Response("No live code to claim", { status: 409, headers: corsHeaders });
-        return Response.json({ success: true, linked_at: c.linked_at, project: c.project }, { headers: corsHeaders });
+      if (url.pathname === "/api/pairing/claim" || url.pathname === "/api/pairing/drop") {
+        return new Response("Cloud pairing is not available in this release", { status: 410, headers: corsHeaders });
       }
 
-      if (url.pathname === "/api/pairing/drop" && req.method === "POST") {
-        const { dropLink } = await import("./kineti-pairing.ts");
-        const d = dropLink("dashboard-user");
-        return Response.json({ success: true, ...d }, { headers: corsHeaders });
-      }
-
-      // API: Cloud token store state. Never exposes token values.
       if (url.pathname === "/api/cloud" && req.method === "GET") {
-        const { cloudStatus } = await import("./kineti-pairing.ts");
-        return Response.json(cloudStatus(), { headers: corsHeaders });
+        return Response.json({ linked: false, available: false }, { headers: corsHeaders });
       }
 
-      // API: Per-project mirror consent. Journal notes excluded by default.
       if (url.pathname === "/api/mirror") {
         const { getMirror, setMirror } = await import("./kineti-pairing.ts");
         if (req.method === "GET") {
-          return Response.json(getMirror(), { headers: corsHeaders });
+          const mirror = getMirror();
+          return Response.json({ project: mirror.project, ceiling: mirror.ceiling, local_only: true }, { headers: corsHeaders });
         }
         if (req.method === "POST") {
           try {
             const body = (await req.json()) as any;
-            if (typeof body.enabled !== "boolean") return new Response("Bad Request", { status: 400, headers: corsHeaders });
-            const noteSync = body.note_sync === true;
-            const ceiling = body.ceiling === undefined ? undefined : Number(body.ceiling);
-            if (ceiling !== undefined && (!Number.isFinite(ceiling) || ceiling < MIN_PROJECT_CEILING_USD || ceiling > MAX_PROJECT_CEILING_USD)) {
+            const ceiling = Number(body.ceiling);
+            if (!Number.isFinite(ceiling) || ceiling < MIN_PROJECT_CEILING_USD || ceiling > MAX_PROJECT_CEILING_USD) {
               return new Response(`Ceiling must be $${MIN_PROJECT_CEILING_USD} to $${MAX_PROJECT_CEILING_USD}`, { status: 400, headers: corsHeaders });
             }
-            return Response.json(setMirror(body.enabled, noteSync, "dashboard-user", ceiling ?? DEFAULT_PROJECT_CEILING_USD), { headers: corsHeaders });
+            const result = setMirror(false, false, "dashboard-user", ceiling);
+            return Response.json({ project: result.project, ceiling: result.ceiling, local_only: true }, { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
         }
       }
 
-      // API: Device sync toggle and state. Off by default.
+      // Local preference for manual encrypted export/import. No background sync runs.
       if (url.pathname === "/api/sync") {
         if (req.method === "GET") {
           const s = readJson<{ sync_enabled?: boolean }>(path.join(projectKdir(), "kineti.json"));
@@ -2958,42 +2089,12 @@ export function startServer(port: number = PORT) {
             });
             try {
               const { appendAudit } = await import("./kineti-audit.ts");
-              appendAudit("dashboard-user", body.on ? "sync.on" : "sync.off", "device sync toggled from dashboard");
+              appendAudit("dashboard-user", body.on ? "sync.on" : "sync.off", "manual encrypted export/import preference toggled");
             } catch { /* audit must never block toggle */ }
             return Response.json({ success: true, enabled: body.on }, { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
-        }
-      }
-
-      // API: Privacy training state, so the Settings switch shows the saved value.
-      if (url.pathname === "/api/privacy/state" && req.method === "GET") {
-        const pm = privacyManager.getSettings();
-        return Response.json(
-          { improve_kineti_for_everyone: pm.improve_kineti_for_everyone, telemetry_allowed: pm.telemetry_allowed },
-          { headers: corsHeaders },
-        );
-      }
-
-      // API: Forget with proof receipt. Goal and identity stay. Audit logged.
-      if (url.pathname === "/api/forget" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const text = String(body.text || "").trim().slice(0, 160);
-          if (!text) return new Response("Missing text", { status: 400, headers: corsHeaders });
-          const deletedAt = new Date().toISOString();
-          const receiptDigest = crypto.createHash("sha256").update(`forget:${text}:${deletedAt}`).digest("hex");
-          try {
-            const { appendAudit } = await import("./kineti-audit.ts");
-            appendAudit("dashboard-user", "forget.exec", `${text.slice(0, 120)} receipt ${receiptDigest.slice(0, 12)}`);
-          } catch { /* audit must never block receipt */ }
-          return Response.json(
-            { success: true, text, deleted_at: deletedAt, receipt_digest: receiptDigest },
-            { headers: corsHeaders },
-          );
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
       }
 
@@ -3018,7 +2119,7 @@ export function startServer(port: number = PORT) {
       // API: Settings
       if (url.pathname === "/api/settings") {
         if (req.method === "GET") {
-          return Response.json(companionSettings, { headers: corsHeaders });
+          return Response.json(publicCompanionSettings(), { headers: corsHeaders });
         }
         if (req.method === "POST") {
           try {
@@ -3066,100 +2167,15 @@ export function startServer(port: number = PORT) {
                 appendAudit("dashboard-user", "budget.change", budgetChanges.join("; ").slice(0, 1000));
               } catch { /* audit must never block settings save */ }
             }
-            return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
+            return Response.json({ success: true, settings: publicCompanionSettings() }, { headers: corsHeaders });
           } catch {
             return new Response("Bad Request", { status: 400, headers: corsHeaders });
           }
         }
       }
 
-      // API: Add Service Connector
-      if (url.pathname === "/api/connectors/add" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const name = String(body.name || "").trim().slice(0, 64);
-          if (!name) return new Response("Missing connector name", { status: 400, headers: corsHeaders });
-          const id = (body.key || body.id ? String(body.key || body.id).toLowerCase().replace(/[^a-z0-9_-]/g, "") : name.toLowerCase().replace(/[^a-z0-9_-]/g, "")) || `custom_${Date.now()}`;
-          const account = String(body.account || "").trim().slice(0, 128);
-          const apiKey = String(body.apiKey || body.api_key || "").trim().slice(0, 256);
-          const desc = String(body.desc || body.description || `Custom ${name} integration`).trim().slice(0, 256);
-
-          companionSettings.connectors[id] = {
-            name,
-            desc,
-            connected: true,
-            account: account || "Active",
-            apiKey,
-          };
-          saveCompanionSettings();
-          return Response.json({ success: true, connector: companionSettings.connectors[id] }, { headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
-      }
-
-      // API: Configure Service Connector
-      if (url.pathname === "/api/connectors/configure" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const id = String(body.connector || body.id || "").trim();
-          if (!id || !companionSettings.connectors[id]) {
-            return new Response("Connector not found", { status: 404, headers: corsHeaders });
-          }
-          if (typeof body.account === "string") {
-            companionSettings.connectors[id].account = body.account.trim().slice(0, 128);
-          }
-          if (typeof body.apiKey === "string" || typeof body.api_key === "string") {
-            companionSettings.connectors[id].apiKey = String(body.apiKey || body.api_key).trim().slice(0, 256);
-          }
-          if (typeof body.desc === "string" || typeof body.description === "string") {
-            companionSettings.connectors[id].desc = String(body.desc || body.description).trim().slice(0, 256);
-          }
-          companionSettings.connectors[id].connected = true;
-          saveCompanionSettings();
-          return Response.json({ success: true, connector: companionSettings.connectors[id] }, { headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
-      }
-
-      // API: Delete or Reset Service Connector
-      if (url.pathname === "/api/connectors/delete" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const id = String(body.connector || body.id || "").trim();
-          if (!id || !companionSettings.connectors[id]) {
-            return new Response("Connector not found", { status: 404, headers: corsHeaders });
-          }
-          const standardKeys = ["google", "outlook", "linear", "notion", "github", "slack", "brave", "twilio", "granola", "wispr"];
-          if (standardKeys.includes(id)) {
-            companionSettings.connectors[id].connected = false;
-            companionSettings.connectors[id].account = "Not configured";
-            delete companionSettings.connectors[id].apiKey;
-          } else {
-            delete companionSettings.connectors[id];
-          }
-          saveCompanionSettings();
-          return Response.json({ success: true, id }, { headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
-      }
-
-      // API: Connector toggle
-      if (url.pathname === "/api/connectors/toggle" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const connector = body.connector;
-          if (connector && companionSettings.connectors[connector]) {
-            companionSettings.connectors[connector].connected = !companionSettings.connectors[connector].connected;
-            saveCompanionSettings();
-            return Response.json({ success: true, connector: companionSettings.connectors[connector] }, { headers: corsHeaders });
-          }
-          return new Response("Connector not found", { status: 404, headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
+      if (url.pathname.startsWith("/api/connectors/")) {
+        return new Response("Service connectors are not configured by the v0.4 Companion", { status: 410, headers: corsHeaders });
       }
 
       // API: Contact update
@@ -3172,138 +2188,24 @@ export function startServer(port: number = PORT) {
           if (typeof body.whatsapp_number === "string") {
             companionSettings.whatsapp_number = body.whatsapp_number.trim().slice(0, 32);
           }
-          if (typeof body.agent_email === "string") {
-            companionSettings.agent_email = body.agent_email.trim().slice(0, 100);
-          }
           if (typeof body.user_phone === "string") {
             companionSettings.user_phone = body.user_phone.trim().slice(0, 32);
           }
           saveCompanionSettings();
-          return Response.json({ success: true, settings: companionSettings }, { headers: corsHeaders });
+          return Response.json({ success: true, settings: publicCompanionSettings() }, { headers: corsHeaders });
         } catch {
           return new Response("Bad Request", { status: 400, headers: corsHeaders });
         }
       }
 
-      // API: Contact test ping
       if (url.pathname === "/api/contact/test" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const channel = String(body.channel || "messages").toLowerCase();
-          const recipient = String(body.recipient || "").trim();
-          const message = String(body.message || "Test ping from Kineti Companion").trim();
-
-          return Response.json({
-            success: true,
-            dispatched: true,
-            channel,
-            recipient,
-            message,
-            timestamp: new Date().toISOString(),
-          }, { headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
+        return new Response("Message dispatch is not available in the v0.4 Companion", { status: 410, headers: corsHeaders });
       }
 
-      // API: Vault
-      if (url.pathname === "/api/vault") {
-        if (req.method === "GET") {
-          const v = loadVault();
-          const safeVault = {
-            ...v,
-            totp_items: (v.totp_items || []).map(t => ({
-              id: t.id,
-              issuer: t.issuer,
-              account: t.account,
-              secret_masked: t.secret_masked,
-              code: computeRfc6238Totp(t.secret_raw || ""),
-            })),
-          };
-          return Response.json(safeVault, { headers: corsHeaders });
-        }
-        if (req.method === "POST") {
-          try {
-            const body = (await req.json()) as any;
-            if (typeof body !== "object" || body === null) {
-              return new Response("Bad Request", { status: 400, headers: corsHeaders });
-            }
-            const vault = loadVault();
-            if (body.type === "login") {
-              const domain = String(body.domain || "").trim().slice(0, 128);
-              const username = String(body.username || "").trim().slice(0, 128);
-              if (!domain || !username) return new Response("Invalid login parameters", { status: 400, headers: corsHeaders });
-              vault.logins.push({ id: `login_${Date.now()}`, domain, username, created_at: nowIso() });
-            } else if (body.type === "card") {
-              const brand = String(body.brand || "Visa").trim().slice(0, 32);
-              const spendCap = Number(body.spend_cap);
-              const cap = Number.isFinite(spendCap) && spendCap > 0 ? spendCap : 100;
-              const last4 = crypto.randomInt(1000, 10000).toString();
-              vault.cards.push({ id: `card_${Date.now()}`, brand, last4, exp: "12/28", spend_cap: cap });
-            } else if (body.type === "personal") {
-              const label = String(body.label || "").trim().slice(0, 64);
-              const value = String(body.value || "").trim().slice(0, 256);
-              if (!label || !value) return new Response("Invalid personal info parameters", { status: 400, headers: corsHeaders });
-              const masked = value.length > 4 ? "•••• " + value.slice(-4) : "••••";
-              vault.personal_info.push({ id: `pers_${Date.now()}`, label, value_masked: masked });
-            } else if (body.type === "totp") {
-              const issuer = String(body.issuer || "").trim().slice(0, 64);
-              const account = String(body.account || "").trim().slice(0, 128);
-              const secret = String(body.secret || "").trim().slice(0, 128);
-              if (!issuer || !secret) return new Response("Invalid totp parameters", { status: 400, headers: corsHeaders });
-              const masked = secret.length > 4 ? "••••••••" + secret.slice(-4) : "••••••••";
-              vault.totp_items.push({ id: `totp_${Date.now()}`, issuer, account, secret_masked: masked, secret_raw: secret });
-            } else {
-              return new Response("Unknown vault item type", { status: 400, headers: corsHeaders });
-            }
-            saveVault(vault);
-            const safeVault = {
-              ...vault,
-              totp_items: (vault.totp_items || []).map(t => ({
-                id: t.id,
-                issuer: t.issuer,
-                account: t.account,
-                secret_masked: t.secret_masked,
-                code: computeRfc6238Totp(t.secret_raw || ""),
-              })),
-            };
-            return Response.json({ success: true, vault: safeVault }, { headers: corsHeaders });
-          } catch {
-            return new Response("Bad Request", { status: 400, headers: corsHeaders });
-          }
-        }
-      }
-
-      // API: Vault Delete
-      if (url.pathname === "/api/vault/delete" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const vault = loadVault();
-          const type = body.type;
-          const idx = typeof body.index === "number" ? body.index : -1;
-          const id = typeof body.id === "string" ? body.id : null;
-
-          let targetArray: any[] | null = null;
-          if (type === "login") targetArray = vault.logins;
-          else if (type === "card") targetArray = vault.cards;
-          else if (type === "personal") targetArray = vault.personal_info;
-          else if (type === "totp") targetArray = vault.totp_items;
-          else if (type === "agent") targetArray = vault.agent_items;
-
-          if (targetArray) {
-            if (id) {
-              const foundIdx = targetArray.findIndex((item: any) => item.id === id);
-              if (foundIdx >= 0) targetArray.splice(foundIdx, 1);
-            } else if (idx >= 0 && idx < targetArray.length) {
-              targetArray.splice(idx, 1);
-            }
-            saveVault(vault);
-            return Response.json({ success: true, vault }, { headers: corsHeaders });
-          }
-          return new Response("Invalid type or index", { status: 400, headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
+      // Legacy vault files are left untouched. The v0.4 Companion does not
+      // read or write credentials because the old TOTP storage was plaintext.
+      if (url.pathname === "/api/vault" || url.pathname.startsWith("/api/vault/")) {
+        return new Response("Credential storage is disabled in the v0.4 Companion", { status: 410, headers: corsHeaders });
       }
 
       // API: Mesh Network
@@ -3416,26 +2318,6 @@ export function startServer(port: number = PORT) {
         }
       }
 
-      // API: Privacy Purge
-      if (url.pathname === "/api/privacy/purge" && req.method === "POST") {
-        const res = privacyManager.executeExternalDataPurge();
-        return Response.json(res, { headers: corsHeaders });
-      }
-
-      // API: Privacy Opt-Out
-      if (url.pathname === "/api/privacy/opt-out" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          if (typeof body !== "object" || body === null || typeof body.enable !== "boolean") {
-            return new Response("Bad Request", { status: 400, headers: corsHeaders });
-          }
-          privacyManager.setImproveKineti(body.enable);
-          return Response.json({ improve_kineti_for_everyone: privacyManager.isImproveKinetiEnabled() }, { headers: corsHeaders });
-        } catch {
-          return new Response("Bad Request", { status: 400, headers: corsHeaders });
-        }
-      }
-
       // API: Invites
       if (url.pathname === "/api/invites") {
         if (req.method === "GET") {
@@ -3458,139 +2340,8 @@ export function startServer(port: number = PORT) {
         }
       }
 
-      // Email store persistence helper with atomic 0o600 write and FIFO 200-item cap
-      const emailsFile = path.join(process.cwd(), ".kineti", "emails.json");
-      const saveEmailStore = (store: any[]) => {
-        try {
-          ensureDir(path.dirname(emailsFile));
-          const capped = store.slice(0, 200);
-          const tmpFile = path.join(path.dirname(emailsFile), `emails.${Date.now()}.${crypto.randomBytes(4).toString("hex")}.tmp`);
-          fs.writeFileSync(tmpFile, JSON.stringify(capped, null, 2), { mode: 0o600, encoding: "utf-8" });
-          fs.renameSync(tmpFile, emailsFile);
-          try {
-            fs.chmodSync(emailsFile, 0o600);
-          } catch (chmodErr) {
-            console.warn(`kineti: warning: could not chmod emails file: ${(chmodErr as Error).message}`);
-          }
-        } catch (err) {
-          console.warn(`kineti: warning: could not save emails: ${(err as Error).message}`);
-        }
-      };
-
-      // API: Inbound Email Webhook
-      if (url.pathname === "/api/email/inbound" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          const from = String(body.from || "unknown@sender.com").slice(0, 128);
-          const to = String(body.to || "agent@mail.kineti.com").slice(0, 128);
-          const subject = String(body.subject || "No Subject").slice(0, 500);
-          const text = String(body.text || body.body || "").slice(0, 100 * 1024);
-          const rawMime = String(body.raw_mime || "").slice(0, 100 * 1024);
-
-          // Extract verification links
-          const links: string[] = [];
-          const linkRegex = /https?:\/\/[^\s<>"]+/g;
-          let m: RegExpExecArray | null;
-          const fullContent = `${text} ${rawMime}`;
-          while ((m = linkRegex.exec(fullContent)) !== null) {
-            links.push(m[0]);
-          }
-
-          // Extract OTP codes
-          let otpCode: string | undefined;
-          const otpMatch = fullContent.match(/\b(\d{4,8})\b/);
-          if (otpMatch) {
-            otpCode = otpMatch[1];
-          }
-
-          // Extract tracking numbers
-          let trackingNumber: string | undefined;
-          const trackMatch = fullContent.match(/\b(1Z[0-9A-Z]{16}|[0-9]{12}|9\d{21})\b/);
-          if (trackMatch) {
-            trackingNumber = trackMatch[1];
-          }
-
-          let emailStore: any[] = [];
-          try {
-            if (fs.existsSync(emailsFile)) {
-              emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
-            }
-          } catch (readErr) {
-            console.warn(`kineti: warning: could not read emails store: ${(readErr as Error).message}`);
-          }
-
-          const emailRecord = {
-            id: `msg_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
-            direction: "inbound",
-            from,
-            to,
-            subject,
-            text,
-            extracted: {
-              links: links.slice(0, 5),
-              otpCode,
-              trackingNumber,
-            },
-            receivedAt: new Date().toISOString(),
-          };
-
-          emailStore.unshift(emailRecord);
-          saveEmailStore(emailStore);
-
-          return Response.json({ success: true, email: emailRecord }, { headers: corsHeaders });
-        } catch (e: any) {
-          return new Response(e.message || "Bad Request", { status: 400, headers: corsHeaders });
-        }
-      }
-
-      // API: Send Email
-      if (url.pathname === "/api/email/send" && req.method === "POST") {
-        try {
-          const body = (await req.json()) as any;
-          if (!body.to || !body.subject) {
-            return new Response("Missing 'to' or 'subject'", { status: 400, headers: corsHeaders });
-          }
-
-          let emailStore: any[] = [];
-          try {
-            if (fs.existsSync(emailsFile)) {
-              emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
-            }
-          } catch (readErr) {
-            console.warn(`kineti: warning: could not read emails store: ${(readErr as Error).message}`);
-          }
-
-          const emailRecord = {
-            id: `msg_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`,
-            direction: "outbound",
-            from: "agent@mail.kineti.com",
-            to: String(body.to).slice(0, 128),
-            subject: String(body.subject).slice(0, 500),
-            text: String(body.body || body.text || "").slice(0, 100 * 1024),
-            status: "sent",
-            sentAt: new Date().toISOString(),
-          };
-
-          emailStore.unshift(emailRecord);
-          saveEmailStore(emailStore);
-
-          return Response.json({ success: true, email: emailRecord }, { headers: corsHeaders });
-        } catch (e: any) {
-          return new Response(e.message || "Bad Request", { status: 400, headers: corsHeaders });
-        }
-      }
-
-      // API: List Emails
-      if (url.pathname === "/api/email/list" && req.method === "GET") {
-        let emailStore: any[] = [];
-        try {
-          if (fs.existsSync(emailsFile)) {
-            emailStore = JSON.parse(fs.readFileSync(emailsFile, "utf-8"));
-          }
-        } catch (readErr) {
-          console.warn(`kineti: warning: could not read emails store: ${(readErr as Error).message}`);
-        }
-        return Response.json({ emails: emailStore.slice(0, 200) }, { headers: corsHeaders });
+      if (url.pathname.startsWith("/api/email/") || url.pathname.startsWith("/api/privacy/") || url.pathname === "/api/forget") {
+        return new Response("This action is not implemented in the v0.4 Companion", { status: 410, headers: corsHeaders });
       }
 
       return new Response("Not Found", { status: 404, headers: corsHeaders });

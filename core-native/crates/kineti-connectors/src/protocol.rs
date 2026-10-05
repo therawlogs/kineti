@@ -477,16 +477,7 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                         map.insert("to".to_string(), Value::String(to.to_string()));
                         map.insert("response".to_string(), Value::String(resp));
                     }
-                    Err(e) => {
-                        let raw_payload = self.build_draft_payload(&draft_req);
-                        map.insert(
-                            "status".to_string(),
-                            Value::String("draft_created".to_string()),
-                        );
-                        map.insert("to".to_string(), Value::String(to.to_string()));
-                        map.insert("raw_payload".to_string(), Value::String(raw_payload));
-                        map.insert("note".to_string(), Value::String(e));
-                    }
+                    Err(e) => return Err(ConnectorProtocolError::ExecutionFailed(e)),
                 }
                 Ok(Value::Object(map))
             }
@@ -502,22 +493,20 @@ impl KinetiConnectorProtocol for crate::gmail::GmailClient {
                     thread_id: get_str_property(payload, "thread_id").map(|s| s.to_string()),
                 };
                 let res = self.send_email_live(&draft_req);
-                let mut map = BTreeMap::new();
-                map.insert(
-                    "status".to_string(),
-                    Value::String("email_dispatched".to_string()),
-                );
-                map.insert("to".to_string(), Value::String(to.to_string()));
-                map.insert("subject".to_string(), Value::String(subject.to_string()));
                 match res {
                     Ok(resp) => {
+                        let mut map = BTreeMap::new();
+                        map.insert(
+                            "status".to_string(),
+                            Value::String("email_dispatched".to_string()),
+                        );
+                        map.insert("to".to_string(), Value::String(to.to_string()));
+                        map.insert("subject".to_string(), Value::String(subject.to_string()));
                         map.insert("response".to_string(), Value::String(resp));
+                        Ok(Value::Object(map))
                     }
-                    Err(e) => {
-                        map.insert("note".to_string(), Value::String(e));
-                    }
+                    Err(e) => Err(ConnectorProtocolError::ExecutionFailed(e)),
                 }
-                Ok(Value::Object(map))
             }
             other => Err(ConnectorProtocolError::UnsupportedAction(other.to_string())),
         }
@@ -846,20 +835,10 @@ mod tests {
         );
     }
 
-    // 8. Gmail Client protocol test
+    // 8. Gmail high-consequence actions are blocked before any network request
     #[test]
-    fn test_gmail_client_protocol_integration() {
+    fn test_gmail_send_requires_authorization_without_network() {
         let client = crate::gmail::GmailClient::new("test_oauth_token");
-
-        let search_payload = {
-            let mut m = BTreeMap::new();
-            m.insert("query".to_string(), Value::String("from:boss".to_string()));
-            Value::Object(m)
-        };
-        // Search is trivial -> succeeds without token
-        let search_res = client.execute_at("search_inbox", &search_payload, None, 1000);
-        assert!(search_res.is_ok());
-
         let email_payload = {
             let mut m = BTreeMap::new();
             m.insert(
@@ -883,20 +862,6 @@ mod tests {
             blocked.err(),
             Some(ConnectorProtocolError::MissingAuthorizationToken)
         );
-
-        // With valid token -> succeeds
-        let mut token = ActionAuthorizationToken::mint(
-            "tok_gmail_01",
-            "user_01",
-            "gmail",
-            "send_email",
-            &email_payload,
-            300,
-            1000,
-        );
-        let sent = client.execute_at("send_email", &email_payload, Some(&mut token), 1050);
-        assert!(sent.is_ok());
-        assert!(token.consumed);
     }
 
     // 9. Brave and Flux protocol test

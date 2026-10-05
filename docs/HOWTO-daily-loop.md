@@ -11,14 +11,14 @@ When working with an AI coding agent (Cursor, Claude Code, OpenCode, Codex, Anti
 ### Step 1: Start a task
 Give your agent a clear, concrete task:
 - Bug fix: *"Fix the login redirect error when session cookies expire."*
-- Feature: *"Add an email notification service with unit tests."*
+- Feature: *"Add an input validation check with unit tests."*
 - Cleanup: *"Refactor the database connection pool to use async/await."*
 
-Kineti locks the goal into `.kineti/state.json` to prevent scope creep during autonomous multi-step execution.
+Store the run's goal in `.kineti/state.json` when starting local project state. This file is local workflow state, not an independently tamper-proof policy.
 
 ### Step 2: Review and approve the plan
 - For simple bug fixes, your agent fixes the issue and runs tests directly.
-- For new features or significant changes, Kineti requires your agent to present a clear implementation plan before modifying application code in `src/`.
+- For new features or significant changes, Kineti's installed agent instructions ask the agent to present a clear implementation plan before modifying application code in `src/`. This is instruction-level guidance, not an independent code-write interceptor.
 - Review the plan, ask for changes if needed, and give approval before the agent proceeds.
 
 ### Step 3: Let the agent build with undo safety
@@ -30,17 +30,17 @@ As the agent makes code edits:
   ```
 
 ### Step 4: Run tests and record evidence
-Never rely on unverified agent claims. Kineti binds test results directly to the git tree hash:
+Do not rely only on an agent's statement that tests passed. Kineti can save each command's exit code and a workspace fingerprint:
 
 ```bash
-# Run your test suite and save a cryptographic evidence receipt
+# Run your test suite and save a local evidence receipt
 kineti test -- bun test
 
 # Check receipt freshness
 kineti test check --label test
 ```
 
-If any source file changes, the receipt flips to `STALE`, ensuring that changes must be re-tested before shipping.
+If a fingerprinted file changes, the receipt is `STALE` and should be recorded again before shipping. Receipts are local records, not signed certificates.
 
 ### Step 5: Verify release integrity (CI Gate)
 Before opening a pull request or merging code, run the Context Integrity Layer (CIP) verification:
@@ -49,11 +49,17 @@ Before opening a pull request or merging code, run the Context Integrity Layer (
 kineti ci
 ```
 
-This verifies that:
-1. The spend circuit breaker is healthy (< $50 ceiling).
-2. The root goal is intact and untampered.
-3. Test evidence receipts are fresh.
-4. Pipeline quality gates (`spec`, `security`, `ship`) are satisfied.
+This checks:
+1. The recorded spend value and trip flag.
+2. That project state contains a root goal.
+3. Required test receipts, including freshness and workspace fingerprint, when labels are supplied.
+4. Recorded gate values. The report does not independently prove that a person approved a gate or that the agent was contained.
+
+For a fresh CI checkout, initialize state before tests:
+
+```bash
+kineti seed
+```
 
 ---
 
@@ -68,20 +74,22 @@ This verifies that:
 | **Check Tests** | `kineti test check --label <name>` | Verify evidence status (`FRESH` or `STALE`) |
 | **Undo Edit** | `kineti undo` | Roll back recent file edits (LIFO stack) |
 | **Task State** | `kineti status` | View active project, stage, and locked goal |
-| **CI Verification** | `kineti ci` | Run full CIP verification report |
+| **Seed CI State** | `kineti seed` | Create missing state and spend files from project config |
+| **CI Verification** | `kineti ci --require-evidence <label>` | Check state and named evidence receipts |
 | **Companion UI** | `kineti companion` | Launch Apple HIG local dashboard (port 8788) |
 
 ---
 
 ## 3. Weekly Maintenance
 
-Run the automated memory and journal maintenance job once a week:
+Run the local memory and journal maintenance commands when needed:
 
 ```bash
 # Expire warm/cold records, verify hash chain, and check timestamps
 bun bin/kineti-memory-job.ts sweep
 bun bin/kineti-memory-job.ts verify-chain
 bun bin/kineti-memory-job.ts time-order
+bun bin/kineti-memory-job.ts promote
 ```
 
 ---

@@ -8,8 +8,9 @@ We provide security updates for the current active release line.
 
 | Version | Supported | Notes |
 | ------- | --------- | ----- |
-| 0.3.x   | Yes       | Current active release series. |
-| < 0.3.0 | No        | Please upgrade to 0.3.9 or newer. |
+| 0.4.x   | Yes       | Current active release series. |
+| 0.3.x   | No        | Please upgrade to 0.4.0 or newer. |
+| < 0.3.0 | No        | Please upgrade to 0.4.0 or newer. |
 
 ## 2. Reporting a Vulnerability
 

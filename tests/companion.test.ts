@@ -8,13 +8,23 @@ import { microcentsToUsd } from "../bin/lib.ts";
 describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   let server: any;
   const testPort = 18788;
+  const settingsFile = path.join(process.cwd(), ".kineti", "companion_settings.json");
+  const switchFile = path.join(process.cwd(), ".kineti", "kineti.json");
+  let settingsBackup: string | null = null;
+  let switchBackup: string | null = null;
 
   beforeAll(() => {
+    settingsBackup = fs.existsSync(settingsFile) ? fs.readFileSync(settingsFile, "utf8") : null;
+    switchBackup = fs.existsSync(switchFile) ? fs.readFileSync(switchFile, "utf8") : null;
     server = startServer(testPort);
   });
 
   afterAll(() => {
     if (server) server.stop(true);
+    if (settingsBackup === null) fs.rmSync(settingsFile, { force: true });
+    else fs.writeFileSync(settingsFile, settingsBackup, { mode: 0o600 });
+    if (switchBackup === null) fs.rmSync(switchFile, { force: true });
+    else fs.writeFileSync(switchFile, switchBackup, { mode: 0o600 });
   });
 
   test("getHarnessStatus returns structured pipeline and spend data", () => {
@@ -30,7 +40,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   test("getFleetStatus returns fleet repositories and budget totals", () => {
     const fleet = getFleetStatus();
     expect(fleet).toBeDefined();
-    // Default is local-only; extra repos come from .kineti/fleet.local.json (gitignored)
+    // v0.4.0 reports the current checkout only; remote and extra fleet entries are unavailable.
     expect(fleet.repos.length).toBeGreaterThanOrEqual(1);
     expect(fleet.total_fleet_budget).toBeGreaterThan(0);
     expect(fleet.settings).toBeDefined();
@@ -336,11 +346,11 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(revokedRes.status).toBe(401);
   });
 
-  test("POST /api/connectors/toggle toggles connector status", async () => {
+  test("fake connector toggles are disabled and settings expose no connector credentials", async () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
-    const getRes = await server.fetch(new Request("http://localhost/api/settings", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }));
+    const getRes = await server.fetch(new Request("http://localhost/api/settings", { headers: authHeaders }));
     const initialSettings = (await getRes.json()) as any;
-    const initialSlack = Boolean(initialSettings.connectors?.slack?.connected);
+    expect(initialSettings.connectors).toBeUndefined();
 
     const res = await server.fetch(
       new Request("http://localhost/api/connectors/toggle", {
@@ -349,39 +359,32 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
         body: JSON.stringify({ connector: "slack" }),
       }),
     );
-    expect(res.status).toBe(200);
-    const json = (await res.json()) as any;
-    expect(json.success).toBe(true);
-    expect(json.connector.connected).toBe(!initialSlack);
+    expect(res.status).toBe(410);
   });
 
-  test("POST /api/vault creates logins and cards with input validation", async () => {
+  test("model table is suggestions only; automatic switching is unavailable", async () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
-    // Add Login
-    const loginRes = await server.fetch(
-      new Request("http://localhost/api/vault", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ type: "login", domain: "github.com", username: "octocat" }),
-      }),
-    );
-    expect(loginRes.status).toBe(200);
-    const loginJson = (await loginRes.json()) as any;
-    expect(loginJson.success).toBe(true);
-    expect(loginJson.vault.logins.some((l: any) => l.domain === "github.com")).toBe(true);
+    const status = (await (await server.fetch(new Request("http://localhost/api/models", { headers: authHeaders }))).json()) as any;
+    expect(status.automatic_switching).toBe(false);
+    expect(status.table.code.host).toBeString();
+    const response = await server.fetch(new Request("http://localhost/api/models/auto", {
+      method: "POST", headers: authHeaders, body: JSON.stringify({ on: true }),
+    }));
+    expect(response.status).toBe(410);
+  });
 
-    // Add Card
-    const cardRes = await server.fetch(
+  test("credential vault endpoints are disabled and do not accept real secrets", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const getRes = await server.fetch(new Request("http://localhost/api/vault", { headers: authHeaders }));
+    expect(getRes.status).toBe(410);
+    const addRes = await server.fetch(
       new Request("http://localhost/api/vault", {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ type: "card", brand: "Mastercard", spend_cap: 150 }),
+        body: JSON.stringify({ type: "totp", issuer: "GitHub", secret: "JBSWY3DPEHPK3PXP" }),
       }),
     );
-    expect(cardRes.status).toBe(200);
-    const cardJson = (await cardRes.json()) as any;
-    expect(cardJson.success).toBe(true);
-    expect(cardJson.vault.cards.some((c: any) => c.brand === "Mastercard" && c.spend_cap === 150)).toBe(true);
+    expect(addRes.status).toBe(410);
   });
 
   test("POST /api/mesh/approve approves pending connection request", async () => {
@@ -402,10 +405,8 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect([401, 404]).toContain(localRes.status);
   });
 
-  test("POST /api/connectors/add, configure, and delete manages connectors", async () => {
+  test("custom connector registration and credential storage are disabled", async () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
-    
-    // Add custom connector
     const addRes = await server.fetch(
       new Request("http://localhost/api/connectors/add", {
         method: "POST",
@@ -419,61 +420,15 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
         }),
       }),
     );
-    expect(addRes.status).toBe(200);
-    const addJson = (await addRes.json()) as any;
-    expect(addJson.success).toBe(true);
-    expect(addJson.connector.name).toBe("Custom CRM");
-
-    // Configure connector
-    const cfgRes = await server.fetch(
-      new Request("http://localhost/api/connectors/configure", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({
-          connector: "custom_crm",
-          account: "updated@crm.example",
-          desc: "Updated description",
-        }),
-      }),
-    );
-    expect(cfgRes.status).toBe(200);
-    const cfgJson = (await cfgRes.json()) as any;
-    expect(cfgJson.connector.account).toBe("updated@crm.example");
-
-    // Delete custom connector
-    const delRes = await server.fetch(
-      new Request("http://localhost/api/connectors/delete", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ connector: "custom_crm" }),
-      }),
-    );
-    expect(delRes.status).toBe(200);
-    const delJson = (await delRes.json()) as any;
-    expect(delJson.success).toBe(true);
-
-    // Delete standard connector resets it
-    const delStdRes = await server.fetch(
-      new Request("http://localhost/api/connectors/delete", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ connector: "slack" }),
-      }),
-    );
-    expect(delStdRes.status).toBe(200);
+    expect(addRes.status).toBe(410);
+    const configureRes = await server.fetch(new Request("http://localhost/api/connectors/configure", {
+      method: "POST", headers: authHeaders, body: JSON.stringify({ connector: "custom_crm", apiKey: "secret" }),
+    }));
+    expect(configureRes.status).toBe(410);
   });
 
-  test("POST /api/vault/delete removes entries by type and index", async () => {
+  test("vault deletion endpoint is disabled without touching stored data", async () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
-    // First create a login to delete
-    await server.fetch(
-      new Request("http://localhost/api/vault", {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ type: "login", domain: "delete-me.com", username: "temp_user" }),
-      }),
-    );
-
     const delRes = await server.fetch(
       new Request("http://localhost/api/vault/delete", {
         method: "POST",
@@ -481,12 +436,10 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
         body: JSON.stringify({ type: "login", index: 0 }),
       }),
     );
-    expect(delRes.status).toBe(200);
-    const delJson = (await delRes.json()) as any;
-    expect(delJson.success).toBe(true);
+    expect(delRes.status).toBe(410);
   });
 
-  test("POST /api/contact/update and /api/contact/test manage contact channels", async () => {
+  test("contact details can be stored but message dispatch is unavailable", async () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
     
     // Update contact
@@ -505,7 +458,6 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(updateJson.settings.imessage_number).toBe("+15551234567");
     expect(updateJson.settings.whatsapp_number).toBe("+15559876543");
 
-    // Test ping
     const testRes = await server.fetch(
       new Request("http://localhost/api/contact/test", {
         method: "POST",
@@ -517,11 +469,22 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
         }),
       }),
     );
-    expect(testRes.status).toBe(200);
-    const testJson = (await testRes.json()) as any;
-    expect(testJson.success).toBe(true);
-    expect(testJson.dispatched).toBe(true);
-    expect(testJson.channel).toBe("whatsapp");
+    expect(testRes.status).toBe(410);
+  });
+
+  test("simulated email and data-deletion endpoints do not claim success", async () => {
+    const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
+    const requests = [
+      new Request("http://localhost/api/email/send", { method: "POST", headers: authHeaders, body: JSON.stringify({ to: "x@example.invalid", subject: "test" }) }),
+      new Request("http://localhost/api/email/inbound", { method: "POST", headers: authHeaders, body: JSON.stringify({ from: "x@example.invalid", text: "test" }) }),
+      new Request("http://localhost/api/forget", { method: "POST", headers: authHeaders, body: JSON.stringify({ text: "old note" }) }),
+      new Request("http://localhost/api/privacy/purge", { method: "POST", headers: authHeaders }),
+    ];
+    for (const request of requests) {
+      const response = await server.fetch(request);
+      expect(response.status).toBe(410);
+      expect(await response.text()).not.toContain("success");
+    }
   });
 
   test("POST /api/mesh/add, remove, and unblock manage trusted network peers", async () => {
@@ -666,7 +629,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(html).not.toContain('id="connectors-list"');
   });
 
-  test("dashboard has Activity, Team, Settings tabs plus Cloud link panel", async () => {
+  test("dashboard has Activity, Team, and Settings tabs plus a local budget field", async () => {
     const res = await server.fetch(
       new Request("http://localhost/", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
     );
@@ -676,9 +639,13 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(html).toContain('data-tab="settings"');
     expect(html).toContain('id="activity-rows"');
     expect(html).toContain('id="team-agents-list"');
-    expect(html).toContain('id="cloud-code-state"');
-    expect(html).toContain('id="toggle-mirror"');
-    expect(html).toContain('id="forget-receipt"');
+    expect(html).toContain('id="mirror-ceiling"');
+    expect(html).toContain("No project data is mirrored to a cloud service.");
+    expect(html).not.toContain("Make code");
+    expect(html).not.toContain("Delete data");
+    expect(html).not.toContain("Forget something");
+    expect(html).not.toContain("mail.kineti.com");
+    expect(html).not.toContain("Base32 Secret");
     expect(html).toContain('id="home-proof"');
   });
 
@@ -689,57 +656,55 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     }
   });
 
-  test("pairing make, cloud state, mirror toggle, and drop", async () => {
+  test("cloud linking is unavailable while the local budget remains configurable", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
-    const os = await import("node:os");
     const auth = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
     const pairFile = path.join(process.cwd(), ".kineti", "pairing.json");
     const mirrorFile = path.join(process.cwd(), ".kineti", "mirror.json");
     const hadPair = fs.existsSync(pairFile) ? fs.readFileSync(pairFile, "utf8") : null;
     const hadMirror = fs.existsSync(mirrorFile) ? fs.readFileSync(mirrorFile, "utf8") : null;
     const machineBackup = process.env.KINETI_MACHINE_DIR;
-    const tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "kineti-cloud-"));
+    const machineScratch = path.join(process.cwd(), ".kineti", "test-companion-machine");
+    fs.mkdirSync(machineScratch, { recursive: true });
+    const tmpMachine = fs.mkdtempSync(path.join(machineScratch, "run-"));
     process.env.KINETI_MACHINE_DIR = tmpMachine;
     try {
-      const made = (await (await server.fetch(
-        new Request("http://localhost/api/pairing", { method: "POST", headers: auth }),
-      )).json()) as any;
-      expect(made.live).toBe(true);
-      expect(made.code).toMatch(/^KIN-/);
-
       const status = (await (await server.fetch(
         new Request("http://localhost/api/pairing", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
       )).json()) as any;
-      expect(status.code).toBe(made.code);
-      expect(status.minutes_left).toBeGreaterThan(0);
+      expect(status).toEqual({ available: false, linked: false });
+      const pairRes = await server.fetch(new Request("http://localhost/api/pairing", { method: "POST", headers: auth }));
+      expect(pairRes.status).toBe(410);
+      const claimRes = await server.fetch(new Request("http://localhost/api/pairing/claim", { method: "POST", headers: auth }));
+      expect(claimRes.status).toBe(410);
 
       const cloud = (await (await server.fetch(
         new Request("http://localhost/api/cloud", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
       )).json()) as any;
       expect(cloud.linked).toBe(false);
+      expect(cloud.available).toBe(false);
       expect(JSON.stringify(cloud)).not.toContain("access_token");
 
       const mirror0 = (await (await server.fetch(
         new Request("http://localhost/api/mirror", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
       )).json()) as any;
-      expect(mirror0.enabled).toBe(false);
-      expect(mirror0.note_sync).toBe(false);
+      expect(mirror0.local_only).toBe(true);
+      expect(mirror0.ceiling).toBeGreaterThan(0);
 
       const bad = await server.fetch(
-        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: "yes" }) }),
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ ceiling: 5000 }) }),
       );
       expect(bad.status).toBe(400);
 
       const mirror1 = (await (await server.fetch(
-        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: true, note_sync: false }) }),
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ ceiling: 40 }) }),
       )).json()) as any;
-      expect(mirror1.enabled).toBe(true);
-      expect(mirror1.note_sync).toBe(false);
-      expect(mirror1.ceiling).toBe(50);
+      expect(mirror1.local_only).toBe(true);
+      expect(mirror1.ceiling).toBe(40);
 
       const mirrorCap = (await (await server.fetch(
-        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: true, note_sync: false, ceiling: 40 }) }),
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ ceiling: 40 }) }),
       )).json()) as any;
       expect(mirrorCap.ceiling).toBe(40);
 
@@ -749,18 +714,12 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
       expect(mini.ceiling).toBe(40);
 
       const over = await server.fetch(
-        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ enabled: true, ceiling: 5000 }) }),
+        new Request("http://localhost/api/mirror", { method: "POST", headers: auth, body: JSON.stringify({ ceiling: 5000 }) }),
       );
       expect(over.status).toBe(400);
 
-      const dropped = (await (await server.fetch(
-        new Request("http://localhost/api/pairing/drop", { method: "POST", headers: auth }),
-      )).json()) as any;
-      expect(dropped.success).toBe(true);
-      const gone = (await (await server.fetch(
-        new Request("http://localhost/api/pairing", { headers: { Authorization: `Bearer ${AUTH_TOKEN}` } }),
-      )).json()) as any;
-      expect(gone.live).toBe(false);
+      const dropRes = await server.fetch(new Request("http://localhost/api/pairing/drop", { method: "POST", headers: auth }));
+      expect(dropRes.status).toBe(410);
     } finally {
       if (hadPair === null) fs.rmSync(pairFile, { force: true });
       else fs.writeFileSync(pairFile, hadPair);
@@ -832,5 +791,3 @@ describe("harness status fixes (A1/A3/A5)", () => {
     }
   });
 });
-
-

@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -44,7 +43,9 @@ beforeEach(() => {
       gates: { spec: "pass", ship: "pass", security: "pass" },
     }));
   }
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kineti-sync-"));
+  const scratch = path.join(REPO, ".kineti", "test-sync");
+  fs.mkdirSync(scratch, { recursive: true });
+  tmpDir = fs.mkdtempSync(path.join(scratch, "run-"));
 });
 
 afterEach(() => {
@@ -64,7 +65,7 @@ describe("kineti-sync encrypted device sync", () => {
     const out = path.join(tmpDir, "s.json");
     const r = run(["export", "--out", out, "--passphrase-env", "T_PW"], { T_PW: "long-passphrase-123" });
     expect(r.status).not.toBe(0);
-    expect((r.stderr as string) + (r.stdout as string)).toContain("sync is off");
+    expect((r.stderr as string) + (r.stdout as string)).toContain("manual export/import is disabled");
   });
 
   test("export then import roundtrips notes without touching root goal", () => {

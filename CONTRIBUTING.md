@@ -90,10 +90,10 @@ Every contribution follows a structured 5-step review process:
 
 ## 11. Packages: npm, website, Rust
 
-1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). Verify with `npm pack --dry-run`.
+1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). `docs/`, tests, the website, and the native workspace are not in the npm tarball. Verify with `npm pack --dry-run`.
 2. Website: static page `website/index.html` plus `website/kineti-cosmic-loop.mp4`, `website/kineti-cosmic-poster.jpg`, and `website/vercel.json`. No package, no lockfile, no build step. Excluded from the npm pack.
-3. Rust workspace `core-native/`: 8 crates, all published to crates.io at `0.3.9` (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). Bump `[workspace.package] version` together with `package.json`. `Cargo.lock` at the repo root is tracked. `Cargo.lock` at `core-native/` is also tracked.
-4. Version rule: `package.json`, `kineti.config.json`, both Cargo workspaces, and every published crate move together. `tests/versions.test.ts` checks crate metadata, lockfiles, server registration, current docs, skill manifests, and Codex setup examples.
+3. Rust workspace `core-native/`: 8 crates (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). v0.4.0 adds the maintained `ed25519-dalek` dependency to `kineti-harness`. Bump `[workspace.package]` together with `package.json`. `Cargo.lock` at the repo root and `core-native/Cargo.lock` are both tracked.
+4. Version rule: `package.json`, `kineti.config.json`, both Cargo workspaces, and every crate being published move together. `tests/versions.test.ts` checks crate metadata, lockfiles, server registration, current docs, skill manifests, and Codex setup examples.
 
 ## 12. Docs rules
 
@@ -104,8 +104,9 @@ Every contribution follows a structured 5-step review process:
 
 ## 13. Ship checklist
 
-1. Typecheck clean, full bun suite green with FRESH proof, Rust suite green.
-2. Adversarial suite: `bun test tests/adversarial_prompt_injection.test.ts`, 0 fail.
-3. Bump the version trio, commit, push, tag `vX.Y.Z`.
-4. Tag push triggers CI binaries. Attach to the GitHub release (retry on API lag, it resolves).
-5. `npm publish` needs a human with 2FA. Record publish plus release in `GOOD_ROADMAP.md` section 13.
+1. Typecheck, full Bun suite, Rust suite, package dry-runs, installer smoke, and fresh security review must pass.
+2. Open a pull request. Never push directly to `main`; merge only after the required review and checks pass.
+3. Keep `package.json`, `kineti.config.json`, both Cargo workspaces, crate dependency versions, and release tag on the same version.
+4. Pushing `vX.Y.Z` runs package dry-runs and release checks, publishes Rust crates in dependency order, publishes npm, then builds and creates the GitHub release. A registry failure blocks later publishing jobs. The npm package is typechecked and built before its token is supplied; the publish step disables package scripts.
+5. Configure the GitHub Actions environment `registry-release` with required human reviewers and the `CARGO_REGISTRY_TOKEN` and `NPM_TOKEN` secrets. Never put registry credentials in the repository. Confirm registry package ownership and that the version is unused before pushing the tag.
+6. After the workflow succeeds, verify the npm version, all eight crates, GitHub release assets, and checksums. Update the release log with the actual results.

@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeEach } from "bun:test";
 import { TrustedNetworkManager } from "../src/swarm/trusted_network.ts";
-import { PrivacyGovernanceManager } from "../src/privacy/governance.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
 import path from "node:path";
 import fs from "node:fs";
@@ -69,32 +68,6 @@ describe("Kineti Autonomous Capabilities & Governance Layer", () => {
     expect(manager.isPeerBlocked("agent_spammer")).toBe(true);
     const spamRes = manager.receiveConnectionRequest("agent_spammer", "Spam", "@spam", "service_agent", "Ad");
     expect(spamRes.status).toBe("blocked");
-  });
-
-  test("PrivacyGovernanceManager toggles model training and coordinates self-serve external purge", () => {
-    const privPath = path.join(tmpDir, "test_privacy.json");
-    if (fs.existsSync(privPath)) fs.unlinkSync(privPath);
-
-    const privacy = new PrivacyGovernanceManager("alex", privPath);
-    expect(privacy.isImproveKinetiEnabled()).toBe(false);
-    expect(privacy.canEgressTelemetry()).toBe(false);
-
-    // Toggle opt-in / opt-out
-    privacy.setImproveKineti(true);
-    expect(privacy.isImproveKinetiEnabled()).toBe(true);
-    expect(privacy.canEgressTelemetry()).toBe(true);
-
-    privacy.setImproveKineti(false);
-    expect(privacy.isImproveKinetiEnabled()).toBe(false);
-    expect(privacy.canEgressTelemetry()).toBe(false);
-
-    // Trigger external data purge
-    const purge = privacy.executeExternalDataPurge();
-    expect(purge.success).toBe(true);
-    expect(purge.sources_cleared).toContain("google_workspace");
-    expect(purge.sources_cleared).toContain("microsoft_graph");
-    expect(purge.sources_cleared).toContain("notion");
-    expect(purge.receipt_digest.length).toBe(64);
   });
 
   test("ViralInviteEngine enforces tier-based quotas and vanity link redemption", () => {

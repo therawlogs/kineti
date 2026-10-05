@@ -1,6 +1,6 @@
 # First Run Tutorial
 
-This tutorial takes about 10 minutes. It shows you how to install Kineti, connect it to your AI coding agent, run your first verified task, check spending, and use undo safety.
+This tutorial takes about 10 minutes. It shows you how to install Kineti, connect it to an AI coding agent, record a local test receipt, check reported spending, and use registered undo steps.
 
 ## Prerequisites
 - **Node.js**: version 18 or higher
@@ -17,19 +17,24 @@ Open your terminal in your project directory and run:
 # Install Kineti globally
 npm install -g kineti
 
-# Initialize Kineti for your project and installed editors
+# Install Kineti instructions and skills for your installed editors
 kineti init
+
+# Create local task state and lock this run's goal
+kineti state init --project my-project --goal "Describe the outcome for this run"
 ```
 
 `kineti init` detects your installed editors, copies the Kineti workflow skills into each one, and prints the safety-hook block to paste into your host settings. It does not write MCP server config — do that in Step 2.
+
+`kineti state init` creates local project state. It is separate from editor setup.
 
 ---
 
 ## Step 2: Connect Kineti to your AI editor (MCP)
 
-Kineti provides a universal Model Context Protocol (MCP) server so your agent can use spend controls, undo safety, and test proofs automatically.
+Kineti provides an MCP server exposing local tools for state, reported spend, registered undo, and test receipts. Your editor agent decides when to call these tools; they do not intercept every action the agent can take.
 
-If `kineti init` did not configure your editor automatically, set it up manually:
+If `kineti init` did not configure your editor automatically, set it up manually. Kineti instructions do not intercept every action your agent can take.
 
 - **Claude Code (CLI)**:
   ```bash
@@ -83,12 +88,12 @@ If `kineti init` did not configure your editor automatically, set it up manually
 
 ## Step 3: Run your first task with your agent
 
-Open your AI coding agent (in Cursor, Claude Code, etc.) and give it a real task:
+Open your AI coding agent (in Cursor, Claude Code, etc.) and give it a task:
 
 > "Add a health check test for our API and verify it passes."
 
-Watch how Kineti works with your agent:
-1. **Goal anchoring**: The agent locks the goal so it does not drift during multi-step tasks.
+Kineti provides local records and instructions for your agent; it does not independently verify completion of the whole task:
+1. **Goal record**: The agent can store this run's goal in local Kineti state.
 2. **Plan approval**: For new features or structural changes, the agent presents a clear plan before modifying code.
 3. **Undo recording**: Before modifying files, the agent should register an inverse with Kineti. Kineti only undoes registered steps.
 
@@ -118,19 +123,19 @@ total $0.15 of $50; entries 2; tripped=false
 
 ---
 
-## Step 5: Run tests and verify evidence
+## Step 5: Run tests and verify the receipt
 
-Kineti requires cryptographic proof that tests actually ran against the exact code in your repository:
+Kineti can record that a test command finished and bind its result to a workspace fingerprint. The receipt is local; it is not a signed certificate.
 
 ```bash
-# Run tests and record cryptographic proof receipt
+# Run tests and save a local receipt with the current workspace fingerprint
 kineti test -- bun test
 
 # Verify that the test receipt is fresh and code has not changed
 kineti test check --label test
 ```
 
-If any file in the repository changes after running tests, the proof receipt immediately flips from `FRESH` to `STALE`, ensuring you never deploy unverified code.
+If a file in the fingerprinted workspace changes after the test run, the receipt is `STALE` and should be recorded again before release.
 
 ---
 
@@ -147,13 +152,13 @@ Kineti unwinds registered steps in reverse order (newest first). A failed invers
 
 ---
 
-## Step 7: Open the Visual Companion
+## Step 7: Open the local Companion
 
-Kineti includes a lightweight local dashboard built to Apple HIG standards:
+Kineti includes a local dashboard for reviewing project state and recorded information:
 
 ```bash
 # Start the companion dashboard
 kineti companion
 ```
 
-Open `http://127.0.0.1:8788` in your browser to view your real-time spend charts, active tasks, team members, and verification receipts.
+Open `http://127.0.0.1:8788` in your browser. The Companion is local. It does not connect external services, send messages, or provide cloud pairing in v0.4.0.

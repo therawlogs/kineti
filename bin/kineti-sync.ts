@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // bin/kineti-sync.ts
-// Phase 5: encrypted multi-device persona sync. Passphrase-encrypted export
-// and import of your notes. Off by default. Root goal is never overwritten
+// Manual passphrase-encrypted export and import of a small local snapshot.
+// There is no automatic or cloud device sync. Off by default. Root goal is never overwritten
 // by an import. Every run is audit logged with counts and hashes, never content.
 
 import crypto from "node:crypto";
@@ -50,8 +50,8 @@ if (import.meta.main) {
     const on = cmd === "on";
     const cur = readJson<Record<string, unknown>>(switchFile()) || {};
     writeJson(switchFile(), { ...cur, sync_enabled: on, updated_by: "user", at: new Date().toISOString() });
-    try { appendAudit("user", on ? "sync.on" : "sync.off", "device sync toggled"); } catch {}
-    ok(`device sync is now ${on ? "on" : "off"}.`);
+    try { appendAudit("user", on ? "sync.on" : "sync.off", "manual encrypted export/import preference toggled"); } catch {}
+    ok(`manual encrypted export/import is now ${on ? "enabled" : "disabled"}.`);
   } else if (cmd === "export") {
     let out = "";
     let pass = "";
@@ -60,7 +60,7 @@ if (import.meta.main) {
       else if (rest[i] === "--passphrase-env") pass = process.env[rest[++i] ?? ""] || "";
     }
     if (!out) die("export requires --out FILE", 2);
-    if (!isSyncEnabled()) die("device sync is off. Turn it on first, then export.", 2);
+    if (!isSyncEnabled()) die("manual export/import is disabled. Enable it first, then export.", 2);
     if (!pass) die("export requires --passphrase-env VAR with a passphrase of 12+ chars", 2);
     if (pass.length < 12) die("passphrase must be 12+ chars", 2);
     const snap = collectSnapshot();
@@ -91,7 +91,7 @@ if (import.meta.main) {
       else if (rest[i] === "--passphrase-env") pass = process.env[rest[++i] ?? ""] || "";
     }
     if (!file) die("import requires --file FILE", 2);
-    if (!isSyncEnabled()) die("device sync is off. Turn it on first, then import.", 2);
+    if (!isSyncEnabled()) die("manual export/import is disabled. Enable it first, then import.", 2);
     if (!pass) die("import requires --passphrase-env VAR", 2);
     let payload: any;
     try {

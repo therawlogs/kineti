@@ -5,24 +5,24 @@ These tools manage state, safety, and testing. Run any tool with `bun bin/<name>
 | Tool | Purpose |
 |---|---|
 | `kineti-state` | Tracks current step, task, and goal |
-| `kineti-spend` | Tracks token usage and enforces the per-project ceiling ($50 default, set at mirror time) |
+| `kineti-seed` | Creates missing CI state and spend files from project config |
+| `kineti-spend` | Tracks agent-reported costs and checks the local project ceiling ($50 default) |
 | `kineti-saga` | Saves undo steps and rolls back changes newest-first |
-| `kineti-evidence` | Saves test results with file hashes for proof |
-| `kineti-audit` | Write-only hash-chained audit log for price changes and tamper tries |
-| `kineti-router` | Plain-talk intent router. No skill or command names needed |
-| `kineti-sync` | Encrypted multi-device notes sync. Off by default |
-| `kineti-pairing` | Cloud dashboard pairing codes. 10 min life, one use |
-| `kineti-verify-gate` | Prevents closing a session if checks fail |
-| `kineti-egress` | Logs outbound network requests with cryptographic hashes |
-| `kineti-companion` | Starts the local web dashboard for live monitoring |
-| `kineti-ci` | Runs all verification checks and builds reports |
+| `kineti-evidence` | Saves local test results with workspace fingerprints |
+| `kineti-audit` | Appends and checks a local hash-linked audit log |
+| `kineti-router` | Keyword-based plain-talk response helper |
+| `kineti-sync` | Encrypts a manual local export/import file; no cloud sync service |
+| `kineti-pairing` | Local budget settings and pairing prototype; no cloud server |
+| `kineti-verify-gate` | Runs a locally trusted verification command |
+| `kineti-egress` | Records outbound requests when explicitly called; not a network filter |
+| `kineti-companion` | Starts the local dashboard; external integrations are not connected by default |
+| `kineti-ci` | Checks state and required local evidence; does not issue a certificate |
 | `kineti-mcp` | Runs the Model Context Protocol (MCP) server |
 | `kineti-memory-job` | Runs weekly memory cleanups and integrity checks |
 | `kineti-epistemic` | Queries the Epistemic Engine and persona beliefs |
-| `kineti-invite` | Manages viral peer invites and vanity referral handles |
-| `kineti-privacy` | Manages privacy opt-outs and data deletion |
-| `kineti-stripe` | Manages virtual payment card issuance and checkout |
-| `kineti-swarm` | Coordinates multi-agent peer mesh connections |
-| `kineti-models` | Task-based model table (code, plan, chat, fix). Ask-first, auto-switch off by default |
-| `kineti-schedule` | Persistent scheduler and watcher jobs (reminders, price and package watchers) |
-| `kineti-schema` | Two-pass input standardizer. Fixed fields, memory for repeats, token proof |
+| `kineti-invite` | Local invite-record prototype; no redemption service |
+| `kineti-stripe` | Local card-record demo; does not create or charge real cards |
+| `kineti-swarm` | In-memory identity and signing demonstration |
+| `kineti-models` | Static task-to-host suggestion table; does not switch models |
+| `kineti-schedule` | Local job storage and trigger callbacks; external watchers are not connected |
+| `kineti-schema` | Simple text truncation and token estimate; not a multimodal standardizer |

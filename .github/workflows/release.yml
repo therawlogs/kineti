@@ -9,7 +9,10 @@ on:
       tag:
         description: 'Tag to attach binaries to'
         required: true
-        default: 'v0.3.9'
+        default: 'v0.4.0'
+
+permissions:
+  contents: read
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -19,18 +22,25 @@ jobs:
   test:
     name: Verify test suite
     runs-on: ubuntu-latest
+    env:
+      KINETI_REQUIRED_EVIDENCE: release-typecheck release-ts-tests release-rust-tests release-cli-selfcheck release-installer-smoke release-npm-pack release-crate-pack
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
-      - run: bun install
 
-      - name: Seed CI runtime state
-        run: bun scripts/ci-seed.ts
+      - name: Record dependency download requests
+        run: |
+          bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Install locked npm development dependencies for release verification"
+          bun bin/kineti-egress.ts record --host index.crates.io --description "Resolve locked Rust dependencies for release verification"
+          bun bin/kineti-egress.ts record --host static.crates.io --description "Download locked Rust crate archives for release verification"
+      - run: bun install
 
       - name: Check tag matches package version
         env:
@@ -49,10 +59,28 @@ jobs:
             exit 1
           fi
 
+      - name: Record npm registry preflight
+        run: bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Check whether kineti@0.4.0 is already published"
+
+      - name: Require unused npm version
+        run: |
+          versions="$(npm view kineti versions --json)"
+          node -e 'const versions = JSON.parse(process.argv[1]); if ((Array.isArray(versions) ? versions : [versions]).includes("0.4.0")) { console.error("kineti@0.4.0 already exists on npm"); process.exit(1); }' "$versions"
+
+      - name: Record crates.io registry preflight
+        run: bun bin/kineti-egress.ts record --host crates.io --description "Check whether any v0.4.0 Kineti crate version is already published"
+
+      - name: Require unused Rust crate versions
+        run: |
+          bun -e 'for (const name of ["kineti-core", "kineti-reflex", "kineti-memory", "kineti-connectors", "kineti-actions", "kineti-gateway", "kineti-harness", "kineti-cli"]) { const response = await fetch(`https://crates.io/api/v1/crates/${name}`, { headers: { "User-Agent": "Kineti release preflight (github.com/therawlogs/kineti)" } }); if (!response.ok) throw new Error(`Could not check ${name} on crates.io: HTTP ${response.status}`); const data = await response.json(); if (data.versions?.some((version) => version.num === "0.4.0")) throw new Error(`${name}@0.4.0 already exists on crates.io`); }'
+
       - name: Router codegen freshness
         run: |
           bun run build:router
           git diff --exit-code -- bin/kineti.js
+
+      - name: Seed CI runtime state
+        run: bun bin/kineti.js seed
 
       - name: Run Type Integrity Check
         run: bun bin/kineti-evidence.ts run --label release-typecheck --timeout 300 -- bun run typecheck
@@ -75,27 +103,118 @@ jobs:
       - name: Run Installer Smoke Test
         run: bun bin/kineti-evidence.ts run --label release-installer-smoke --timeout 600 -- bun run test:setup
 
+      - name: Check npm package contents
+        run: bun bin/kineti-evidence.ts run --label release-npm-pack --timeout 300 -- npm pack --dry-run
+
+      - name: Record crates.io package preflight
+        run: |
+          bun bin/kineti-egress.ts record --host crates.io --description "Check crates.io package state during the v0.4.0 release preflight"
+          bun bin/kineti-egress.ts record --host index.crates.io --description "Resolve the Rust package index during the v0.4.0 release preflight"
+
+      - name: Check Rust crate packages
+        run: bun bin/kineti-evidence.ts run --label release-crate-pack --timeout 900 -- cargo publish --workspace --dry-run --locked --manifest-path Cargo.toml
+
       - name: Verify every evidence record is fresh
         run: |
           set -e
-          for label in release-typecheck release-ts-tests release-rust-tests release-cli-selfcheck release-installer-smoke; do
+          read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
+          for label in "${labels[@]}"; do
             bun bin/kineti-evidence.ts check --label "$label"
           done
 
-      - name: Verify Kineti State & Evidence Gate
-        run: bun bin/kineti-ci.ts
+      - name: Verify egress ledger integrity
+        run: bun bin/kineti-egress.ts verify
 
-  build-and-publish:
-    name: Build binaries and publish release
+      - name: Verify Kineti State & Evidence Gate
+        run: |
+          read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
+          args=()
+          for label in "${labels[@]}"; do args+=(--require-evidence "$label"); done
+          bun bin/kineti.js ci "${args[@]}"
+
+  publish-crates:
+    name: Publish Rust crates to crates.io
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    environment: registry-release
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: latest
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Record crates.io publication
+        run: |
+          bun bin/kineti-egress.ts record --host crates.io --description "Publish the verified v0.4.0 Rust workspace crates"
+          bun bin/kineti-egress.ts record --host index.crates.io --description "Resolve the crates.io index while publishing v0.4.0"
+          bun bin/kineti-egress.ts record --host static.crates.io --description "Fetch Rust dependency archives while publishing v0.4.0"
+
+      - name: Publish workspace crates in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish --workspace --locked --no-verify --manifest-path Cargo.toml
+
+      - name: Verify egress ledger
+        run: bun bin/kineti-egress.ts verify
+
+  publish-npm:
+    name: Publish npm package
+    needs: [test, publish-crates]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment: registry-release
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - name: Record dependency download request
+        run: bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Install locked npm development dependencies before package publication"
+      - run: bun install --frozen-lockfile
+
+      - name: Validate package scripts before adding credentials
+        run: |
+          bun run prepublishOnly
+          git diff --exit-code -- bin/kineti.js
+
+      - name: Record npm publication
+        run: bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Publish the verified v0.4.0 Kineti npm package"
+
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_USERCONFIG: ${{ github.workspace }}/.kineti/npmrc
+        run: |
+          test -n "$NODE_AUTH_TOKEN"
+          npm config set //registry.npmjs.org/:_authToken "$NODE_AUTH_TOKEN"
+          npm publish --access public --ignore-scripts
+
+      - name: Verify egress ledger
+        run: bun bin/kineti-egress.ts verify
+
+  build-binaries:
+    name: Build release binaries
+    needs: [test, publish-crates, publish-npm]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+      - name: Record dependency download request
+        run: bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Install locked npm dependencies before building release binaries"
       - run: bun install
 
       - name: Build standalone binaries
@@ -111,15 +230,35 @@ jobs:
           chmod +x dist/kineti-linux-x64
           dist/kineti-linux-x64 --version
 
+      - name: Record GitHub release request
+        run: |
+          bun bin/kineti-egress.ts record --host api.github.com --description "Create the verified v0.4.0 GitHub release with native binaries and checksums"
+          bun bin/kineti-egress.ts verify
+          cp .kineti/egress.jsonl dist/egress.jsonl
+
       - name: Upload binaries as run artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: kineti-binaries
+          name: kineti-release-assets
           path: |
             dist/kineti-linux-x64
             dist/kineti-darwin-arm64
             dist/kineti-darwin-x64
             dist/SHA256SUMS
+            dist/egress.jsonl
+
+  create-github-release:
+    name: Create GitHub release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified binaries
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: kineti-release-assets
+          path: dist
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2

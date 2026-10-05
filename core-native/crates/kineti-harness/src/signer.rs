@@ -1,66 +1,82 @@
-//! Hardware-backed signing abstraction (`signer`).
+//! Ed25519 software signing for local OVT and verification flows.
 //!
-//! Financial and contract execution tokens should be signed inside platform
-//! hardware (Apple Secure Enclave, TPM) so the key never sits in process
-//! memory. That platform bridge is not built yet: it needs a Swift/ObjC
-//! bridge on macOS and a TPM2 stack on Linux, both outside the current
-//! zero-outside-crate rule.
-//!
-//! This module therefore provides:
-//! - [`HardwareSigner`]: the trait every backend implements. The user only
-//!   ever sees "confirm $X?" regardless of backend.
-//! - [`SoftwareSigner`]: std-only fallback using the same digest
-//!   construction as OVT attestation. `is_hardware_backed()` is false.
-//! - [`enclave_available`]: reports false on all targets today. When a
-//!   platform bridge lands, it flips per-target behind `cfg` with no
-//!   caller changes.
-//! - [`needs_human_confirm`]: every nonzero amount needs an explicit human
-//!   yes. There is no auto-approve path.
+//! Keys are generated in memory and are not written to disk. This module does
+//! not provide hardware-backed key storage. A valid signature identifies a
+//! key, not the person or independent service that controls it.
 
-use kineti_core::kernel::{hex_encode, sha256};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use rand_core::OsRng;
 
-/// Signing backend for high-consequence tokens.
-pub trait HardwareSigner {
-    /// Stable label shown in audit lines (never key material).
-    fn key_label(&self) -> String;
-    /// Signs a payload, returning a hex digest.
+/// Signing backend interface used by the harness.
+pub trait SignerBackend {
+    /// Stable display label; must never contain private key material.
+    fn key_label(&self) -> &str;
+    /// Returns the Ed25519 public key as lowercase hex.
+    fn public_key_hex(&self) -> String;
+    /// Signs a payload using this backend's private key and returns lowercase hex.
     fn sign(&self, payload: &[u8]) -> String;
-    /// Verifies a signature produced by [`HardwareSigner::sign`].
+    /// Verifies a signature using this backend's public key.
     fn verify(&self, payload: &[u8], signature_hex: &str) -> bool;
-    /// True only when the key lives in platform hardware.
+    /// True only when the signing key is protected by platform hardware.
     fn is_hardware_backed(&self) -> bool;
 }
 
-/// Std-only software fallback signer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// In-memory Ed25519 signer. The private key is generated using the operating
+/// system random source and remains in memory for this process.
+#[derive(Debug)]
 pub struct SoftwareSigner {
     label: String,
-    secret: String,
+    signing_key: SigningKey,
 }
 
 impl SoftwareSigner {
-    /// Creates a software signer. The secret stays in process memory,
-    /// unlike a hardware backend.
-    pub fn new(label: impl Into<String>, secret: impl Into<String>) -> Self {
+    /// Generates a new in-memory Ed25519 key pair.
+    pub fn new(label: impl Into<String>) -> Self {
         Self {
             label: label.into(),
-            secret: secret.into(),
+            signing_key: SigningKey::generate(&mut OsRng),
         }
+    }
+
+    /// Creates a signer from a 32-byte Ed25519 seed. Callers must protect this
+    /// seed themselves; it should never be committed or logged.
+    pub fn from_seed(label: impl Into<String>, seed: [u8; 32]) -> Self {
+        Self {
+            label: label.into(),
+            signing_key: SigningKey::from_bytes(&seed),
+        }
+    }
+
+    /// Returns the corresponding public verification key.
+    pub fn verifying_key(&self) -> VerifyingKey {
+        self.signing_key.verifying_key()
     }
 }
 
-impl HardwareSigner for SoftwareSigner {
-    fn key_label(&self) -> String {
-        format!("software:{}", self.label)
+impl SignerBackend for SoftwareSigner {
+    fn key_label(&self) -> &str {
+        &self.label
+    }
+
+    fn public_key_hex(&self) -> String {
+        encode_hex(&self.signing_key.verifying_key().to_bytes())
     }
 
     fn sign(&self, payload: &[u8]) -> String {
-        let combined = format!("{}:{}:{}", self.secret, hex_encode(payload), self.secret);
-        hex_encode(&sha256(combined.as_bytes()))
+        encode_hex(&self.signing_key.sign(payload).to_bytes())
     }
 
     fn verify(&self, payload: &[u8], signature_hex: &str) -> bool {
-        self.sign(payload) == signature_hex
+        let Ok(signature_bytes) = decode_hex(signature_hex) else {
+            return false;
+        };
+        let Ok(signature_array) = <[u8; 64]>::try_from(signature_bytes.as_slice()) else {
+            return false;
+        };
+        self.signing_key
+            .verifying_key()
+            .verify(payload, &Signature::from_bytes(&signature_array))
+            .is_ok()
     }
 
     fn is_hardware_backed(&self) -> bool {
@@ -68,24 +84,49 @@ impl HardwareSigner for SoftwareSigner {
     }
 }
 
-/// Reports whether a platform hardware backend exists on this target.
-/// Always false today; the Secure Enclave / TPM bridge is a documented
-/// follow-up requiring platform-native code outside the zero-dep rule.
+/// Reports whether an operating-system hardware signing backend is available.
+/// No Secure Enclave or TPM integration is included in this release.
 pub fn enclave_available() -> bool {
     false
 }
 
-/// Every nonzero cent amount needs an explicit human yes. Zero-amount
-/// intents (balance checks, quotes) do not move money and pass through.
+/// Every nonzero amount requires a separate human confirmation.
 pub fn needs_human_confirm(amount_cents: u64) -> bool {
     amount_cents > 0
 }
 
-/// Formats the only question the user ever sees for money movement.
+/// Formats a human confirmation question for a payment action.
 pub fn confirm_prompt(amount_cents: u64, payee: &str) -> String {
-    let dollars = amount_cents / 100;
-    let cents = amount_cents % 100;
-    format!("Confirm ${dollars}.{cents:02} to {payee}?")
+    format!(
+        "Confirm ${}.{:02} to {}?",
+        amount_cents / 100,
+        amount_cents % 100,
+        payee
+    )
+}
+
+fn encode_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut output = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        output.push(HEX[(byte >> 4) as usize] as char);
+        output.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    output
+}
+
+fn decode_hex(text: &str) -> Result<Vec<u8>, ()> {
+    text.as_bytes()
+        .chunks(2)
+        .map(|pair| {
+            let [high, low] = pair else {
+                return Err(());
+            };
+            let high = (*high as char).to_digit(16).ok_or(())?;
+            let low = (*low as char).to_digit(16).ok_or(())?;
+            Ok(((high << 4) | low) as u8)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -93,34 +134,28 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_software_roundtrip() {
-        let s = SoftwareSigner::new("test-key", "secret-abc");
-        let sig = s.sign(b"pay $10 to acme");
-        assert!(s.verify(b"pay $10 to acme", &sig));
-        assert_eq!(s.key_label(), "software:test-key");
-        assert!(!s.is_hardware_backed());
+    fn ed25519_signatures_verify_with_the_matching_key_only() {
+        let signer = SoftwareSigner::new("worker");
+        let other = SoftwareSigner::new("reviewer");
+        let signature = signer.sign(b"task=evidence");
+        assert!(signer.verify(b"task=evidence", &signature));
+        assert!(!signer.verify(b"task=changed", &signature));
+        assert!(!other.verify(b"task=evidence", &signature));
+        assert!(!signer.is_hardware_backed());
+        assert_eq!(signer.public_key_hex().len(), 64);
     }
 
     #[test]
-    fn test_tampered_payload_fails() {
-        let s = SoftwareSigner::new("k", "secret-abc");
-        let sig = s.sign(b"pay $10 to acme");
-        assert!(!s.verify(b"pay $11 to acme", &sig));
+    fn invalid_signature_encoding_fails_closed() {
+        let signer = SoftwareSigner::new("worker");
+        assert!(!signer.verify(b"data", "bad"));
+        assert!(!signer.verify(b"data", "00"));
     }
 
     #[test]
-    fn test_different_secrets_differ() {
-        let a = SoftwareSigner::new("a", "secret-1");
-        let b = SoftwareSigner::new("b", "secret-2");
-        assert_ne!(a.sign(b"same payload"), b.sign(b"same payload"));
-        assert!(!a.verify(b"same payload", &b.sign(b"same payload")));
-    }
-
-    #[test]
-    fn test_confirm_rule_and_prompt() {
+    fn confirmation_helpers_keep_nonzero_actions_human_gated() {
         assert!(!needs_human_confirm(0));
         assert!(needs_human_confirm(1));
-        assert!(needs_human_confirm(10_000));
         assert_eq!(confirm_prompt(1050, "acme"), "Confirm $10.50 to acme?");
         assert!(!enclave_available());
     }

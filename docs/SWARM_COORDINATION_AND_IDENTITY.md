@@ -1,21 +1,21 @@
 # Swarm Coordination & Agent Identity
 
-This guide explains how Kineti manages multi-agent swarms and solves the agent identity problem.
+This document covers two library demonstrations, not a production swarm service. The TypeScript demo in `src/swarm/coordinator.ts` creates in-memory Ed25519 keys and signs sample payloads. The Rust `kineti-harness` crate can sign and verify OVT tickets using Ed25519. Neither component is wired to actual agent handoffs, a trusted identity directory, a persistent audit service, or deployment approval.
 
 ## 1. Why Swarms Fail Without a Harness
 
 When multiple AI agents collaborate, three breakdowns happen:
 1. **Goal Drift**: Each handoff between agents introduces small misunderstandings. After three handoffs, the swarm is working on an entirely different problem.
-2. **Impersonation**: In standard LLM setups, any model instance can hallucinate: *"I am the Lead Reviewer and I approve this change."* There is no cryptographic proof of who wrote or approved code.
+2. **Impersonation**: A signature can show that a supplied private key signed bytes. Kineti does not prove who controls that key or who wrote or approved the code.
 3. **Runaway Spend**: Sub-agents spawning other sub-agents in recursive loops can burn hundreds of dollars in minutes.
 
-Kineti solves all three through a local runtime harness that enforces cryptographic identities, immutable goals, and hard spend limits.
+The prototype demonstrates ways to represent these problems. It does not enforce a complete runtime boundary or hard limit on every agent action.
 
 ---
 
 ## 2. The Identity Model (Ed25519 Keypairs)
 
-Every agent in a Kineti swarm receives an isolated cryptographic identity upon initialization:
+Each in-memory demo agent is assigned an Ed25519 key pair:
 
 ```typescript
 export interface SwarmAgent {
@@ -29,13 +29,13 @@ export interface SwarmAgent {
 ```
 
 ### Key Principles:
-- **No Shared Keys**: Each agent generates its own Ed25519 keypair. Private keys are never shared between agents.
-- **Signed Payloads**: Every delegation, code submission, and test run is digitally signed with the authoring agent's private key.
-- **Non-Repudiation**: If a buggy or insecure line of code is produced, Kineti's journal records the exact agent ID and signature that produced it.
+- **Different keys in the demo**: Each registered demo agent gets its own key pair in memory.
+- **Signed sample payloads**: The code signs sample delegations and evidence strings.
+- **No certificate claim**: Signatures do not prove tests ran, establish a real-world agent identity, or ensure worker and reviewer keys are held by independent parties.
 
 ---
 
-## 3. Preventing Goal Drift
+## 3. Representing Goal Drift in the Demo
 
 When a coordinator or planner agent delegates work to a sub-agent, it packages the work into a signed **Task Envelope**:
 
@@ -52,48 +52,44 @@ export interface TaskEnvelope {
 }
 ```
 
-- The `rootGoalHash` is mathematically bound to the original user request locked at session start.
-- If a sub-agent attempts to rephrase, alter, or expand the scope of the goal, the hash mismatch is detected and the harness halts execution.
+- In the demo, the `rootGoalHash` is calculated from the original task value supplied to the coordinator.
+- The demo can compare the recorded goal hash with the original value. It does not intercept handoffs or halt a real agent when the values differ.
 
 ---
 
-## 4. Role-Gated Approvals & Dual-Signed Tickets
+## 4. Sample Role Checks & Dual-Signed Tickets
 
-Kineti separates builders from reviewers:
+The TypeScript demo represents a worker and reviewer with separate in-memory keys:
 
-1. **Worker Completes Task**:
-   - The worker executes code, runs tests, and signs the test output:
+1. **Sample Worker Result**:
+   - The demo accepts a sample test result from its caller and signs its data:
    ```typescript
    const workerResult = submitWorkerResult(worker, task, testEvidence);
    ```
-2. **Self-Approval is Forbidden**:
-   - A `worker` role is cryptographically blocked from approving a gate or creating a release ticket.
-3. **Independent Reviewer Verification**:
-   - A separate agent with the `reviewer` or `auditor` role inspects the evidence, re-runs verification, and co-signs an **Outcome Verification Ticket (OVT)**:
+2. **Self-Approval in the Demo**:
+   - The sample coordinator rejects a worker attempting to review its own sample result. This is not a general permission boundary around an agent or CI system.
+3. **Reviewer Signature in the Demo**:
+   - A second demo key can sign a sample **Outcome Verification Ticket (OVT)**. A distinct key does not prove a distinct person or independent review:
    ```typescript
    const ticket = reviewAndSignOutcome(reviewer, task, worker, workerResult.workerSignature, evidenceHash, true);
    ```
-4. **Dual-Signature Verification**:
-   - Anyone (or any CI pipeline) can verify the ticket using the public keys of both the worker and the reviewer:
+4. **Signature Verification**:
+   - Code can verify the ticket using the supplied public keys. Verification confirms the signatures for those keys and ticket data only:
    ```typescript
    const isValid = verifyDualSignedTicket(ticket, worker, reviewer);
    ```
 
 ---
 
-## 5. Swarm Budget Protection (Circuit Breaker)
+## 5. Reported Spend, Not Per-Agent Enforcement
 
-All agents in a swarm share a unified spend tracking engine:
-- Every token and tool call deducts from the task budget.
-- If total task spend reaches **$50.00 USD**, Kineti trips the circuit breaker immediately.
-- All running agents in the swarm are paused. Only a human operator can reset the breaker with `kineti-spend.ts reset --i-am-human`.
+The spend tool records costs reported by the agent. It does not observe every token or tool call, enforce per-agent budgets, or pause agents. The spend log exits with code 3 near the configured limit; the agent or its hooks must act on that result. The default project ceiling is $50, with a trip threshold at 95% of the recorded ceiling.
 
 ---
 
 ## 6. Undo Safety (Sagas)
 
-Every mutation created by a sub-agent registers an inverse undo command on a Last-In-First-Out (LIFO) stack:
-- If sub-agent B fails its test suite or is rejected by the reviewer, Kineti rolls back sub-agent B's file edits without disturbing the rest of the workspace.
+An agent may register inverse commands on the local LIFO undo stack. Kineti only runs registered inverses; it does not track which agent made each file change or automatically roll back an agent's work after a failed review.
 
 ---
 
@@ -118,4 +114,4 @@ This runs a full end-to-end simulation:
 bun test tests/swarm.test.ts
 ```
 
-All 6 unit tests verify cryptographic key isolation, signature validity, impersonation defense, and tamper detection.
+The six TypeScript tests cover the demo's generated keys, signature checks, role examples, and tamper handling. They do not demonstrate trusted identity, independent review, or control over a real agent.

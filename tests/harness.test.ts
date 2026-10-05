@@ -1,6 +1,5 @@
 import { describe, test, expect, beforeAll } from "bun:test";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 const REPO = path.resolve(import.meta.dir, "..");
@@ -27,7 +26,9 @@ function run(
 }
 
 function makeCtx(): { root: string; cwd: string; machine: string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kineti-test-"));
+  const scratch = path.join(REPO, ".kineti", "test-harness");
+  fs.mkdirSync(scratch, { recursive: true });
+  const root = fs.mkdtempSync(path.join(scratch, "run-"));
   const cwd = path.join(root, "proj");
   const machine = path.join(root, "machine");
   fs.mkdirSync(cwd, { recursive: true });
@@ -389,4 +390,3 @@ describe("governance state file permissions", () => {
     }
   });
 });
-

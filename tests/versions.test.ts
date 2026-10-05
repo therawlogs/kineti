@@ -1,6 +1,7 @@
 import { describe, test, expect } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 
 const ROOT = process.cwd();
 
@@ -53,7 +54,7 @@ describe("repo version and layout drift guards", () => {
 
     const currentDocs: Array<[string, string[]]> = [
       ["README.md", [`v${version}`, `kineti@${version}`, `kineti-cli@${version}`]],
-      ["CONTRIBUTING.md", [`crates.io at \`${version}\``]],
+      ["CONTRIBUTING.md", [`${version} adds the maintained`]],
       ["SECURITY.md", [`${version} or newer`]],
       [".github/workflows/release.yml", [`default: 'v${version}'`]],
       ["scripts/demo-spend-cap.sh", [`\"version\": \"${version}\"`]],
@@ -90,7 +91,7 @@ describe("repo version and layout drift guards", () => {
     const tsTests = fs
       .readdirSync(path.join(ROOT, "tests"))
       .filter((f) => f.endsWith(".ts"))
-      .reduce((n, f) => n + (read(`tests/${f}`).match(/\b(?:it|test)\s*\(/g) || []).length, 0);
+      .reduce((n, f) => n + (read(`tests/${f}`).match(/^\s*(?:it|test)\s*\(/gm) || []).length, 0);
 
     let rustTests = 0;
     const walk = (dir: string): void => {
@@ -110,12 +111,11 @@ describe("repo version and layout drift guards", () => {
     const mcpTools = (read("bin/kineti-mcp.ts").match(/^\s+name: "kineti_[a-z_]+"/gm) || []).length;
     const readme = read("README.md");
 
-    expect(readme).toContain(`${tsTests} TypeScript governance tests`);
-    expect(readme).toContain(`${rustTests} native Rust tests`);
-    expect(readme).toContain(`${tsTests + rustTests} total passed tests`);
-    expect(readme).toContain(`${tsTests} TypeScript governance & causal test suites`);
+    expect(readme).toContain(`${tsTests} TypeScript governance test cases`);
+    expect(readme).toContain(`${rustTests} native Rust test cases`);
+    expect(readme).toContain(`${tsTests + rustTests} total test cases`);
     expect(readme).toContain(`${skills} agent workflow skills`);
-    expect(readme).toContain(`${mcpTools} native governance tools`);
+    expect(readme).toContain(`${mcpTools} tools`);
   });
 
   test("host installer help lists every host config that exists", () => {
@@ -162,6 +162,59 @@ describe("repo version and layout drift guards", () => {
     for (const claim of stale) expect(readme).not.toContain(claim);
   });
 
+  test("v0.4.0 docs state local limits and registry release timing", () => {
+    const readme = read("README.md");
+    const multiRepo = read("docs/MULTI_REPO_FLEET_AND_INTEGRATIONS.md");
+    const swarm = read("docs/SWARM_COORDINATION_AND_IDENTITY.md");
+    const plan = read("docs/PLAN.md");
+    const changelog = read("CHANGELOG.md");
+
+    expect(readme).toContain("available after that release finishes publishing");
+    expect(readme).not.toContain("All 8 native crates are published");
+    expect(multiRepo).toContain("does not connect GitHub accounts");
+    expect(multiRepo).toContain("do not set the project spend limit or enforce a budget");
+    expect(multiRepo).not.toContain("immediately governed by Kineti rules");
+    expect(swarm).toContain("does not observe every token or tool call");
+    expect(swarm).toContain("do not demonstrate trusted identity");
+    expect(plan).toContain("v0.4.0 note (2026-10-05)");
+    expect(plan).toContain("historical body is intentionally unchanged");
+    expect(changelog).toContain("publishes the native crates, the npm package, and the GitHub release assets");
+  });
+
+  test("release workflow validates packages before publishing them", () => {
+    const workflow = read(".github/workflows/release.yml");
+    expect(workflow).toContain("npm pack --dry-run");
+    expect(workflow).toContain("cargo publish --workspace --dry-run");
+    expect(workflow).toContain("Require unused npm version");
+    expect(workflow).toContain("Require unused Rust crate versions");
+    expect(workflow).toContain("publish-crates:");
+    expect(workflow).toContain("publish-npm:");
+    expect(workflow).toContain("cargo publish --workspace --locked --no-verify");
+    expect(workflow).toContain("npm publish --access public --ignore-scripts");
+    expect(workflow).toContain("needs: [test, publish-crates, publish-npm]");
+    expect(workflow).toContain("CARGO_REGISTRY_TOKEN");
+    expect(workflow).toContain("NPM_TOKEN");
+    expect(workflow).toContain("environment: registry-release");
+    expect(workflow).toContain("create-github-release:");
+    expect(workflow).not.toContain("id-token: write");
+  });
+
+  test("README and docs index internal links resolve", () => {
+    for (const file of ["README.md", "docs/README.md"]) {
+      const content = read(file);
+      const links = [...content.matchAll(/\[[^\]]*\]\(([^)]+)\)/g)].map(([, target]) => target);
+      for (const target of links) {
+        if (/^(?:https?:|mailto:|#)/i.test(target)) continue;
+        const relativePath = target.split("#", 1)[0];
+        if (!relativePath) continue;
+        expect(
+          fs.existsSync(path.resolve(ROOT, path.dirname(file), relativePath)),
+          `${file} has a missing link: ${target}`,
+        ).toBe(true);
+      }
+    }
+  });
+
   test("SECURITY.md claims match what the code actually does", () => {
     const policy = read("SECURITY.md");
     // The companion prints its token to the terminal by design.
@@ -192,5 +245,11 @@ describe("repo version and layout drift guards", () => {
   test("generated router exists and runs under node", () => {
     const built = read("bin/kineti.js");
     expect(built.startsWith("#!/usr/bin/env node")).toBe(true);
+    const help = spawnSync("node", [path.join(ROOT, "bin/kineti.js"), "seed", "--help"], {
+      cwd: ROOT,
+      encoding: "utf8",
+    });
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain("Usage: kineti seed");
   });
 });

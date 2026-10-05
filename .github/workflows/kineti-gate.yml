@@ -9,8 +9,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
-  statuses: write
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -20,6 +18,12 @@ jobs:
   verify:
     name: Causal Outcome Verification
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      pr_comment_b64: ${{ steps.comment.outputs.body_b64 }}
+    env:
+      KINETI_REQUIRED_EVIDENCE: gate-typecheck gate-ts-tests gate-rust-tests gate-cli-selfcheck gate-installer-smoke
 
     steps:
       - name: Checkout Code
@@ -40,13 +44,13 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
-      - name: Seed CI runtime state
-        run: bun scripts/ci-seed.ts
-
       - name: Router codegen freshness
         run: |
           bun run build:router
           git diff --exit-code -- bin/kineti.js
+
+      - name: Seed CI runtime state
+        run: bun bin/kineti.js seed
 
       - name: Run Type Integrity Check
         run: bun bin/kineti-evidence.ts run --label gate-typecheck --timeout 300 -- bun run typecheck
@@ -73,7 +77,8 @@ jobs:
         if: always()
         run: |
           set -e
-          for label in gate-typecheck gate-ts-tests gate-rust-tests gate-cli-selfcheck gate-installer-smoke; do
+          read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
+          for label in "${labels[@]}"; do
             bun bin/kineti-evidence.ts check --label "$label"
           done
 
@@ -84,20 +89,40 @@ jobs:
         id: kineti_gate
         if: always()
         run: |
-          bun bin/kineti-ci.ts --pr-comment-file pr_comment.md
+          read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
+          args=()
+          for label in "${labels[@]}"; do args+=(--require-evidence "$label"); done
+          bun bin/kineti.js ci "${args[@]}" --pr-comment-file pr_comment.md
 
-      - name: Post PR Verification Badge
-        if: github.event_name == 'pull_request' && (success() || failure())
+      - name: Prepare PR report output
+        id: comment
+        if: always()
+        run: |
+          if [ -f pr_comment.md ]; then
+            body_b64="$(base64 -w 0 pr_comment.md)"
+          else
+            body_b64="$(printf '%s\n' '### Kineti CI Checks: BLOCKED' 'The verification report could not be created.' | base64 -w 0)"
+          fi
+          printf 'body_b64=%s\n' "$body_b64" >> "$GITHUB_OUTPUT"
+
+  report:
+    name: Post PR CI report
+    needs: verify
+    if: always() && github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post PR CI report
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          PR_COMMENT_B64: ${{ needs.verify.outputs.pr_comment_b64 }}
         with:
           script: |
-            const fs = require('fs');
-            let body = '';
-            try {
-              body = fs.readFileSync('pr_comment.md', 'utf8');
-            } catch (e) {
-              body = '### 🛡️ Kineti Verification Gate\nFailed to read verification report.';
-            }
+            const encoded = process.env.PR_COMMENT_B64 || '';
+            const body = encoded
+              ? Buffer.from(encoded, 'base64').toString('utf8').slice(0, 60000)
+              : '### Kineti CI Checks: BLOCKED\nThe verification report was missing.';
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -105,7 +130,7 @@ jobs:
               issue_number: context.issue.number,
             });
 
-            const botComment = comments.find(c => c.body.includes('Context Integrity Verification'));
+            const botComment = comments.find(c => c.user?.type === 'Bot' && c.body.includes('Kineti CI Checks'));
 
             if (botComment) {
               await github.rest.issues.updateComment({

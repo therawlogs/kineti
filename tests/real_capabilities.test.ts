@@ -1,11 +1,10 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
+import { describe, test, expect, afterAll } from "bun:test";
 import { SchedulerEngine } from "../src/scheduler/engine";
 import { WatcherManager } from "../src/scheduler/watchers";
-import { startServer, AUTH_TOKEN } from "../bin/kineti-companion";
 import { existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
-describe("Scheduler & Companion Email Verification Suite", () => {
+describe("Scheduler utility suite", () => {
   // 1. Persistent Scheduler & Watchers Engine
   describe("1. Persistent Scheduler & Watchers Engine", () => {
     const testStorePath = join(process.cwd(), ".kineti", "test_jobs.json");
@@ -106,76 +105,4 @@ describe("Scheduler & Companion Email Verification Suite", () => {
     });
   });
 
-  // 2. Companion Inbound/Outbound Email API
-  describe("2. Companion Inbound & Outbound Email Webhooks", () => {
-    let server: any;
-    const testPort = 18790;
-    const authHeaders = {
-      "Authorization": `Bearer ${AUTH_TOKEN}`,
-      "Content-Type": "application/json",
-    };
-
-    beforeAll(() => {
-      server = startServer(testPort);
-    });
-
-    afterAll(() => {
-      if (server) server.stop(true);
-    });
-
-    test("POST /api/email/inbound extracts OTP codes, tracking numbers, and links", async () => {
-      const payload = {
-        from: "notifications@github.com",
-        to: "alex+github_401@mail.kineti.com",
-        subject: "Your GitHub verification code",
-        text: "Your one-time security code is 849201. Or click https://github.com/auth/verify?id=9988. Package tracking 1Z9999999999999999.",
-      };
-
-      const res = await server.fetch(
-        new Request("http://localhost/api/email/inbound", {
-          method: "POST",
-          headers: authHeaders,
-          body: JSON.stringify(payload),
-        })
-      );
-
-      expect(res.status).toBe(200);
-      const json = (await res.json()) as any;
-      expect(json.success).toBe(true);
-      expect(json.email.extracted.otpCode).toBe("849201");
-      expect(json.email.extracted.trackingNumber).toBe("1Z9999999999999999");
-      expect(json.email.extracted.links[0]).toContain("https://github.com/auth/verify");
-    });
-
-    test("POST /api/email/send and GET /api/email/list work end-to-end", async () => {
-      const sendRes = await server.fetch(
-        new Request("http://localhost/api/email/send", {
-          method: "POST",
-          headers: authHeaders,
-          body: JSON.stringify({
-            to: "client@example.com",
-            subject: "Project Milestone Approved",
-            body: "All acceptance tests passed with zero errors.",
-          }),
-        })
-      );
-
-      expect(sendRes.status).toBe(200);
-      const sendJson = (await sendRes.json()) as any;
-      expect(sendJson.success).toBe(true);
-      expect(sendJson.email.direction).toBe("outbound");
-
-      const listRes = await server.fetch(
-        new Request("http://localhost/api/email/list", {
-          method: "GET",
-          headers: authHeaders,
-        })
-      );
-
-      expect(listRes.status).toBe(200);
-      const listJson = (await listRes.json()) as any;
-      expect(Array.isArray(listJson.emails)).toBe(true);
-      expect(listJson.emails.some((e: any) => e.subject === "Project Milestone Approved")).toBe(true);
-    });
-  });
 });

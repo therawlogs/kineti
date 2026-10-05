@@ -6,6 +6,7 @@
  *
  * Use:
  *   kineti init [--host <name>]
+ *   kineti state init --project <name> --goal <text>
  *   kineti companion [--port 8788]
  *   kineti mcp
  *   kineti test -- <cmd>
@@ -14,7 +15,8 @@
  *   kineti status
  *   kineti verify
  *   kineti swarm <goal>
- *   kineti ci
+ *   kineti ci [--require-evidence <label> ...]
+ *   kineti seed [--stage <1-13>]
  */
 
 import { spawnSync } from "node:child_process";
@@ -45,6 +47,7 @@ const COMMAND_MAP: Record<string, { script: string; isShell?: boolean }> = {
   verify: { script: "bin/kineti-verify-gate.ts" },
   swarm: { script: "bin/kineti-swarm.ts" },
   ci: { script: "bin/kineti-ci.ts" },
+  seed: { script: "bin/kineti-seed.ts" },
   egress: { script: "bin/kineti-egress.ts" },
   memory: { script: "bin/kineti-memory-job.ts" },
 };
@@ -120,7 +123,9 @@ function printHelp() {
 Kineti OS - safe runtime for AI coding agents
 
 Commands:
-  kineti init          Set up project rules and Cursor/Claude MCP
+  kineti init          Install agent instructions and skills
+  kineti state init    Create local project state and lock a goal
+  kineti seed          Create missing CI state from kineti.config.json
   kineti companion     Open visual dashboard (http://127.0.0.1:8788)
   kineti mcp           Start MCP server
   kineti test -- <cmd> Run tests and save proof
@@ -129,6 +134,6 @@ Commands:
   kineti status        Show task and gate state
   kineti verify        Check test proof before commit
   kineti swarm <goal>  Run multi-agent task
-  kineti ci            Run PR check
+  kineti ci            Check required test evidence and project gates
 `);
 }

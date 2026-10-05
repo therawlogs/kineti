@@ -3,10 +3,10 @@
 //! Developer safety harness, shadow workspace isolation, and native Outcome Verification Tickets.
 //!
 //! ## Core Primitives
-//! - **[`ovt`]**: Asymmetric dual-signed Outcome Verification Tickets with authority separation ($id_w \neq id_r$).
-//! - **[`shadow`]**: Git worktree shadow workspace isolation.
+//! - **[`ovt`]**: Ed25519 dual-signed tickets; public-key trust remains the caller's responsibility.
+//! - **[`shadow`]**: Git worktree separation for file edits, not a security sandbox.
 //! - **[`cvg`]**: Causal Value Graph and Directional Normalized Trust-Weighted Impact (DNTI) with loss aversion.
-//! - **[`signer`]**: Hardware-backed signing abstraction with software fallback.
+//! - **[`signer`]**: In-memory Ed25519 signer; no hardware key backend is included.
 
 #![deny(missing_docs)]
 #![warn(clippy::all)]
@@ -26,5 +26,5 @@ pub use dnti::{
 pub use ovt::{OutcomeVerificationTicket, OvtCoordinator, OvtError};
 pub use shadow::ShadowWorkspace;
 pub use signer::{
-    confirm_prompt, enclave_available, needs_human_confirm, HardwareSigner, SoftwareSigner,
+    confirm_prompt, enclave_available, needs_human_confirm, SignerBackend, SoftwareSigner,
 };
