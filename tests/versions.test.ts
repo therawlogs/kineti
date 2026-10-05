@@ -184,7 +184,7 @@ describe("repo version and layout drift guards", () => {
   test("release workflow validates packages before publishing them", () => {
     const workflow = read(".github/workflows/release.yml");
     expect(workflow).toContain("npm pack --dry-run");
-    expect(workflow).toContain("cargo publish --workspace --dry-run");
+    expect(workflow).toContain("cargo package --workspace --locked --offline");
     expect(workflow).toContain("Require unused npm version");
     expect(workflow).toContain("Require unused Rust crate versions");
     expect(workflow).toContain("publish-crates:");

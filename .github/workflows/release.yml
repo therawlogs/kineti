@@ -106,13 +106,8 @@ jobs:
       - name: Check npm package contents
         run: bun bin/kineti-evidence.ts run --label release-npm-pack --timeout 300 -- npm pack --dry-run
 
-      - name: Record crates.io package preflight
-        run: |
-          bun bin/kineti-egress.ts record --host crates.io --description "Check crates.io package state during the v0.4.0 release preflight"
-          bun bin/kineti-egress.ts record --host index.crates.io --description "Resolve the Rust package index during the v0.4.0 release preflight"
-
       - name: Check Rust crate packages
-        run: bun bin/kineti-evidence.ts run --label release-crate-pack --timeout 900 -- cargo publish --workspace --dry-run --locked --manifest-path Cargo.toml
+        run: bun bin/kineti-evidence.ts run --label release-crate-pack --timeout 900 -- cargo package --workspace --locked --offline --manifest-path Cargo.toml
 
       - name: Verify every evidence record is fresh
         run: |

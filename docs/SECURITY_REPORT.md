@@ -126,7 +126,7 @@ This review covers the v0.4.0 changes to public CI seeding and required-evidence
 
 ### Findings and limits
 
-1. **Medium — Release environment is not configured.** A GitHub API lookup returned `404` for `registry-release`, and the repository/environment secret listings did not show registry credentials. Configure that environment with required human reviewers and add `CARGO_REGISTRY_TOKEN` and a package-limited `NPM_TOKEN`. Workflow YAML alone cannot create these protection rules. Do not push a release tag until the environment and secrets are confirmed.
+1. **Medium — Required reviewer is missing from the release environment.** The first GitHub check returned `404` for `registry-release`. After setup, GitHub confirmed the environment exists, the names `CARGO_REGISTRY_TOKEN` and `NPM_TOKEN` are present, and the tag policy allows `v*`; no secret values were read. The environment currently has zero required reviewers. Add at least one human reviewer before pushing a release tag. Workflow YAML alone cannot create or enforce this protection rule.
 2. **Low — Registry uploads cannot be rolled back.** Cargo crates publish in dependency order, npm follows, and the GitHub release comes last. A partial registry publish may leave some v0.4.0 versions live if a later upload fails. Package dry-runs run before publication; the npm publish step disables package scripts, and the Cargo upload skips a second build because the package was already verified.
 3. **Design limit — Signatures are not identity proof.** OVT verification requires caller-supplied trusted public keys. It does not prove the key owner, the truth of evidence, or independent worker and reviewer control.
 4. **Design limit — Worktrees are not sandboxes.** They separate file changes only; they do not restrict processes, credentials, network access, or host access.
@@ -134,4 +134,4 @@ This review covers the v0.4.0 changes to public CI seeding and required-evidence
 
 ### Verdict
 
-No critical or high code findings were identified in this review. The registry-release GitHub environment and its protected secrets remain an open ship prerequisite until confirmed by a repository administrator. This report is not a signed safety certificate.
+No critical or high code findings were identified in this review. The missing required reviewer remains an open ship prerequisite. This report is not a signed safety certificate.
