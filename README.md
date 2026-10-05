@@ -1,4 +1,4 @@
-# Kineti OS `v0.3.9`
+# Kineti OS `v0.4.0`
 
 [![npm version](https://img.shields.io/npm/v/kineti.svg?color=teal)](https://www.npmjs.com/package/kineti)
 [![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
@@ -35,16 +35,16 @@ breaker reset by human (exit code 0)
 Rust core with a hash-chained ledger and a commit check. Spend breaker exits with code 3 at 95% of recorded spend.
 
 ### 2. TypeScript Governance Control Plane (`bin/`, `src/`)
-- **13-Stage Software Factory**: Strict stage-gated lifecycle ensuring specifications, implementations, and test proofs precede release.
+- **13-Stage Project State**: A local workflow record for a goal, stage, and named gates.
 - **Transactional SAGA Undo Stack**: Newest-first rollback of inverses the agent registered. A failed inverse prints `rollback incomplete`, exits 1, and that step stays pending.
-- **Cryptographic Evidence Binding**: Cryptographic SHA-256 receipts bound to exact workspace code fingerprints via `kineti-evidence.ts`.
-- **Apple HIG Visual Companion**: Local web dashboard built with Apple Human Interface Guidelines (78 KB HTML, 15 KB gzipped, zero runtime JS frameworks).
-- **Universal Model Context Protocol (MCP)**: 14 native governance tools exposed to Cursor, Claude Code, Antigravity, and Codex.
+- **Workspace-bound Test Receipts**: Local test exit codes and SHA-256 workspace fingerprints via `kineti-evidence.ts`; receipts are not signed certificates.
+- **Apple HIG Visual Companion**: A local dashboard for project state, activity, team details, and local budgets.
+- **Model Context Protocol (MCP)**: 14 tools: 13 governance tools plus the plain-talk helper, available to compatible local hosts.
 
-### 3. Verified Test Counts & Evaluation Roadmap
-- **What is verified today**: 191 TypeScript governance tests and 251 native Rust tests (unit plus integration suites), 0 failures (442 total passed tests), bound to workspace code fingerprints through delimited SHA-256 evidence receipts (`bin/kineti-evidence.ts`).
+### 3. Test Inventory & Evaluation Roadmap
+- **Test inventory**: 201 TypeScript governance test cases and 248 native Rust test cases (449 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
-- **Planned, not built**: a public set of 100 hostile tool calls. Nothing else in this list is shipped.
+- **Not provided**: a complete agent sandbox, cloud connector service, or signed deployment safety certificate.
 
 ---
 
@@ -58,8 +58,8 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 # Install globally (latest)
 npm install -g kineti
 
-# Or pin to the current stable release
-npm install -g kineti@0.3.9
+# After v0.4.0 is published to npm, pin to that version
+npm install -g kineti@0.4.0
 
 # Or run directly with npx
 npx kineti --help
@@ -67,7 +67,7 @@ npx kineti --help
 
 ### 2. Connect to Your AI Editor or Agent Host
 
-Run Kineti as an MCP server in your editor for test receipts, registered rollback, and a spend log with a cap. The agent reports each model call and its cost. Kineti adds up what is reported. At 95% of $50 ($47.50) the log command exits with code 3. Your agent or hooks need to act on that code. Kineti does not stop the agent itself yet.
+Run Kineti as an MCP server in your editor for local test receipts, registered rollback, and a spend log. Spend totals are reported by the agent; Kineti does not independently measure provider billing or stop the agent from making calls outside Kineti.
 
 #### Automatic Setup for All Hosts
 Run Kineti's auto-configurator in your project directory:
@@ -77,6 +77,14 @@ kineti init
 This detects your installed hosts (Claude, OpenCode, Codex, Cursor, Antigravity, Gemini, fx.sh), copies the 17 workflow skills into each one, writes the `~/.kineti/repo` pointer, and prints the safety-hook block to paste into your host settings. Use `kineti init --host <name>` to install into a single host, or `kineti init --install-root` to add the project rule files.
 
 MCP server config is **not** written automatically. Add it with the manual step below for your editor.
+
+Initialize local project state separately from editor setup:
+
+```bash
+kineti state init --project my-project --goal "Describe the outcome for this run"
+```
+
+`kineti init` installs agent instructions and skills. `kineti state init` creates local task state. In CI, use `kineti seed` to create only missing state and spend files from `kineti.config.json`; it keeps existing locked state unchanged.
 
 #### Manual Configuration by Editor
 
@@ -138,7 +146,7 @@ Gemini uses the same installer:
 ```bash
 kineti init --host gemini
 ```
-Neither host ships an MCP config block here, so connect the MCP server through your editor's generic MCP settings with the fields in the next section.
+Neither host has a host-specific MCP command here. To connect the server, use the host's MCP settings to add a local stdio server with command `npx` and arguments `-y kineti mcp`. The exact settings format depends on the host.
 
 **Fx.sh**:
 Install skill rules directly to your fx environment:
@@ -180,28 +188,39 @@ kineti mcp
 # Check spend circuit breaker status ($50 default ceiling)
 kineti spend check
 
-# Run tests and save cryptographic proof receipt
+# Run tests and save a local workspace-fingerprinted receipt
 kineti test -- echo hello
 
-# Verify cryptographic test evidence freshness
+# Check local test receipt freshness
 kineti test check --label test
 
-# Run stage-agnostic CI verification
-kineti ci
+# Prepare runtime state on a fresh CI checkout (run before tests and `kineti ci`)
+kineti seed
+
+# Run CI checks with required evidence labels
+kineti ci --require-evidence typecheck --require-evidence unit-tests
 ```
+
+CI workflows should pass every required test label to the gate. For example:
+
+```bash
+kineti ci --require-evidence typecheck --require-evidence unit-tests
+```
+
+The CI report checks the required receipts against the current workspace fingerprint and reports **checks passed** or **blocked**. It is not a signed safety certificate.
 
 ### 4. Native Rust Engine & Crates.io
 
-All 8 native crates are published on [crates.io](https://crates.io):
+The Rust workspace contains eight separately versioned crates on [crates.io](https://crates.io). The v0.4.0 commands below are available after that release finishes publishing.
 
 ```bash
-# Add native core nervous system to your Rust project
+# Add the native core to your Rust project after v0.4.0 is published
 cargo add kineti-core
 
-# Or install the native CLI binary directly
-cargo install kineti-cli@0.3.9
+# Or install the native CLI after v0.4.0 is published
+cargo install kineti-cli@0.4.0
 
-# Run all 251 native Rust unit and integration tests locally
+# Run the native Rust test suite locally
 cargo test --manifest-path core-native/Cargo.toml
 
 # Run the 5 native verification demo flows
@@ -214,14 +233,16 @@ cargo run --package kineti-cli -- test-all
 
 ```text
 kineti/
-├── bin/                 # TypeScript Governance CLI tools (single router: kineti.js)
-│   ├── kineti.ts        # CLI router source (spend, saga, evidence, companion, mcp, ci)
+├── bin/                 # TypeScript governance tools (single router: kineti.js)
+│   ├── kineti.ts        # CLI router source
+│   ├── kineti-seed.ts   # Creates missing CI state and spend files from config
 │   ├── kineti-spend.ts  # Self-reported spend circuit breaker ($50 ceiling, exit code 3, trips on recorded totals)
 │   ├── kineti-saga.ts   # LIFO undo stack & transactional rollback
-│   ├── kineti-evidence.ts # Delimited SHA-256 test proofs bound to git tree hashes
-│   ├── kineti-companion.ts # Apple HIG visual companion server (loopback only)
+│   ├── kineti-evidence.ts # Test exit codes with workspace fingerprints
+│   ├── kineti-ci.ts    # Required evidence and local state report
+│   ├── kineti-companion.ts # Local dashboard server (loopback only)
 │   └── kineti-mcp.ts    # Model Context Protocol (MCP) server
-├── core-native/         # Pure Rust Nervous System Workspace (8 crates, 0 external dependencies)
+├── core-native/         # Native Rust workspace (8 crates; harness uses Ed25519 library)
 │   ├── Cargo.toml       # Workspace manifest
 │   └── crates/
 │       ├── kineti-core/ # Double-buffered snapshots, HLC, Kernel, Commit Gate
@@ -230,17 +251,17 @@ kineti/
 │       ├── kineti-connectors/ # Protocolized connectors & permission gating
 │       ├── kineti-actions/ # Action execution & confirmation gates
 │       ├── kineti-gateway/ # Messaging webhooks & bridge
-│       ├── kineti-harness/ # Outcome Verification Tickets (OVT) & Shadow workspaces
+│       ├── kineti-harness/ # Ed25519 OVT tools & Git worktree file separation
 │       └── kineti-cli/  # Standalone native CLI binary
 ├── src/                 # Shared TypeScript libraries (governance, scheduler, security)
 ├── skills/              # 17 agent workflow skills (installed by setup.sh)
 ├── hosts/               # 7 editor configurations (Claude, Cursor, Codex, OpenCode, Gemini, Antigravity, fx.sh)
 ├── hooks/               # 6 hook text blocks for host setup
-├── public/              # Static documentation & legal assets
+├── public/              # Static legal pages
 ├── website/             # Static landing page (index.html plus video poster assets)
 ├── docs/                # Architecture specifications & security reports
 │   ├── README.md        # Docs index
-│   ├── PLAN.md          # Canonical production architecture spec
+│   ├── PLAN.md          # Historical architecture proposal
 │   ├── ARCHITECTURE.md  # Rust core internals (not the CLI pitch)
 │   ├── research/        # Research notes, not part of the CLI
 │   ├── SECURITY_REPORT.md # Security audit & origin gating analysis
@@ -248,26 +269,26 @@ kineti/
 │   ├── HOWTO-daily-loop.md # Daily operating loop
 │   ├── SWARM_COORDINATION_AND_IDENTITY.md # Multi-agent identity & signing
 │   └── MULTI_REPO_FLEET_AND_INTEGRATIONS.md # Fleet and integration design
-├── tests/               # 191 TypeScript governance & causal test suites
+├── tests/               # TypeScript governance and utility tests
 ├── .github/             # GitHub Actions CI, issue forms, PR template, Dependabot
 ├── AGENTS.md            # Universal rules for AI agents in this repository
 ├── SECURITY.md          # Vulnerability disclosure policy & SLAs
 ├── CONTRIBUTING.md      # Development setup, testing, and DCO sign-off
 ├── LICENSE              # MIT License
-└── package.json         # kineti@0.3.9 npm package manifest
+└── package.json         # Kineti npm package manifest
 ```
 
 ---
 
 ## Verification & Safety Properties
 
-Today Kineti provides local ledger tooling, spend circuit breakers, and evidence verification that agents invoke during their lifecycle (conventions in `hooks/` plus self-reported proofs via `kineti-spend.ts` and `kineti-evidence.ts`). An in-line MCP proxy gate with deterministic allow/ask/deny interception is in active sprint.
+Today Kineti provides local ledger tooling, registered rollback, spend totals based on agent reports, and test receipts bound to a workspace fingerprint. These tools do not mediate every agent action.
 
-1. **Safe Rust**: `#![forbid(unsafe_code)]` enforced across all critical crates.
-2. **Spending Ceiling**: `$50.00` default cap per project, settable at mirror time ($1-$1000); tooling exits with code 3 at 95% of recorded totals.
-3. **Cryptographic Proof Binding**: Test runs recorded as SHA-256 evidence receipts bound to the exact code fingerprint.
-4. **Clean No over Dirty Yes**: Agents report genuine impossibilities clearly rather than silently violating budget or counterparty boundaries.
-5. **Planned, not built**: a public set of 100 hostile tool calls. Nothing else in this list is shipped.
+1. **Safe Rust**: `#![forbid(unsafe_code)]` is enforced in the listed Rust crates.
+2. **Recorded-spend limit**: `$50.00` default local ceiling, configurable in project settings; spend is agent-reported, and the logging command exits with code 3 near the recorded limit.
+3. **Workspace-bound test receipts**: Test runs record an exit code and SHA-256 workspace fingerprint. The receipt is local and is not a signed certificate.
+4. **Agent guidance**: Installed workflow instructions ask agents to report genuine impossibilities rather than silently exceed stated limits. Kineti does not enforce this across every tool or action.
+5. **Prompt-injection tests**: The repository includes 550 test inputs for the local prompt filter. Passing that suite is not a general security guarantee. A public 100 hostile-tool-call benchmark is not included.
 
 ---
 

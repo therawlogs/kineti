@@ -2,7 +2,7 @@
 name: ship
 description: Clean commits and a pull request, proof-gated. Stage 11 of 13.
 stage: ship
-version: 0.3.9
+version: 0.4.0
 triggers:
   - ship it
   - open a pull request
@@ -49,16 +49,24 @@ Final gate check:
 4. **Coverage delta**: report test coverage change vs main; new code needs
    tests or a written reason.
 5. **Open the pull request**: summary from brief + spec, test results,
-   coverage delta, security-report link, screenshots index from qa.
-6. **Never push straight to main.** The PR is the deliverable. If this
-   repo has no review process and the human says merge, merge — but only
-   after they say it.
-7. Record deploy target if the project auto-deploys on merge, then:
+   coverage delta, current security-report link, and QA screenshots when
+   the change includes a visual interface.
+6. **Never push straight to main.** The PR is the deliverable. Merge only
+   after required reviews, CI, and the human's approval.
+7. For a version release, confirm registry ownership, unused target
+   versions, and the protected `registry-release` environment before
+   creating the tag. The v0.4.0 release workflow dry-runs packages, then
+   publishes the eight Rust crates, npm, and GitHub release assets in that
+   order. The npm build/typecheck runs before its token is provided, and the
+   publish step does not run package scripts. A failed earlier publish blocks
+   later jobs; registry uploads that already succeeded cannot be rolled back.
+8. Record deploy target if the project auto-deploys on merge, then:
    `bun "$K/kineti-state.ts" set stage 12`.
 
 ## Outputs
 
-Clean commits, pull request URL, FRESH ship proof record, stage 12.
+Clean commits, pull request URL, FRESH ship proof record, registry and
+GitHub release links after publication, stage 12.
 
 ## Hard rules
 

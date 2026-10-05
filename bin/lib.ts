@@ -111,7 +111,7 @@ export interface Limits {
   safetyFactor: number;
 }
 
-/** Per-project ceiling bounds. Only the human sets it, every change is audit logged. */
+/** Local project ceiling bounds. Only the human sets it, every change is audit logged. */
 export const MIN_PROJECT_CEILING_USD = 1;
 export const MAX_PROJECT_CEILING_USD = 1000;
 export const DEFAULT_PROJECT_CEILING_USD = 50;
@@ -124,8 +124,8 @@ export function loadLimits(cwd: string = process.cwd()): Limits {
   // Bad config must never disable the breaker (fail closed).
   const rawGlobal = Number(s.global ?? 50);
   let globalUsd = Number.isFinite(rawGlobal) && rawGlobal > 0 ? rawGlobal : 50;
-  // Per-project ceiling set at mirror time overrides the repo default.
-  // Invalid or missing mirror ceiling falls back to the config value (fail closed).
+  // The local project ceiling overrides the repository default.
+  // Invalid or missing values fall back to the config value (fail closed).
   const mirror = readJson<{ ceiling?: unknown }>(path.join(cwd, ".kineti", "mirror.json"));
   const rawCeiling = Number(mirror?.ceiling);
   if (
@@ -548,4 +548,3 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
 
   return installed;
 }
-

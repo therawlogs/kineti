@@ -6,9 +6,9 @@
 
 import path from "node:path";
 import { projectKdir, readJson, readJsonl, writeJson, loadLimits } from "./lib.ts";
-import { recommend, isAutoSwitch, setAutoSwitch } from "./kineti-models.ts";
+import { recommend } from "./kineti-models.ts";
 import { appendAudit } from "./kineti-audit.ts";
-import { livePairing, makePairing, minutesLeft, revokePairing, PAIR_LINK } from "./kineti-pairing.ts";
+import { dropLink } from "./kineti-pairing.ts";
 
 export type Intent =
   | "spend" | "undo" | "proof" | "status"
@@ -48,7 +48,7 @@ const FIX_PATTERNS = [
 export function classifyIntent(raw: string): Intent {
   const t = raw.toLowerCase().trim();
   if (!t) return "help";
-  // Model auto-switch phrases first: they contain on/off words of their own.
+  // Model suggestion phrases first: they also contain words used by other intents.
   if (/\bwhich model|best model|switch model|change model|faster model|stronger model|auto.switch|auto switch\b/.test(t)) return "model";
   if (/\brevoke cloud link|unmirror|drop cloud link|unlink device\b/.test(t)) return "dashboard";
   if (/\bkineti.dashboard|ui dashboard|cloud link|pair device|pairing code|app\.getkineti\b/.test(t)) return "dashboard";
@@ -99,35 +99,35 @@ function undoReply(): string {
   }
   const names = pending.slice(-3).map((l) => String(l.label || "change")).join(", ");
   return (
-    `I found ${pending.length} change${pending.length === 1 ? "" : "s"} that can be undone, newest first. ` +
-    `Latest: ${names}. Undo needs your yes in this chat.\n` +
-    `Choices:\n1. Yes, undo the latest change.\n2. No, keep everything.\n3. Show me what would be undone first.`
+    `I found ${pending.length} registered undo step${pending.length === 1 ? "" : "s"}, newest first. ` +
+    `Latest: ${names}. This reply helper does not execute the rollback.\n` +
+    `Choices:\n1. Review the steps, then run kineti undo in a human terminal.\n2. Keep everything.\n3. Show the recorded steps.`
   );
 }
 
 function proofReply(): string {
   const records = readJsonl<any>(path.join(projectKdir(), "evidence.jsonl"));
   if (records.length === 0) {
-    return `No test proof saved yet.\nChoices:\n1. Run the checks now.\n2. Keep working, check later.`;
+    return `No local test receipt is saved yet.\nChoices:\n1. Run the checks with kineti test.\n2. Keep working, check later.`;
   }
   const last = records[records.length - 1];
   const ageMin = Math.round((Date.now() - new Date(last.at).getTime()) / 60000);
   const ageText = ageMin <= 1 ? "just now" : `${ageMin} minutes ago`;
   if (last.exit_code !== 0) {
     return (
-      `Last check "${last.label}" ran ${ageText} and failed. Nothing shipped from it.\n` +
-      `Choices:\n1. Fix it now.\n2. Show me the failure.\n3. Skip for now.`
+      `The latest local check "${last.label}" failed ${ageText} ago.\n` +
+      `Choices:\n1. Ask your coding agent to fix it.\n2. Show the failure.\n3. Skip for now.`
     );
   }
   if (ageMin > 240) {
     return (
-      `Last passing check "${last.label}" ran ${ageText}, which is old. I will re-run before shipping.\n` +
-      `Choices:\n1. Re-run the checks now.\n2. Keep working.`
+      `Last passing receipt "${last.label}" ran ${ageText}, which is old. Re-run the check before shipping.\n` +
+      `Choices:\n1. Re-run with kineti test.\n2. Keep working.`
     );
   }
   return (
-    `Tests passed ${ageText} ("${last.label}"). Proof is saved and fresh.\n` +
-    `Choices:\n1. Keep going.\n2. Re-run the checks.`
+    `The local receipt for "${last.label}" is passing and ${ageText}. It is not a signed certificate.\n` +
+    `Choices:\n1. Keep going.\n2. Re-run with kineti test.`
   );
 }
 
@@ -137,7 +137,7 @@ function statusReply(): string {
   const stage = state.stage ?? "not started";
   return (
     `Goal: ${goal}\nStep: ${stage} of 13.\n` +
-    `Choices:\n1. Continue from here.\n2. Change the goal in plain words.\n3. Show spending.`
+    `Choices:\n1. Continue in your coding agent.\n2. Set local state with kineti state set root_goal.\n3. Show recorded spending.`
   );
 }
 
@@ -152,23 +152,23 @@ function approveYesReply(): string {
   const n = Number(state.stage);
   const name = STAGE_NAMES[n] || "next step";
   return (
-    `Got it, yes. I will move ahead with ${name}. Safety, spending, and proof checks run in the background.\n` +
-    `Choices:\n1. Go.\n2. Wait, show me the short plan first.`
+    `Got it, yes. The next workflow stage is ${name}. This reply helper does not run the work or checks.\n` +
+    `Choices:\n1. Continue in your coding agent.\n2. Ask for the short plan first.`
   );
 }
 
 function approveFixReply(userText: string): string {
   const short = userText.slice(0, 200);
   return (
-    `Got it, I will change course based on this: "${short}". Nothing is final until you say yes.\n` +
-    `Choices:\n1. Show me the updated short plan.\n2. Keep the old plan.`
+    `Got it. Your coding agent should use this correction: "${short}". This helper does not change files.\n` +
+    `Choices:\n1. Ask your agent to show an updated plan.\n2. Keep the old plan.`
   );
 }
 
 function swarmBudgetReply(): string {
   return (
-    `I see a team here. Each helper can get its own budget so one cannot spend it all.\n` +
-    `Choices:\n1. Yes, give separate budgets.\n2. No, share one budget.\n3. Show current spending first.`
+    `I can save proposed budget targets for a team, but Kineti does not enforce these against each agent's usage.\n` +
+    `Choices:\n1. Save proposed targets.\n2. Use one shared target.\n3. Show recorded spending.`
   );
 }
 
@@ -197,92 +197,48 @@ function swarmSaveReply(userText: string): string {
 }
 
 function modelReply(userText: string): string {
-  const low = userText.toLowerCase();
-  if (/\bauto.switch\s+on\b|\bauto switch on\b|\bturn auto on\b/.test(low)) {
-    setAutoSwitch(true);
-    try { appendAudit("user", "model.auto_on", "enabled from chat"); } catch {}
-    return `Auto-switch is on. I will move between tools on my own and log every switch.\nChoices:\n1. Keep going.\n2. Turn auto-switch off.`;
-  }
-  if (/\bauto.switch\s+off\b|\bauto switch off\b|\bturn auto off\b/.test(low)) {
-    setAutoSwitch(false);
-    try { appendAudit("user", "model.auto_off", "disabled from chat"); } catch {}
-    return `Auto-switch is off. I will always ask first.\nChoices:\n1. Keep going.\n2. Ask me which tool fits this task.`;
-  }
   const pick = recommend(userText);
-  const auto = isAutoSwitch();
   try { appendAudit("user", "model.suggest", `${pick.task}: ${pick.host}/${pick.model}`); } catch {}
-  if (auto) {
-    return (
-      `This looks like ${pick.task} work. Moving to ${pick.host} (${pick.model}): ${pick.reason}.\n` +
-      `Logged with reason.\nChoices:\n1. Go.\n2. Stay here instead.`
-    );
-  }
   return (
-    `For this ${pick.task} work, ${pick.host} (${pick.model}) fits best: ${pick.reason}.\n` +
-    `I will not move without your yes.\nChoices:\n1. Yes, switch.\n2. Stay here.\n3. Turn on auto-switch.`
+    `Static suggestion for ${pick.task}: ${pick.host} (${pick.model}) — ${pick.reason}. ` +
+    `Kineti does not switch your active tool or model.\nChoices:\n1. Use the suggestion yourself.\n2. Stay with your current tool.`
   );
 }
 
 function helpReply(): string {
   return (
-    `Just talk normal. I handle safety, spending, undo, and proof in the background. ` +
-    `You only see results and advice. Say "Kineti off" any time to pause me.\n` +
-    `Try:\n1. Tell me your idea in one sentence.\n2. Ask "how much have I spent?".\n3. Ask "where are we?".`
+    `This helper answers local status questions and offers suggestions. Your coding agent must call Kineti tools to run checks or make changes.\n` +
+    `Try:\n1. Ask "how much have I spent?".\n2. Ask "where are we?".\n3. Ask "did the last test pass?".`
   );
 }
 
 function syncReply(): string {
   const s = readJson<{ sync_enabled?: boolean }>(path.join(projectKdir(), "kineti.json"));
   const on = s?.sync_enabled === true;
-  if (!on) {
-    return (
-      `Device sync is off. When on, your notes move between your devices in encrypted form. ` +
-      `Your goal is never overwritten by an import.\n` +
-      `Choices:\n1. Turn sync on.\n2. Keep it off.`
-    );
-  }
   return (
-    `Device sync is on. Exports are passphrase-encrypted, imports merge notes and never touch your goal.\n` +
-    `Choices:\n1. Export my notes.\n2. Import on this device.\n3. Turn sync off.`
+    `Automatic device sync is not available. The saved preference is ${on ? "on" : "off"}; this version supports manual encrypted export and import only.\n` +
+    `Choices:\n1. Keep working locally.\n2. Use the manual export/import command.`
   );
 }
 
 function dashboardReply(userText: string): string {
   const low = userText.toLowerCase();
   if (/\brevoke|unmirror|drop|unlink\b/.test(low)) {
-    const had = revokePairing("user");
-    if (!had) return `There is no cloud link to drop. Local dashboard still works.\nChoices:\n1. Make a cloud link.\n2. Keep local only.`;
-    return `Cloud link dropped. Stored tokens deleted on this device.\nChoices:\n1. Make a new link.\n2. Keep local only.`;
-  }
-  const live = livePairing();
-  if (live) {
-    return (
-      `Your code is ${live.code}. Open ${PAIR_LINK} and log in with GitHub, then type the code. ` +
-      `Valid ${minutesLeft(live)} more min, one use, project ${live.project}.\n` +
-      `Choices:\n1. Make a fresh code.\n2. Drop the link.\n3. Keep local only.`
-    );
-  }
-  if (/\b(yes|make|create|generate)\b/.test(low)) {
-    const p = makePairing("user");
-    return (
-      `Your code is ${p.code}. Open ${PAIR_LINK} and log in with GitHub, then type the code. ` +
-      `Valid ${minutesLeft(p)} min, one use, project ${p.project}. Nothing mirrors until you approve that project too.\n` +
-      `Choices:\n1. Drop the link.\n2. Keep local only.`
-    );
+    const result = dropLink("user");
+    return `${result.hadPairing || result.hadCloud ? "Local pairing data removed." : "No local pairing data was found."} No cloud service is connected.\nChoices:\n1. Keep using the local dashboard.\n2. Ask about another task.`;
   }
   return (
-    `Do you want a UI cloud link? The web dashboard then shows the same screens as here.\n` +
-    `Choices:\n1. Yes, make a cloud link.\n2. No, local only.`
+    `Cloud dashboard linking is not available in this release. The Companion stays on this device; no pairing code was made.\n` +
+    `Choices:\n1. Keep using the local dashboard.\n2. Ask about another task.`
   );
 }
 
 function forgetReply(userText: string): string {
   const short = userText.slice(0, 160);
   return (
-    `I will delete "${short}" everywhere: chat memory, vector index, and connected service caches. ` +
-    `Your goal and identity stay. You get a written proof receipt with count and time.\n` +
-    `Nothing is deleted until you say yes.\n` +
-    `Choices:\n1. Yes, delete it and show proof.\n2. Show me what would be deleted first.\n3. Keep everything.`
+    `I cannot delete or verify deletion of stored data in this release. Nothing was changed for "${short}". ` +
+    `Delete it directly in the service that stores it.\n` +
+    `Choices:\n1. Keep the data unchanged.\n2. Tell me what you want to do instead.`
   );
 }
 
@@ -294,21 +250,19 @@ function taskReply(userText: string): string {
   const short = userText.slice(0, 160);
   if (!hasGoal) {
     return (
-      `Noted: "${short}". I will treat that as your goal and lock it. ` +
-      `Then I will ask only what is missing.\n` +
-      `Choices:\n1. Yes, lock it.\n2. Let me rephrase.`
+      `Noted: "${short}". This helper does not lock a goal or start work. Set local state with kineti state init, or continue in your editor agent.\n` +
+      `Choices:\n1. Set the goal in project state.\n2. Rephrase the task.`
     );
   }
   if (RISKY_WORDS.test(userText.toLowerCase())) {
     return (
-      `This looks costly or hard to undo: "${short}". I will check the risk first ` +
-      `and nothing goes out until you say yes in plain words.\n` +
-      `Choices:\n1. Check the risk and show me.\n2. Go ahead after the check.\n3. Stop.`
+      `This may be costly or hard to undo: "${short}". This helper does not execute or block the action. Review it in your coding agent before proceeding.\n` +
+      `Choices:\n1. Review the risks.\n2. Continue in your coding agent.\n3. Stop.`
     );
   }
   return (
-    `Noted: "${short}". I will fold it into your current goal and run safety and spending checks quietly.\n` +
-    `Choices:\n1. Go ahead.\n2. Show me the short plan first.\n3. Stop, I will rephrase.`
+    `Noted: "${short}". This helper does not change files or run checks. Continue the task in your coding agent.\n` +
+    `Choices:\n1. Continue in your coding agent.\n2. Ask for a short plan.\n3. Rephrase the task.`
   );
 }
 
@@ -318,16 +272,16 @@ export function route(raw: string): RouterReply {
     if (isEnabled()) return { intent, reply: `I am already on.\nChoices:\n1. Keep going.\n2. Turn me off.` };
     setEnabled(true);
     try { appendAudit("user", "kineti.on", "enabled from chat"); } catch {}
-    return { intent, reply: `I am on now. Safety, spending, undo, and proof checks run again.\nChoices:\n1. Continue where we left off.\n2. Show status.` };
+    return { intent, reply: `The plain-talk helper is on. Your coding agent still needs to call Kineti tools to run checks.\nChoices:\n1. Continue in your coding agent.\n2. Show local status.` };
   }
   if (!isEnabled()) {
-    return { intent, reply: `Kineti is off, so I am not running checks.\nChoices:\n1. Turn me back on.\n2. Keep me off.` };
+    return { intent, reply: `The plain-talk helper is off. This does not stop your coding agent or other tools.\nChoices:\n1. Turn the helper back on.\n2. Keep it off.` };
   }
   switch (intent) {
     case "kineti_off":
       setEnabled(false);
       try { appendAudit("user", "kineti.off", "disabled from chat"); } catch {}
-      return { intent, reply: `I am off now. No checks run until you say "Kineti on".\nChoices:\n1. Turn me back on.\n2. Keep me off.` };
+      return { intent, reply: `The plain-talk helper is off. This does not stop your coding agent or other tools.\nChoices:\n1. Turn the helper back on.\n2. Keep it off.` };
     case "spend": return { intent, reply: spendReply() };
     case "undo": return { intent, reply: undoReply() };
     case "proof": return { intent, reply: proofReply() };

@@ -1,12 +1,13 @@
 import { describe, test, expect } from "bun:test";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 const REPO = path.resolve(import.meta.dir, "..");
 
 function makeCtx(): { root: string; cwd: string; machine: string } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kineti-exec-safe-"));
+  const scratch = path.join(REPO, ".kineti", "test-exec-safe");
+  fs.mkdirSync(scratch, { recursive: true });
+  const root = fs.mkdtempSync(path.join(scratch, "run-"));
   const cwd = path.join(root, "proj");
   const machine = path.join(root, "machine");
   fs.mkdirSync(cwd, { recursive: true });

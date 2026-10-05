@@ -3,13 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   livePairing, makeCode, makePairing, markUsed, minutesLeft, revokePairing, PAIR_TTL_MS,
-  claimPairing, cloudStatus, dropLink, pollPairing, getMirror, setMirror,
+  cloudStatus, dropLink, pollPairing, getMirror, setMirror,
 } from "../bin/kineti-pairing.ts";
 import { loadLimits } from "../bin/lib.ts";
 
 const PAIR_FILE = path.join(process.cwd(), ".kineti", "pairing.json");
 const MIRROR_FILE = path.join(process.cwd(), ".kineti", "mirror.json");
 let backup: string | null = null;
+let mirrorBackup: string | null = null;
 let machineBackup: string | undefined;
 let tmpMachine = "";
 
@@ -17,8 +18,13 @@ beforeEach(() => {
   try {
     backup = fs.existsSync(PAIR_FILE) ? fs.readFileSync(PAIR_FILE, "utf8") : null;
   } catch { backup = null; }
+  try {
+    mirrorBackup = fs.existsSync(MIRROR_FILE) ? fs.readFileSync(MIRROR_FILE, "utf8") : null;
+  } catch { mirrorBackup = null; }
   machineBackup = process.env.KINETI_MACHINE_DIR;
-  tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "kineti-pair-"));
+  const machineScratch = path.join(process.cwd(), ".kineti", "test-pairing-machine");
+  fs.mkdirSync(machineScratch, { recursive: true });
+  tmpMachine = fs.mkdtempSync(path.join(machineScratch, "run-"));
   process.env.KINETI_MACHINE_DIR = tmpMachine;
   try { fs.rmSync(PAIR_FILE, { force: true }); } catch {}
 });
@@ -27,6 +33,8 @@ afterEach(() => {
   try {
     if (backup === null) fs.rmSync(PAIR_FILE, { force: true });
     else fs.writeFileSync(PAIR_FILE, backup);
+    if (mirrorBackup === null) fs.rmSync(MIRROR_FILE, { force: true });
+    else fs.writeFileSync(MIRROR_FILE, mirrorBackup, { mode: 0o600 });
     if (machineBackup === undefined) delete process.env.KINETI_MACHINE_DIR;
     else process.env.KINETI_MACHINE_DIR = machineBackup;
     fs.rmSync(tmpMachine, { recursive: true, force: true });
@@ -73,26 +81,19 @@ describe("kineti-pairing cloud link codes", () => {
     expect(fs.existsSync(PAIR_FILE)).toBe(false);
   });
 
-  test("claim stores owner-only tokens and uses the code once", () => {
+  test("cloud state never reports a local pairing code as a live link", () => {
     makePairing("pair-test");
-    const c = claimPairing("pair-test");
-    expect(c?.project).toBe("kineti");
-    expect(livePairing()).toBeNull();
-    expect(claimPairing("pair-test")).toBeNull();
-    const st = cloudStatus();
-    expect(st.linked).toBe(true);
-    expect(JSON.stringify(st)).not.toContain("access_token");
-    const mode = fs.statSync(path.join(tmpMachine, "cloud.json")).mode & 0o777;
-    expect(mode).toBe(0o600);
+    expect(livePairing()).not.toBeNull();
+    expect(cloudStatus()).toEqual({ linked: false, available: false });
+    expect(fs.existsSync(path.join(tmpMachine, "cloud.json"))).toBe(false);
   });
 
-  test("drop removes pairing plus tokens on this device", () => {
+  test("drop removes only local pairing data and makes no cloud claim", () => {
     makePairing("pair-test");
-    claimPairing("pair-test");
     const d = dropLink("pair-test");
     expect(d.hadPairing).toBe(true);
-    expect(d.hadCloud).toBe(true);
-    expect(cloudStatus().linked).toBe(false);
+    expect(d.hadCloud).toBe(false);
+    expect(cloudStatus()).toEqual({ linked: false, available: false });
     expect(fs.existsSync(PAIR_FILE)).toBe(false);
     const again = dropLink("pair-test");
     expect(again.hadPairing).toBe(false);
@@ -128,8 +129,9 @@ describe("kineti-pairing cloud link codes", () => {
   });
 
   test("mirror ceiling drives the spend breaker, invalid falls back to 50", () => {
-    const os = require("node:os") as typeof import("node:os");
-    const dir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "kineti-limits-"));
+    const scratch = path.join(process.cwd(), ".kineti", "test-pairing-limits");
+    fs.mkdirSync(scratch, { recursive: true });
+    const dir = fs.mkdtempSync(path.join(scratch, "run-"));
     try {
       fs.mkdirSync(path.join(dir, ".kineti"), { recursive: true });
       expect(loadLimits(dir).globalUsd).toBe(50);

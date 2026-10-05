@@ -13,7 +13,9 @@ beforeEach(() => {
     backup = fs.existsSync(SCHEMA_FILE) ? fs.readFileSync(SCHEMA_FILE, "utf8") : null;
   } catch { backup = null; }
   machineBackup = process.env.KINETI_MACHINE_DIR;
-  tmpMachine = fs.mkdtempSync(path.join(fs.realpathSync("/tmp"), "kineti-schema-"));
+  const machineScratch = path.join(process.cwd(), ".kineti", "test-schema-machine");
+  fs.mkdirSync(machineScratch, { recursive: true });
+  tmpMachine = fs.mkdtempSync(path.join(machineScratch, "run-"));
   process.env.KINETI_MACHINE_DIR = tmpMachine;
   try { fs.rmSync(SCHEMA_FILE, { force: true }); } catch {}
 });

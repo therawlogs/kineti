@@ -380,36 +380,7 @@ impl GatewayRouter {
             };
         }
 
-        // -------------------------------------------------------------------
-        // AUTONOMOUS CAPABILITIES: K2K, SPATIAL MEMORY & EXTERNAL PURGE
-        // -------------------------------------------------------------------
-        // 1. External Data Purge
-        if event.candidate_action.as_deref() == Some("purge_external_data") {
-            let receipt = self
-                .memory
-                .purge
-                .execute_external_purge(&event.user_id, &[]);
-            return DispatchReceipt {
-                reply: OutboundReply::Text {
-                    body: format!(
-                        "External data purged: {} records tombstoned across {} sources. Root goal intact: {}.",
-                        receipt.records_purged,
-                        receipt.sources_cleared.len(),
-                        receipt.root_goal_intact
-                    ),
-                },
-                source: event.source,
-                triage_latency_micros: 45,
-                reflex_short_circuit: true,
-                resolved_scope: None,
-                resolved_advice: None,
-                action_gate_passed: true,
-                drift_evaluation: None,
-                microcents_spent: 0,
-            };
-        }
-
-        // 2. K2K Inter-Agent Mesh Ingress
+        // K2K Inter-Agent Mesh Ingress
         if event.source == EventSource::K2KMessage {
             let mut k2k = self.k2k.write().unwrap();
             let recipient_agent_id = k2k.agent_id().to_string();
@@ -2144,7 +2115,7 @@ mod tests {
     }
 
     #[test]
-    fn test_router_external_data_purge_dispatch() {
+    fn test_router_does_not_claim_external_data_was_purged() {
         let router = GatewayRouter::new();
         let quota = UserSpendQuota::new("u_purge_user", 500_000_000);
 
@@ -2152,12 +2123,12 @@ mod tests {
         purge_event.candidate_action = Some("purge_external_data".to_string());
 
         let receipt = router.dispatch_event(purge_event, &quota);
-        assert!(receipt.reflex_short_circuit);
+        assert!(!receipt.action_gate_passed);
         if let OutboundReply::Text { body } = receipt.reply {
-            assert!(body.contains("External data purged:"));
-            assert!(body.contains("Root goal intact: true"));
+            assert!(body.contains("Unsupported action"));
+            assert!(!body.contains("purged"));
         } else {
-            panic!("Expected external data purge reply");
+            panic!("Expected unsupported action reply");
         }
     }
 }

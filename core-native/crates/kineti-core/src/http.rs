@@ -1,6 +1,6 @@
 //! Real HTTP execution engine using standard system curl.
 //!
-//! Enforces user-agent "OpenAI File Downloader, XaiImageApiFetch/1.0", timeout,
+//! Uses a truthful Kineti user-agent, enforces a timeout,
 //! status code capture, and zero-external-dependency execution.
 
 use std::process::Command;
@@ -32,7 +32,7 @@ pub struct HttpResponse {
 }
 
 /// Standard User-Agent header enforced across all curl calls.
-pub const KINETI_USER_AGENT: &str = "OpenAI File Downloader, XaiImageApiFetch/1.0";
+pub const KINETI_USER_AGENT: &str = concat!("Kineti/", env!("CARGO_PKG_VERSION"));
 
 /// Executes an HTTP request using system curl and returns the status and response body.
 pub fn execute_http(req: &HttpRequest) -> Result<HttpResponse, String> {
@@ -177,7 +177,9 @@ mod tests {
     fn test_user_agent_format() {
         assert_eq!(
             KINETI_USER_AGENT,
-            "OpenAI File Downloader, XaiImageApiFetch/1.0"
+            concat!("Kineti/", env!("CARGO_PKG_VERSION"))
         );
+        assert!(!KINETI_USER_AGENT.contains("OpenAI"));
+        assert!(!KINETI_USER_AGENT.contains("Xai"));
     }
 }

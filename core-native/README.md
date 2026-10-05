@@ -1,10 +1,10 @@
 # Kineti Native Engine (`core-native/`)
 
-Pure Rust workspace (8 crates) with zero external crate dependencies and `#![forbid(unsafe_code)]` in critical crates.
+Pure Rust workspace (8 crates). Critical crates forbid `unsafe`; `kineti-harness` uses the maintained `ed25519-dalek` library for OVT signatures. The Rust credential-vault module is an experimental legacy prototype and must not be used for real secrets.
 
 ## Why hashing is hand-rolled
 
-`kineti-core` implements BLAKE3 and SHA-256 in pure Rust instead of depending on audited crates. This is a deliberate supply-chain decision: the provenance kernel is the trust root for content addressing, so it must build with no third-party code. The tradeoff is correctness burden, carried by standard golden-vector tests in `crates/kineti-core/src/kernel.rs` (`test_sha256_golden_vector`, `test_blake3_golden_vector`).
+`kineti-core` implements BLAKE3 and SHA-256 in pure Rust. The `kineti-harness` crate uses an established Ed25519 library for digital signatures rather than custom signature code.
 
 ## Performance figures
 

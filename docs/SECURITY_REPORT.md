@@ -109,3 +109,29 @@ human-confirmed CLI path.
 No critical findings. Five low/medium findings, all fixed and verified:
 typecheck clean, full suite plus installer smoke test pass with fresh
 evidence (`security-fix-verify`). Gate recommendation: `security: pass`.
+
+---
+
+## v0.4.0 release review — 2026-10-05
+
+This review covers the v0.4.0 changes to public CI seeding and required-evidence checks, native Ed25519 OVT signing, Git worktree creation and rollback, Companion integration limits, npm packaging, and release workflow permissions. The v3.1 findings above remain a historical snapshot.
+
+### Checks performed
+
+- Manual review of the changed trust boundaries and release jobs.
+- `bun audit --json`: no advisories reported for the npm dependency set.
+- `cargo audit` 0.22.2 against both tracked lockfiles: no known advisories reported across 44 crate dependencies per lockfile.
+- `npm pack --dry-run`: confirmed `.kineti/`, `core-native/`, `docs/`, tests, and the local Bun build artifact are excluded. The preview contains 94 files, about 459 KiB unpacked.
+- Added-line scan for common token, private-key, and absolute home-path patterns found no matches. This scan does not certify the full Git history.
+
+### Findings and limits
+
+1. **Medium — Required reviewer is missing from the release environment.** The first GitHub check returned `404` for `registry-release`. After setup, GitHub confirmed the environment exists, the names `CARGO_REGISTRY_TOKEN` and `NPM_TOKEN` are present, and the tag policy allows `v*`; no secret values were read. The environment currently has zero required reviewers. Add at least one human reviewer before pushing a release tag. Workflow YAML alone cannot create or enforce this protection rule.
+2. **Low — Registry uploads cannot be rolled back.** Cargo crates publish in dependency order, npm follows, and the GitHub release comes last. A partial registry publish may leave some v0.4.0 versions live if a later upload fails. Package dry-runs run before publication; the npm publish step disables package scripts, and the Cargo upload skips a second build because the package was already verified.
+3. **Design limit — Signatures are not identity proof.** OVT verification requires caller-supplied trusted public keys. It does not prove the key owner, the truth of evidence, or independent worker and reviewer control.
+4. **Design limit — Worktrees are not sandboxes.** They separate file changes only; they do not restrict processes, credentials, network access, or host access.
+5. **Design limit — Spend is reported.** Kineti does not observe every model call or stop an agent after a spend threshold.
+
+### Verdict
+
+No critical or high code findings were identified in this review. The missing required reviewer remains an open ship prerequisite. This report is not a signed safety certificate.

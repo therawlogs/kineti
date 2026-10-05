@@ -52,7 +52,7 @@ interface EvidenceRecord {
 
 export interface CIReport {
   timestamp: string;
-  verified: boolean;
+  checksPassed: boolean;
   stageName: string;
   stageNumber: number;
   rootGoal: string;
@@ -62,10 +62,22 @@ export interface CIReport {
   spendTripped: boolean;
   evidenceCount: number;
   evidenceFresh: boolean;
+  evidenceChecks: EvidenceCheck[];
   failures: string[];
   badgeUrl: string;
   markdownSummary: string;
   prComment: string;
+}
+
+export interface EvidenceCheck {
+  label: string;
+  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time";
+  at?: string;
+}
+
+export interface CIOptions {
+  requiredEvidenceLabels?: string[];
+  maxEvidenceAgeMinutes?: number;
 }
 
 const STAGE_NAMES: Record<number, string> = {
@@ -84,7 +96,15 @@ const STAGE_NAMES: Record<number, string> = {
   13: "retro",
 };
 
-export function generateCIReport(workspaceRoot: string = process.cwd()): CIReport {
+function markdownSafe(value: string): string {
+  return value
+    .replace(/[\r\n]+/g, " ")
+    .replaceAll("|", "\\|")
+    .replaceAll("`", "'")
+    .replaceAll("@", "@​");
+}
+
+export function generateCIReport(workspaceRoot: string = process.cwd(), options: CIOptions = {}): CIReport {
   const kdir = path.join(workspaceRoot, ".kineti");
   const failures: string[] = [];
 
@@ -92,7 +112,7 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
   const statePath = path.join(kdir, "state.json");
   const state = fs.existsSync(statePath) ? readJson<KinetiState>(statePath) : null;
   if (!state) {
-    failures.push("state.json missing: seed it with `bun scripts/ci-seed.ts` before running the gate");
+    failures.push("state.json missing: run `kineti seed` before the CI gate");
   }
   
   const rawStage = state?.stage ?? state?.current_stage ?? 1;
@@ -167,28 +187,62 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
   const evidencePath = path.join(kdir, "evidence.jsonl");
   const evidenceRecords = fs.existsSync(evidencePath) ? readJsonl<EvidenceRecord>(evidencePath) : [];
   
+  const requiredLabels = [...new Set((options.requiredEvidenceLabels ?? []).map((label) => label.trim()).filter(Boolean))];
+  const maxEvidenceAgeMinutes = options.maxEvidenceAgeMinutes ?? 240;
+  let evidenceChecks: EvidenceCheck[] = [];
   let evidenceFresh = true;
-  if (evidenceRecords.length > 0) {
+
+  if (requiredLabels.length > 0) {
+    evidenceChecks = requiredLabels.map((label): EvidenceCheck => {
+      const matching = evidenceRecords.filter((record) => record.label === label);
+      if (matching.length === 0) return { label, status: "missing" };
+      const latest = matching[matching.length - 1];
+      const timestamp = Date.parse(latest.at);
+      if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) {
+        return { label, status: "invalid-time", at: latest.at };
+      }
+      if (latest.exit_code !== 0) return { label, status: "failed", at: latest.at };
+      if (latest.fingerprint !== currentFp) return { label, status: "fingerprint-mismatch", at: latest.at };
+      if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
+        return { label, status: "stale", at: latest.at };
+      }
+      return { label, status: "fresh", at: latest.at };
+    });
+    for (const check of evidenceChecks) {
+      if (check.status === "fresh") continue;
+      evidenceFresh = false;
+      failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}`);
+    }
+  } else if (evidenceRecords.length > 0) {
     const latest = evidenceRecords[evidenceRecords.length - 1];
+    const timestamp = Date.parse(latest.at);
     if (latest.exit_code !== 0) {
       evidenceFresh = false;
       failures.push(`Latest evidence record '${latest.label}' failed with exit code ${latest.exit_code}`);
     }
     if (latest.fingerprint !== currentFp) {
       evidenceFresh = false;
-      failures.push(`Workspace fingerprint mismatch: code modified since last verification record`);
+      failures.push("Workspace fingerprint mismatch: code modified since last verification record");
     }
+    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000 || (Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
+      evidenceFresh = false;
+      failures.push(`Latest evidence record '${latest.label}' has an invalid or stale timestamp`);
+    }
+    evidenceChecks = [{
+      label: latest.label,
+      status: evidenceFresh ? "fresh" : latest.exit_code === 0 ? "stale" : "failed",
+      at: latest.at,
+    }];
   } else if (stageNum >= 11) {
-    // Ship and later require fresh proof. Earlier stages may have no evidence yet.
     evidenceFresh = false;
     failures.push("No evidence records: run tests before ship");
   }
 
-  const verified = failures.length === 0;
+  const checksPassed = failures.length === 0;
 
   // 4. Generate Badge URL
-  const badgeStatus = verified ? "Verified--Outcome" : "Verification--Blocked";
-  const badgeColor = verified ? "7c3aed" : "ef4444"; // violet-600 vs red-500
+  const badgeStatus = checksPassed ? "Checks--Passed" : "Checks--Blocked";
+  const badgeColor = checksPassed ? "7c3aed" : "ef4444"; // violet-600 vs red-500
   const badgeUrl = `https://img.shields.io/badge/Kineti-${badgeStatus}-${badgeColor}?style=flat-square&logo=shield`;
 
   // 5. Generate Markdown Summary
@@ -196,40 +250,40 @@ export function generateCIReport(workspaceRoot: string = process.cwd()): CIRepor
   const shortGoalHash = goalHash ? goalHash.slice(0, 12) : "none";
 
   const markdownSummary = `
-## 🛡️ Kineti OS — Context Integrity Layer (CIP) Outcome Verification Report
+## Kineti CI Checks
 
 | Metric | Status / Value | Details |
 | :--- | :--- | :--- |
-| **Verification Gate** | ${verified ? "✅ **PASSED**" : "❌ **BLOCKED**"} | ${verified ? "All causal integrity checks satisfied" : failures.join("; ")} |
-| **Pipeline Stage** | Stage ${stageNum}/13 (\`${stageName}\`) | Sequential stage governance active |
+| **CI result** | ${checksPassed ? "✅ **CHECKS PASSED**" : "❌ **BLOCKED**"} | ${checksPassed ? "Configured checks passed" : markdownSafe(failures.join("; "))} |
+| **Pipeline Stage** | Stage ${stageNum}/13 (\`${markdownSafe(stageName)}\`) | Configured stage label |
 | **Workspace Fingerprint** | \`${shortFp}\` | Delimited SHA-256 state hash |
-| **Spend Circuit Breaker** | \`$${spendUsd.toFixed(3)} / $${spendLimitUsd.toFixed(2)}\` | ${spendTripped ? "⚠️ TRIPPED" : "Healthy (< limit)"} |
-| **Root Goal Hash** | \`${shortGoalHash}\` | \`${rootGoal.slice(0, 50)}\` |
-| **Evidence Proofs** | ${evidenceRecords.length} record(s) | ${evidenceFresh ? "Fresh" : "Stale/Mismatch"} |
-| **Evaluation Targets** | Hostile 100 & DNTI | Design Targets Active |
+| **Recorded spend** | \`$${spendUsd.toFixed(3)} / $${spendLimitUsd.toFixed(2)}\` | ${spendTripped ? "⚠️ Recorded limit tripped" : "Recorded limit not tripped"} |
+| **Root Goal Hash** | \`${shortGoalHash}\` | Configured goal recorded in project state |
+| **Evidence records** | ${evidenceRecords.length} record(s) | ${evidenceFresh ? "Current" : "Missing, failed, or stale"} |
+${evidenceChecks.length ? `| **Required labels** | ${evidenceChecks.map((check) => `\`${markdownSafe(check.label)}\`: ${check.status}`).join("; ")} | Checked against this workspace fingerprint |` : ""}
 
-${failures.length > 0 ? `### ⚠️ Gate Blocking Issues\n${failures.map(f => `- ${f}`).join("\n")}\n` : ""}
+${failures.length > 0 ? `### Gate Blocking Issues\n${failures.map(f => `- ${markdownSafe(f)}`).join("\n")}\n` : ""}
 *Generated at ${nowIso()} by Kineti Context Integrity Layer (CIP) Runtime.*
 `.trim();
 
   // 6. Generate PR Comment
   const prComment = `
-[![Kineti Verified Outcome](${badgeUrl})](https://getkineti.com)
+[![Kineti CI Checks](${badgeUrl})](https://getkineti.com)
 
-### 🛡️ Kineti Context Integrity Verification (CIP): ${verified ? "**PASSED** ✅" : "**BLOCKED** ❌"}
+### Kineti CI Checks: ${checksPassed ? "**PASSED** ✅" : "**BLOCKED** ❌"}
 
-> **Goal**: ${rootGoal}
-> **Stage**: \`${stageNum}/13 (${stageName})\` &nbsp;|&nbsp; **Workspace Proof**: \`${shortFp}\` &nbsp;|&nbsp; **Spend**: \`$${spendUsd.toFixed(3)}\`
+> **Root goal hash**: \`${shortGoalHash}\`
+> **Stage**: \`${stageNum}/13 (${markdownSafe(stageName)})\` &nbsp;|&nbsp; **Workspace fingerprint**: \`${shortFp}\` &nbsp;|&nbsp; **Recorded spend**: \`$${spendUsd.toFixed(3)}\`
 
-${verified 
-  ? "All causal DAG boundaries, test suites, and cryptographic proofs verified cleanly under Context Integrity Protocol (CIP)."
-  : `**Failure details:**\n${failures.map(f => `- ❌ ${f}`).join("\n")}`
+${checksPassed
+  ? "All required evidence checks passed for this workspace fingerprint. This report is not a signed safety certificate."
+  : `**Failure details:**\n${failures.map(f => `- ❌ ${markdownSafe(f)}`).join("\n")}`
 }
 `.trim();
 
   return {
     timestamp: nowIso(),
-    verified,
+    checksPassed,
     stageName,
     stageNumber: stageNum,
     rootGoal,
@@ -239,6 +293,7 @@ ${verified
     spendTripped,
     evidenceCount: evidenceRecords.length,
     evidenceFresh,
+    evidenceChecks,
     failures,
     badgeUrl,
     markdownSummary,
@@ -252,6 +307,8 @@ function main() {
   let prCommentFile: string | null = null;
   let jsonOutput = false;
   let badgeOnly = false;
+  const requiredEvidenceLabels: string[] = [];
+  let maxEvidenceAgeMinutes = 240;
 
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -267,19 +324,33 @@ function main() {
       case "--badge-only":
         badgeOnly = true;
         break;
+      case "--require-evidence":
+        if (!argv[i + 1]) {
+          console.error("kineti ci: --require-evidence needs a label");
+          process.exit(2);
+        }
+        requiredEvidenceLabels.push(argv[++i]);
+        break;
+      case "--max-evidence-age":
+        maxEvidenceAgeMinutes = Number(argv[++i]);
+        if (!Number.isFinite(maxEvidenceAgeMinutes) || maxEvidenceAgeMinutes <= 0) {
+          console.error("kineti ci: --max-evidence-age must be a positive number of minutes");
+          process.exit(2);
+        }
+        break;
     }
   }
 
-  const report = generateCIReport();
+  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes });
 
   if (badgeOnly) {
     console.log(report.badgeUrl);
-    process.exit(report.verified ? 0 : 1);
+    process.exit(report.checksPassed ? 0 : 1);
   }
 
   if (jsonOutput) {
     console.log(JSON.stringify(report, null, 2));
-    process.exit(report.verified ? 0 : 1);
+    process.exit(report.checksPassed ? 0 : 1);
   }
 
   // Write step summary if path available
@@ -301,7 +372,7 @@ function main() {
   }
 
   console.log(report.markdownSummary);
-  process.exit(report.verified ? 0 : 1);
+  process.exit(report.checksPassed ? 0 : 1);
 }
 
 if (import.meta.main) {

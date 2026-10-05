@@ -16,7 +16,6 @@ pub mod epistemic;
 pub mod graph;
 pub mod hnsw;
 pub mod otd;
-pub mod purge;
 pub mod spatial;
 pub mod storage;
 pub mod tombstone;
@@ -32,7 +31,6 @@ pub use epistemic::{
 };
 pub use hnsw::{cosine_similarity as hnsw_cosine, HnswGraph};
 pub use otd::{extract_path, parse_payload, BoundFact, OtdBinding, OtdError, OtdSchema, OtdValue};
-pub use purge::{ExternalDataPurgeCoordinator, PurgeReceipt};
 pub use spatial::{
     GeoCoordinate, GeofenceCategory, GeofenceTransition, NamedGeofence, ParkedLocation,
     SpatialMemoryEngine,
@@ -61,8 +59,6 @@ pub struct MemoryEngine {
     pub epistemic: EpistemicEngine,
     /// Geospatial memory engine.
     pub spatial: SpatialMemoryEngine,
-    /// External data purge coordinator.
-    pub purge: ExternalDataPurgeCoordinator,
     /// Dynamic user style profiles.
     pub style_profiles: RwLock<HashMap<String, UserStyleProfile>>,
     style_analyzer: StyleAnalyzer,
@@ -77,7 +73,6 @@ impl MemoryEngine {
             tombstones: TombstoneMask::new(),
             epistemic: EpistemicEngine::new(),
             spatial: SpatialMemoryEngine::new(),
-            purge: ExternalDataPurgeCoordinator::new(),
             style_profiles: RwLock::new(HashMap::new()),
             style_analyzer: StyleAnalyzer::new(),
         }
@@ -114,20 +109,6 @@ impl MemoryEngine {
     /// Deletes a fact (for privacy or 'forget me' settings).
     pub fn forget_fact(&self, fact_id: &str) -> bool {
         self.property_graph.delete_fact(fact_id, &self.tombstones)
-    }
-
-    /// Deletes a fact and returns a signed-style proof receipt for the user.
-    /// The receipt records what was removed, when, and that the root goal
-    /// and identity facts were left intact.
-    pub fn forget_fact_with_receipt(&self, user_id: &str, fact_id: &str) -> PurgeReceipt {
-        let removed = self.forget_fact(fact_id);
-        let now = kineti_core::current_epoch_millis();
-        PurgeReceipt {
-            records_purged: usize::from(removed),
-            sources_cleared: vec![format!("user:{user_id}")],
-            purged_at_ms: now,
-            root_goal_intact: true,
-        }
     }
 
     /// Applies an OTD schema to a tenant payload and returns bound kernel facts.

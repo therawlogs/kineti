@@ -1,30 +1,34 @@
-//! # Autonomous Credential Vault (`vault`)
+//! # Legacy Credential Demo (`vault`)
 //!
-//! Provides isolated, encrypted storage modules for:
+//! This is a legacy in-memory prototype. Its custom repeating-key XOR and
+//! hash construction are **not secure encryption**. Do not store real
+//! passwords, payment details, API keys, or TOTP seeds in this type. The
+//! Companion credential UI and API are disabled in v0.4.0.
+//!
+//! The prototype demonstrates data shapes for:
 //! 1. Web Logins (usernames, passwords, passkeys)
 //! 2. Payment Cards (virtual cards, masked cards, spend caps, CVV)
 //! 3. Personal Info (PII, addresses, phone numbers, identity fragments)
 //! 4. Autonomous Agent Items (accounts & items provisioned or handled directly by agent)
 //! 5. TOTP Seeds (RFC 6238 time-based authenticator keys)
 //!
-//! Supports dual storage backends:
-//! - [`VaultBackend::MasterKey`]: 100% Safe Rust BLAKE3 authenticated keystream encryption.
-//! - [`VaultBackend::Keychain`]: macOS Keychain bridge on local mac instances.
+//! The backend enum is descriptive only. There is no operating-system
+//! Keychain integration, persistent secure store, or reviewed encryption.
 
 use kineti_core::kernel::{blake3, hex_encode};
 use std::collections::HashMap;
 use std::sync::RwLock;
 
-/// Storage backend implementation for the vault.
+/// Legacy backend label. It does not indicate production-grade protection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VaultBackend {
-    /// Cross-platform BLAKE3 authenticated keystream encryption.
+    /// Legacy demo transformation; not secure encryption.
     MasterKey,
-    /// Apple macOS Keychain integration.
+    /// Reserved label; a Keychain backend is not implemented.
     Keychain,
 }
 
-/// An encrypted credential entry in the vault.
+/// A legacy demo record. Its ciphertext must not be treated as secure.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EncryptedCredential {
     /// Associated user ID.
@@ -116,7 +120,7 @@ pub struct TotpSeedEntry {
     pub algorithm: String,
 }
 
-/// In-memory secure credential vault supporting 4 dedicated modules.
+/// In-memory credential demonstration. Not safe for real credentials.
 #[derive(Debug)]
 pub struct CredentialVault {
     backend: RwLock<VaultBackend>,
@@ -130,7 +134,8 @@ pub struct CredentialVault {
 }
 
 impl CredentialVault {
-    /// Creates a new vault initialized with a master secret and default MasterKey backend.
+    /// Creates a demo vault initialized with a master string. The resulting
+    /// custom transformation is not suitable for protecting real credentials.
     pub fn new(master_secret: &str) -> Self {
         let master_key = blake3(master_secret.as_bytes());
         Self {

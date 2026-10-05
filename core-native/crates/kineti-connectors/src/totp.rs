@@ -1,6 +1,8 @@
 //! # Autonomous TOTP Authenticator Engine (`totp`)
 //!
 //! Full RFC 6238 (TOTP) and RFC 4226 (HOTP) implementation supporting:
+//! **Prototype only:** stored seeds use the legacy demo vault and are not safe
+//! for real accounts. Do not use this connector for real MFA secrets.
 //! - Standard Google Authenticator, Authy, and Microsoft Authenticator seeds.
 //! - Base32 secret decoding with padding and whitespace tolerance.
 //! - Standard `otpauth://totp/Provider:Account?secret=...` URI parsing.
