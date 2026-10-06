@@ -1,5 +1,5 @@
 // src/components/ui/data-table.tsx
-// Apple HIG Clean Table & Master Design System Data Table
+// Clean Table & Master Design System Data Table
 
 export interface Column<T> {
   key: keyof T | string;

@@ -1,5 +1,5 @@
 // src/components/ui/button.tsx
-// Apple HIG & Master Design System Button
+// Master Design System Button
 
 export interface ButtonProps {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive" | "apple-filled" | "apple-tinted" | "apple-gray";
@@ -18,7 +18,7 @@ export function Button({
   disabled = false,
   className = "",
 }: ButtonProps): string {
-  // Apple HIG base styles: continuous squircle radius, smooth active scale, font smoothing
+  // Base styles: continuous squircle radius, smooth active scale, font smoothing
   const baseStyles = "inline-flex items-center justify-center font-medium transition-all duration-150 ease-out active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0A84FF] focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40 select-none cursor-pointer";
   
   const sizeStyles = {

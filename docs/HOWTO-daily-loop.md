@@ -40,7 +40,7 @@ kineti test -- bun test
 kineti test check --label test
 ```
 
-If a fingerprinted file changes, the receipt is `STALE` and should be recorded again before shipping. Receipts are local records, not signed certificates.
+If a fingerprinted file changes, the receipt is `STALE` and should be recorded again before shipping. Receipts are local records, not signed certificates. See [FINGERPRINT_LIMITATIONS.md](./FINGERPRINT_LIMITATIONS.md) for what the fingerprint can miss and what exit code 0 does not prove (such as skipped tests or empty suites).
 
 ### Step 5: Verify release integrity (CI Gate)
 Before opening a pull request or merging code, run the Context Integrity Layer (CIP) verification:
@@ -76,7 +76,7 @@ kineti seed
 | **Task State** | `kineti status` | View active project, stage, and locked goal |
 | **Seed CI State** | `kineti seed` | Create missing state and spend files from project config |
 | **CI Verification** | `kineti ci --require-evidence <label>` | Check state and named evidence receipts |
-| **Companion UI** | `kineti companion` | Launch Apple HIG local dashboard (port 8788) |
+| **Companion UI** | `kineti companion` | Launch local companion dashboard (port 8788) |
 
 ---
 

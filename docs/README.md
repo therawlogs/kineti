@@ -28,6 +28,7 @@ The papers were removed from the tree and will be re-added when ready. The figur
 ## 3. Multi-Agent & Fleet Coordination
 - [**SWARM_COORDINATION_AND_IDENTITY.md**](./SWARM_COORDINATION_AND_IDENTITY.md) — Limits of the in-memory swarm demo and native OVT signature library.
 - [**MULTI_REPO_FLEET_AND_INTEGRATIONS.md**](./MULTI_REPO_FLEET_AND_INTEGRATIONS.md) — Multi-repository fleet governance, configuration, and developer environment sync.
+- [**AGENT_IDENTIFICATION_AND_WEBBOTAUTH.md**](./AGENT_IDENTIFICATION_AND_WEBBOTAUTH.md) — Automated agent identity, RFC 9421 HTTP Message Signatures, and the IETF Web Bot Auth draft standard.
 
 ---
 
@@ -35,6 +36,7 @@ The papers were removed from the tree and will be re-added when ready. The figur
 - [**TUTORIAL-first-run.md**](./TUTORIAL-first-run.md) — Getting started with Kineti OS and recording a local test receipt.
 - [**HOWTO-daily-loop.md**](./HOWTO-daily-loop.md) — Daily developer workflow: stage gating, test evidence recording, and spend tracking.
 - [**UNDO_LIMITATIONS.md**](./UNDO_LIMITATIONS.md) — What undo can and cannot reverse (SAGA rollback boundaries).
+- [**FINGERPRINT_LIMITATIONS.md**](./FINGERPRINT_LIMITATIONS.md) — What the test receipt fingerprint can and cannot see (false alarms and blind spots).
 
 ---
 

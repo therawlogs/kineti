@@ -1,5 +1,5 @@
 // tests/apple_design.test.ts
-// Tests for Apple Human Interface Guidelines (HIG), Material Library, and Design Kit
+// Tests for Material Library and Design Kit
 
 import { describe, expect, it } from "bun:test";
 import {
@@ -27,7 +27,7 @@ import {
 } from "../src/components/ui";
 
 describe("Apple Design Standards & Material Library", () => {
-  it("verifies Apple HIG system color tokens", () => {
+  it("verifies system color tokens", () => {
     expect(AppleColors.systemBlue).toBe("#0A84FF");
     expect(AppleColors.systemGreen).toBe("#30D158");
     expect(AppleColors.systemRed).toBe("#FF453A");
@@ -54,7 +54,7 @@ describe("Apple Design Standards & Material Library", () => {
     expect(AppleSpring.snappy).toContain("cubic-bezier");
   });
 
-  it("renders Apple HIG button variants", () => {
+  it("renders button variants", () => {
     const filled = Button({ label: "Continue", variant: "apple-filled" });
     expect(filled).toContain("bg-[#0A84FF]");
     expect(filled).toContain("Continue");

@@ -38,11 +38,11 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 - **13-Stage Project State**: A local workflow record for a goal, stage, and named gates.
 - **Transactional SAGA Undo Stack**: Newest-first rollback of inverses the agent registered. A failed inverse prints `rollback incomplete`, exits 1, and that step stays pending.
 - **Workspace-bound Test Receipts**: Local test exit codes and SHA-256 workspace fingerprints via `kineti-evidence.ts`; receipts are not signed certificates.
-- **Apple HIG Visual Companion**: A local dashboard for project state, activity, team details, and local budgets.
+- **Visual Companion**: A local dashboard for project state, activity, team details, and local budgets.
 - **Model Context Protocol (MCP)**: 14 tools: 13 governance tools plus the plain-talk helper, available to compatible local hosts.
 
 ### 3. Test Inventory & Evaluation Roadmap
-- **Test inventory**: 201 TypeScript governance test cases and 248 native Rust test cases (449 total test cases); passing tests verify tested paths, not every external integration or agent action.
+- **Test inventory**: 223 TypeScript governance test cases and 248 native Rust test cases (471 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Not provided**: a complete agent sandbox, cloud connector service, or signed deployment safety certificate.
 
@@ -178,7 +178,7 @@ Add a stdio MCP server in settings (Cline: `.clinerules/mcp_settings.json`, Roo 
 ### 3. Core Governance Commands
 
 ```bash
-# Start the visual companion dashboard (Apple HIG)
+# Start the visual companion dashboard
 kineti companion
 # Open http://127.0.0.1:8788
 

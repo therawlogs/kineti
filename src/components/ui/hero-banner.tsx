@@ -1,5 +1,5 @@
 // src/components/ui/hero-banner.tsx
-// Apple HIG Hero Banner & Master Design System
+// Hero Banner & Master Design System
 
 export interface HeroBannerProps {
   badgeText?: string;

@@ -1,5 +1,5 @@
 // src/design/apple-design-tokens.ts
-// Apple Human Interface Guidelines (HIG) Design Tokens & Material Library
+// Design Tokens & Material Library
 
 export const AppleColors = {
   // System Colors (Dark Mode primary with Light Mode variants)

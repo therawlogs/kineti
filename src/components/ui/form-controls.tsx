@@ -1,5 +1,5 @@
 // src/components/ui/form-controls.tsx
-// Apple HIG & Master Design System Form Controls
+// Master Design System Form Controls
 
 export interface InputProps {
   id: string;
@@ -92,7 +92,7 @@ export function Toggle({
   onChange = "",
   variant = "standard",
 }: ToggleProps): string {
-  // Apple HIG toggle switch styling with fluid spring feel
+  // Toggle switch styling with fluid spring feel
   const activeColorClass = variant === "apple" ? "peer-checked:bg-[#30D158]" : "peer-checked:bg-violet-600";
 
   return `

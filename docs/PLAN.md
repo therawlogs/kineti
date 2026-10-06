@@ -20,7 +20,7 @@ Kineti OS is the world's first high-performance, native autonomous nervous syste
 1. **The Native Rust Nervous System Substrate (`core-native/`)**:
    A zero-external-dependency, 100% Safe Rust engine engineered for extreme throughput, mechanical sympathy with CPU cache lines, sub-100µs snapshot latencies under 80-thread concurrent contention, sub-millisecond sensory triage, monotonic Hybrid Logical Clock (HLC) timekeeping, cryptographic Merkle DAG lineage verification, and atomic fast-path spend circuit breaking.
 2. **The TypeScript Governance & Developer Harness (`bin/`, `src/`, `tests/`)**:
-   A deterministic, stage-gated control plane enforcing a 13-stage software factory, immutable genesis root goals, SAGA LIFO transactional reversibility, length-prefixed cryptographic evidence binding, universal Model Context Protocol (MCP) tooling, Apple Human Interface Guidelines (HIG) visual companion, and multi-agent swarm coordination with Ed25519 dual-signed Outcome Verification Tickets (OVT).
+   A deterministic, stage-gated control plane enforcing a 13-stage software factory, immutable genesis root goals, SAGA LIFO transactional reversibility, length-prefixed cryptographic evidence binding, universal Model Context Protocol (MCP) tooling, visual companion dashboard, and multi-agent swarm coordination with Ed25519 dual-signed Outcome Verification Tickets (OVT).
 
 This document serves as the **definitive production implementation plan**, establishing the architectural bridge between foundational theory and production deployment across six structured milestones (M1 through M6).
 
@@ -42,7 +42,7 @@ This document serves as the **definitive production implementation plan**, estab
 |  - kineti-reflex: Sub-1ms Sensory Triage              - kineti-evidence: Delimited SHA-256 Proofs |
 |  - kineti-reflex: Zero-Token Emoji Reactions          - kineti-verify-gate: Pre-Flight Gatekeeper |
 |  - kineti-reflex: 5-Dim Socio-Linguistic EWMA         - kineti-mcp: 12 Core Governance Tools      |
-|  - kineti-memory: Causal Graph & Vector Substrate     - kineti-companion: Apple HIG Visual Server |
+|  - kineti-memory: Causal Graph & Vector Substrate     - kineti-companion: Visual Companion Server |
 |  - kineti-connectors: Brave, FLUX, Notion, Vault      - src/swarm: Ed25519 Dual-Signed OVTs       |
 |  - kineti-actions: 2-Step Financial Confirmation Gate                                             |
 |  - kineti-gateway: WhatsApp & iMessage Bridges                                                    |
@@ -345,7 +345,7 @@ impl ShadowWorkspace {
 - **Detailed Specifications:**
 
 #### 3.5.1 Static Waitlist Landing Page Specification (`public/waitlist.html`)
-- **Constraints:** Must be $< 35\,\text{KB}$ gzipped (aiming for $\le 12\,\text{KB}$), zero external runtime JavaScript libraries, pure inline CSS adhering to Apple HIG dark mode tokens (SF Pro typography, specular highlights, continuous squircle radii, translucent blur materials).
+- **Constraints:** Must be $< 35\,\text{KB}$ gzipped (aiming for $\le 12\,\text{KB}$), zero external runtime JavaScript libraries, pure inline CSS adhering to dark mode tokens (system typography, specular highlights, continuous squircle radii, translucent blur materials).
 - **Core Elements:**
   - Hero Header with live status badge ("KINETI OS RUNTIME v1.0").
   - Value proposition breakdown (Hardware Move Penalty, Universal Provenance Kernel, Dual-Signed OVTs, Sub-Millisecond Reflexes).

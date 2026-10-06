@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 // bin/kineti-companion.ts
-// Kineti OS — Clean, Modern Apple-HIG Settings App & API Server
+// Kineti OS — Clean, Modern Settings App & API Server
 
 import fs from "node:fs";
 import path from "node:path";
@@ -1504,7 +1504,7 @@ function generateSettingsHtml(): string {
 </html>`;
 }
 
-// Apple HIG Token Login Page HTML Generator
+// Token Login Page HTML Generator
 function generateLoginHtml(): string {
   return `<!DOCTYPE html>
 <html lang="en">

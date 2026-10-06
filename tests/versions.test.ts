@@ -91,7 +91,7 @@ describe("repo version and layout drift guards", () => {
     const tsTests = fs
       .readdirSync(path.join(ROOT, "tests"))
       .filter((f) => f.endsWith(".ts"))
-      .reduce((n, f) => n + (read(`tests/${f}`).match(/^\s*(?:it|test)\s*\(/gm) || []).length, 0);
+      .reduce((n, f) => n + (read(`tests/${f}`).match(/^\s*(?:it|test)(?:\.skipIf\([^)]*\))?\s*\(/gm) || []).length, 0);
 
     let rustTests = 0;
     const walk = (dir: string): void => {

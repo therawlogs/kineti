@@ -1,5 +1,5 @@
 // src/components/ui/status-badge.tsx
-// Apple HIG Status Capsule & Master Design System
+// Status Capsule & Master Design System
 
 export interface StatusBadgeProps {
   status: "pass" | "fail" | "pending" | "online" | "tripped";

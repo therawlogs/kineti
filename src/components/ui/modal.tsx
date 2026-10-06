@@ -1,5 +1,5 @@
 // src/components/ui/modal.tsx
-// Apple HIG System Dialog & Master Design System Modal
+// System Dialog & Master Design System Modal
 
 export interface ModalProps {
   id: string;

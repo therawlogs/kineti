@@ -1,5 +1,5 @@
 // src/components/ui/sheet.tsx
-// Apple HIG Slide-out Drawer Panel & Sheet
+// Slide-out Drawer Panel & Sheet
 
 export interface SheetProps {
   id: string;
