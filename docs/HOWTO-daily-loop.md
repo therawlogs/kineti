@@ -96,10 +96,19 @@ bun bin/kineti-memory-job.ts promote
 
 ## 4. Uninstalling Kineti
 
-To uninstall Kineti from your editor or project:
+To uninstall Kineti skills and host directives from your editors:
 
 ```bash
+# If installed via npm package:
+kineti init --uninstall
+
+# If installed from a repository checkout:
 ./setup.sh --uninstall
 ```
 
-This removes Kineti skills and host configuration files without touching your project source code.
+This removes Kineti skills and host configuration directives across detected AI hosts without touching your project source code.
+
+Audit ledgers (`~/.kineti/alerts.log`, machine settings) and local project `.kineti/` governance history are preserved for security and audit integrity. You can remove them manually if desired:
+```bash
+rm -rf ~/.kineti/ .kineti/
+```

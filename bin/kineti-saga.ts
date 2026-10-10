@@ -78,8 +78,30 @@ function latestOpenRun(): string | null {
   return begins[begins.length - 1].run_id;
 }
 
+function printHelp(): void {
+  console.log(`
+kineti saga / undo - SAGA-based transaction rollback & inverse command ledger
+
+Commands:
+  begin --run-id <id>            Start a new named SAGA undo transaction
+  push <label> <inverse>         Push an inverse command to the active run
+  register [options]             Register an inverse command with full flags
+  rollback [options]             Execute pending inverse commands in newest-first order
+  commit [options]               Permanently seal a run to prevent rollback
+
+Rollback Options:
+  --run-id <id>                  Target run ID (defaults to active run)
+  --yes                          Execute without interactive confirmation
+  --allow-shell                  Allow shell execution (interactive TTY only)
+`);
+}
+
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {
+    printHelp();
+    return;
+  }
   let runId = "", label = "", inverse = "";
   let allowShell = false;
   let yes = false;

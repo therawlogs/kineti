@@ -49,10 +49,13 @@ if (!target) {
 var rootDir = path.resolve(here, "..");
 var fullPath = path.join(rootDir, target.script);
 var execArgs = subArgs;
+var isHelp = subArgs.includes("--help") || subArgs.includes("-h");
 if (subcommand === "spend" && subArgs.length === 0) {
   execArgs = ["status"];
 } else if (subcommand === "test") {
-  if (subArgs[0] === "check") {
+  if (isHelp && (subArgs.length === 1 || subArgs[0] === "--help" || subArgs[0] === "-h")) {
+    execArgs = ["--help"];
+  } else if (subArgs[0] === "check") {
     execArgs = subArgs;
   } else if (subArgs[0] === "run") {
     const hasLabel = subArgs.includes("--label");

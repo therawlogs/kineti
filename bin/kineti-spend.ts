@@ -20,6 +20,7 @@ interface Entry {
   tokens_out: number;
   usd: number;
   microcents: number;
+  pricing_mode?: "exact" | "override" | "custom_rate" | "estimate";
 }
 interface SpendState {
   tripped: boolean;
@@ -35,11 +36,20 @@ const PRICES: Record<string, { in: number; out: number }> = {
   "opus": { in: 15, out: 75 },
   "sonnet": { in: 3, out: 15 },
   "haiku": { in: 0.8, out: 4 },
+  "gpt-4": { in: 2.5, out: 10 },
   "gpt": { in: 2.5, out: 10 },
   "codex": { in: 2.5, out: 10 },
   "gemini": { in: 1.25, out: 10 },
+  "claude": { in: 3, out: 15 },
+  "default": { in: 3, out: 15 },
 };
 const DEFAULT_PRICE = { in: 3, out: 15 };
+
+function priceFor(model: string): { in: number; out: number } | null {
+  const m = model.toLowerCase().trim();
+  for (const key of Object.keys(PRICES)) if (m.includes(key)) return PRICES[key];
+  return null;
+}
 
 function file(): string { return path.join(projectKdir(), "spend.json"); }
 function logFile(): string { return path.join(projectKdir(), "spend.log.jsonl"); }
@@ -80,18 +90,46 @@ function load(): SpendState {
   };
 }
 
-function priceFor(model: string): { in: number; out: number } {
-  const m = model.toLowerCase();
-  for (const key of Object.keys(PRICES)) if (m.includes(key)) return PRICES[key];
-  return DEFAULT_PRICE;
-}
 
 function stageLimit(limits: ReturnType<typeof loadLimits>, stage: string): number {
   return limits.perStage[stage] ?? limits.perStageDefaultUsd;
 }
 
+function printHelp(): void {
+  console.log(`
+kineti spend - CIP hardware spend circuit breaker & tracking
+
+Commands:
+  status                          Show spend totals vs budget and headroom
+  check                           Verify spend is under limit (exits 3 if tripped/over)
+  log [options]                   Log token usage and spend for an agent action
+  economics                       Show spend outcome economics and $/outcome
+  reset --i-am-human [options]    Reset tripped circuit breaker (human only)
+
+Log Options:
+  --stage <name>                  Stage name or number (required)
+  --tokens-in <count>             Prompt/input token count (required)
+  --tokens-out <count>            Completion/output token count (required)
+  --model <name>                  Model identifier (e.g. sonnet, opus, gpt-4)
+  --usd <amount>                  Direct USD cost override
+  --rate-in <per_m>               Custom USD rate per million input tokens
+  --rate-out <per_m>              Custom USD rate per million output tokens
+  --estimate                      Allow fallback estimate rate for unknown models
+
+Reset Options:
+  --i-am-human                    Required confirmation flag
+  --extend-usd <amount>           Increase project ceiling by specified amount
+`);
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
+
+  if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {
+    printHelp();
+    return;
+  }
+
   const limits = loadLimits();
   const s = load();
 
@@ -99,6 +137,8 @@ async function main() {
     if (s.tripped) die(`breaker is tripped: ${s.reason}. Only a human may reset it.`, 3);
     let stage = "", model = "default", tin = NaN, tout = NaN, usdOverride: number | null = null;
     let usdGiven = false;
+    let rateIn: number | null = null, rateOut: number | null = null;
+    let allowEstimate = false;
     for (let i = 0; i < rest.length; i++) {
       switch (rest[i]) {
         case "--stage": stage = rest[++i] ?? ""; break;
@@ -106,6 +146,9 @@ async function main() {
         case "--tokens-in": tin = Number(rest[++i]); break;
         case "--tokens-out": tout = Number(rest[++i]); break;
         case "--usd": usdOverride = Number(rest[++i]); usdGiven = true; break;
+        case "--rate-in": rateIn = Number(rest[++i]); break;
+        case "--rate-out": rateOut = Number(rest[++i]); break;
+        case "--estimate": allowEstimate = true; break;
       }
     }
     if (!stage) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]", 2);
@@ -114,8 +157,30 @@ async function main() {
     if (usdGiven && (usdOverride === null || !Number.isFinite(usdOverride) || (usdOverride as number) < 0)) {
       die("log requires finite --usd >= 0", 2);
     }
-    const p = priceFor(model);
-    const usd = usdOverride ?? (tin / 1e6) * p.in + (tout / 1e6) * p.out;
+    if (rateIn !== null && (!Number.isFinite(rateIn) || rateIn < 0)) die("log requires finite --rate-in >= 0", 2);
+    if (rateOut !== null && (!Number.isFinite(rateOut) || rateOut < 0)) die("log requires finite --rate-out >= 0", 2);
+
+    let usd: number;
+    let pricingMode: "exact" | "override" | "custom_rate" | "estimate";
+
+    if (usdGiven) {
+      usd = usdOverride!;
+      pricingMode = "override";
+    } else if (rateIn !== null && rateOut !== null) {
+      usd = (tin / 1e6) * rateIn + (tout / 1e6) * rateOut;
+      pricingMode = "custom_rate";
+    } else {
+      const p = priceFor(model);
+      if (p !== null) {
+        usd = (tin / 1e6) * p.in + (tout / 1e6) * p.out;
+        pricingMode = "exact";
+      } else if (allowEstimate) {
+        usd = (tin / 1e6) * DEFAULT_PRICE.in + (tout / 1e6) * DEFAULT_PRICE.out;
+        pricingMode = "estimate";
+      } else {
+        die(`unknown model '${model}': specify --usd override, --rate-in/--rate-out, or --estimate to proceed`, 2);
+      }
+    }
 
     const microcents = usdToMicrocents(usd);
     s.total_microcents = (s.total_microcents ?? usdToMicrocents(s.total_usd)) + microcents;
@@ -133,13 +198,14 @@ async function main() {
       tokens_out: tout,
       usd: round(usd),
       microcents,
+      pricing_mode: pricingMode,
     } satisfies Entry);
 
     const globalCeilingMicrocents = Math.round(limits.globalUsd * limits.safetyFactor * 1e6);
     const stageCeilingMicrocents = Math.round(stageLimit(limits, stage) * limits.safetyFactor * 1e6);
     if (s.total_microcents >= globalCeilingMicrocents) trip(s, `global total $${s.total_usd} reached ceiling $${round(limits.globalUsd * limits.safetyFactor)} of $${limits.globalUsd}`);
     else if (s.by_stage_microcents[stage] >= stageCeilingMicrocents) trip(s, `stage ${stage} total $${s.by_stage[stage]} reached ceiling $${round(stageLimit(limits, stage) * limits.safetyFactor)}`);
-    else ok(`logged $${round(usd)} (stage ${stage}); run total $${s.total_usd}`);
+    else ok(`logged $${round(usd)} (stage ${stage}, ${pricingMode}); run total $${s.total_usd}`);
     return;
   }
 
@@ -155,6 +221,10 @@ async function main() {
     if (s.total_microcents >= Math.round(limits.globalUsd * 1e6)) over = true;
     if (over && (cmd === "check" || cmd === "economics")) { console.error("kineti: over limit"); process.exit(3); }
 
+    const globalCeilingMicrocents = Math.round(limits.globalUsd * limits.safetyFactor * 1e6);
+    const headroomMicro = Math.max(0, globalCeilingMicrocents - s.total_microcents);
+    const headroomUsd = round(headroomMicro / 1e6);
+
     if (cmd === "economics" || rest.includes("--economics")) {
       const evidenceFile = path.join(projectKdir(), "evidence.jsonl");
       let verifiedOutcomes = 0;
@@ -165,24 +235,40 @@ async function main() {
         } catch {}
       }
       const costPerOutcome = s.total_usd / Math.max(1, verifiedOutcomes);
-      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; verified_outcomes=${verifiedOutcomes}; cost_per_outcome=$${costPerOutcome.toFixed(2)} (benchmark target: $0.31)`);
+      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; verified_outcomes=${verifiedOutcomes}; cost_per_outcome=$${costPerOutcome.toFixed(2)} (benchmark target: $0.31)`);
       return;
     }
 
-    ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}`);
+    ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}`);
     return;
   }
 
   if (cmd === "reset") {
     if (!rest.includes("--i-am-human")) die("reset requires --i-am-human (breakers are human-only)", 2);
     const actor = process.env.USER || process.env.LOGNAME || "human";
+    let extendUsd = 0;
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === "--extend-usd") {
+        extendUsd = Number(rest[++i]);
+        if (!Number.isFinite(extendUsd) || extendUsd <= 0) die("reset requires finite --extend-usd > 0", 2);
+      }
+    }
+    if (extendUsd > 0) {
+      const mirrorPath = path.join(projectKdir(), "mirror.json");
+      const mirror = readJson<{ ceiling?: number }>(mirrorPath) ?? {};
+      const newCeiling = Math.min(1000, Math.round(((mirror.ceiling ?? limits.globalUsd) + extendUsd) * 100) / 100);
+      writeJson(mirrorPath, { ...mirror, ceiling: newCeiling });
+    }
     s.tripped = false; s.reason = null;
     writeJson(file(), s);
+    const refreshedLimits = loadLimits();
+    const refreshedCeilingMicrocents = Math.round(refreshedLimits.globalUsd * refreshedLimits.safetyFactor * 1e6);
+    const remainingHeadroom = Math.max(0, round((refreshedCeilingMicrocents - s.total_microcents) / 1e6));
     try {
       const { appendAudit } = await import("./kineti-audit.ts");
-      appendAudit(actor, "spend.reset", `breaker reset by human; total $${s.total_usd}`);
+      appendAudit(actor, "spend.reset", `breaker reset by human; total $${s.total_usd}${extendUsd > 0 ? ` (ceiling extended by $${extendUsd})` : ""}`);
     } catch { /* audit must never block reset */ }
-    ok("breaker reset by human");
+    ok(`breaker reset by human (total $${s.total_usd}, headroom to trip: $${remainingHeadroom})`);
     return;
   }
 

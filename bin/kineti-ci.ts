@@ -7,6 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fingerprint } from "./kineti-evidence.ts";
 import {
+  loadLimits,
   loadVerifyCommand,
   microcentsToUsd,
   nowIso,
@@ -71,7 +72,7 @@ export interface CIReport {
 
 export interface EvidenceCheck {
   label: string;
-  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time";
+  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated";
   at?: string;
 }
 
@@ -154,10 +155,11 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
   // 2. Check spend circuit breaker
   const spendPath = path.join(kdir, "spend.json");
   const spend = fs.existsSync(spendPath) ? readJson<SpendRecord>(spendPath) : null;
+  const limits = loadLimits(workspaceRoot);
   const totalMicro = spend?.total_microcents ?? 0;
-  const limitMicro = spend?.limit_microcents ?? 50_000_000;
+  const limitMicro = Math.round(limits.globalUsd * 1e6);
   const spendUsd = microcentsToUsd(totalMicro);
-  const spendLimitUsd = microcentsToUsd(limitMicro);
+  const spendLimitUsd = limits.globalUsd;
   const spendTripped = spend?.tripped ?? false;
 
   if (spendTripped) {
@@ -202,6 +204,7 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
         return { label, status: "invalid-time", at: latest.at };
       }
       if (latest.exit_code !== 0) return { label, status: "failed", at: latest.at };
+      if ((latest as any).mutated_during_run) return { label, status: "workspace-mutated", at: latest.at };
       if (latest.fingerprint !== currentFp) return { label, status: "fingerprint-mismatch", at: latest.at };
       if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
         return { label, status: "stale", at: latest.at };
@@ -301,8 +304,30 @@ ${checksPassed
   };
 }
 
+function printHelp(): void {
+  console.log(`
+kineti ci - Context Integrity Layer (CIP) CI PR verification & badging utility
+
+Usage:
+  kineti ci [options]
+
+Options:
+  --require-evidence <label>    Specify required evidence receipt label (repeatable)
+  --max-evidence-age <minutes>  Maximum allowable evidence age (default 240)
+  --json                        Output structured JSON CI report
+  --badge-only                  Output Shields.io badge URL only
+  --summary-file <path>         Append markdown report to file (or GITHUB_STEP_SUMMARY)
+  --pr-comment-file <path>      Write markdown PR comment to file
+  --help, -h                    Show this help message
+`);
+}
+
 function main() {
   const argv = process.argv.slice(2);
+  if (argv.includes("--help") || argv.includes("-h")) {
+    printHelp();
+    process.exit(0);
+  }
   let summaryFile: string | null = process.env.GITHUB_STEP_SUMMARY || null;
   let prCommentFile: string | null = null;
   let jsonOutput = false;

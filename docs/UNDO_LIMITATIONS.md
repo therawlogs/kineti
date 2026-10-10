@@ -24,10 +24,11 @@ Kineti's undo system (SAGA-based rollback) only reverses **explicitly registered
 When `kineti undo rollback` runs, it executes registered inverses newest-first. If an inverse command fails (non-zero exit code):
 
 - The step remains **pending** (not marked as undone)
+- Rollback continues through remaining pending inverses in the run
 - Rollback exits with code 1 and prints `rollback incomplete`
 - Failed steps stay in the ledger for manual review or retry
 
-**Undo does not skip failed steps** — it stops and requires human intervention.
+**Undo does not mark failed steps as completed** — it continues through the remaining inverse stack, then reports incomplete and exits 1, requiring review or retry for any failed steps.
 
 ---
 

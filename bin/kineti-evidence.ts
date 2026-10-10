@@ -4,10 +4,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { appendJsonl, computeDelimitedHash, die, loadVerifyCommand, nowIso, ok, projectKdir, readJsonl, runSafeCommand, sha256 } from "./lib.ts";
 
-interface Record {
-  at: string; label: string; cmd: string; exit_code: number | null;
+export interface EvidenceRecord {
+  at: string;
+  label: string;
+  cmd: string;
+  exit_code: number | null;
   fingerprint: string;
+  guard_failure?: "zero-tests" | "skipped-tests" | "code-mutated";
+  mutated_during_run?: boolean;
 }
+type Record = EvidenceRecord;
 
 const EXCLUDE_DIRS = new Set([
   ".git", ".kineti", ".agents", "node_modules", "dist", "build", ".next",
@@ -133,11 +139,6 @@ export function fingerprint(root: string = process.cwd()): string {
   return parts.length ? computeDelimitedHash(parts) : sha256("EMPTY_WORKSPACE");
 }
 
-interface Record {
-  at: string; label: string; cmd: string; exit_code: number | null;
-  fingerprint: string;
-  guard_failure?: "zero-tests" | "skipped-tests";
-}
 
 export function checkRunnerGuards(
   output: string,
@@ -178,9 +179,39 @@ export function checkRunnerGuards(
 
 function records(): Record[] { return readJsonl<Record>(file()); }
 
+function printHelp(): void {
+  console.log(`
+kineti evidence / test - run commands and verify cryptographic proof receipts
+
+Commands:
+  fingerprint                     Print current workspace sha256 fingerprint
+  run --label L [options] -- <cmd> Execute test and save proof receipt
+  check --label L [options]       Verify receipt freshness and workspace state
+
+Run Options:
+  --label <name>                  Receipt label (required)
+  --allow-shell                   Allow shell execution (interactive TTY only)
+  --allow-zero-tests              Allow test runs with 0 reported tests
+  --forbid-skipped                Treat skipped tests as failure
+  --allow-workspace-mutation      Allow test run that mutates workspace files
+  --timeout <seconds>             Command timeout (default 60s)
+
+Check Options:
+  --label <name>                  Receipt label to check (required)
+  --max-age <minutes>             Maximum receipt age in minutes (default 240)
+  --expect-cmd <substring>        Ensure command matches expected substring
+  --allow-workspace-mutation      Allow receipts where workspace mutated during test
+`);
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const cmd0 = argv[0];
+
+  if (!cmd0 || cmd0 === "--help" || cmd0 === "-h") {
+    printHelp();
+    return;
+  }
 
   if (cmd0 === "fingerprint") {
     ok(fingerprint());
@@ -188,18 +219,25 @@ function main() {
   }
 
   if (cmd0 === "run") {
+    const dd = argv.indexOf("--");
+    const preArgs = dd === -1 ? argv.slice(1) : argv.slice(1, dd);
+    if (preArgs.some((a) => a === "--help" || a === "-h")) {
+      printHelp();
+      return;
+    }
     let label = "";
     let allowShell = false;
     let allowZeroTests = false;
     let forbidSkipped = false;
+    let allowWorkspaceMutation = false;
     let timeoutSec = 60;
-    const dd = argv.indexOf("--");
-    if (dd === -1) die("run requires: run --label L [--allow-shell] [--timeout <seconds>] [--allow-zero-tests] [--forbid-skipped] -- <command...>");
+    if (dd === -1) die("run requires: run --label L [--allow-shell] [--timeout <seconds>] [--allow-zero-tests] [--forbid-skipped] [--allow-workspace-mutation] -- <command...>");
     for (let i = 1; i < dd; i++) {
       if (argv[i] === "--label") label = argv[i + 1] ?? "";
       if (argv[i] === "--allow-shell") allowShell = true;
       if (argv[i] === "--allow-zero-tests") allowZeroTests = true;
       if (argv[i] === "--forbid-skipped") forbidSkipped = true;
+      if (argv[i] === "--allow-workspace-mutation") allowWorkspaceMutation = true;
       if (argv[i] === "--timeout") timeoutSec = Number(argv[++i]);
     }
     if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) die("--timeout must be a positive number of seconds");
@@ -212,7 +250,7 @@ function main() {
     if (res.stdout) process.stdout.write(res.stdout);
     if (res.stderr) process.stderr.write(res.stderr + (res.stderr.endsWith("\n") ? "" : "\n"));
     let code = res.exitCode;
-    let guardFailure: "zero-tests" | "skipped-tests" | undefined;
+    let guardFailure: "zero-tests" | "skipped-tests" | "code-mutated" | undefined;
 
     if (code === 0) {
       const combinedOutput = (res.stdout || "") + "\n" + (res.stderr || "");
@@ -225,23 +263,45 @@ function main() {
     }
 
     const fpAfter = fingerprint();
+    const codeMutated = fpBefore !== fpAfter;
+    if (codeMutated && !allowWorkspaceMutation && code === 0) {
+      code = 1;
+      guardFailure = "code-mutated";
+      process.stderr.write("kineti: guard failed: workspace was modified during test execution (use --allow-workspace-mutation to allow)\n");
+    }
+
     appendJsonl(file(), {
       at: nowIso(), label, cmd: command, exit_code: code,
       fingerprint: fpAfter,
       ...(guardFailure ? { guard_failure: guardFailure } : {}),
+      ...(codeMutated ? { mutated_during_run: true } : {}),
     } satisfies Record);
     if (code !== 0) die(`command failed (exit ${code}); recorded as proof anyway`, 1);
-    ok(`proof recorded: ${label} ${fpBefore === fpAfter ? "(code unchanged during run)" : "(note: code changed during run)"}`);
+    ok(`proof recorded: ${label} ${!codeMutated ? "(code unchanged during run)" : "(note: code changed during run)"}`);
     return;
   }
 
   if (cmd0 === "check") {
+    if (argv.slice(1).some((a) => a === "--help" || a === "-h")) {
+      printHelp();
+      return;
+    }
     let label = "", maxAgeMin = 240, expectCmd: string | null = null;
+    let allowWorkspaceMutation = false;
     for (let i = 1; i < argv.length; i++) {
       switch (argv[i]) {
         case "--label": label = argv[++i] ?? ""; break;
-        case "--max-age": maxAgeMin = Number(argv[++i]); break;
+        case "--max-age": {
+          const raw = argv[++i];
+          const parsed = Number(raw);
+          if (!Number.isFinite(parsed) || parsed <= 0) {
+            die("--max-age must be a positive finite number of minutes", 2);
+          }
+          maxAgeMin = parsed;
+          break;
+        }
         case "--expect-cmd": expectCmd = argv[++i] ?? null; break;
+        case "--allow-workspace-mutation": allowWorkspaceMutation = true; break;
       }
     }
     if (!label) die("check requires --label L");
@@ -249,8 +309,23 @@ function main() {
     if (rs.length === 0) { console.error("kineti: MISSING"); process.exit(5); }
     const last = rs[rs.length - 1];
     if (expectCmd && !last.cmd.includes(expectCmd)) { console.error("kineti: STALE (different command)"); process.exit(4); }
-    const ageMin = (Date.now() - new Date(last.at).getTime()) / 60000;
+    const receiptTime = Date.parse(last.at);
+    if (Number.isNaN(receiptTime)) {
+      console.error("kineti: STALE (invalid receipt timestamp)");
+      process.exit(4);
+    }
+    const now = Date.now();
+    const ageMs = now - receiptTime;
+    if (ageMs < -60000) {
+      console.error("kineti: STALE (receipt timestamp is in the future)");
+      process.exit(4);
+    }
+    const ageMin = Math.max(0, ageMs) / 60000;
     if (ageMin > maxAgeMin) { console.error(`kineti: STALE (${Math.round(ageMin)} min old)`); process.exit(4); }
+    if (last.mutated_during_run && !allowWorkspaceMutation) {
+      console.error("kineti: STALE (workspace changed during test execution)");
+      process.exit(4);
+    }
     if (last.fingerprint !== fingerprint()) { console.error("kineti: STALE (code changed after the run)"); process.exit(4); }
     if (last.exit_code !== 0) {
       if (last.guard_failure) {

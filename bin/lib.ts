@@ -60,9 +60,12 @@ export function readJson<T>(file: string): T | null {
 }
 
 export function writeJson(file: string, value: unknown): void {
-  ensureDir(path.dirname(file));
-  fs.writeFileSync(file, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
-  lockFileMode(file);
+  const dir = path.dirname(file);
+  ensureDir(dir);
+  const tmpFile = path.join(dir, `.${path.basename(file)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`);
+  fs.writeFileSync(tmpFile, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
+  lockFileMode(tmpFile);
+  fs.renameSync(tmpFile, file);
 }
 
 /**

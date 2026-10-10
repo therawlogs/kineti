@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
-import { die, ok, nowIso, projectKdir, readJson, writeJson, scaffoldRootHooks } from "./lib.ts";
+import { die, ok, nowIso, projectKdir, readJson, writeJson, readJsonl, ensureDir, scaffoldRootHooks } from "./lib.ts";
 
 export interface RunState {
   version: 1;
@@ -51,9 +51,35 @@ function validate(s: RunState): string[] {
   return errs;
 }
 
+function printHelp(): void {
+  console.log(`
+kineti state - Local workflow state, stage tracking & gates
+
+Commands:
+  init [options]         Initialize project state and optionally lock root goal
+  get [key]              Get full state JSON or specific key value (e.g. stage, gate.spec)
+  set <key> <value>      Set stage, task, or gate value (root_goal locked once set)
+  new-run [options]      Archive current run and safely start a new task/goal
+  validate               Validate state schema integrity
+
+Init / New-run Options:
+  --project <name>       Project name
+  --goal <text>          Root goal to lock for this run
+  --stage <1-13|name>    Initial stage (default 1)
+  --task <type>          Task type (e.g. bugfix, feature, cleanup)
+  --task-name <name>     Human-readable task title
+  --force                Bypass pending SAGA undo check on new-run
+`);
+}
+
 function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   const f = file();
+
+  if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {
+    printHelp();
+    return;
+  }
 
   if (cmd === "init") {
     if (load()) die(`state already exists at ${f}`);
@@ -72,7 +98,9 @@ function main() {
           if (n < 1 || n > 13) die("stage must be integer 1-13", 2);
           initialStage = n;
         } else {
-          initialStage = val;
+          const lower = val.toLowerCase();
+          const stdIdx = STAGE_IDS.indexOf(lower);
+          initialStage = stdIdx !== -1 ? stdIdx + 1 : val;
         }
       } else if (rest[i] === "--task") {
         taskType = rest[++i] ?? undefined;
@@ -103,6 +131,77 @@ function main() {
 
   const s = load();
   if (!s) die(`no state found; run: kineti-state init --project NAME`, 2);
+
+  if (cmd === "new-run") {
+    let force = false;
+    let project = s.project;
+    let goal: string | null = null;
+    let initialStage: number | string = 1;
+    let taskType: string | undefined = undefined;
+    let taskName: string | undefined = undefined;
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === "--project") project = rest[++i] ?? project;
+      else if (rest[i] === "--goal") goal = rest[++i] ?? null;
+      else if (rest[i] === "--force") force = true;
+      else if (rest[i] === "--stage") {
+        const val = rest[++i] ?? "1";
+        if (/^-?\d+$/.test(val)) {
+          const n = Number(val);
+          if (n < 1 || n > 13) die("stage must be integer 1-13", 2);
+          initialStage = n;
+        } else {
+          const lower = val.toLowerCase();
+          const stdIdx = STAGE_IDS.indexOf(lower);
+          initialStage = stdIdx !== -1 ? stdIdx + 1 : val;
+        }
+      } else if (rest[i] === "--task") {
+        taskType = rest[++i] ?? undefined;
+      } else if (rest[i] === "--task-name") {
+        taskName = rest[++i] ?? undefined;
+      }
+    }
+
+    if (!force) {
+      const sagaPath = path.join(projectKdir(), "saga.jsonl");
+      if (fs.existsSync(sagaPath)) {
+        const lines = readJsonl<{ kind?: string; run_id?: string }>(sagaPath);
+        const registered = lines.filter((l) => l.kind === "register");
+        const rolledBack = new Set(lines.filter((l) => l.kind === "rollback_done").map((l) => l.run_id));
+        const committed = new Set(lines.filter((l) => l.kind === "commit").map((l) => l.run_id));
+        const hasPending = registered.some((r) => r.run_id && !rolledBack.has(r.run_id) && !committed.has(r.run_id));
+        if (hasPending) {
+          die("pending undo inverses exist in saga ledger. Roll back or commit before starting a new run (or pass --force)", 2);
+        }
+      }
+    }
+
+    const runsDir = path.join(projectKdir(), "runs");
+    ensureDir(runsDir);
+    const archiveFile = path.join(runsDir, `run-${Date.now()}-${s.project || "archive"}.json`);
+    writeJson(archiveFile, s);
+
+    if (taskType && initialStage === 1) {
+      initialStage = taskType;
+    }
+
+    const newState: RunState = {
+      version: 1,
+      project,
+      root_goal: goal,
+      root_goal_locked_at: goal ? nowIso() : null,
+      stage: initialStage,
+      ...(taskType ? { task: { type: taskType, ...(taskName ? { name: taskName } : {}) } } : {}),
+      gates: {},
+      history: [
+        ...s.history,
+        { at: nowIso(), event: `archived run to ${path.basename(archiveFile)}` },
+        { at: nowIso(), event: `new-run project=${project} stage=${initialStage}${goal ? ` goal=${goal}` : ""}` },
+      ],
+    };
+    writeJson(f, newState);
+    ok(`run archived to ${path.basename(archiveFile)}; new run started${goal ? " (goal locked)" : ""}`);
+    return;
+  }
 
   if (cmd === "get") {
     const key = rest[0];
@@ -181,7 +280,7 @@ function main() {
     return;
   }
 
-  die(`unknown command: ${cmd}. Use init | get [key] | set | validate`, 2);
+  die(`unknown command: ${cmd}. Use init | get [key] | set | new-run | validate`, 2);
 }
 
 main();

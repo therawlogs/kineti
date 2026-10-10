@@ -390,3 +390,133 @@ describe("governance state file permissions", () => {
     }
   });
 });
+
+describe("audit findings regressions (I-01 to I-07)", () => {
+  test("I-01 & I-02: evidence expiry and workspace mutation rejection", () => {
+    const c = makeCtx();
+    const e = (a: string[]) => run("kineti-evidence.ts", a, c);
+
+    // Initial clean test pass
+    expect(e(["run", "--label", "test-pass", "--", "true"]).status).toBe(0);
+    expect(e(["check", "--label", "test-pass"]).status).toBe(0);
+
+    // I-01: Malformed --max-age
+    const malformed = e(["check", "--label", "test-pass", "--max-age", "4h"]);
+    expect(malformed.status).toBe(2);
+    expect(malformed.err).toContain("--max-age must be a positive finite number of minutes");
+
+    const negativeAge = e(["check", "--label", "test-pass", "--max-age", "-10"]);
+    expect(negativeAge.status).toBe(2);
+
+    // Future timestamp receipt fails
+    const evPath = path.join(c.cwd, ".kineti", "evidence.jsonl");
+    const futureReceipt = {
+      at: new Date(Date.now() + 3600000).toISOString(),
+      label: "future-test",
+      cmd: "true",
+      exit_code: 0,
+      fingerprint: "placeholder",
+    };
+    fs.appendFileSync(evPath, JSON.stringify(futureReceipt) + "\n");
+    const futureCheck = e(["check", "--label", "future-test"]);
+    expect(futureCheck.status).toBe(4);
+    expect(futureCheck.err).toContain("receipt timestamp is in the future");
+
+    // I-02: Workspace modification during test execution
+    const canary = path.join(c.cwd, "canary-mutation.txt");
+    const mutateRun = e(["run", "--label", "test-mutate", "--", "touch", canary]);
+    expect(mutateRun.status).toBe(1);
+    expect(mutateRun.err).toContain("guard failed: workspace was modified during test execution");
+
+    // Check rejects mutated receipt as STALE
+    const mutateCheck = e(["check", "--label", "test-mutate"]);
+    expect(mutateCheck.status).toBe(4);
+    expect(mutateCheck.err).toContain("workspace changed during test execution");
+
+    // Opt-in allow-workspace-mutation works
+    const allowedMutate = e(["run", "--label", "test-allowed-mutate", "--allow-workspace-mutation", "--", "touch", canary]);
+    expect(allowedMutate.status).toBe(0);
+    expect(e(["check", "--label", "test-allowed-mutate", "--allow-workspace-mutation"]).status).toBe(0);
+
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("I-04 & I-05: unknown-model pricing and spend reset headroom", () => {
+    const c = makeCtx();
+    const s = (a: string[]) => run("kineti-spend.ts", a, c);
+
+    // I-04: Unknown model without override or estimate fails with exit 2
+    const unknownRun = s(["log", "--stage", "build", "--model", "mystery-ai-v9", "--tokens-in", "1000", "--tokens-out", "1000"]);
+    expect(unknownRun.status).toBe(2);
+    expect(unknownRun.err).toContain("unknown model 'mystery-ai-v9'");
+
+    // Succeeded with --usd override
+    const overrideRun = s(["log", "--stage", "build", "--model", "mystery-ai-v9", "--tokens-in", "1000", "--tokens-out", "1000", "--usd", "0.05"]);
+    expect(overrideRun.status).toBe(0);
+    expect(overrideRun.out).toContain("override");
+
+    // Succeeded with --estimate
+    const estimateRun = s(["log", "--stage", "build", "--model", "mystery-ai-v9", "--tokens-in", "1000", "--tokens-out", "1000", "--estimate"]);
+    expect(estimateRun.status).toBe(0);
+    expect(estimateRun.out).toContain("estimate");
+
+    // I-05: Headroom reporting and reset
+    const statusRes = s(["status"]);
+    expect(statusRes.status).toBe(0);
+    expect(statusRes.out).toContain("headroom_to_trip");
+
+    // Reset with extend
+    expect(s(["reset", "--i-am-human", "--extend-usd", "10"]).status).toBe(0);
+
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("I-06: second-task new-run lifecycle archives state and clears gates", () => {
+    const c = makeCtx();
+    const st = (a: string[]) => run("kineti-state.ts", a, c);
+    const sg = (a: string[]) => run("kineti-saga.ts", a, c);
+
+    // Run 1: init and pass gate
+    expect(st(["init", "--project", "multi-task-proj", "--goal", "Task 1"]).status).toBe(0);
+    expect(st(["set", "gate.spec", "pass"]).status).toBe(0);
+    expect(st(["set", "gate.security", "pass"]).status).toBe(0);
+    expect(st(["get", "gate.spec"]).out.trim()).toBe("pass");
+
+    // Pending SAGA prevents new-run without force
+    expect(sg(["begin", "--run-id", "r1"]).status).toBe(0);
+    expect(sg(["register", "--run-id", "r1", "--label", "edit", "--inverse", "true"]).status).toBe(0);
+    const blockedNewRun = st(["new-run", "--goal", "Task 2"]);
+    expect(blockedNewRun.status).toBe(2);
+    expect(blockedNewRun.err).toContain("pending undo inverses exist");
+
+    // Commit SAGA and start new-run
+    expect(sg(["commit", "--run-id", "r1"]).status).toBe(0);
+    const newRunRes = st(["new-run", "--goal", "Task 2", "--stage", "build"]);
+    expect(newRunRes.status).toBe(0);
+    expect(newRunRes.out).toContain("new run started (goal locked)");
+
+    // Task 2 does NOT inherit task 1 gates
+    expect(st(["get", "root_goal"]).out.trim()).toBe("Task 2");
+    expect(st(["get", "stage"]).out.trim()).toBe("7");
+    const gatesRes = run("kineti-state.ts", ["get", "gates"], c);
+    expect(gatesRes.out.trim()).toBe("{}");
+
+    // Archive file exists in .kineti/runs/
+    const runsDir = path.join(c.cwd, ".kineti", "runs");
+    expect(fs.existsSync(runsDir)).toBe(true);
+    expect(fs.readdirSync(runsDir).length).toBeGreaterThanOrEqual(1);
+
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("I-07: subcommand --help exits with 0 for all tools", () => {
+    const c = makeCtx();
+    expect(run("kineti-spend.ts", ["--help"], c).status).toBe(0);
+    expect(run("kineti-evidence.ts", ["--help"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["--help"], c).status).toBe(0);
+    expect(run("kineti-ci.ts", ["--help"], c).status).toBe(0);
+    expect(run("kineti-saga.ts", ["--help"], c).status).toBe(0);
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+});
+

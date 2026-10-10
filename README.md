@@ -42,7 +42,7 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 - **Model Context Protocol (MCP)**: 14 tools: 13 governance tools plus the plain-talk helper, available to compatible local hosts.
 
 ### 3. Test Inventory & Evaluation Roadmap
-- **Test inventory**: 223 TypeScript governance test cases and 248 native Rust test cases (471 total test cases); passing tests verify tested paths, not every external integration or agent action.
+- **Test inventory**: 227 TypeScript governance test cases and 248 native Rust test cases (475 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Not provided**: a complete agent sandbox, cloud connector service, or signed deployment safety certificate.
 
@@ -209,15 +209,15 @@ kineti ci --require-evidence typecheck --require-evidence unit-tests
 
 The CI report checks the required receipts against the current workspace fingerprint and reports **checks passed** or **blocked**. It is not a signed safety certificate.
 
-### 4. Native Rust Engine & Crates.io
+### 4. Native Rust Engine & Crates.io (`kineti-cli`)
 
-The Rust workspace contains eight separately versioned crates on [crates.io](https://crates.io). The v0.4.0 commands below are available after that release finishes publishing.
+The Rust workspace contains eight separately versioned crates on [crates.io](https://crates.io). The v0.4.0 commands below are available after that release finishes publishing. Note that the native binary `kineti-cli` provides native Rust demo and epistemic commands, and does not replace the Node/Bun npm `kineti` governance router (`kineti mcp`, `kineti spend`, `kineti test`, `kineti ci`).
 
 ```bash
 # Add the native core to your Rust project after v0.4.0 is published
 cargo add kineti-core
 
-# Or install the native CLI after v0.4.0 is published
+# Or install the native CLI binary (kineti-cli)
 cargo install kineti-cli@0.4.0
 
 # Run the native Rust test suite locally

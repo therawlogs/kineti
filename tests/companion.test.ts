@@ -749,10 +749,11 @@ describe("harness status fixes (A1/A3/A5)", () => {
 
   test("A3: fresh project gates default to unknown, rendered as not evaluated", () => {
     const stateFile = path.join(process.cwd(), ".kineti", "state.json");
-    const had = fs.readFileSync(stateFile, "utf8");
+    const had = fs.existsSync(stateFile) ? fs.readFileSync(stateFile, "utf8") : null;
     try {
-      const state = JSON.parse(had);
+      const state = had ? JSON.parse(had) : { version: 1, project: "test-fixture", stage: 1, history: [] };
       delete state.gates;
+      fs.mkdirSync(path.dirname(stateFile), { recursive: true });
       fs.writeFileSync(stateFile, JSON.stringify(state));
       const status = getHarnessStatus();
       expect(status.gates).toEqual({});
@@ -764,7 +765,8 @@ describe("harness status fixes (A1/A3/A5)", () => {
       expect(describeGate({ spec: "pass", security: "pending" }, "security")).toBe("pending");
       expect(describeGate(null, "spec")).toBe("not evaluated");
     } finally {
-      fs.writeFileSync(stateFile, had);
+      if (had === null) fs.rmSync(stateFile, { force: true });
+      else fs.writeFileSync(stateFile, had);
     }
   });
 

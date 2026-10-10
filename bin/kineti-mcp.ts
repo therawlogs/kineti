@@ -167,6 +167,8 @@ const TOOLS = [
         in_tokens: { type: "number", description: "Input prompt tokens consumed" },
         out_tokens: { type: "number", description: "Output completion tokens generated" },
         stage: { type: "string", description: "Active development stage" },
+        usd_override: { type: "number", description: "Direct USD cost override" },
+        estimate: { type: "boolean", description: "Allow fallback estimate pricing for unknown models" },
       },
       required: ["model", "in_tokens", "out_tokens"],
     },
@@ -347,6 +349,12 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
           "--tokens-in", String(args.in_tokens ?? 0),
           "--tokens-out", String(args.out_tokens ?? 0),
         ];
+        if (args.usd_override !== undefined && args.usd_override !== null) {
+          cmdArgs.push("--usd", String(args.usd_override));
+        }
+        if (args.estimate) {
+          cmdArgs.push("--estimate");
+        }
         const res = runBin("kineti-spend.ts", cmdArgs);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
