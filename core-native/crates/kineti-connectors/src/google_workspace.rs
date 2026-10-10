@@ -146,7 +146,10 @@ impl KinetiConnectorProtocol for GoogleWorkspaceClient {
                 let subject = get_str_property(payload, "subject").unwrap_or("");
                 map.insert("to".to_string(), Value::String(to.to_string()));
                 map.insert("subject".to_string(), Value::String(subject.to_string()));
-                map.insert("status".to_string(), Value::String("mock_prepared".to_string()));
+                map.insert(
+                    "status".to_string(),
+                    Value::String("mock_prepared".to_string()),
+                );
                 map.insert("live_dispatched".to_string(), Value::from(false));
                 Ok(Value::Object(map))
             }
