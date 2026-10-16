@@ -36,23 +36,39 @@ reference site.
    Preset style archetypes may be offered here as starting points only —
    the references override them everywhere they disagree.
    **Get explicit approval of this brief before generating anything.**
-3. **Generate four to six variants** of the single most important screen as
+3. **Storyboard the user path before variants.** Create `design/storyboard.md`
+   with the entry point, each screen/state in order, user action, visible
+   result, error/empty state, and responsible user/client/server/AI actor.
+   Mark proposed data as mock data and identify fields; do not collect or
+   import real data yet. Get human approval of the storyboard and mock-data
+   shape before Workflow 03 intake.
+4. **Generate four to six variants** of the single most important screen as
    real HTML files (inline CSS, no build step) under `design/screens/`.
    Variants must differ on at least two brief dimensions each, not just
    recolors. Name them `variant-1.html` ... `variant-6.html`.
-4. **Show a comparison page**: a simple `design/screens/compare.html` that
+5. **Show a comparison page**: a simple `design/screens/compare.html` that
    iframes all variants side by side with numbered labels. Open it for the
    human.
-5. **Record every verdict** to memory as a taste lesson:
+6. **Record every verdict** to memory as a taste lesson:
    `{type: learning, topic: design-taste, kept: <variant>, rejected: [...],
    traits credited, expires: +90d}`. Local fallback: append to
    `.kineti/journal.jsonl`. These lessons bias future variant rounds.
-6. **Iterate**: regenerate the losers' slots using taste lessons until one
+7. **Iterate**: regenerate the losers' slots using taste lessons until one
    variant wins or three rounds pass. Three rounds max, then the human
    picks the least-bad and we note why none was loved.
-7. **Produce production tokens**: `design/tokens.json` with colors,
+8. **Produce production tokens**: `design/tokens.json` with colors,
    spacing scale, radii, fonts, motion durations taken from the winner.
-8. Move stage: `bun "$K/kineti-state.ts" set stage 4`.
+9. Move stage: `bun "$K/kineti-state.ts" set stage 4`.
+
+## Approval and acceptance
+
+The human approves the storyboard and mock-data shape before any Workflow
+03 intake begins, then approves the style brief and winning variant. Pass
+when the storyboard covers the full primary path and at least one relevant
+failure/empty state, mock fields are explicit, the comparison page matches
+the variants, and the selected design maps to production tokens. Any data
+intake requested before storyboard/mock approval must stop and return to
+this step.
 
 ## Outputs
 
@@ -62,6 +78,7 @@ Approved style brief, winning `variant-N.html`, `compare.html`,
 ## Hard rules
 
 - No component code before a mockup wins.
+- No real-data intake before the storyboard and mock-data shape are approved.
 - The 12-component UI library is fallback vocabulary for when nothing
   better fits — never a mandatory checklist.
 - Every rejected variant teaches: record it, never silently discard.

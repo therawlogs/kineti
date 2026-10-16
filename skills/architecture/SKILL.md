@@ -29,6 +29,16 @@ Log model calls with `--stage architecture`.
 `brief.md`, `diagnostics.md` (loss table + constraint), `design/tokens.json`,
 and any ceilings already known (latency, budget).
 
+## Feature discovery and tool selection
+
+Before drawing services, list user outcomes from `brief.md` and storyboard
+steps, then map each to a feature, a measurable result, and an out-of-scope
+decision. For every proposed tool or managed service compare it with at
+least one alternative, including keeping the capability local or not
+building it. Record cost at expected load, limits, data access, failure
+behavior, and exit cost. Select tools only after this comparison; approval
+of the architecture summary approves the selected tools and feature scope.
+
 ## Procedure
 
 1. **Data-flow drawing** (mermaid in `architecture.md`). Every box is one
@@ -60,7 +70,15 @@ and any ceilings already known (latency, budget).
 ## Outputs
 
 `architecture.md` (drawing, contracts, machines, error paths, failure
-table, limits, stack math, test matrix).
+table, limits, stack math, test matrix, feature-to-outcome map, and explicit
+tool choices with alternatives).
+
+## Approval and acceptance
+
+Pass when every in-scope outcome maps to a feature and test, each feature
+has a scope decision, each selected tool has a recorded alternative and
+comparison, and the architecture test matrix covers failure paths and
+state transitions. The human approves the summary before implementation.
 
 ## Hard rules
 

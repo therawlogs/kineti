@@ -23,7 +23,7 @@ jobs:
     name: Verify test suite
     runs-on: ubuntu-latest
     env:
-      KINETI_REQUIRED_EVIDENCE: release-typecheck release-ts-tests release-rust-tests release-cli-selfcheck release-installer-smoke release-npm-pack release-crate-pack
+      KINETI_REQUIRED_EVIDENCE: release-ts-tests release-rust-tests
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -83,7 +83,7 @@ jobs:
         run: bun bin/kineti.js seed
 
       - name: Run Type Integrity Check
-        run: bun bin/kineti-evidence.ts run --label release-typecheck --timeout 300 -- bun run typecheck
+        run: bun run typecheck
 
       - name: Rust formatting check
         run: cargo fmt --all --manifest-path core-native/Cargo.toml --check
@@ -92,22 +92,22 @@ jobs:
         run: cargo clippy --all-targets --manifest-path core-native/Cargo.toml -- -D warnings
 
       - name: Run Unit & Gate Test Suite
-        run: bun bin/kineti-evidence.ts run --label release-ts-tests --timeout 600 -- bun test tests/
+        run: bun bin/kineti-evidence.ts run --label release-ts-tests --required-test tests --timeout 600 -- bun test tests/
 
       - name: Run Rust Engine Test Suite
-        run: bun bin/kineti-evidence.ts run --label release-rust-tests --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
+        run: bun bin/kineti-evidence.ts run --label release-rust-tests --required-test core-native/Cargo.toml --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
 
       - name: Run Native CLI Self-Check
-        run: bun bin/kineti-evidence.ts run --label release-cli-selfcheck --timeout 600 -- cargo run -p kineti-cli -- test-all
+        run: cargo run -p kineti-cli -- test-all
 
       - name: Run Installer Smoke Test
-        run: bun bin/kineti-evidence.ts run --label release-installer-smoke --timeout 600 -- bun run test:setup
+        run: bun run test:setup
 
       - name: Check npm package contents
-        run: bun bin/kineti-evidence.ts run --label release-npm-pack --timeout 300 -- npm pack --dry-run
+        run: npm pack --dry-run
 
       - name: Check Rust crate packages
-        run: bun bin/kineti-evidence.ts run --label release-crate-pack --timeout 900 -- cargo package --workspace --locked --offline --manifest-path Cargo.toml
+        run: cargo package --workspace --locked --offline --manifest-path Cargo.toml
 
       - name: Verify every evidence record is fresh
         run: |

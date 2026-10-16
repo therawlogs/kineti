@@ -206,7 +206,9 @@ describe("kineti-evidence", () => {
     fs.writeFileSync(path.join(c.cwd, "src", "a.ts"), "export const x = 1;\n");
     const e = (a: string[]) => run("kineti-evidence.ts", a, c);
 
-    expect(e(["run", "--label", "unit", "--", "true"]).status).toBe(0);
+    fs.mkdirSync(path.join(c.cwd, "tests"));
+    fs.writeFileSync(path.join(c.cwd, "tests", "one.test.ts"), "import { test, expect } from 'bun:test'; test('one', () => expect(1).toBe(1));\n");
+    expect(e(["run", "--label", "unit", "--required-test", "tests/one.test.ts", "--", "bun", "test", "tests/one.test.ts"]).status).toBe(0);
     expect(e(["check", "--label", "unit"]).status).toBe(0);
     expect(e(["check", "--label", "unit"]).out).toContain("FRESH");
 
@@ -301,6 +303,25 @@ describe("kineti-egress", () => {
     fs.writeFileSync(ledger, lines.join("\n") + "\n");
 
     expect(e(["verify"]).status).toBe(3);
+    expect(fs.existsSync(`${ledger}.lock`)).toBe(false);
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("concurrent record processes serialize sequence and hash-chain updates", async () => {
+    const c = makeCtx();
+    const children = Array.from({ length: 12 }, (_, i) => Bun.spawn({
+      cmd: ["bun", path.join(REPO, "bin", "kineti-egress.ts"), "record", "--host", `host-${i}.example`, "--description", `parallel request ${i}`],
+      cwd: c.cwd,
+      env: { ...process.env, KINETI_MACHINE_DIR: c.machine },
+      stdout: "pipe",
+      stderr: "pipe",
+    }));
+    const exits = await Promise.all(children.map((child) => child.exited));
+    expect(exits.every((code) => code === 0)).toBe(true);
+    expect(run("kineti-egress.ts", ["verify"], c).status).toBe(0);
+    const records = fs.readFileSync(path.join(c.machine, "egress.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    expect(records.map((r) => r.seq)).toEqual(Array.from({ length: 12 }, (_, i) => i));
+    expect(records.map((r) => r.description).sort()).toEqual(Array.from({ length: 12 }, (_, i) => `parallel request ${i}`).sort());
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 });
@@ -397,7 +418,9 @@ describe("audit findings regressions (I-01 to I-07)", () => {
     const e = (a: string[]) => run("kineti-evidence.ts", a, c);
 
     // Initial clean test pass
-    expect(e(["run", "--label", "test-pass", "--", "true"]).status).toBe(0);
+    fs.mkdirSync(path.join(c.cwd, "tests"), { recursive: true });
+    fs.writeFileSync(path.join(c.cwd, "tests", "pass.test.ts"), "import { test, expect } from 'bun:test'; test('one', () => expect(1).toBe(1));\n");
+    expect(e(["run", "--label", "test-pass", "--required-test", "tests/pass.test.ts", "--", "bun", "test", "tests/pass.test.ts"]).status).toBe(0);
     expect(e(["check", "--label", "test-pass"]).status).toBe(0);
 
     // I-01: Malformed --max-age
@@ -424,19 +447,21 @@ describe("audit findings regressions (I-01 to I-07)", () => {
 
     // I-02: Workspace modification during test execution
     const canary = path.join(c.cwd, "canary-mutation.txt");
-    const mutateRun = e(["run", "--label", "test-mutate", "--", "touch", canary]);
+    fs.writeFileSync(path.join(c.cwd, "tests", "mutate.test.ts"), `import { test, expect } from 'bun:test'; import fs from 'node:fs'; test('mutates workspace', () => { fs.writeFileSync(${JSON.stringify(canary)}, 'changed'); expect(true).toBe(true); });\n`);
+    const mutateRun = e(["run", "--label", "test-mutate", "--required-test", "tests/mutate.test.ts", "--", "bun", "test", "tests/mutate.test.ts"]);
     expect(mutateRun.status).toBe(1);
     expect(mutateRun.err).toContain("guard failed: workspace was modified during test execution");
 
     // Check rejects mutated receipt as STALE
     const mutateCheck = e(["check", "--label", "test-mutate"]);
-    expect(mutateCheck.status).toBe(4);
-    expect(mutateCheck.err).toContain("workspace changed during test execution");
+    expect(mutateCheck.status).toBe(7);
+    expect(mutateCheck.err).toContain("receipt verification evidence is missing, unknown, or failing");
 
     // Opt-in allow-workspace-mutation works
-    const allowedMutate = e(["run", "--label", "test-allowed-mutate", "--allow-workspace-mutation", "--", "touch", canary]);
+    fs.rmSync(canary, { force: true });
+    const allowedMutate = e(["run", "--label", "test-allowed-mutate", "--allow-workspace-mutation", "--required-test", "tests/mutate.test.ts", "--", "bun", "test", "tests/mutate.test.ts"]);
     expect(allowedMutate.status).toBe(0);
-    expect(e(["check", "--label", "test-allowed-mutate", "--allow-workspace-mutation"]).status).toBe(0);
+    expect(e(["check", "--label", "test-allowed-mutate", "--allow-workspace-mutation"]).status).toBe(7);
 
     fs.rmSync(c.root, { recursive: true, force: true });
   });

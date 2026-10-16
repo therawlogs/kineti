@@ -49,7 +49,12 @@ memory verbs; otherwise read `<project>/.kineti/journal.md` if present.
 6. **Write `brief.md`** containing: the pain examples verbatim, the chosen
    framing, must-be-true list, approaches compared, the smallest version,
    and explicit out-of-scope items.
-7. **Lock the goal.**
+7. **Name the first users and app model.** Record primary and secondary
+   personas, their job, access needs, and the decision each must make. Draw
+   the app model in `brief.md`: user-facing surfaces, main objects, and
+   which work happens in the client, server, or AI. Mark unknowns as
+   assumptions; do not invent research findings.
+8. **Lock the goal.**
 
 ```sh
 bun "$K/kineti-state.ts" init --project <slug> --goal "<one testable sentence>"
@@ -58,6 +63,15 @@ bun "$K/kineti-state.ts" set stage 2
 
 The goal is immutable after this point. If the goal changes later, start a
 new run instead of editing it.
+
+## Approval and acceptance
+
+Show the pain evidence, goal sentence, personas, app model, assumptions,
+and smallest useful version. The human approves the goal and framing before
+the goal is initialized. Pass only when a real pain example supports the
+goal, every key assumption is marked, at least one primary persona is named,
+and the app model assigns each important action to user, client, server, or
+AI. Otherwise revise the brief; do not lock a guessed goal.
 
 ## Outputs
 
@@ -68,6 +82,7 @@ new run instead of editing it.
 - No feature lists before pain is proven with examples.
 - No building in this stage. Design doc only.
 - Never edit root_goal after locking.
+- Personas and app model are hypotheses unless supported by user evidence.
 
 ## Memory after
 

@@ -42,10 +42,38 @@ Log model calls with `--stage spec`.
    proves each done (link to its acceptance test).
 5. **Out-of-scope list**: everything explicitly not built now, copied from
    brief and extended. This list is binding.
-6. **Declare the verify command** in the project's `kineti.config.json`
+6. **Continuity probe (Workflow 07).** Compare the request, proposed
+   changes, and acceptance criteria with the locked `root_goal`, approved
+   `brief.md`, and current spec. If scope or outcomes differ, write
+   `contract-probe.md` with the exact matching and differing statements,
+   consequences for cost/data/approval, and numbered options: continue
+   within contract, revise the spec within the same goal, or stop and start
+   a new run for a genuinely different goal. Explain the options in plain
+   language and wait for the human's explicit choice. Never edit the locked
+   goal or silently reinterpret it. Record the decision in the spec/run
+   record.
+7. **Product mode (Workflow 11).** Before packaging or setup, ask the human
+   to select one: `harness` (project workflow skills), `gate` (receipt and
+   protected-action checks), or `both`. Record the selection and included
+   capabilities in `spec.md`; do not infer a mode from host/editor choice.
+8. **Adapter support contract (Workflow 12).** List adapters as
+   `supported`, `stub`, or `unsupported`, with a tested capability and
+   acceptance evidence for every supported claim. An adapter runs in the
+   background and adds its declared capability; it does not replace the
+   user's foreground editor/agent. Until tested, GitHub Action, Codex,
+   Claude Code, and other adapters are stubs/unsupported.
+9. **Natural-language routing contract (Workflow 13).** For each supported
+   host, define natural-language example requests, expected skill, and
+   prohibited accidental route. Test routing without slash commands. A
+   host passes only with inspectable results; unknown hosts and untested
+   routes remain unsupported.
+10. **Declare the verify command** in the project's `kineti.config.json`
    (`settings.verify_command`) — the command that proves the build is
    green (test runner invocation). The verify-gate uses it from now on.
-7. **Write `spec.md`.** Then:
+11. **Write `spec.md` and project-local planning docs.** Keep
+   `docs/` inside the project; include a concise architecture/spec pointer,
+   an owned roadmap, and a prioritized list with acceptance tests and
+   dependencies. Preserve the approved out-of-scope list. Then:
    `bun "$K/kineti-state.ts" set gate.spec pending`
 
 ## HARD STOP
@@ -62,7 +90,18 @@ stop and delete it.
 
 ## Outputs
 
-Approved `spec.md`, declared verify command, gate.spec = pass.
+Approved `spec.md`, `contract-probe.md` when a mismatch was found,
+`docs/` architecture/spec pointers and prioritized roadmap, selected
+product mode, adapter support table, natural-language routing test matrix,
+declared verify command, gate.spec = pass.
+
+## Approval and acceptance
+
+Pass only when the human has selected a product mode, every contract
+mismatch has an explicit decision, each priority has an owner or a recorded
+unassigned status plus an acceptance test, and adapter/routing claims have
+evidence or are labeled unsupported. A missing selection or unresolved
+mismatch keeps the spec gate pending.
 
 ## Hard rules
 

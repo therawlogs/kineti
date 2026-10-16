@@ -71,12 +71,12 @@ describe("0.1 shell removal", () => {
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 
-  test("allowlisted commands still run: true, echo, bun", () => {
+  test("allowlisted command without recognized test output runs but cannot issue passing proof", () => {
     const c = makeCtx();
     fs.mkdirSync(path.join(c.cwd, "src"), { recursive: true });
     fs.writeFileSync(path.join(c.cwd, "src", "a.ts"), "export const x = 1;\n");
-    expect(run("kineti-evidence.ts", ["run", "--label", "ok-true", "--", "true"], c).status).toBe(0);
-    expect(run("kineti-evidence.ts", ["run", "--label", "ok-echo", "--", "echo", "hello"], c).status).toBe(0);
+    expect(run("kineti-evidence.ts", ["run", "--label", "ok-true", "--", "true"], c).status).toBe(1);
+    expect(run("kineti-evidence.ts", ["run", "--label", "ok-echo", "--", "echo", "hello"], c).status).toBe(1);
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 

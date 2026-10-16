@@ -4,8 +4,20 @@
 [![crates.io](https://img.shields.io/crates/v/kineti-cli.svg?color=orange)](https://crates.io/crates/kineti-cli)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-> **File-bound test receipts and registered rollback for AI coding agents.**  
-> Also a spend log with a cap. MIT. Works with Claude Code, Cursor, OpenCode, Codex and Antigravity through MCP.
+> **Run tests, save a file-bound receipt, and see when later edits make it stale.** Kineti also records registered rollback steps and agent-reported spend. MIT licensed.
+
+```text
+$ kineti test -- bun test tests/
+proof recorded: release-check run=…
+$ kineti test check --label release-check
+FRESH: release-check
+
+# After a source edit:
+$ kineti test check --label release-check
+STALE: code changed after the run
+```
+
+Example blocked bad release: a release script checks the receipt, receives a non-zero `STALE` result after a source edit, and stops before packaging. This is a check your script must run; Kineti does not stop unrelated release commands or intercept every editor action.
 
 ```text
 $ kineti spend status
@@ -37,14 +49,14 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 ### 2. TypeScript Governance Control Plane (`bin/`, `src/`)
 - **13-Stage Project State**: A local workflow record for a goal, stage, and named gates.
 - **Transactional SAGA Undo Stack**: Newest-first rollback of inverses the agent registered. A failed inverse prints `rollback incomplete`, exits 1, and that step stays pending.
-- **Workspace-bound Test Receipts**: Local test exit codes and SHA-256 workspace fingerprints via `kineti-evidence.ts`; receipts are not signed certificates.
+- **Versioned Test Receipts**: Kineti records the test command, parsed test summary, required-test inventory, workspace fingerprint, and a local Ed25519 signature. The signature identifies the local issuer key; it does not establish a trusted organization or prove tests were adequate. The separate verifier can check the declared evidence when given the trusted public key.
 - **Visual Companion**: A local dashboard for project state, activity, team details, and local budgets.
-- **Model Context Protocol (MCP)**: 14 tools: 13 governance tools plus the plain-talk helper, available to compatible local hosts.
+- **Model Context Protocol (MCP)**: 15 tools: 14 governance tools plus the plain-talk helper. The protected-write gate is supported for Cursor only.
 
 ### 3. Test Inventory & Evaluation Roadmap
-- **Test inventory**: 227 TypeScript governance test cases and 248 native Rust test cases (475 total test cases); passing tests verify tested paths, not every external integration or agent action.
+- **Test inventory**: 246 TypeScript governance test cases and 250 native Rust test cases (496 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
-- **Not provided**: a complete agent sandbox, cloud connector service, or signed deployment safety certificate.
+- **Not provided**: a complete agent sandbox or cloud connector service.
 
 ---
 
@@ -78,6 +90,8 @@ This detects your installed hosts (Claude, OpenCode, Codex, Cursor, Antigravity,
 
 MCP server config is **not** written automatically. Add it with the manual step below for your editor.
 
+The protected file-write gate is supported only for Cursor in this release. `kineti mcp init` safely merges the Kineti launcher into `.cursor/mcp.json`; writes are gated only when the agent uses Kineti's `kineti_protected_write` MCP tool. Cursor-native file tools bypass this gate. Other hosts' gate adapters are unsupported.
+
 Initialize local project state separately from editor setup:
 
 ```bash
@@ -105,6 +119,7 @@ Add to your project's `.cursor/mcp.json` or Cursor Settings $\to$ Features $\to$
   }
 }
 ```
+To merge the protected launcher into the existing Cursor MCP configuration, run `kineti mcp init` from the project directory. It keeps other servers and saves a backup.
 Windsurf uses a different path: `~/.codeium/windsurf/mcp_config.json`, with the same `mcpServers` JSON.
 
 **OpenCode**:
@@ -188,11 +203,14 @@ kineti mcp
 # Check spend circuit breaker status ($50 default ceiling)
 kineti spend check
 
-# Run tests and save a local workspace-fingerprinted receipt
-kineti test -- echo hello
+# Run tests, declare the required inventory, and save a versioned receipt
+bun bin/kineti-evidence.ts run --label unit --required-test tests/lib.test.ts -- bun test tests/lib.test.ts
 
 # Check local test receipt freshness
 kineti test check --label test
+
+# Check a receipt's declared evidence elsewhere using a trusted public key
+kineti evidence-verify --receipt receipt.json --trusted-key .kineti/evidence-issuer.pem --workspace .
 
 # Prepare runtime state on a fresh CI checkout (run before tests and `kineti ci`)
 kineti seed
@@ -207,7 +225,7 @@ CI workflows should pass every required test label to the gate. For example:
 kineti ci --require-evidence typecheck --require-evidence unit-tests
 ```
 
-The CI report checks the required receipts against the current workspace fingerprint and reports **checks passed** or **blocked**. It is not a signed safety certificate.
+The CI report checks the required receipts against the current workspace fingerprint and reports **checks passed** or **blocked**. It reports declared receipt checks only.
 
 ### 4. Native Rust Engine & Crates.io (`kineti-cli`)
 
@@ -251,7 +269,7 @@ kineti/
 │       ├── kineti-connectors/ # Protocolized connectors & permission gating
 │       ├── kineti-actions/ # Action execution & confirmation gates
 │       ├── kineti-gateway/ # Messaging webhooks & bridge
-│       ├── kineti-harness/ # Ed25519 OVT tools & Git worktree file separation
+│       ├── kineti-harness/ # OVT signature demo with caller-supplied key trust; worktrees are not sandboxes
 │       └── kineti-cli/  # Standalone native CLI binary
 ├── src/                 # Shared TypeScript libraries (governance, scheduler, security)
 ├── skills/              # 17 agent workflow skills (installed by setup.sh)
@@ -286,9 +304,11 @@ Today Kineti provides local ledger tooling, registered rollback, spend totals ba
 
 1. **Safe Rust**: `#![forbid(unsafe_code)]` is enforced in the listed Rust crates.
 2. **Recorded-spend limit**: `$50.00` default local ceiling, configurable in project settings; spend is agent-reported, and the logging command exits with code 3 near the recorded limit.
-3. **Workspace-bound test receipts**: Test runs record an exit code and SHA-256 workspace fingerprint. The receipt is local and is not a signed certificate.
-4. **Agent guidance**: Installed workflow instructions ask agents to report genuine impossibilities rather than silently exceed stated limits. Kineti does not enforce this across every tool or action.
-5. **Prompt-injection tests**: The repository includes 550 test inputs for the local prompt filter. Passing that suite is not a general security guarantee. A public 100 hostile-tool-call benchmark is not included.
+3. **Test receipts**: New receipts are signed by a project-local Kineti key and bind a command, parsed test summary, required test files, dependency lockfiles, tool versions, and workspace fingerprint. Old receipts remain readable with limited results and cannot authorize the Cursor protected-write gate. A copied receipt can be checked elsewhere only against its declared evidence and a separately trusted issuer public key; the verifier does not run tests on that other machine. Text files normalize CRLF to LF; binary files are hashed as raw bytes. Paths are workspace-relative with `/` separators. Files over 50 MiB retain the existing size-and-mtime limitation.
+4. **Cursor protected write**: Only writes routed through `kineti_protected_write` are checked against a fresh receipt bound to the configured verification command, destination, arguments, and bytes. Cursor’s direct filesystem tools do not pass through this gate. Revocation is not implemented; single-use run IDs prevent replay after a successful write.
+5. **Scriptable results**: Receipt checks use `0` for fresh, `4` for stale, `5` for missing, `6` for limited legacy receipts, and `7` for invalid or unsupported evidence. Protected writes use `0` for allowed, `1` for blocked, `2` for invalid input, and `3` for a write failure.
+6. **Agent guidance**: Installed workflow instructions ask agents to report genuine impossibilities rather than silently exceed stated limits. Kineti does not enforce this across every tool or action.
+7. **Prompt-injection tests**: The repository includes 550 test inputs for the local prompt filter. Passing that suite is not a general security guarantee. A public 100 hostile-tool-call benchmark is not included.
 
 ---
 

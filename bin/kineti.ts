@@ -50,6 +50,8 @@ const COMMAND_MAP: Record<string, { script: string; isShell?: boolean }> = {
   seed: { script: "bin/kineti-seed.ts" },
   egress: { script: "bin/kineti-egress.ts" },
   memory: { script: "bin/kineti-memory-job.ts" },
+  "evidence-verify": { script: "bin/kineti-evidence-verify.ts" },
+  "protected-write": { script: "bin/kineti-protected-write.ts" },
 };
 
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
@@ -133,6 +135,8 @@ Commands:
   kineti companion     Open visual dashboard (http://127.0.0.1:8788)
   kineti mcp           Start MCP server
   kineti test -- <cmd> Run tests and save proof
+  kineti evidence-verify --receipt <file> --trusted-key <pem> [--workspace <dir>]
+  kineti protected-write < request.json (0 allowed, 1 blocked, 2 invalid input, 3 write failure)
   kineti undo          Undo last change
   kineti spend         Show spend vs $50 cap
   kineti status        Show task and gate state

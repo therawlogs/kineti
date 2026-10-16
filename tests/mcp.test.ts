@@ -3,9 +3,32 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { isAllowedEvidenceCommand } from "../bin/lib.ts";
+import { writeCursorConfig } from "../bin/kineti-config.ts";
 
 const REPO = path.resolve(import.meta.dir, "..");
 const MCP_SCRIPT = path.join(REPO, "bin", "kineti-mcp.ts");
+
+describe("Cursor MCP config merge", () => {
+  test("keeps existing servers, writes a backup, and leaves original config intact on mid-write failure", () => {
+    const dir = makeTmpDir("cursor-config-");
+    const file = path.join(dir, ".cursor", "mcp.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const old = JSON.stringify({ other: { keep: true }, mcpServers: { existing: { command: "node", args: ["server.js"] } } }, null, 2) + "\n";
+    fs.writeFileSync(file, old);
+    const server = { command: "bun", args: ["kineti", "mcp"] };
+    const backup = writeCursorConfig(file, server, { at: 123 });
+    const written = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(written.mcpServers.existing).toEqual({ command: "node", args: ["server.js"] });
+    expect(written.mcpServers.kineti).toEqual(server);
+    expect(written.other).toEqual({ keep: true });
+    expect(fs.readFileSync(backup, "utf8")).toBe(old);
+    const beforeFailure = fs.readFileSync(file, "utf8");
+    expect(() => writeCursorConfig(file, { command: "broken" }, { at: 456, beforeRename: () => { throw new Error("simulated write interruption"); } })).toThrow("simulated write interruption");
+    expect(fs.readFileSync(file, "utf8")).toBe(beforeFailure);
+    expect(fs.existsSync(`${file}.bak.456`)).toBe(true);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});
 
 function makeTmpDir(prefix: string = "mcp-test-"): string {
   const scratch = path.join(REPO, ".kineti", "scratch");
@@ -83,7 +106,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     }
   });
 
-  test("tools/list returns 13 core Kineti governance tools plus talk", async () => {
+  test("tools/list returns 14 governance tools plus talk", async () => {
     const tmpDir = makeTmpDir();
     const session = createMcpSession(tmpDir);
 
@@ -104,7 +127,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
 
       expect(listResp.result.tools).toBeDefined();
       const toolNames = listResp.result.tools.map((t: any) => t.name);
-      expect(toolNames.length).toBe(14);
+      expect(toolNames.length).toBe(15);
       expect(toolNames).toContain("kineti_talk");
       expect(toolNames).toContain("kineti_status");
       expect(toolNames).toContain("kineti_lock_goal");
@@ -212,7 +235,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   test("executes evidence and spend governance tools via tools/call", async () => {
     const tmpDir = makeTmpDir();
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
-    fs.writeFileSync(path.join(tmpDir, "index.ts"), "console.log('hello');");
+    fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "tests", "one.test.ts"), "import { test, expect } from 'bun:test'; test('one', () => expect(1).toBe(1));\n");
     Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
 
     const session = createMcpSession(tmpDir);
@@ -232,7 +256,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
         method: "tools/call",
         params: {
           name: "kineti_evidence_record",
-          arguments: { label: "lint", command: "echo lint-passed" },
+          arguments: { label: "lint", command: ["bun", "test", "tests/one.test.ts"], required_tests: ["tests/one.test.ts"] },
         },
       });
       expect(evResp.result.isError).toBeFalsy();
@@ -295,6 +319,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   test("CLI init command creates .cursor/mcp.json", () => {
     const tmpDir = makeTmpDir("mcp-init-test-");
     try {
+      fs.mkdirSync(path.join(tmpDir, ".cursor"), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, ".cursor", "mcp.json"), JSON.stringify({ mcpServers: { existing: { command: "node", args: ["keep"] } } }, null, 2));
       const res = Bun.spawnSync(["bun", MCP_SCRIPT, "init", tmpDir], {
         env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO },
       });
@@ -306,6 +332,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
       const parsed = JSON.parse(fs.readFileSync(cursorMcpPath, "utf8"));
       expect(parsed.mcpServers.kineti).toBeDefined();
       expect(parsed.mcpServers.kineti.args).toContain("--workspace-root");
+      expect(parsed.mcpServers.existing).toEqual({ command: "node", args: ["keep"] });
+      expect(fs.readdirSync(path.join(tmpDir, ".cursor")).some((n) => n.startsWith("mcp.json.bak."))).toBe(true);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -339,6 +367,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
   test("A2 integration: evidence_record refuses bun x / npx, accepts bun test", async () => {
     const tmpDir = makeTmpDir();
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
+    fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "tests", "one.test.ts"), "import { test, expect } from 'bun:test'; test('one', () => expect(1).toBe(1));\n");
     Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
 
     const session = createMcpSession(tmpDir);
@@ -381,7 +411,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
         method: "tools/call",
         params: {
           name: "kineti_evidence_record",
-          arguments: { label: "help-probe", command: ["bun", "test", "--help"] },
+          arguments: { label: "help-probe", command: ["bun", "test", "tests/one.test.ts"], required_tests: ["tests/one.test.ts"] },
         },
       });
       expect(okRes.result.isError).toBeFalsy();

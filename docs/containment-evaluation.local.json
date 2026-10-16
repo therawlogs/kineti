@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evaluation": "strands-box-vs-openshell",
+  "generated_at": "2026-10-16T13:23:28.210Z",
+  "host": {
+    "os": "Darwin",
+    "architecture": "arm64"
+  },
+  "availability": {
+    "box_cli": false,
+    "box_path": null,
+    "openshell_cli": false,
+    "openshell_path": null,
+    "container_runtime": "none"
+  },
+  "status": "unsupported",
+  "reason": "At least one candidate runtime is unavailable; no containment scenario was executed.",
+  "scenarios": [
+    {
+      "id": "declared-filesystem-read-write-boundary",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "host-path-escape-and-symlink",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "process-and-privilege-boundary",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "network-default-deny-and-allowed-destination",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "credential-non-disclosure",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "cpu-memory-process-resource-limits",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    },
+    {
+      "id": "agent-crash-and-runtime-recovery",
+      "strands_box": "unsupported",
+      "openshell": "unsupported",
+      "evidence": []
+    }
+  ],
+  "interpretation": "Availability checks are local observations only. Vendor descriptions below are not test results."
+}

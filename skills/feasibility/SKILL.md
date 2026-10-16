@@ -28,6 +28,10 @@ Log model calls with `--stage feasibility`.
 `brief.md`, `diagnostics.md`, `architecture.md` (stack math), sample data
 or honest data documents, names of the humans involved.
 
+`data-intake.md` must also exist when the design depends on data. Confirm it
+records storyboard/mock-data approval and any separate real-data approval;
+do not treat feasibility as permission to bypass intake.
+
 ## Procedure
 
 ### Check A — Money

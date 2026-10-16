@@ -7,10 +7,17 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
-import { checkRunnerGuards } from "../bin/kineti-evidence.ts";
+import { checkRunnerGuards, parseTestOutput } from "../bin/kineti-evidence.ts";
 import { readJsonl, writeJson } from "../bin/lib.ts";
 
 describe("test runner guards (checkRunnerGuards)", () => {
+  it("recognizes supported pass summaries and rejects forged or incomplete text", () => {
+    expect(parseTestOutput("4 pass\n0 fail\n")).toBeNull();
+    expect(parseTestOutput("999 pass\n0 fail\nRan 999 tests across 1 file.\n1 pass\n0 fail\nRan 1 test across 1 file.")).toEqual({ passed: 1, failed: 0, skipped: 0 });
+    expect(parseTestOutput("test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.1s")).toEqual({ passed: 4, failed: 0, skipped: 0 });
+    expect(parseTestOutput("all tests passed")).toBeNull();
+    expect(parseTestOutput("4 passed, 1 failed, 0 skipped in 0.01s")).toEqual({ passed: 4, failed: 1, skipped: 0 });
+  });
   describe("zero-tests guard (default ON)", () => {
     it("catches Bun reporting 0 tests across files", () => {
       const output = "0 pass\n 0 fail\nRan 0 tests across 1 file. [110.00ms]";

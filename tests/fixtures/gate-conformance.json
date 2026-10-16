@@ -1,0 +1,16 @@
+{
+  "fixture_version": 1,
+  "cases": [
+    { "id": "wrong-command-valid-label", "expected": "deny", "support": "implemented" },
+    { "id": "forged-runner-output", "expected": "deny", "support": "implemented" },
+    { "id": "modified-parser", "expected": "deny", "support": "implemented" },
+    { "id": "changed-package-output", "expected": "deny", "support": "implemented" },
+    { "id": "wrong-issuer", "expected": "deny", "support": "implemented" },
+    { "id": "wrong-key", "expected": "deny", "support": "implemented" },
+    { "id": "wrong-destination", "expected": "deny", "support": "implemented" },
+    { "id": "revoked-proof", "expected": "unsupported", "support": "not-implemented-no-revocation-store" },
+    { "id": "replayed-proof", "expected": "deny", "support": "implemented-single-use-run-id" },
+    { "id": "protected-writer-crash-before-rename", "expected": "unsupported", "support": "not-yet-exercised-by-fixture" },
+    { "id": "second-host-stub", "expected": "unsupported", "support": "scripted-stub-only" }
+  ]
+}

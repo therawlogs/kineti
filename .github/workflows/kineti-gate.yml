@@ -23,7 +23,7 @@ jobs:
     outputs:
       pr_comment_b64: ${{ steps.comment.outputs.body_b64 }}
     env:
-      KINETI_REQUIRED_EVIDENCE: gate-typecheck gate-ts-tests gate-rust-tests gate-cli-selfcheck gate-installer-smoke
+      KINETI_REQUIRED_EVIDENCE: gate-ts-tests gate-rust-tests
 
     steps:
       - name: Checkout Code
@@ -53,7 +53,7 @@ jobs:
         run: bun bin/kineti.js seed
 
       - name: Run Type Integrity Check
-        run: bun bin/kineti-evidence.ts run --label gate-typecheck --timeout 300 -- bun run typecheck
+        run: bun run typecheck
 
       - name: Rust formatting check
         run: cargo fmt --all --manifest-path core-native/Cargo.toml --check
@@ -62,16 +62,16 @@ jobs:
         run: cargo clippy --all-targets --manifest-path core-native/Cargo.toml -- -D warnings
 
       - name: Run Unit & Gate Test Suite
-        run: bun bin/kineti-evidence.ts run --label gate-ts-tests --timeout 600 -- bun test tests/
+        run: bun bin/kineti-evidence.ts run --label gate-ts-tests --required-test tests --timeout 600 -- bun test tests/
 
       - name: Run Rust Engine Test Suite
-        run: bun bin/kineti-evidence.ts run --label gate-rust-tests --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
+        run: bun bin/kineti-evidence.ts run --label gate-rust-tests --required-test core-native/Cargo.toml --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
 
       - name: Run Native CLI Self-Check
-        run: bun bin/kineti-evidence.ts run --label gate-cli-selfcheck --timeout 600 -- cargo run -p kineti-cli -- test-all
+        run: cargo run -p kineti-cli -- test-all
 
       - name: Run Installer Smoke Test
-        run: bun bin/kineti-evidence.ts run --label gate-installer-smoke --timeout 600 -- bun run test:setup
+        run: bun run test:setup
 
       - name: Verify every evidence record is fresh
         if: always()

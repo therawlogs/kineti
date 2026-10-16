@@ -1,6 +1,6 @@
 //! # Kineti Harness (`kineti-harness`)
 //!
-//! Developer safety harness, shadow workspace isolation, and native Outcome Verification Tickets.
+//! Developer safety helpers, Git worktree file separation, and sample Outcome Verification Tickets.
 //!
 //! ## Core Primitives
 //! - **[`ovt`]**: Ed25519 dual-signed tickets; public-key trust remains the caller's responsibility.

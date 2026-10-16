@@ -12,6 +12,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::all)]
 
+pub mod causal_check;
 pub mod epistemic;
 pub mod graph;
 pub mod hnsw;

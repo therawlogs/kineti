@@ -14,6 +14,8 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
 import { readJson, projectKdir, loadLimits, loadVerifyCommand, Limits, splitLegacyCommand, assertInsideProject, isAllowedEvidenceCommand } from "./lib.ts";
+import { writeCursorConfig } from "./kineti-config.ts";
+import { applyProtectedWrite, GateFailure } from "./kineti-protected-write.ts";
 
 // Works under bun (import.meta.dir) and plain node (file URL fallback)
 const here: string =
@@ -141,9 +143,16 @@ const TOOLS = [
         label: { type: "string", description: "Unique proof label (e.g. 'unit-tests', 'lint')" },
         command: { description: "Command array or plain string without shell metachars (e.g. ['bun','test'] or 'bun test')", anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
         allow_shell: { type: "boolean", description: "Human-only: allow shell with TTY confirm. MCP has no TTY so this always fails here." },
+        required_tests: { type: "array", items: { type: "string" }, description: "Required test inventory paths; all must exist and be fingerprinted." },
+        protected_write: { type: "object", description: "Optional exact destination, arguments, and content to bind to this test receipt." },
       },
       required: ["label", "command"],
     },
+  },
+  {
+    name: "kineti_protected_write",
+    description: "Write only the exact bytes, destination, and arguments bound to a fresh versioned Kineti receipt. Only writes routed through this MCP tool are gated; host-native file tools are outside its protection.",
+    inputSchema: { type: "object", properties: { label: { type: "string" }, run_id: { type: "string" }, destination: { type: "string" }, arguments: {}, content: { type: "string" } }, required: ["label", "run_id", "destination", "arguments", "content"] },
   },
   {
     name: "kineti_evidence_check",
@@ -320,12 +329,24 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
           return { content: [{ type: "text", text: `kineti: blocked: ${gate.reason}` }], isError: true };
         }
         const runArgs = ["run", "--label", String(args.label), "--", ...cmdArgv];
+        if (Array.isArray(args.required_tests)) for (const testPath of args.required_tests) runArgs.splice(runArgs.indexOf("--"), 0, "--required-test", String(testPath));
+        if (args.protected_write) runArgs.splice(runArgs.indexOf("--"), 0, "--protected-write", JSON.stringify(args.protected_write));
         // MCP has no TTY, so shell is never allowed here. Never forward allow_shell.
         const res = runBin("kineti-evidence.ts", runArgs);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
           isError: res.exitCode !== 0,
         };
+      }
+
+      case "kineti_protected_write": {
+        try {
+          const text = applyProtectedWrite({ label: String(args.label), runId: String(args.run_id), destination: String(args.destination), arguments: args.arguments, content: String(args.content) }, workspaceRoot);
+          return { content: [{ type: "text", text }] };
+        } catch (error) {
+          const code = error instanceof GateFailure ? error.exitCode : 3;
+          return { content: [{ type: "text", text: `kineti: ${code === 1 ? "blocked" : code === 2 ? "invalid input" : "write failure"} (exit ${code}): ${(error as Error).message}` }], isError: true };
+        }
       }
 
       case "kineti_evidence_check": {
@@ -516,19 +537,14 @@ function handleInit(subArgs: string[]) {
   const cursorDir = path.join(targetDir, ".cursor");
   const cursorMcpFile = path.join(cursorDir, "mcp.json");
 
-  fs.mkdirSync(cursorDir, { recursive: true });
-
-  const mcpConfig = {
-    mcpServers: {
-      kineti: {
-        command: "bun",
-        args: [path.resolve(__filename), "--workspace-root", targetDir],
-      },
-    },
+  const kinetiServer = {
+    command: "bun",
+    args: [path.join(here, "kineti-protect.ts"), "--workspace-root", targetDir],
   };
-
-  fs.writeFileSync(cursorMcpFile, JSON.stringify(mcpConfig, null, 2) + "\n");
-  console.log(`[kineti-mcp] Created Cursor MCP config at: ${cursorMcpFile}`);
+  const backup = writeCursorConfig(cursorMcpFile, kinetiServer);
+  const mcpConfig = { mcpServers: { kineti: kinetiServer } };
+  console.log(`[kineti-mcp] Merged Cursor MCP config at: ${cursorMcpFile}`);
+  if (fs.existsSync(backup)) console.log(`[kineti-mcp] Backup: ${backup}`);
   console.log(`\nTo register with Claude Desktop, add the following to ~/Library/Application Support/Claude/claude_desktop_config.json:`);
   console.log(JSON.stringify(mcpConfig, null, 2));
 }

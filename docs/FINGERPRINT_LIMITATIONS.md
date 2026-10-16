@@ -1,6 +1,6 @@
 # What the Test Receipt Fingerprint Can and Cannot See
 
-`kineti test -- <command>` saves a receipt with a **workspace fingerprint**: one hash built from the project files. `kineti test check` recomputes it. If the two differ, the receipt is `STALE`.
+`kineti test -- <command>` saves a receipt with a **workspace fingerprint**: one hash built from the project files. `kineti test check` recomputes it. If the two differ, the receipt is `STALE`. New receipt records are signed by a project-local Ed25519 key and include parsed test output and declared inputs. The signature proves that the matching private key signed those fields; it does not establish an external identity or prove the runner output was honest.
 
 The fingerprint can be wrong in two directions:
 
@@ -68,50 +68,29 @@ In v0.4.0 and earlier, files over 4 MiB, symlinks, and unreadable files were ski
 
 ---
 
-## 5. What exit code 0 does not prove
+## 5. What a passing receipt means
 
-Kineti does not inspect individual tests inside your test runner. It runs one command (for example `bun test` or `npm test`) and writes down three things: the label, the process exit code, and a workspace fingerprint of your files. Later, CI checks that record: exit code `0` = pass.
+New version 2 receipts bind the recorded command and arguments, declared dependency lockfiles, toolchain and runner/parser versions, required-test inventory, selected non-secret environment values, input digest, final artifact digests, parsed test summary, and a protected-write request when present. Bun, Cargo, and pytest output are accepted only when the known summary parses, at least one test ran, no skips or failures occurred, and every required test is reported. Unknown runner output and an empty required-test inventory cannot authorize the protected gate.
 
-Here is what that means in practice:
+These checks rely on the local runner output and project-local signing key. The signature proves only that the matching local key signed the receipt. It does not establish an external identity or prove that runner output was truthful. A changed parser or changed declared inputs invalidates the receipt. Version 1 receipts remain readable as **limited** history and never authorize the version 2 gate.
 
-### Skipped tests
-Say your test suite has 100 tests. Someone marks 40 of them as skipped (`test.skip`, `#[ignore]`, `@pytest.mark.skip`). Most test runners print `60 passed, 40 skipped` and exit with `0`. Kineti sees only the exit code `0`. The receipt is marked `FRESH` and passing.
+Receipt trust properties currently demonstrated: Kineti-issued by its project-local Ed25519 key, bound to declared inputs by hashes, and checkable elsewhere when the receipt and trusted public key are supplied. A verifier on another machine checks declared evidence; it does not assume that a test pass transfers to that machine.
 
-### Zero tests (vacuous pass)
-If a config error, wrong glob, or renamed file makes the runner find zero tests, many runners still exit with `0`. Kineti records a pass for an empty run.
+### Path, line-ending, and binary rules
 
-### Why this matters
-Kineti's promise is: *"the agent says tests passed, CI checks it is true."*
-- What Kineti **does verify**: the test command was run recently, the files are unchanged since the run, and the process exited 0.
-- What Kineti **does not verify**: whether tests actually executed, how many tests ran, or whether difficult test cases were skipped.
+Manifest paths are project-relative, normalized to `/`, and symlinks are represented by their normalized link target rather than followed. Text files are detected by absence of NUL bytes in the first 8 KiB and hash with CRLF normalized to LF. Binary files hash their exact bytes. Files larger than 50 MiB currently use size and modified time rather than full content hashing; such files are not strong content evidence. Secret values are excluded from the environment allowlist because hashing low-entropy secrets can reveal them.
 
-An agent that skips difficult tests can produce an exit code of 0.
+### Protected effect boundary
 
-### Where Kineti is safe
-1. **Stale-result checking**: This is where agent claims usually fall apart. If an agent runs tests, passes, and then edits code (e.g. removes a test assertion or changes implementation files), the workspace fingerprint changes immediately and marks the receipt `STALE`.
-2. **Kineti runner guards**: `kineti test` and `kineti-evidence.ts run` inspect runner outputs:
-   - **Zero-tests guard (default ON)**: Checks that known runners executed tests. If an empty file or empty workspace is detected (e.g. Bun `Ran 0 tests across 1 file` or Cargo workspace with 0 passed tests), Kineti flips the result to exit code 1 and records `guard_failure: "zero-tests"`. Pass `--allow-zero-tests` to permit zero tests.
-   - **Skipped-tests guard (opt-in with `--forbid-skipped`)**: Checks for non-zero skip counts (`1 skip`, `1 skipped`, `1 ignored`). If found, Kineti flips the result to exit code 1 and records `guard_failure: "skipped-tests"`.
-   - **Receipt preservation**: Guard failures are saved in `.kineti/evidence.jsonl`. When checked, `kineti test check` reports `STALE (guard failed: zero-tests)` or `STALE (guard failed: skipped-tests)`.
-3. **Strict runner flags**: You can also configure runners directly to exit non-zero:
+The supported Cursor action is one exact file write: receipt authorization binds the destination, arguments, and bytes. The gate verifies and atomically writes through the same protected operation. This covers only requests routed through the Kineti MCP tool. Cursor's direct filesystem tools bypass the wrapper and are outside this gate's protection.
 
-| Runner | Zero Tests Default | Skipped Tests Default | Strict flags to force failure |
-|--------|-------------------|-----------------------|------------------------------|
-| **Jest** | Exits 1 (unless `--passWithNoTests`) | Exits 0 | `--passWithNoTests=false` |
-| **Vitest** | Configurable | Exits 0 | `passWithNoTests: false` |
-| **Pytest** | Exits 5 | Exits 0 | `--fail-on-empty-test-suite` |
-| **Bun** | Exits 0 on empty files | Exits 0 | Kineti zero-test guard or test assertions |
-| **Cargo** | Exits 0 if no tests in crate | Exits 0 | Kineti zero-test guard or `-- --ignored` |
+### Legacy receipts
 
-*Note on runner guards*: Guards inspect standard output for known runners (Bun, Jest, Vitest, Pytest, Cargo). Runners outside this list, or custom test logs, are not guaranteed to be caught.
-
----
+Version 1 receipts can be read for limited historical results. They lack the exact-input manifest and signature required by the new gate, so they are never upgraded silently and cannot authorize writes.
 
 ## 6. What the receipt is not
 
-The receipt is a local record. It is not a signed certificate, and it does not prove the tests are good tests. It only ties "this command exited 0" to "these files, as fingerprinted above".
-
----
+A receipt is declared verification evidence. It does not establish that tests are well designed, that an unlisted environment matches, or that an independent evaluator approved the artifact. Workflow 09 requires an immutable artifact and separately inspectable evaluator results; its evaluator must not accept pass/fail evidence controlled by the builder.
 
 ## See also
 

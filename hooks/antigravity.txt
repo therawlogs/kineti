@@ -1,0 +1,5 @@
+# Kineti hook block for Google Antigravity
+Add the following to your project or user rules:
+  Follow the Kineti workflow skills installed in the skills directory. Users
+  can describe the task in natural language; do not require slash commands.
+  Check the active goal and the relevant skill before changing project files.

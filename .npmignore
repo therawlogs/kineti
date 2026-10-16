@@ -38,3 +38,8 @@ ROADMAP.md
 **/*.bun-build
 **/.*.bun-build
 .DS_Store
+
+# `design/` above is meant to exclude the root mockup workspace, not the
+# installed design workflow skill.
+!skills/design/
+!skills/design/SKILL.md

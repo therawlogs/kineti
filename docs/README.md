@@ -36,7 +36,13 @@ The papers were removed from the tree and will be re-added when ready. The figur
 - [**TUTORIAL-first-run.md**](./TUTORIAL-first-run.md) — Getting started with Kineti OS and recording a local test receipt.
 - [**HOWTO-daily-loop.md**](./HOWTO-daily-loop.md) — Daily developer workflow: stage gating, test evidence recording, and spend tracking.
 - [**UNDO_LIMITATIONS.md**](./UNDO_LIMITATIONS.md) — What undo can and cannot reverse (SAGA rollback boundaries).
-- [**FINGERPRINT_LIMITATIONS.md**](./FINGERPRINT_LIMITATIONS.md) — What the test receipt fingerprint can and cannot see (false alarms and blind spots).
+- [**FINGERPRINT_LIMITATIONS.md**](./FINGERPRINT_LIMITATIONS.md) — Receipt trust, exact-input limits, and the supported Cursor write boundary.
+- [**WORKFLOW-09.md**](./WORKFLOW-09.md) — Independent evaluation with immutable artifacts and deterministic reviewer summaries.
+- [**WORKFLOW-CONTRACTS.md**](./WORKFLOW-CONTRACTS.md) — Inputs, approvals, outputs, dependencies, and acceptance checks for workflows 01–13.
+- [**REVIEW-SUMMARY.md**](./REVIEW-SUMMARY.md) — Canonical, digest-bound evaluator result format.
+- [**CONTAINMENT-EVALUATION.md**](./CONTAINMENT-EVALUATION.md) — Matched Strands Box and OpenShell evaluation protocol and current limits.
+- [**CLEAN_MACHINE_SETUP.md**](./CLEAN_MACHINE_SETUP.md) — Isolated install checks and unsupported natural-language routing cases.
+- [**DEMO-CLIP.md**](./DEMO-CLIP.md) — Capture instructions; current clip status.
 
 ---
 

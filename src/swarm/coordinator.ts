@@ -166,8 +166,8 @@ export function submitWorkerResult(
 }
 
 /**
- * Reviewer independently verifies the work and signs an Outcome Verification Ticket (OVT).
- * Role-gated: Workers cannot sign verification tickets.
+ * Demo reviewer checks the supplied test flag and signs a sample verification ticket.
+ * This role check does not prove independent review or verify the underlying test run.
  */
 export function reviewAndSignOutcome(
   reviewer: SwarmAgent,

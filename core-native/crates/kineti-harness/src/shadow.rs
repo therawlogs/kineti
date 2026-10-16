@@ -1,4 +1,4 @@
-//! Git worktree workspace isolation.
+//! Git worktree file separation (not a process or security sandbox).
 //!
 //! A worktree separates file edits from the primary checkout. It is not a
 //! process, filesystem, credential, or network sandbox.
@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// A real Git worktree used for isolated file changes.
+/// A Git worktree used to keep edits separate from the primary checkout.
 #[derive(Debug, Clone)]
 pub struct ShadowWorkspace {
     /// Task identifier used for the worktree and branch.

@@ -40,7 +40,7 @@ kineti test -- bun test
 kineti test check --label test
 ```
 
-If a fingerprinted file changes, the receipt is `STALE` and should be recorded again before shipping. Receipts are local records, not signed certificates. See [FINGERPRINT_LIMITATIONS.md](./FINGERPRINT_LIMITATIONS.md) for what the fingerprint can miss and what exit code 0 does not prove (such as skipped tests or empty suites).
+If a fingerprinted file changes, the receipt is `STALE` and should be recorded again before shipping. Version 2 receipts are signed by a project-local key and bind declared inputs; they are limited declared evidence. Version 1 receipts remain readable but cannot authorize the new gate. See [FINGERPRINT_LIMITATIONS.md](./FINGERPRINT_LIMITATIONS.md) for fingerprint limits and the supported Cursor write boundary.
 
 ### Step 5: Verify release integrity (CI Gate)
 Before opening a pull request or merging code, run the Context Integrity Layer (CIP) verification:
