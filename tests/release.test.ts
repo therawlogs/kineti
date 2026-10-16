@@ -28,6 +28,9 @@ describe("release preflight", () => {
   test("publication uses the verified tarball and does not cancel an upload in progress", () => {
     const workflow = fs.readFileSync(".github/workflows/release.yml", "utf8");
     expect(workflow).toContain("cancel-in-progress: false");
+    expect(workflow).toContain("inputs.tag || github.ref_name");
+    expect(workflow).not.toContain("https://crates.io/api/v1/me");
+    expect(workflow).toContain('test -n "$CARGO_REGISTRY_TOKEN"');
     expect(workflow).toContain("Check publishing credentials before any upload");
     expect(workflow).toContain("npm-package.json");
     expect(workflow).toContain("m.sha256");

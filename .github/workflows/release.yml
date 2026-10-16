@@ -18,7 +18,7 @@ env:
   KINETI_MACHINE_DIR: ${{ github.workspace }}/.kineti/machine
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: "${{ github.workflow }}-${{ inputs.tag || github.ref_name }}"
   cancel-in-progress: false
 
 jobs:
@@ -148,8 +148,10 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: |
           bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Check npm publishing token before any upload"
-          bun bin/kineti-egress.ts record --host crates.io --description "Check Cargo publishing token before any upload"
-          bun -e 'for (const [url,name] of [["https://registry.npmjs.org/-/whoami","NPM_TOKEN"],["https://crates.io/api/v1/me","CARGO_REGISTRY_TOKEN"]]) { const token=process.env[name]; if(!token) throw new Error(`${name} missing`); const r=await fetch(url,{headers:{Authorization:name==="NPM_TOKEN"?`Bearer ${token}`:token,"User-Agent":"Kineti release"}}); if(!r.ok) throw new Error(`${name} authentication failed: HTTP ${r.status}`); console.log(`${name}: authenticated`); }'
+          # crates.io's current-user endpoint is cookie-only, not a publishing-token check.
+          # Cargo validates its token when uploading; missing credentials fail before any upload.
+          test -n "$CARGO_REGISTRY_TOKEN"
+          bun -e 'const token=process.env.NPM_TOKEN; if(!token) throw new Error("NPM_TOKEN missing"); const r=await fetch("https://registry.npmjs.org/-/whoami",{headers:{Authorization:`Bearer ${token}`}}); if(!r.ok) throw new Error(`NPM_TOKEN authentication failed: HTTP ${r.status}`); console.log("NPM_TOKEN: authenticated; Cargo credential configured (upload authenticates it)");'
 
       - name: Publish workspace crates in dependency order
         env:
