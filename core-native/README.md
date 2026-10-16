@@ -1,6 +1,6 @@
 # Kineti Native Engine (`core-native/`)
 
-Pure Rust workspace (8 crates). Critical crates forbid `unsafe`; `kineti-harness` uses the maintained `ed25519-dalek` library for OVT signatures. The Rust credential-vault module is an experimental legacy prototype and must not be used for real secrets.
+The native Rust workspace contains eight crates and the kineti-cli command. It provides local libraries and demos; the npm package supplies the separate Bun-based governance commands.
 
 ## Why hashing is hand-rolled
 

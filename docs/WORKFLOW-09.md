@@ -1,6 +1,6 @@
 # Workflow 09: Independent evidence review
 
-Use a separate review window and a different model from the builder. The builder must not provide or edit the evaluator's pass/fail report.
+Use a separate evaluator and keep its findings tied to the exact artifact reviewed. The builder must not write or edit the evaluator’s pass/fail report. This guide describes the handoff; it does not supply an enforced independent evaluator.
 
 ## Freeze and hand off
 

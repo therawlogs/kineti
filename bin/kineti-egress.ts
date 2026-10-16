@@ -34,6 +34,7 @@ function lockAlive(pid: number): boolean {
 
 /** Serialize ledger read/append/state updates across independent CLI processes. */
 function withLedgerLock<T>(fn: () => T): T {
+  fs.mkdirSync(path.dirname(file()), { recursive: true, mode: 0o700 });
   const lock = `${file()}.lock`;
   const ownerFile = path.join(lock, "owner.json");
   const deadline = Date.now() + LOCK_TIMEOUT_MS;

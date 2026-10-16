@@ -108,7 +108,7 @@ test("local npm tarball and crate install independently without registry access"
     const crateOutput = `${new TextDecoder().decode(crateInstall.stdout)}\n${new TextDecoder().decode(crateInstall.stderr)}`;
     if (crateInstall.exitCode === 0) {
       const crateVersion = run([path.join(crateRoot, "bin", "kineti-cli"), "--version"]);
-      expect(crateVersion).toContain("kineti-cli 0.4.0");
+      expect(crateVersion).toContain("kineti-cli 0.5.0");
       crateStatus = "pass";
     } else {
       expect(crateOutput).toContain("no matching package named");

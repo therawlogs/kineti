@@ -170,7 +170,7 @@ const KNOWN_CONFIG_TOP_KEYS = new Set([
 
 const KNOWN_CONFIG_SETTINGS_KEYS = new Set([
   "spend_limit_usd", "qa_max_self_repair_attempts", "data_quality_threshold",
-  "hurdle_rate_min", "verify_command", "ci_stage", "freeze_during",
+  "hurdle_rate_min", "verify_command", "verify_command_argv", "ci_stage", "freeze_during",
 ]);
 
 const warnedConfigKeys = new Set<string>();
@@ -362,48 +362,29 @@ export function assertInsideProject(targetPath: string, rootDir: string = proces
   return resolvedTarget;
 }
 
-function appendExecToEgressLedger(argv: string[], cwd: string): void {
+function appendExecToEgressLedger(argv: string[], cwd: string): string | null {
+  // Use the same lock and chain validation as explicit outbound request logging.
+  // Separate receipt processes must never append competing children to one parent.
   try {
-    const mDir = machineDir();
-    const ledgerFile = path.join(mDir, "egress.jsonl");
-    const stateFile = path.join(mDir, "egress.state.json");
-    let chain: any[] = [];
-    try {
-      if (fs.existsSync(ledgerFile)) {
-        const text = fs.readFileSync(ledgerFile, "utf8");
-        chain = text.split("\n").filter((l) => l.trim().length > 0).map((l) => JSON.parse(l));
-      }
-    } catch { chain = []; }
-    const prev = chain.length > 0 ? chain[chain.length - 1].hash : "GENESIS";
-    const at = nowIso();
-    const host = `local-exec:${argv[0]?.split("/").pop() || "unknown"}`;
-    const description = `exec: ${argv.join(" ")} in ${cwd}`.slice(0, 500);
-    const seq = chain.length;
-    const hash = computeDelimitedHash([String(seq), at, host, description, prev]);
-    const receipt = { seq, at, host, description, prev_hash: prev, hash };
-    ensureDir(mDir);
-    fs.appendFileSync(ledgerFile, JSON.stringify(receipt) + "\n");
-    try {
-      fs.writeFileSync(stateFile, JSON.stringify({ count: chain.length + 1, last_hash: hash }));
-    } catch (writeErr) {
-      console.warn(`kineti: warning: failed to update ledger state file: ${(writeErr as Error).message}`);
-    }
-  } catch (appendErr) {
-    // Ledger write must never break exec, but log warning
-    console.warn(`kineti: warning: failed to append to egress ledger: ${(appendErr as Error).message}`);
-  }
+    const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
+    const result = spawnSync("bun", [path.join(import.meta.dir, "kineti-egress.ts"), "record",
+      "--host", `local-exec:${argv[0]?.split("/").pop() || "unknown"}`,
+      "--description", `exec: ${argv.join(" ")} in ${cwd}`.slice(0, 500)],
+      { cwd, encoding: "utf8", timeout: 20_000, shell: false });
+    return result.status === 0 ? null : (result.stderr?.trim() || "execution ledger could not be recorded");
+  } catch { return "execution ledger could not be recorded"; }
 }
 
 /**
  * Run a command array directly with no shell.
- * - Blocks shell metachars unless allowShell + TTY.
+ * - Blocks shell metachars unless allowShell + TTY or explicit literal Bun test/run argv.
  * - Blocks non-allowlisted binaries unless allowShell + TTY.
  * - 60s timeout, cwd jailed to workspaceRoot.
  * - Every run is appended to the egress ledger.
  */
 export function runSafeCommand(
   argv: string[],
-  opts: { cwd?: string; workspaceRoot?: string; timeoutMs?: number; allowShell?: boolean; verifyCmd?: string | null } = {},
+  opts: { cwd?: string; workspaceRoot?: string; timeoutMs?: number; allowShell?: boolean; verifyCmd?: string | null; literalTestArgv?: boolean } = {},
 ): SafeExecResult {
   const workspaceRoot = opts.workspaceRoot ? path.resolve(opts.workspaceRoot) : process.cwd();
   const cwd = jailCwdToWorkspace(opts.cwd || workspaceRoot, workspaceRoot);
@@ -414,11 +395,12 @@ export function runSafeCommand(
     return { exitCode: 2, stdout: "", stderr: "kineti: blocked: empty command", blocked: true, reason: "empty" };
   }
 
-  const meta = hasShellMetachars(argv);
   const allowlisted = isAllowlistedExec(argv, opts.verifyCmd ?? null);
+  const meta = hasShellMetachars(argv);
+  const bunArgv = opts.literalTestArgv === true && argv[0] === "bun" && (argv[1] === "test" || argv[1] === "run");
 
-  if ((meta || !allowlisted) && !allowShell) {
-    const reason = meta ? `shell metachars detected in: ${argv.join(" ")}` : `binary not in allowlist: ${argv[0]}`;
+  if ((!allowlisted || (meta && !bunArgv)) && !allowShell) {
+    const reason = meta && !bunArgv ? `shell metachars detected in: ${argv.join(" ")}` : `binary not in allowlist: ${argv[0]}`;
     return { exitCode: 2, stdout: "", stderr: `kineti: blocked: ${reason}. Use --allow-shell in a human TTY to run it.`, blocked: true, reason };
   }
 
@@ -430,7 +412,8 @@ export function runSafeCommand(
   }
 
   // Log before run
-  appendExecToEgressLedger(argv, cwd);
+  const auditError = appendExecToEgressLedger(argv, cwd);
+  if (auditError) return { exitCode: 3, stdout: "", stderr: `kineti: blocked: ${auditError}`, blocked: true, reason: "egress-integrity" };
 
   try {
     // Use node spawnSync with no shell, timeout 60s.

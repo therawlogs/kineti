@@ -1,6 +1,6 @@
 # What the Test Receipt Fingerprint Can and Cannot See
 
-`kineti test -- <command>` saves a receipt with a **workspace fingerprint**: one hash built from the project files. `kineti test check` recomputes it. If the two differ, the receipt is `STALE`. New receipt records are signed by a project-local Ed25519 key and include parsed test output and declared inputs. The signature proves that the matching private key signed those fields; it does not establish an external identity or prove the runner output was honest.
+A test receipt records the project files and declared inputs for a test run. Later changes can make it stale. Its local signature identifies a key, but does not prove that test output was honest or that every action was controlled.
 
 The fingerprint can be wrong in two directions:
 
@@ -70,7 +70,7 @@ In v0.4.0 and earlier, files over 4 MiB, symlinks, and unreadable files were ski
 
 ## 5. What a passing receipt means
 
-New version 2 receipts bind the recorded command and arguments, declared dependency lockfiles, toolchain and runner/parser versions, required-test inventory, selected non-secret environment values, input digest, final artifact digests, parsed test summary, and a protected-write request when present. Bun, Cargo, and pytest output are accepted only when the known summary parses, at least one test ran, no skips or failures occurred, and every required test is reported. Unknown runner output and an empty required-test inventory cannot authorize the protected gate.
+New version 2 receipts bind the recorded command and arguments, declared dependency lockfiles, toolchain and runner/parser versions, required-test inventory, selected non-secret environment values, input digest, final artifact digests, parsed test summary, and a protected-write request when present. Bun, Cargo, and pytest output are accepted only when the known summary parses, at least one test ran, no skips or failures occurred, and every required test is reported. Unknown runner output and an empty required-test inventory cannot authorize the protected gate. Recognized summaries and printed file names are still untrusted text: a same-command forged-success regression is accepted by the current writer. They do not prove required cases executed. See [protected-write policy and limits](PROTECTED-WRITE.md); stronger observation and no-gap authorization remain unresolved.
 
 These checks rely on the local runner output and project-local signing key. The signature proves only that the matching local key signed the receipt. It does not establish an external identity or prove that runner output was truthful. A changed parser or changed declared inputs invalidates the receipt. Version 1 receipts remain readable as **limited** history and never authorize the version 2 gate.
 

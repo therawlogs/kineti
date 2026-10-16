@@ -1,12 +1,14 @@
 # Multi-Repository Fleet & Integrations Guide
 
-> **v0.4.0 scope:** The Companion is local-only and shows the current checkout. It does not connect GitHub accounts, switch to another repository, monitor repositories in real time, read editor activity, or enforce policy across projects. The workflows below describe supported local behavior unless marked as unavailable.
+The Companion shows the current local checkout and does not connect GitHub accounts. It does not switch projects, watch other repositories or enforce rules across them. The sections below explain the supported local behavior and unavailable services.
+
+> **v0.5.0 scope:** The Companion is local-only and shows the current checkout. It does not connect GitHub accounts, switch to another repository, monitor repositories in real time, read editor activity, or enforce policy across projects. The workflows below describe supported local behavior unless marked as unavailable.
 
 ---
 
 ## 1. Overview
 
-The hosted team workflows in this document are not available in v0.4.0. The Companion displays the current local project only; it does not load additional repository entries.
+The hosted team workflows in this document are not available in v0.5.0. The Companion displays the current local project only; it does not load additional repository entries.
 
 ---
 
@@ -57,10 +59,10 @@ Kineti instructions guide the agent but do not govern every action it can take. 
 - The home view shows local project state and recorded spend.
 - Activity is a view of local records, not a stream of all agent or editor actions.
 - Team and Settings views store local labels, contact details, and budget display values.
-- The v0.4.0 dashboard displays the current checkout only; it does not support adding fleet entries.
+- The v0.5.0 dashboard displays the current checkout only; it does not support adding fleet entries.
 
 ### Settings
-The v0.4.0 settings API stores selected local preferences. There is no GitHub connection, auto-latching, webhook status, or service credential storage.
+The v0.5.0 settings API stores selected local preferences. There is no GitHub connection, auto-latching, webhook status, or service credential storage.
 
 ---
 
@@ -98,7 +100,7 @@ Returns the current local project and local spend/evidence summary. It does not 
 ```
 
 ### `POST /api/fleet/select`
-Accepts the current repository ID and returns it unchanged. Other repository IDs return `404`; switching to another repository is not available in v0.4.0. Requires `Authorization: Bearer <token from .kineti/auth_token>`.
+Accepts the current repository ID and returns it unchanged. Other repository IDs return `404`; switching to another repository is not available in v0.5.0. Requires `Authorization: Bearer <token from .kineti/auth_token>`.
 
 **Request Body:**
 ```json

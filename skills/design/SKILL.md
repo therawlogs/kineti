@@ -2,7 +2,7 @@
 name: design
 description: Find the product look from your references, not presets. Stage 3 of 13.
 stage: plan
-version: 0.4.0
+version: 0.5.0
 triggers:
   - design the look
   - mockups

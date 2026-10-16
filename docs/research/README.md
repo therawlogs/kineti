@@ -1,6 +1,8 @@
 # Research notes
 
-Research notes, not part of the CLI. The items below are design claims and proposals, not guarantees provided by Kineti v0.4.0. Check the root README and release notes for supported behavior.
+These research notes describe ideas and targets. They are not measured results or guarantees of Kineti v0.5.0.
+
+Research notes, not part of the CLI. The items below are design claims and proposals, not guarantees provided by Kineti v0.5.0. Check the root README and release notes for supported behavior.
 
 ## The 360º Human Model & Epistemic Engine
 

@@ -1,6 +1,6 @@
 # No-key demo clip
 
-**Clip status: pending.** The no-key demo script is ready, but this environment does not permit opening the system Terminal app for screen capture.
+Use this guide to record a short demo with fictional local data. It lists the commands and expected views; do not present a planned clip as a recording that already exists.
 
 When recording becomes available:
 

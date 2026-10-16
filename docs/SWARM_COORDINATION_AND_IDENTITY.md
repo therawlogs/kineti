@@ -1,6 +1,6 @@
 # Swarm Coordination & Agent Identity
 
-This document covers two library demonstrations, not a production swarm service. The TypeScript demo in `src/swarm/coordinator.ts` creates in-memory Ed25519 keys and signs sample payloads. The Rust `kineti-harness` crate can sign and verify OVT tickets using Ed25519. Neither component is wired to actual agent handoffs, a trusted identity directory, a persistent audit service, or deployment approval.
+These examples show local signatures and in-memory coordination. They are not a production swarm service, a trusted identity directory or an enforced approval system. The limits below describe what the demonstrations actually do.
 
 ## 1. Why Swarms Fail Without a Harness
 

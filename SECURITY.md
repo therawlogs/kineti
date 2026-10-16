@@ -1,6 +1,6 @@
 # Security Policy
 
-We take the security of Kineti OS seriously. This document explains what versions we support, how to report security vulnerabilities, and how we handle reports.
+Kineti v0.5.0 provides local tools, not a secure sandbox. Protected writes are experimental. This policy explains supported versions, known limits and how to report a security issue privately.
 
 ## 1. Supported Versions
 
@@ -8,9 +8,10 @@ We provide security updates for the current active release line.
 
 | Version | Supported | Notes |
 | ------- | --------- | ----- |
-| 0.4.x   | Yes       | Current active release series. |
-| 0.3.x   | No        | Please upgrade to 0.4.0 or newer. |
-| < 0.3.0 | No        | Please upgrade to 0.4.0 or newer. |
+| 0.5.x   | Yes       | Current active release series; protected writes are experimental. |
+| 0.4.x   | No        | Please upgrade to 0.5.0 or newer. |
+| 0.3.x   | No        | Please upgrade to 0.5.0 or newer. |
+| < 0.3.0 | No        | Please upgrade to 0.5.0 or newer. |
 
 ## 2. Reporting a Vulnerability
 

@@ -1,6 +1,6 @@
 # Deterministic reviewer summary
 
-`kineti-review-summary` turns a separate evaluator report into a canonical JSON summary bound to the exact artifact bytes and receipt bytes. The evaluator writes its report separately from the immutable artifact. The builder may package the inputs and run the formatter, but the evaluator owns the per-case results.
+Use one shared format to record an evaluator’s findings and the exact artifact reviewed. A matching digest ties the report to bytes; it does not make a builder-written report independent.
 
 ```sh
 bun bin/kineti-review-summary.ts \

@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$ROOT/.kineti/acceptance/$(date +%s)-$$"
-KINETI_NPM_TARBALL="${KINETI_NPM_TARBALL:-$ROOT/.kineti/acceptance/candidate/kineti-0.4.0.tgz}"
+KINETI_VERSION="$(bun -p 'require("./package.json").version')"
+KINETI_NPM_TARBALL="${KINETI_NPM_TARBALL:-$ROOT/.kineti/acceptance/candidate/kineti-$KINETI_VERSION.tgz}"
 KINETI_CRATE_PATH="${KINETI_CRATE_PATH:-$ROOT/core-native/crates/kineti-cli}"
 mkdir -p "$WORK/npm-baseline" "$WORK/npm-candidate" "$WORK/crate-baseline" "$WORK/crate-candidate"
 export npm_config_cache="$WORK/npm-cache"

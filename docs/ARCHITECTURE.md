@@ -1,6 +1,6 @@
 # Native Rust core internals
 
-This page describes the native Rust workspace. The `kineti` npm CLI and its local state, evidence, and spend tools are implemented in TypeScript and documented in the root README. Native Rust crates provide separate libraries and a native demo CLI; their APIs do not, by themselves, run or supervise an AI coding agent.
+The native Rust crates provide local libraries and a separate command-line tool. This guide explains their parts and how they fit together. It does not describe a hosted service.
 
 ## `core-native/`
 
@@ -9,6 +9,6 @@ This page describes the native Rust workspace. The `kineti` npm CLI and its loca
 - **Monotonic Hybrid Logical Clock (HLC)**: Physical and logical causality tracking under clock skew.
 - **3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
 - **Sensory Reflex Triage**: Fast sensory classification dispatching zero-token emoji reactions for low-information conversational stimuli.
-- **Protocolized Connector Libraries**: Connector request builders and consequence checks are library code. This is not a hosted integration service; the local Companion does not connect service accounts or expose credential storage in v0.4.0.
+- **Protocolized Connector Libraries**: Connector request builders and consequence checks are library code. This is not a hosted integration service; the local Companion does not connect service accounts or expose credential storage in v0.5.0.
 
 The production architecture spec is [PLAN.md](./PLAN.md).

@@ -1,5 +1,7 @@
 # Kineti OS: Canonical Implementation Plan & Production Roadmap
 
+This is a historical design proposal. Read the current README and release notes for what Kineti v0.5.0 actually provides.
+
 > Historical architecture proposal dated 2026-09-16, not a description of all shipped behavior. Several items below are design targets or simulations, including durable memory, external-data deletion, sandbox isolation, and signed outcome attestations. Check `README.md` and the release notes for current support.
 
 > **v0.4.0 note (2026-10-05):** This file is retained as a historical proposal. Its old production-status labels, benchmarks, counts, service features, and release targets are not current v0.4.0 facts. The implementation status is described in `README.md`, `CHANGELOG.md`, and `docs/ARCHITECTURE.md`. The historical body is intentionally unchanged.

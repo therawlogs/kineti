@@ -341,7 +341,7 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
 
       case "kineti_protected_write": {
         try {
-          const text = applyProtectedWrite({ label: String(args.label), runId: String(args.run_id), destination: String(args.destination), arguments: args.arguments, content: String(args.content) }, workspaceRoot);
+          const text = applyProtectedWrite({ label: args.label, runId: args.run_id, destination: args.destination, ...(Object.hasOwn(args, "arguments") ? { arguments: args.arguments } : {}), content: args.content }, workspaceRoot);
           return { content: [{ type: "text", text }] };
         } catch (error) {
           const code = error instanceof GateFailure ? error.exitCode : 3;

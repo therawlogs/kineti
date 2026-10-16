@@ -54,7 +54,7 @@ describe("repo version and layout drift guards", () => {
 
     const currentDocs: Array<[string, string[]]> = [
       ["README.md", [`v${version}`, `kineti@${version}`, `kineti-cli@${version}`]],
-      ["CONTRIBUTING.md", [`${version} adds the maintained`]],
+      ["CONTRIBUTING.md", [`${version} includes the maintained`]],
       ["SECURITY.md", [`${version} or newer`]],
       [".github/workflows/release.yml", [`default: 'v${version}'`]],
       ["scripts/demo-spend-cap.sh", [`\"version\": \"${version}\"`]],
@@ -162,7 +162,7 @@ describe("repo version and layout drift guards", () => {
     for (const claim of stale) expect(readme).not.toContain(claim);
   });
 
-  test("v0.4.0 docs state local limits and registry release timing", () => {
+  test("current docs state local limits and registry release timing", () => {
     const readme = read("README.md");
     const multiRepo = read("docs/MULTI_REPO_FLEET_AND_INTEGRATIONS.md");
     const swarm = read("docs/SWARM_COORDINATION_AND_IDENTITY.md");
@@ -183,14 +183,16 @@ describe("repo version and layout drift guards", () => {
 
   test("release workflow validates packages before publishing them", () => {
     const workflow = read(".github/workflows/release.yml");
-    expect(workflow).toContain("npm pack --dry-run");
-    expect(workflow).toContain("cargo package --workspace --locked --offline");
-    expect(workflow).toContain("Require unused npm version");
-    expect(workflow).toContain("Require unused Rust crate versions");
+    expect(workflow).toContain("bun scripts/release-package-check.ts");
+    expect(workflow).toContain("cargo package --workspace --locked");
+    expect(workflow).toContain("Require unused npm version and unused Rust crate versions");
+    expect(workflow).toContain("unused Rust crate versions");
     expect(workflow).toContain("publish-crates:");
     expect(workflow).toContain("publish-npm:");
-    expect(workflow).toContain("cargo publish --workspace --locked --no-verify");
-    expect(workflow).toContain("npm publish --access public --ignore-scripts");
+    expect(workflow).toContain("cargo publish --workspace --locked --manifest-path Cargo.toml");
+    expect(workflow).not.toContain("--no-verify");
+    expect(workflow).not.toContain("build-binaries:");
+    expect(workflow).toContain('npm publish ".kineti/release-package/kineti-${version}.tgz" --access public --ignore-scripts');
     expect(workflow).toContain("needs: [test, publish-crates, publish-npm]");
     expect(workflow).toContain("CARGO_REGISTRY_TOKEN");
     expect(workflow).toContain("NPM_TOKEN");

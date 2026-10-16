@@ -1,11 +1,6 @@
 # Clean-machine setup acceptance
 
-The installer is checked in an isolated home under `.kineti/acceptance`, so
-the test does not change the operator's host settings. The check covers all
-seven host names in `hosts/*.conf`: Antigravity, Claude Code, Codex, Cursor,
-Fx, Gemini, and OpenCode. It checks that each install creates its skill files
-and Kineti repository pointer, preserves a user-owned skill, and can be run
-again. It also checks uninstall behavior.
+Use isolated folders to check that the published packages and local candidates install correctly. Keep the results separate from host or model behavior, which these install checks cannot prove.
 
 Run the installer acceptance test with:
 

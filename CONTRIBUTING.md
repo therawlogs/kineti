@@ -1,6 +1,6 @@
 # Contributing to Kineti
 
-Plain words. Numbered steps. Every change must be safe, tested, and proven.
+Use plain English, keep changes focused, and run checks before asking for review. This guide explains local setup, contribution rules and the release process.
 
 ## 1. Setup
 
@@ -32,7 +32,7 @@ Plain words. Numbered steps. Every change must be safe, tested, and proven.
 ## 4. Tests and proof (required)
 
 1. Run the full suite: `bun test tests/`.
-2. Save proof bound to the code: `bun bin/kineti-evidence.ts run --label <name> -- bun test tests/`.
+2. Save proof bound to the code: `bun bin/kineti-evidence.ts run --label <name> --required-test tests -- bun test tests/`.
 3. Check it: `bun bin/kineti-evidence.ts check --label <name>`. It must say FRESH.
 4. Rust engine: `cargo test --manifest-path core-native/Cargo.toml`.
 5. Typecheck: `bun run typecheck`. Installer smoke: `./tests/test-setup.sh`.
@@ -92,7 +92,7 @@ Every contribution follows a structured 5-step review process:
 
 1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). `docs/`, tests, the website, and the native workspace are not in the npm tarball. Verify with `npm pack --dry-run`.
 2. Website: static page `website/index.html` plus `website/kineti-cosmic-loop.mp4`, `website/kineti-cosmic-poster.jpg`, and `website/vercel.json`. No package, no lockfile, no build step. Excluded from the npm pack.
-3. Rust workspace `core-native/`: 8 crates (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). v0.4.0 adds the maintained `ed25519-dalek` dependency to `kineti-harness`. Bump `[workspace.package]` together with `package.json`. `Cargo.lock` at the repo root and `core-native/Cargo.lock` are both tracked.
+3. Rust workspace `core-native/`: 8 crates (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). v0.5.0 includes the maintained `ed25519-dalek` dependency to `kineti-harness`. Bump `[workspace.package]` together with `package.json`. `Cargo.lock` at the repo root and `core-native/Cargo.lock` are both tracked.
 4. Version rule: `package.json`, `kineti.config.json`, both Cargo workspaces, and every crate being published move together. `tests/versions.test.ts` checks crate metadata, lockfiles, server registration, current docs, skill manifests, and Codex setup examples.
 
 ## 12. Docs rules
