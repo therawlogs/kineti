@@ -1,6 +1,6 @@
 # First Run Tutorial
 
-This tutorial takes about 10 minutes. It shows you how to install Kineti, connect it to an AI coding agent, record a local test receipt, check reported spending, and use registered undo steps.
+Install Kineti, create local project state, then run a test and check its receipt. This guide keeps setup separate from the experimental protected-write tool and shows the commands you can run yourself.
 
 ## Prerequisites
 - **Node.js**: version 18 or higher
@@ -161,4 +161,4 @@ Kineti includes a local dashboard for reviewing project state and recorded infor
 kineti companion
 ```
 
-Open `http://127.0.0.1:8788` in your browser. The Companion is local. It does not connect external services, send messages, or provide cloud pairing in v0.4.0.
+Open `http://127.0.0.1:8788` in your browser. The Companion is local. It does not connect external services, send messages, or provide cloud pairing in v0.5.0.

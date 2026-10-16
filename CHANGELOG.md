@@ -1,5 +1,20 @@
 # Changelog
 
+Release notes explain what changed and what remains limited. Kineti v0.5.0 is a local tooling release; protected writes are experimental.
+
+## 0.5.0
+
+- Validate receipt issuer trust, age, declared inputs, local revocation and exact write requests through shared checks.
+- Preserve exact command arguments, including spaces and empty values, and document the legacy substring check.
+- Serialize execution logging, block damaged ledgers and keep generated CI reports in runtime state.
+- Add direct negative, replay, concurrency and write-failure tests.
+- Simplify documentation introductions and website copy while keeping setup and reference details.
+- Verify package contents before publishing npm and all eight Rust crates. Omit incomplete standalone downloads.
+
+### Compatibility and limits
+
+Bun is required for npm governance commands; the native kineti-cli is a separate Rust tool. Protected writes require an explicit local trust policy. Existing receipt checks and protected-write result codes are unchanged. Forged-success rejection and atomic authorization plus effect remain unresolved. Direct editor writes bypass the gate, and spend is reported by the agent rather than verified against provider bills.
+
 ## 0.4.0
 
 ### Added

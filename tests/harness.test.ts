@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
+import { fingerprint } from "../bin/kineti-evidence.ts";
 
 const REPO = path.resolve(import.meta.dir, "..");
 
@@ -200,6 +201,15 @@ describe("kineti-saga", () => {
 });
 
 describe("kineti-evidence", () => {
+  test("workspace fingerprint detects ordinary files with a bun-build suffix", () => {
+    const c = makeCtx();
+    fs.writeFileSync(path.join(c.cwd, "source.ts"), "export {};");
+    const before = fingerprint(c.cwd);
+    fs.writeFileSync(path.join(c.cwd, ".generated.bun-build"), "cache");
+    expect(fingerprint(c.cwd)).not.toBe(before);
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
   test("FRESH flips to STALE when code changes; MISSING when absent", () => {
     const c = makeCtx();
     fs.mkdirSync(path.join(c.cwd, "src"));
@@ -303,6 +313,13 @@ describe("kineti-egress", () => {
     fs.writeFileSync(ledger, lines.join("\n") + "\n");
 
     expect(e(["verify"]).status).toBe(3);
+    const damagedBytes = fs.readFileSync(ledger, "utf8");
+    fs.writeFileSync(path.join(c.cwd, "runner.ts"), "import fs from 'node:fs'; fs.writeFileSync('executed.txt', 'unsafe');\n");
+    const blocked = run("kineti-evidence.ts", ["run", "--label", "damaged-egress", "--", "bun", "run", "runner.ts"], c);
+    expect(blocked.status).toBe(1);
+    expect(blocked.err).toContain("TAMPER");
+    expect(fs.existsSync(path.join(c.cwd, "executed.txt"))).toBe(false);
+    expect(fs.readFileSync(ledger, "utf8")).toBe(damagedBytes);
     expect(fs.existsSync(`${ledger}.lock`)).toBe(false);
     fs.rmSync(c.root, { recursive: true, force: true });
   });

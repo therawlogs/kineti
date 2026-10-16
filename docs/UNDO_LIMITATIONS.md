@@ -1,6 +1,6 @@
 # What Undo Cannot Reverse
 
-Kineti's undo system (SAGA-based rollback) only reverses **explicitly registered inverse commands**. It is not a filesystem snapshot or time machine. This document lists what undo cannot reverse.
+Kineti can run the undo commands you registered, newest first. It cannot reverse work that has no undo command or guarantee that an external service will accept a reversal. Check the results before retrying.
 
 ---
 

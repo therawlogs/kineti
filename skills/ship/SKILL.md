@@ -2,7 +2,7 @@
 name: ship
 description: Clean commits and a pull request, proof-gated. Stage 11 of 13.
 stage: ship
-version: 0.4.0
+version: 0.5.0
 triggers:
   - ship it
   - open a pull request
@@ -55,8 +55,8 @@ Final gate check:
    after required reviews, CI, and the human's approval.
 7. For a version release, confirm registry ownership, unused target
    versions, and the protected `registry-release` environment before
-   creating the tag. The v0.4.0 release workflow dry-runs packages, then
-   publishes the eight Rust crates, npm, and GitHub release assets in that
+   creating the tag. The current release workflow verifies packages, then
+   publishes the eight Rust crates, npm, and GitHub release notes in that
    order. The npm build/typecheck runs before its token is provided, and the
    publish step does not run package scripts. A failed earlier publish blocks
    later jobs; registry uploads that already succeeded cannot be rolled back.

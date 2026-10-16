@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="File-bound test receipts and registered rollback for AI coding agents. Also a spend log with a cap. MIT." />
+    <meta name="description" content="Test records, undo commands, and reported spending for AI coding agents. Protected writes are experimental." />
     <title>Kineti</title>
     <style>
       :root {
@@ -127,10 +127,7 @@
     <div class="cosmic-bg" aria-hidden="true"><video autoplay muted loop playsinline disablepictureinpicture tabindex="-1" poster="kineti-cosmic-poster.jpg"></video></div>
     <main>
       <h1>Kineti</h1>
-      <p>Run your tests, save a file-bound receipt, and see when later edits make it stale. Kineti also records registered rollback steps and agent-reported spend.</p>
-      <p>When CI checks a stale receipt, it can block that release step. Kineti does not intercept Cursor’s direct file tools; only writes routed through its protected MCP action are checked.</p>
-      <p><strong>Blocked bad-release example:</strong> after a source edit, the receipt check returns <code>STALE</code>; a release script that checks it stops before packaging.</p>
-      <p class="cta-line">[Try it out and share feedback]</p>
+      <p>Kineti helps AI coding agents run tests, save a record of the files tested, keep undo commands, and track reported spending. It shows when later edits make a test record stale and can help CI stop a release. It does not control every agent action or verify provider bills. Protected writes are experimental and do not provide a secure sandbox.</p>
       <div class="links">
         <a href="https://github.com/therawlogs/kineti" target="_blank" rel="noreferrer">GitHub: https://github.com/therawlogs/kineti</a>
         <a class="contact" href="mailto:hello@getkineti.com">hello@getkineti.com</a>

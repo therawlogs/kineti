@@ -7,7 +7,7 @@ import { microcentsToUsd } from "../bin/lib.ts";
 
 describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   let server: any;
-  const testPort = 18788;
+  const testPort = Number(process.env.KINETI_COMPANION_TEST_PORT || 0);
   const settingsFile = path.join(process.cwd(), ".kineti", "companion_settings.json");
   const switchFile = path.join(process.cwd(), ".kineti", "kineti.json");
   let settingsBackup: string | null = null;

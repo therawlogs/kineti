@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "kineti-os",
+      "name": "kineti",
       "devDependencies": {
         "@types/bun": "^1.2.0",
         "@types/node": "^22.0.0",

@@ -1,5 +1,7 @@
 # Security Report — v3.1 ship gate (2026-09-09)
 
+This file keeps dated security reviews. The v0.5.0 review below describes the current tooling release and the experimental protected-write limits.
+
 > Historical snapshot of the 2026-09-09 security pass. Endpoints and file
 > line numbers below describe that date; some routes have since been removed
 > or moved. The current policy, scope, and SLA live in `SECURITY.md`.
@@ -135,3 +137,11 @@ This review covers the v0.4.0 changes to public CI seeding and required-evidence
 ### Verdict
 
 No critical or high code findings were identified in this review. The missing required reviewer remains an open ship prerequisite. This report is not a signed safety certificate.
+
+## v0.5.0 tooling release review
+
+The writer now checks a separately provisioned issuer, age, declared inputs, local revocation and single-use proof. Tests cover malformed proof, changed inputs, concurrent requests and selected write failures. Execution logging uses the existing egress lock and rejects a damaged ledger.
+
+Protected writes remain experimental: a same-command forged-success regression is accepted, and separate checks and rename leave a race window. The local account controls the policy and signing key. Direct editor actions bypass the tool. This release makes no sandbox, adversarial-builder isolation or live host acceptance claim. See [the policy and limits](PROTECTED-WRITE.md).
+
+Package checks run before publication. npm, eight Rust crates and GitHub release notes use the same commit. Incomplete standalone downloads are omitted. Successful uploads cannot be rolled back; a partial publication stops later steps and must be inspected before any retry.

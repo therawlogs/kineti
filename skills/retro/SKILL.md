@@ -2,7 +2,7 @@
 name: retro
 description: Weekly review; write lessons with expiry dates. Stage 13 of 13.
 stage: reflect
-version: 0.4.0
+version: 0.5.0
 triggers:
   - retro
   - retrospective

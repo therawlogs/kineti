@@ -92,14 +92,14 @@ jobs:
           read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
           args=()
           for label in "${labels[@]}"; do args+=(--require-evidence "$label"); done
-          bun bin/kineti.js ci "${args[@]}" --pr-comment-file pr_comment.md
+          bun bin/kineti.js ci "${args[@]}" --pr-comment-file .kineti/pr_comment.md
 
       - name: Prepare PR report output
         id: comment
         if: always()
         run: |
-          if [ -f pr_comment.md ]; then
-            body_b64="$(base64 -w 0 pr_comment.md)"
+          if [ -f .kineti/pr_comment.md ]; then
+            body_b64="$(base64 -w 0 .kineti/pr_comment.md)"
           else
             body_b64="$(printf '%s\n' '### Kineti CI Checks: BLOCKED' 'The verification report could not be created.' | base64 -w 0)"
           fi

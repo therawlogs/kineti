@@ -1,6 +1,6 @@
 # Kineti OS — Documentation Index
 
-Welcome to the technical documentation for **Kineti OS**. For current v0.4.0 behavior, start with the README and changelog. Historical plans and research notes describe goals, not guarantees.
+Start with the README to install Kineti v0.5.0 and try its local tools. These guides explain setup, commands and limits. Historical plans describe ideas, not features you can rely on today.
 
 ---
 ## 1. Foundational Research Series (historical)
@@ -19,9 +19,9 @@ The papers were removed from the tree and will be re-added when ready. The figur
 - [**CHANGELOG.md**](../CHANGELOG.md) — Current release contents and limits.
 
 ## 2. Core Architecture & Specifications
-- [**PLAN.md**](./PLAN.md) — Historical architecture proposal. Its implementation targets are not a description of v0.4.0 behavior.
+- [**PLAN.md**](./PLAN.md) — Historical architecture proposal. Its implementation targets are not a description of v0.5.0 behavior.
 - [**ARCHITECTURE.md**](./ARCHITECTURE.md) — Rust core internals moved off the product README (hash-chained ledger, commit gate, snapshots, connectors).
-- [**SECURITY_REPORT.md**](./SECURITY_REPORT.md) — Historical v3.1 security review. Read the dated v0.4.0 section for the current release review.
+- [**SECURITY_REPORT.md**](./SECURITY_REPORT.md) — Historical v3.1 security review. Read the dated v0.5.0 section for the current release review.
 
 ---
 

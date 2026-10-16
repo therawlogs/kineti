@@ -1,0 +1,21 @@
+#!/usr/bin/env bun
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+const root = process.cwd(), out = path.join(root, ".kineti/release-package");
+fs.mkdirSync(out, { recursive: true });
+const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version;
+const p = Bun.spawnSync(["npm", "pack", "--dry-run", "--ignore-scripts", "--json"], { stdout: "pipe", stderr: "pipe" });
+if (p.exitCode !== 0) throw new Error(new TextDecoder().decode(p.stderr));
+const listing = JSON.parse(new TextDecoder().decode(p.stdout))[0];
+const files = listing.files.map((f: { path: string }) => f.path) as string[];
+for (const required of ["bin/kineti.js", "bin/kineti-evidence.ts", "bin/kineti-egress.ts", "bin/lib.ts", "setup.sh", "skills/design/SKILL.md"]) if (!files.includes(required)) throw new Error(`npm package missing ${required}`);
+for (const file of files) if (/(^|\/)(\.kineti|\.git|\.env(?:\.|$)|node_modules|website|tests)(\/|$)|\.(pem|key|bun-build)$/.test(file)) throw new Error(`npm package includes forbidden file: ${file}`);
+console.log(`npm pack --dry-run: ${files.length} files inspected`);
+const packed = Bun.spawnSync(["npm", "pack", "--ignore-scripts", "--json", "--pack-destination", out], { stdout: "pipe", stderr: "pipe" });
+if (packed.exitCode !== 0) throw new Error(new TextDecoder().decode(packed.stderr));
+const item = JSON.parse(new TextDecoder().decode(packed.stdout))[0];
+if (item.version !== version || item.name !== "kineti") throw new Error("npm tarball identity mismatch");
+const file = path.join(out, item.filename), sha256 = crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+fs.writeFileSync(path.join(out, "npm-package.json"), JSON.stringify({ version, filename: item.filename, sha256, integrity: item.integrity }, null, 2) + "\n");
+console.log(`verified npm candidate: ${item.filename} sha256=${sha256}`);

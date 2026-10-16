@@ -2,7 +2,7 @@
 name: review
 description: Hunt the bugs that tests miss. Stage 8 of 13.
 stage: verify
-version: 0.4.0
+version: 0.5.0
 triggers:
   - review the code
   - bug hunt

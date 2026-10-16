@@ -1,6 +1,6 @@
 # Daily and Weekly Developer Guide
 
-This guide walks you through the daily engineering loop with Kineti: starting tasks, approving plans, running tests with proof receipts, rolling back unwanted changes, and checking pipeline health.
+Start a task with a clear goal, save undo commands before edits, run tests and check their receipts. This guide gives the daily commands and weekly checks for those local records.
 
 ---
 

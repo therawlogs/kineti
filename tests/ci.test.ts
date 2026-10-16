@@ -318,3 +318,11 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     }
   });
 });
+
+
+it("workflow reports stay in runtime state and retain both required evidence labels", () => {
+  const workflow = fs.readFileSync(path.join(process.cwd(), ".github/workflows/kineti-gate.yml"), "utf8");
+  expect(workflow).toContain("KINETI_REQUIRED_EVIDENCE: gate-ts-tests gate-rust-tests");
+  expect(workflow).toContain("--pr-comment-file .kineti/pr_comment.md");
+  expect(workflow).toContain("base64 -w 0 .kineti/pr_comment.md");
+});

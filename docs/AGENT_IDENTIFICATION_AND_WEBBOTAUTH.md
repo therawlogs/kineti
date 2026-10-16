@@ -1,6 +1,6 @@
 # Agent Identification & The IETF Web Bot Auth Standard
 
-How autonomous agents identify themselves to service providers, and where cryptographic verification replaces self-declared strings.
+This guide explains how agent identity and signed requests work. Kineti includes local signature libraries; a signature alone does not establish who owns a key or authorize a real agent handoff.
 
 ---
 

@@ -1,8 +1,6 @@
 # Workflow contracts
 
-This index defines the workflow contracts that connect the existing Kineti
-skills. The numbered workflows are contract IDs; they do not change the
-project's 13-stage numbering.
+Each workflow needs clear inputs, a named decision maker and a result that can be checked. This guide lists those agreements for the thirteen stages. Written instructions do not enforce every agent action.
 
 | Workflow | Inputs and order | Approval | Output and acceptance |
 | --- | --- | --- | --- |

@@ -93,7 +93,7 @@ if (target.isShell) {
 }
 function printHelp() {
   console.log(`
-Kineti OS - safe runtime for AI coding agents
+Kineti OS - local test receipts, undo, and reported spend
 
 Commands:
   kineti init          Install agent instructions and skills

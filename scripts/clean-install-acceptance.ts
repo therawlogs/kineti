@@ -1,8 +1,10 @@
 import path from "node:path";
+import fs from "node:fs";
 
 const root = path.resolve(import.meta.dir, "..");
 const work = path.join(root, ".kineti", "acceptance", `${Date.now()}-${process.pid}`);
-const candidate = path.join(root, ".kineti", "acceptance", "candidate", "kineti-0.4.0.tgz");
+const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
+const candidate = path.join(root, ".kineti", "acceptance", "candidate", `kineti-${version}.tgz`);
 const env = { ...process.env, npm_config_cache: path.join(work, "npm-cache"), CARGO_HOME: path.join(work, "cargo-home") };
 for (const dir of ["npm-baseline", "npm-candidate", "crate-baseline", "crate-candidate", "npm-cache", "cargo-home"]) await Bun.$`mkdir -p ${path.join(work, dir)}`;
 function run(cmd: string[]) {
