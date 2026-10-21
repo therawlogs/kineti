@@ -45,7 +45,7 @@ import { signServiceResponse, type SignedServiceRequest } from "../src/security/
 function unsigned(r: SignedServiceRequest) { const { signature: _, ...body } = r; return body; }
 
 /** Bounded pipes, process-group termination, namespaces, no network, no authority mounts. */
-async function isolated(config: LinuxServiceConfig, artifact: string, check: TrustedCliCheck) {
+export async function runIsolatedCheck(config: LinuxServiceConfig, artifact: string, check: TrustedCliCheck) {
   const rt = config.runtime;
   const group = path.join(rt.cgroup_root, crypto.randomUUID());
   fs.mkdirSync(group);
@@ -181,7 +181,7 @@ export class LinuxProtectedService {
     if (!fs.existsSync(artifact)) { durableNew(artifact,bytes); fs.chmodSync(artifact,0o444); syncDir(path.dirname(artifact)); } owned(artifact,false,true); if(digestFile(artifact)!==sha(bytes)) fail("immutable-artifact-damaged");
     const checks: CheckResult[]=[]; const observations: unknown[]=[];
     for(const check of this.config.contract.checks) {
-      const result=await isolated(this.config,artifact,check);
+      const result=await runIsolatedCheck(this.config,artifact,check);
       const passed=!result.fault && result.exit===check.expected_exit && sha(result.stdout)===check.stdout_sha256 && sha(result.stderr)===check.stderr_sha256;
       checks.push({id:check.id,status:result.fault?"unknown":passed?"passed":"failed",reason_code:result.fault|| (passed?"trusted-output-match":"trusted-output-mismatch")});
       observations.push({id:check.id,argv:check.argv,stdin_sha256:sha(bytes64(check.stdin_base64)),stdout_sha256:sha(result.stdout),stderr_sha256:sha(result.stderr),exit:result.exit,fault:result.fault});

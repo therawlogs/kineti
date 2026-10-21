@@ -195,7 +195,7 @@ jobs:
         run: |
           sudo "$(command -v bun)" -e 'import {Database} from "bun:sqlite"; import fs from "node:fs"; const root=fs.readFileSync(".kineti/github-input/service-root.txt","utf8");const db=new Database(root+"/requests.sqlite",{readonly:true});for(const row of db.query("SELECT result FROM evaluations").all()){const r=JSON.parse(row.result).result;console.log(JSON.stringify({decision:r.decision,checks:r.checks,execution:r.execution}));}db.close();'
           cat .kineti/github-service.log
-          sudo /usr/bin/prlimit --cpu=5 --as=268435456 --fsize=1048576 --nofile=64 --nproc=32 -- /usr/bin/bwrap --unshare-all --die-with-parent --new-session --clearenv --ro-bind /bin/busybox /bin/busybox --proc /proc --dev /dev --size 16777216 --tmpfs /tmp --chdir /tmp --uid 65534 --gid 65534 --cap-drop ALL -- /bin/busybox true
+          sudo "$(command -v bun)" -e 'import fs from "node:fs";import {runIsolatedCheck} from "./bin/kineti-linux-service.ts";const root=fs.readFileSync(".kineti/github-input/service-root.txt","utf8"),c=JSON.parse(fs.readFileSync(root+"/config.json","utf8"));const r=await runIsolatedCheck(c,process.cwd()+"/.kineti/github-input/candidate.sh",c.contract.checks[0]);console.log(JSON.stringify({exit:r.exit,fault:r.fault,synthetic_stderr:r.stderr.toString().slice(0,2048)}));'
       - name: Substitution must fail
         id: substitution
         continue-on-error: true

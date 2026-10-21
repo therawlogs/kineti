@@ -94,7 +94,7 @@ test("CI validates authentic receipts and rejects altered, skipped, zero-case an
     const receipt = JSON.parse(fs.readFileSync(ledger, "utf8")) as EvidenceRecord;
     expect(generateCIReport(root, { requiredEvidenceLabels: ["control"] }).checksPassed).toBe(true);
     expect(generateCIReport(root,{requiredEvidenceLabels:["control"],evidenceCommands:{control:["bun","test","control.test.ts"]}}).checksPassed).toBe(true);
-    for(const commands of [{control:["bun","test"]},{other:["bun","test","control.test.ts"]},{control:[]}])expect(generateCIReport(root,{requiredEvidenceLabels:["control"],evidenceCommands:commands}).checksPassed).toBe(false);
+    for(const commands of [{control:["bun","test"]},{other:["bun","test","control.test.ts"]},{control:[]}] as Record<string,string[]>[])expect(generateCIReport(root,{requiredEvidenceLabels:["control"],evidenceCommands:commands}).checksPassed).toBe(false);
     const privateKey = fs.readFileSync(path.join(root, ".kineti/evidence-issuer.pem.private"));
     for (const change of ["unsigned", "forged", "skipped", "zero", "unsupported", "unrun", "empty-inventory", "future-version"]) {
       const altered = structuredClone(receipt);
