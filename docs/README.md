@@ -15,6 +15,12 @@ The papers were removed from the tree and will be re-added when ready. The figur
 
 ---
 
+## Current service interfaces
+
+- [Linux evaluator and protected output v1](LINUX-SERVICE.md)
+- [Durable local native memory v1](NATIVE-MEMORY.md)
+- [GitHub source integration and pending live gate](GITHUB-ACTION.md)
+
 ## Release notes
 - [**CHANGELOG.md**](../CHANGELOG.md) — Current release contents and limits.
 
@@ -40,7 +46,7 @@ The papers were removed from the tree and will be re-added when ready. The figur
 - [**WORKFLOW-09.md**](./WORKFLOW-09.md) — Independent evaluation with immutable artifacts and deterministic reviewer summaries.
 - [**WORKFLOW-CONTRACTS.md**](./WORKFLOW-CONTRACTS.md) — Inputs, approvals, outputs, dependencies, and acceptance checks for workflows 01–13.
 - [**REVIEW-SUMMARY.md**](./REVIEW-SUMMARY.md) — Canonical, digest-bound evaluator result format.
-- [**CONTAINMENT-EVALUATION.md**](./CONTAINMENT-EVALUATION.md) — Matched Strands Box and OpenShell evaluation protocol and current limits.
+- [Removed research history](./archive/removed-scope-20261017/CONTAINMENT-EVALUATION.md) — Historical only; R06 and R24 were removed by owner decision.
 - [**CLEAN_MACHINE_SETUP.md**](./CLEAN_MACHINE_SETUP.md) — Isolated install checks and unsupported natural-language routing cases.
 - [**DEMO-CLIP.md**](./DEMO-CLIP.md) — Capture instructions; current clip status.
 

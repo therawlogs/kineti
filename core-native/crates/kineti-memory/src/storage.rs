@@ -1,18 +1,11 @@
-//! Embedded SQLite Disk Persistence for the Causal Property Graph.
+//! Storage SQL templates and row-conversion helpers (prototype).
 //!
-//! Backs the in-memory [`UserPropertyGraph`] with durable SQLite storage in WAL
-//! (Write-Ahead Log) mode. All queries are partitioned by `user_id` to guarantee
-//! zero cross-tenant leakage at the storage layer.
-//!
-//! ## Design Principles
-//! - **WAL mode**: Concurrent readers never block writers; writes never block reads.
-//! - **User-partitioned queries**: Every `SELECT` includes `WHERE user_id = ?` to
-//!   prevent any cross-tenant data exposure.
-//! - **O(1) tombstone soft deletion**: Tombstoned facts are instantly masked by
-//!   setting `tombstoned = 1` and `tombstoned_at_ms`. A background sweep zeroes
-//!   the `value` column for rows tombstoned over 24 hours ago.
-//! - **Process restart survival**: All causal edges (`Replaces`, `RelatesTo`,
-//!   `DerivedFrom`) are persisted alongside facts and survive server reboots.
+//! This module does not open SQLite, execute statements, persist the in-memory
+//! graph, authenticate callers, or establish deletion guarantees. User labels in
+//! these templates are query parameters, not authorization. The product local
+//! memory path is `PersistentLocalMemory`, backed by the same encrypted current
+//! OS-user/project store as the TypeScript APIs. Do not expose these templates
+//! or the in-memory prototype engine as an authenticated memory service.
 
 use crate::graph::{FactEdge, FactRelation};
 use kineti_core::conversation::UserFact;

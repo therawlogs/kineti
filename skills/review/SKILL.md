@@ -48,7 +48,7 @@ exceeds ~1500 lines, review in chunks and say so.
 6. **No new features.** Anything that smells like scope creep goes in the
    out-of-scope list, not the code.
 7. Refresh proofs for touched areas:
-   `bun "$K/kineti-evidence.ts" run --label review -- -- <verify command>`
+   `bun "$K/kineti-evidence.ts" run --label review --required-test <test-file-or-directory> -- <verify command>`
 8. All serious items resolved → `bun "$K/kineti-state.ts" set stage 9`.
 
 ## Outputs

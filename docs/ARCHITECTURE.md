@@ -5,7 +5,7 @@ The native Rust crates provide local libraries and a separate command-line tool.
 ## `core-native/`
 
 - **Double-Buffered Atomic Snapshots**: Two-slot `RwLock` snapshot design with thread-safe read paths and deferred epoch reclamation of retired instances. Latency figures are withheld until reproducible benchmark scripts land in the repo.
-- **Universal 20-Entity Provenance Kernel**: Content-addressed RFC 8785 JSON canonicalization with BLAKE3 and SHA-256 digests (hand-rolled under a zero-external-dependency constraint; see `docs/PLAN.md` for rationale and test vectors).
+- **Universal 20-Entity Provenance Kernel**: Legacy content-addressed JSON serialization with BLAKE3 and SHA-256 digests; the validated cross-language format is additive `kineti-canonical-v2`, not RFC 8785 (hand-rolled under a zero-external-dependency constraint; see `docs/PLAN.md` for rationale and test vectors).
 - **Monotonic Hybrid Logical Clock (HLC)**: Physical and logical causality tracking under clock skew.
 - **3-Way Graph Commit Gate**: Rejects causal inversions, topological DAG cycles, and single-byte state tampering.
 - **Sensory Reflex Triage**: Fast sensory classification dispatching zero-token emoji reactions for low-information conversational stimuli.

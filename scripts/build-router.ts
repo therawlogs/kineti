@@ -24,6 +24,11 @@ const built = result.outputs[0];
 const text = await built.text();
 const lines = text.split("\n");
 lines[0] = "#!/usr/bin/env node";
+if (process.argv.includes("--check")) {
+  if (!fs.existsSync(OUT) || fs.readFileSync(OUT, "utf8") !== lines.join("\n")) throw new Error("generated router is stale; run bun run build:router");
+  console.log("generated router matches source");
+  process.exit(0);
+}
 fs.writeFileSync(OUT, lines.join("\n"));
 fs.chmodSync(OUT, 0o755);
 console.log(`router codegen: ${SRC} -> ${OUT} (${lines.join("\n").length} bytes)`);

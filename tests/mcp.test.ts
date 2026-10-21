@@ -22,10 +22,78 @@ describe("Cursor MCP config merge", () => {
     expect(written.mcpServers.kineti).toEqual(server);
     expect(written.other).toEqual({ keep: true });
     expect(fs.readFileSync(backup, "utf8")).toBe(old);
-    const beforeFailure = fs.readFileSync(file, "utf8");
-    expect(() => writeCursorConfig(file, { command: "broken" }, { at: 456, beforeRename: () => { throw new Error("simulated write interruption"); } })).toThrow("simulated write interruption");
-    expect(fs.readFileSync(file, "utf8")).toBe(beforeFailure);
-    expect(fs.existsSync(`${file}.bak.456`)).toBe(true);
+    const failureFile = path.join(dir, ".cursor", "failure-mcp.json");
+    const beforeFailure = JSON.stringify({ mcpServers: { other: { command: "node" } } });
+    fs.writeFileSync(failureFile, beforeFailure);
+    expect(() => writeCursorConfig(failureFile, { command: "broken" }, { at: 456, beforeRename: () => { throw new Error("simulated write interruption"); } })).toThrow("simulated write interruption");
+    expect(fs.readFileSync(failureFile, "utf8")).toBe(beforeFailure);
+    expect(fs.readFileSync(`${failureFile}.bak.456`, "utf8")).toBe(beforeFailure);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("leaves an identical Kineti entry unchanged without making a backup", () => {
+    const dir = makeTmpDir("cursor-config-identical-");
+    const file = path.join(dir, ".cursor", "mcp.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const server = { args: ["--workspace-root", "/sample"], command: "bun" };
+    const original = JSON.stringify({ mcpServers: { kineti: server, other: { command: "node" } }, setting: true });
+    fs.writeFileSync(file, original);
+
+    expect(writeCursorConfig(file, { command: "bun", args: ["--workspace-root", "/sample"] }, { at: 789 })).toBe("");
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+    expect(fs.readdirSync(path.dirname(file))).toEqual(["mcp.json"]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("refuses a differing Kineti entry without changing original bytes or making a backup", () => {
+    const dir = makeTmpDir("cursor-config-conflict-");
+    const file = path.join(dir, ".cursor", "mcp.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const original = JSON.stringify({ mcpServers: { kineti: { command: "custom", args: ["keep"] }, other: { command: "node" } }, setting: true });
+    fs.writeFileSync(file, original);
+
+    expect(() => writeCursorConfig(file, { command: "bun", args: ["kineti-mcp"] }, { at: 790 }))
+      .toThrow("different kineti entry");
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+    expect(fs.readdirSync(path.dirname(file))).toEqual(["mcp.json"]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("rejects malformed JSON and an invalid mcpServers shape without overwriting", () => {
+    const dir = makeTmpDir("cursor-config-invalid-");
+    const file = path.join(dir, ".cursor", "mcp.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    for (const [contents, message] of [["{", "JSON"], ['{"mcpServers":[]}', "mcpServers"]]) {
+      fs.writeFileSync(file, contents);
+      expect(() => writeCursorConfig(file, { command: "bun" })).toThrow(message);
+      expect(fs.readFileSync(file, "utf8")).toBe(contents);
+      expect(fs.readdirSync(path.dirname(file))).toEqual(["mcp.json"]);
+    }
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("cleans up when config writing or renaming fails", () => {
+    const dir = makeTmpDir("cursor-config-failure-");
+    const file = path.join(dir, ".cursor", "mcp.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const original = JSON.stringify({ mcpServers: { other: { command: "node" } } });
+    fs.writeFileSync(file, original);
+
+    expect(() => writeCursorConfig(file, { command: "bun" }, {
+      at: 791,
+      beforeWrite: () => { throw new Error("simulated write failure"); },
+    })).toThrow("simulated write failure");
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+    expect(fs.readFileSync(file + ".bak.791", "utf8")).toBe(original);
+    expect(fs.readdirSync(path.dirname(file)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
+
+    expect(() => writeCursorConfig(file, { command: "bun" }, {
+      at: 792,
+      rename: () => { throw new Error("simulated rename failure"); },
+    })).toThrow("simulated rename failure");
+    expect(fs.readFileSync(file, "utf8")).toBe(original);
+    expect(fs.readFileSync(file + ".bak.792", "utf8")).toBe(original);
+    expect(fs.readdirSync(path.dirname(file)).filter((name) => name.endsWith(".tmp"))).toEqual([]);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 });
@@ -36,11 +104,11 @@ function makeTmpDir(prefix: string = "mcp-test-"): string {
   return fs.mkdtempSync(path.join(scratch, prefix));
 }
 
-function createMcpSession(cwd: string) {
+function createMcpSession(cwd: string, launchCwd: string = cwd, extraEnv: Record<string,string> = {}) {
   const proc = Bun.spawn({
-    cmd: ["bun", MCP_SCRIPT, "--workspace-root", cwd],
-    cwd,
-    env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO, KINETI_TRUST_CONFIRMED: "1" },
+    cmd: [process.execPath, MCP_SCRIPT, "--workspace-root", cwd],
+    cwd: launchCwd,
+    env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO, KINETI_MACHINE_DIR: path.join(cwd, ".kineti", "machine"), KINETI_TRUST_CONFIRMED: "1", ...extraEnv },
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
@@ -106,7 +174,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     }
   });
 
-  test("tools/list returns 14 governance tools plus talk", async () => {
+  test("tools/list returns governance and contextual memory tools plus talk", async () => {
     const tmpDir = makeTmpDir();
     const session = createMcpSession(tmpDir);
 
@@ -127,7 +195,8 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
 
       expect(listResp.result.tools).toBeDefined();
       const toolNames = listResp.result.tools.map((t: any) => t.name);
-      expect(toolNames.length).toBe(15);
+      expect(toolNames.length).toBe(18);
+      expect(toolNames).toContain("kineti_linux_service");
       expect(toolNames).toContain("kineti_talk");
       expect(toolNames).toContain("kineti_status");
       expect(toolNames).toContain("kineti_lock_goal");
@@ -142,19 +211,79 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
       expect(toolNames).toContain("kineti_verify_gate_status");
       expect(toolNames).toContain("kineti_egress_record");
       expect(toolNames).toContain("kineti_epistemic_eval");
+      expect(toolNames).toContain("kineti_context_memory");
+      expect(toolNames).toContain("kineti_workflow");
     } finally {
       session.close();
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
+  test("context memory is scoped, corrected, and deleted through the MCP tool", async () => {
+    const tmpDir = makeTmpDir("mcp-memory-");
+    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "memory-project", "--mode", "harness", "--goal", "Keep useful project context"], { cwd: tmpDir });
+    const launchDir = makeTmpDir("host-launch-");
+    const session = createMcpSession(tmpDir, launchDir);
+    try {
+      await session.sendRpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } });
+      const call = (id: number, action: string, args: Record<string, unknown>) => session.sendRpc({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "kineti_context_memory", arguments: { action, ...args } } });
+      const saved = await call(2, "store", { id: "mem-mcp-001", content: "Remember the blue sample has a failed import." });
+      expect(saved.result.content[0].text).toContain("STORED mem-mcp-001");
+      const first = await call(3, "retrieve", { query: "failed import" });
+      expect(JSON.parse(first.result.content[0].text).entries[0].content).toBe("Remember the blue sample has a failed import.");
+      const outgoingBeforeCorrection = await call(8, "prepare", { prompt: "Continue the sample import.", query: "failed import" });
+      const beforePayload = JSON.parse(outgoingBeforeCorrection.result.content[0].text);
+      expect(beforePayload.user_prompt).toBe("Continue the sample import.");
+      expect(beforePayload.contextual_memory.map((entry: any) => entry.id)).toEqual(["mem-mcp-001"]);
+      const corrected = await call(4, "correct", { id: "mem-mcp-001", new_id: "mem-mcp-002", content: "Correction: the sample imports after refreshing its token." });
+      expect(corrected.result.content[0].text).toContain("STORED mem-mcp-002");
+      const latest = await call(5, "retrieve", { query: "sample imports" });
+      const latestEntries = JSON.parse(latest.result.content[0].text).entries;
+      expect(latestEntries.map((entry: any) => entry.id)).toEqual(["mem-mcp-002"]);
+      const outgoingAfterCorrection = await call(9, "prepare", { prompt: "Continue the sample import.", query: "sample imports" });
+      const afterPayload = JSON.parse(outgoingAfterCorrection.result.content[0].text);
+      expect(afterPayload.contextual_memory.map((entry: any) => entry.id)).toEqual(["mem-mcp-002"]);
+      expect(JSON.stringify(afterPayload)).not.toContain("Remember the blue sample has a failed import.");
+      const removed = await call(6, "delete", { id: "mem-mcp-002", confirm: "mem-mcp-002" });
+      expect(removed.result.content[0].text).toContain("DELETED mem-mcp-002");
+      const after = await call(7, "retrieve", {});
+      expect(JSON.parse(after.result.content[0].text).entries).toEqual([]);
+      const outgoingAfterDeletion = await call(10, "prepare", { prompt: "Continue the sample import." });
+      expect(JSON.parse(outgoingAfterDeletion.result.content[0].text).contextual_memory).toEqual([]);
+      const journal = fs.readFileSync(path.join(tmpDir, ".kineti", "journal.jsonl"), "utf8");
+      expect(journal).not.toContain("blue sample");
+      expect(fs.existsSync(path.join(tmpDir, ".kineti", "memory", "keys", "mem-mcp-002.key"))).toBe(false);
+      expect(Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-memory-job.ts"), "verify-chain", "--dir", tmpDir], { cwd: REPO }).exitCode).toBe(0);
+    } finally { session.close(); fs.rmSync(tmpDir, { recursive: true, force: true }); fs.rmSync(launchDir, { recursive: true, force: true }); }
+  });
+
+  test("workflow MCP records exact artifacts but does not invent user approvals", async () => {
+    const tmpDir = makeTmpDir("mcp-workflow-");
+    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "workflow-project", "--mode", "harness", "--goal", "Build the approved sample"], { cwd: tmpDir });
+    fs.mkdirSync(path.join(tmpDir, "docs"), { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "docs", "brief.md"), "Goal, personas, constraints and unanswered questions.\n");
+    const session = createMcpSession(tmpDir);
+    try {
+      await session.sendRpc({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05" } });
+      const record = await session.sendRpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "kineti_workflow", arguments: { action: "record", step: "discovery", file: "docs/brief.md" } } });
+      expect(record.result.content[0].text).toContain("RECORDED discovery");
+      const status = await session.sendRpc({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "kineti_workflow", arguments: { action: "status" } } });
+      const parsed = JSON.parse(status.result.content[0].text);
+      expect(parsed.steps.discovery.artifact_sha256).toBeTruthy();
+      expect(parsed.steps.discovery.approved).toBe(false);
+      const outOfOrder = await session.sendRpc({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "kineti_workflow", arguments: { action: "record", step: "design", file: "docs/brief.md" } } });
+      expect(outOfOrder.result.isError).toBe(true);
+      expect(outOfOrder.result.content[0].text).toContain("blocked until 'discovery' is approved");
+    } finally { session.close(); fs.rmSync(tmpDir, { recursive: true, force: true }); }
+  });
+
   test("executes state management tools via tools/call", async () => {
     const tmpDir = makeTmpDir();
     // Initialize kineti state in tmpDir
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
-    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
+    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj", "--mode", "gate"], { cwd: tmpDir });
 
-    const session = createMcpSession(tmpDir);
+    const session = createMcpSession(tmpDir, tmpDir, {PATH:""});
 
     try {
       await session.sendRpc({
@@ -237,7 +366,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
     fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
     fs.writeFileSync(path.join(tmpDir, "tests", "one.test.ts"), "import { test, expect } from 'bun:test'; test('one', () => expect(1).toBe(1));\n");
-    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
+    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj", "--mode", "gate"], { cwd: tmpDir });
 
     const session = createMcpSession(tmpDir);
 
@@ -339,6 +468,25 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     }
   });
 
+  test("CLI init refuses a conflicting Kineti config without changing it", () => {
+    const tmpDir = makeTmpDir("mcp-init-conflict-");
+    const cursorDir = path.join(tmpDir, ".cursor");
+    fs.mkdirSync(cursorDir, { recursive: true });
+    const file = path.join(cursorDir, "mcp.json");
+    const original = JSON.stringify({ mcpServers: { kineti: { command: "custom", args: ["keep"] }, other: { command: "node" } } });
+    fs.writeFileSync(file, original);
+    try {
+      const res = Bun.spawnSync(["bun", MCP_SCRIPT, "init", tmpDir], {
+        env: { ...process.env, KINETI_WORKSPACE_ROOT: REPO },
+      });
+      expect(res.exitCode).not.toBe(0);
+      expect(fs.readFileSync(file, "utf8")).toBe(original);
+      expect(fs.readdirSync(cursorDir)).toEqual(["mcp.json"]);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
   test("CLI init command refuses paths outside project root (exit 2)", () => {
     const outsideDir = path.resolve(REPO, "..", "outside-mcp-init-dir");
     const res = Bun.spawnSync(["bun", MCP_SCRIPT, "init", outsideDir], {
@@ -369,7 +517,7 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     fs.mkdirSync(path.join(tmpDir, ".kineti"), { recursive: true });
     fs.mkdirSync(path.join(tmpDir, "tests"), { recursive: true });
     fs.writeFileSync(path.join(tmpDir, "tests", "one.test.ts"), "import { test, expect } from 'bun:test'; test('one', () => expect(1).toBe(1));\n");
-    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj"], { cwd: tmpDir });
+    Bun.spawnSync(["bun", path.join(REPO, "bin", "kineti-state.ts"), "init", "--project", "test-proj", "--mode", "gate"], { cwd: tmpDir });
 
     const session = createMcpSession(tmpDir);
 

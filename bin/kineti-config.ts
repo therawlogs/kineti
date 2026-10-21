@@ -1,7 +1,23 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export function writeCursorConfig(file: string, nextServer: unknown, hooks: { beforeRename?: () => void; at?: number } = {}): string {
+function stableJson(value: unknown): string {
+  const normalize = (item: any): any => {
+    if (Array.isArray(item)) return item.map(normalize);
+    if (item && typeof item === "object") {
+      return Object.fromEntries(Object.keys(item).sort().map((key) => [key, normalize(item[key])]));
+    }
+    return item;
+  };
+  return JSON.stringify(normalize(value));
+}
+
+export function writeCursorConfig(file: string, nextServer: unknown, hooks: {
+  beforeWrite?: () => void;
+  beforeRename?: () => void;
+  rename?: typeof fs.renameSync;
+  at?: number;
+} = {}): string {
   const dir = path.dirname(file);
   fs.mkdirSync(dir, { recursive: true });
   let current: Record<string, any> = {};
@@ -11,14 +27,19 @@ export function writeCursorConfig(file: string, nextServer: unknown, hooks: { be
   }
   const servers = current.mcpServers ?? {};
   if (!servers || typeof servers !== "object" || Array.isArray(servers)) throw new Error("Cursor mcpServers must be an object");
-  const backup = `${file}.bak.${hooks.at ?? Date.now()}`;
+  if (Object.hasOwn(servers, "kineti")) {
+    if (stableJson(servers.kineti) === stableJson(nextServer)) return "";
+    throw new Error("Cursor MCP config already has a different kineti entry; resolve the conflict before running init");
+  }
+  const backup = file + ".bak." + (hooks.at ?? Date.now());
   if (fs.existsSync(file)) fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL);
   const merged = { ...current, mcpServers: { ...servers, kineti: nextServer } };
-  const temp = path.join(dir, `.${path.basename(file)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);
+  const temp = path.join(dir, "." + path.basename(file) + "." + process.pid + "." + Math.random().toString(36).slice(2) + ".tmp");
   try {
+    hooks.beforeWrite?.();
     fs.writeFileSync(temp, JSON.stringify(merged, null, 2) + "\n", { flag: "wx", mode: 0o600 });
     hooks.beforeRename?.();
-    fs.renameSync(temp, file);
+    (hooks.rename ?? fs.renameSync)(temp, file);
   } catch (error) {
     try { fs.rmSync(temp, { force: true }); } catch {}
     throw error;

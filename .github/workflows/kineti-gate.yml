@@ -65,10 +65,10 @@ jobs:
         run: bun bin/kineti-evidence.ts run --label gate-ts-tests --required-test tests --timeout 600 -- bun test tests/
 
       - name: Run Rust Engine Test Suite
-        run: bun bin/kineti-evidence.ts run --label gate-rust-tests --required-test core-native/Cargo.toml --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
+        run: bun bin/kineti-evidence.ts run --label gate-rust-tests --required-test core-native/crates --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
 
       - name: Run Native CLI Self-Check
-        run: cargo run -p kineti-cli -- test-all
+        run: cargo run --manifest-path core-native/Cargo.toml -p kineti-cli -- test-all
 
       - name: Run Installer Smoke Test
         run: bun run test:setup
@@ -117,33 +117,35 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_COMMENT_B64: ${{ needs.verify.outputs.pr_comment_b64 }}
+          PR_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         with:
           script: |
+            const marker = '<!-- kineti-ci-report:v1 -->';
+            const expectedAuthor = 'github-actions[bot]';
+            const expectedHead = process.env.PR_EXPECTED_HEAD || '';
             const encoded = process.env.PR_COMMENT_B64 || '';
-            const body = encoded
-              ? Buffer.from(encoded, 'base64').toString('utf8').slice(0, 60000)
-              : '### Kineti CI Checks: BLOCKED\nThe verification report was missing.';
-
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-
-            const botComment = comments.find(c => c.user?.type === 'Bot' && c.body.includes('Kineti CI Checks'));
-
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: body,
+            const target = { owner: context.repo.owner, repo: context.repo.repo, pull_number: context.issue.number };
+            try {
+              if (!/^[a-f0-9]{40,64}$/.test(expectedHead)) throw new Error('missing expected PR head');
+              const initial = await github.rest.pulls.get(target);
+              let state = initial.data.head.sha === expectedHead ? 'current' : 'stale';
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: target.owner, repo: target.repo, issue_number: target.pull_number, per_page: 100,
               });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: body,
-              });
+              const existing = comments.find(c => c.user?.login === expectedAuthor && typeof c.body === 'string' && c.body.startsWith(marker));
+              const latest = await github.rest.pulls.get(target);
+              if (latest.data.head.sha !== expectedHead) state = 'stale';
+              const report = encoded ? Buffer.from(encoded, 'base64').toString('utf8').slice(0, 58000) : '';
+              if (!report && state === 'current') state = 'error';
+              const content = state === 'current' ? report : state === 'stale'
+                ? 'STALE: this report evaluated an older PR head. It cannot authorize the current head.'
+                : 'ERROR: the verification report was missing. No success is established.';
+              const body = `${marker}\n<!-- evaluated-head:${expectedHead} state:${state} -->\n${content}`;
+              const destination = { owner: target.owner, repo: target.repo, body };
+              if (existing) await github.rest.issues.updateComment({ ...destination, comment_id: existing.id });
+              else await github.rest.issues.createComment({ ...destination, issue_number: target.pull_number });
+              if (state !== 'current') core.setFailed(`Kineti report is ${state}`);
+            } catch (error) {
+              core.setFailed(`ERROR: PR report could not be checked or written: ${error.message}`);
+              throw error;
             }

@@ -158,7 +158,7 @@ impl From<u32> for JsonNumber {
 impl From<f64> for JsonNumber {
     fn from(v: f64) -> Self {
         if v.is_nan() || v.is_infinite() {
-            Self("0".to_string())
+            Self(v.to_string())
         } else {
             let mut s = format!("{}", v);
             if !s.contains('.') && !s.contains('e') && !s.contains('E') {
@@ -269,7 +269,7 @@ pub fn escape_json_string(s: &str) -> String {
     buf
 }
 
-/// Canonicalizes a `JsonValue` according to RFC 8785 (JCS):
+/// Legacy v1 deterministic serializer; it is not RFC 8785 (JCS).
 /// 1. Lexicographical key sorting (guaranteed by BTreeMap).
 /// 2. Zero extraneous whitespace.
 /// 3. Deterministic string escaping.
@@ -305,6 +305,91 @@ pub fn canonicalize_json(val: &JsonValue) -> String {
             buf
         }
     }
+}
+
+/// Validated cross-language serialization, format `kineti-canonical-v2`.
+/// Legacy serializers and identifiers are retained without rewriting their bytes.
+pub fn canonicalize_json_v2(value: &JsonValue) -> Result<String, KernelError> {
+    fn number(raw: &str) -> Result<f64, KernelError> {
+        let bad = || KernelError::SerializationError("invalid or unsafe JSON number".into());
+        let bytes = raw.as_bytes();
+        let mut i = usize::from(bytes.first() == Some(&b'-'));
+        if bytes.get(i) == Some(&b'0') {
+            i += 1;
+        } else {
+            if !bytes.get(i).is_some_and(|b| (b'1'..=b'9').contains(b)) {
+                return Err(bad());
+            }
+            while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+                i += 1;
+            }
+        }
+        if bytes.get(i) == Some(&b'.') {
+            i += 1;
+            let start = i;
+            while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+                i += 1;
+            }
+            if start == i {
+                return Err(bad());
+            }
+        }
+        if bytes.get(i).is_some_and(|b| *b == b'e' || *b == b'E') {
+            i += 1;
+            if bytes.get(i).is_some_and(|b| *b == b'+' || *b == b'-') {
+                i += 1;
+            }
+            let start = i;
+            while bytes.get(i).is_some_and(u8::is_ascii_digit) {
+                i += 1;
+            }
+            if start == i {
+                return Err(bad());
+            }
+        }
+        if i != bytes.len() {
+            return Err(bad());
+        }
+        let parsed = raw.parse::<f64>().map_err(|_| bad())?;
+        if !parsed.is_finite() || (parsed.fract() == 0.0 && parsed.abs() > 9_007_199_254_740_991.0)
+        {
+            return Err(bad());
+        }
+        Ok(if parsed == 0.0 { 0.0 } else { parsed })
+    }
+    fn hex(text: &str) -> String {
+        text.as_bytes().iter().map(|b| format!("{b:02x}")).collect()
+    }
+    fn encode(value: &JsonValue, depth: usize) -> Result<String, KernelError> {
+        if depth > 128 {
+            return Err(KernelError::SerializationError(
+                "JSON nesting limit exceeded".into(),
+            ));
+        }
+        Ok(match value {
+            JsonValue::Null => "[\"null\"]".into(),
+            JsonValue::Bool(b) => format!("[\"bool\",{b}]"),
+            JsonValue::String(text) => format!("[\"string\",\"{}\"]", hex(text)),
+            JsonValue::Number(n) => format!("[\"f64\",\"{:016x}\"]", number(n.as_str())?.to_bits()),
+            JsonValue::Array(items) => {
+                let parts = items
+                    .iter()
+                    .map(|v| encode(v, depth + 1))
+                    .collect::<Result<Vec<_>, _>>()?;
+                format!("[\"array\",[{}]]", parts.join(","))
+            }
+            JsonValue::Object(map) => {
+                let mut pairs: Vec<_> = map.iter().collect();
+                pairs.sort_by(|(a, _), (b, _)| a.encode_utf16().cmp(b.encode_utf16()));
+                let parts = pairs
+                    .into_iter()
+                    .map(|(k, v)| Ok(format!("[\"{}\",{}]", hex(k), encode(v, depth + 1)?)))
+                    .collect::<Result<Vec<_>, KernelError>>()?;
+                format!("[\"object\",[{}]]", parts.join(","))
+            }
+        })
+    }
+    Ok(format!("[\"kineti-canonical-v2\",{}]", encode(value, 0)?))
 }
 
 /// Converts a BTreeMap of metadata key-values into canonical RFC 8785 JSON.
@@ -1742,8 +1827,9 @@ impl KernelEntity {
     }
 }
 
-/// Helper that converts any `JsonValue` to canonical RFC 8785 JSON.
+/// Legacy finite-value serializer. Use `canonicalize_json_v2` for cross-language identities.
 pub fn to_canonical_rfc8785_json(val: &JsonValue) -> Result<String, KernelError> {
+    canonicalize_json_v2(val)?;
     Ok(canonicalize_json(val))
 }
 
@@ -2436,5 +2522,41 @@ mod tests {
             assert_eq!(parsed, relation_type);
             assert_eq!(format!("{}", relation_type), s);
         }
+    }
+}
+
+#[cfg(test)]
+mod canonical_v2_regression {
+    use super::*;
+    #[test]
+    fn matches_typescript_v2_and_rejects_invalid_numbers() {
+        let mut map = BTreeMap::new();
+        map.insert("\u{e000}".into(), JsonValue::Null);
+        map.insert("😀".into(), JsonValue::from(1));
+        assert_eq!(
+            canonicalize_json_v2(&JsonValue::Object(map)).unwrap(),
+            r#"["kineti-canonical-v2",["object",[["f09f9880",["f64","3ff0000000000000"]],["ee8080",["null"]]]]]"#
+        );
+        assert_eq!(
+            canonicalize_json_v2(&JsonValue::from(0.1)).unwrap(),
+            r#"["kineti-canonical-v2",["f64","3fb999999999999a"]]"#
+        );
+        assert_eq!(
+            canonicalize_json_v2(&JsonValue::from(-0.0)).unwrap(),
+            canonicalize_json_v2(&JsonValue::from(0)).unwrap()
+        );
+        for raw in [
+            "01",
+            "+1",
+            "NaN",
+            "Infinity",
+            "1.",
+            "1e",
+            "9007199254740992",
+            "1e400",
+        ] {
+            assert!(canonicalize_json_v2(&JsonValue::Number(JsonNumber::from_raw(raw))).is_err());
+        }
+        assert!(canonicalize_json_v2(&JsonValue::from(f64::NAN)).is_err());
     }
 }

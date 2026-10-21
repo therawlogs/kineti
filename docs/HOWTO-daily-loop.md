@@ -34,7 +34,7 @@ Do not rely only on an agent's statement that tests passed. Kineti can save each
 
 ```bash
 # Run your test suite and save a local evidence receipt
-kineti test -- bun test
+kineti test --required-test tests -- bun test tests/
 
 # Check receipt freshness
 kineti test check --label test
@@ -70,7 +70,7 @@ kineti seed
 | **Check Spend** | `kineti spend check` | Check current spend vs. $50 cap ($10/stage) |
 | **Spend Summary** | `kineti spend status` | View detailed spend log and model usage |
 | **Reset Breaker** | `kineti spend reset --i-am-human` | Reset tripped spend breaker (human only) |
-| **Run Tests** | `kineti test -- <cmd>` | Execute test command and record evidence |
+| **Run Tests** | `kineti test --required-test <tests> -- <cmd>` | Execute test command and record evidence |
 | **Check Tests** | `kineti test check --label <name>` | Verify evidence status (`FRESH` or `STALE`) |
 | **Undo Edit** | `kineti undo` | Roll back recent file edits (LIFO stack) |
 | **Task State** | `kineti status` | View active project, stage, and locked goal |

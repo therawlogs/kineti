@@ -40,7 +40,7 @@ function makeCtx(): { root: string; cwd: string; machine: string } {
 describe("kineti-state", () => {
   test("goal locks forever; mutation refused with exit 3", () => {
     const c = makeCtx();
-    expect(run("kineti-state.ts", ["init", "--project", "acme"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["init", "--project", "acme", "--mode", "harness"], c).status).toBe(0);
     expect(run("kineti-state.ts", ["set", "root_goal", "ship search v1"], c).status).toBe(0);
     const blocked = run("kineti-state.ts", ["set", "root_goal", "different goal"], c);
     expect(blocked.status).toBe(3);
@@ -49,6 +49,59 @@ describe("kineti-state", () => {
     expect(run("kineti-state.ts", ["set", "stage", "14"], c).status).toBe(2);
     expect(run("kineti-state.ts", ["set", "gate.feasibility", "pass"], c).status).toBe(0);
     fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("new projects persist exactly one of the three explicit product modes", () => {
+    for (const mode of ["harness", "gate", "both"]) {
+      const c = makeCtx();
+      expect(run("kineti-state.ts", ["init", "--project", "acme", "--mode", mode], c).status).toBe(0);
+      expect(run("kineti-state.ts", ["get", "mode"], c).out.trim()).toBe(mode);
+      expect(JSON.parse(fs.readFileSync(path.join(c.cwd, ".kineti", "state.json"), "utf8")).mode).toBe(mode);
+      expect(run("kineti-state.ts", ["validate"], c).status).toBe(0);
+      fs.rmSync(c.root, { recursive: true, force: true });
+    }
+  });
+
+  test("canceling or entering an invalid mode leaves a new project uninitialized", () => {
+    const c = makeCtx();
+    expect(run("kineti-state.ts", ["init", "--project", "acme"], c).status).toBe(2);
+    expect(run("kineti-state.ts", ["init", "--project", "acme", "--mode", "automatic"], c).status).toBe(2);
+    expect(fs.existsSync(path.join(c.cwd, ".kineti", "state.json"))).toBe(false);
+    expect(fs.existsSync(path.join(c.cwd, "AGENTS.md"))).toBe(false);
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("legacy states read as pending and a selected mode survives restart and same-project runs", () => {
+    const c = makeCtx();
+    const stateDir = path.join(c.cwd, ".kineti");
+    fs.mkdirSync(stateDir, { recursive: true });
+    fs.writeFileSync(path.join(stateDir, "state.json"), JSON.stringify({
+      version: 1, project: "acme", root_goal: null, root_goal_locked_at: null,
+      stage: 1, gates: {}, history: [],
+    }));
+    expect(run("kineti-state.ts", ["get", "mode"], c).out.trim()).toBe("pending");
+    expect(run("kineti-state.ts", ["validate"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["set", "mode", "automatic"], c).status).toBe(2);
+    expect(run("kineti-state.ts", ["get", "mode"], c).out.trim()).toBe("pending");
+    expect(run("kineti-state.ts", ["set", "mode", "both"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["get", "mode"], c).out.trim()).toBe("both");
+    expect(run("kineti-state.ts", ["set", "mode", "both"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["set", "mode", "gate"], c).status).toBe(3);
+    expect(fs.existsSync(path.join(c.cwd, "AGENTS.md"))).toBe(true);
+    expect(run("kineti-state.ts", ["new-run", "--goal", "Continue the same project"], c).status).toBe(0);
+    expect(run("kineti-state.ts", ["get", "mode"], c).out.trim()).toBe("both");
+    fs.rmSync(c.root, { recursive: true, force: true });
+  });
+
+  test("different projects keep separate mode choices", () => {
+    const first = makeCtx();
+    const second = makeCtx();
+    expect(run("kineti-state.ts", ["init", "--project", "one", "--mode", "harness"], first).status).toBe(0);
+    expect(run("kineti-state.ts", ["init", "--project", "two", "--mode", "gate"], second).status).toBe(0);
+    expect(run("kineti-state.ts", ["get", "mode"], first).out.trim()).toBe("harness");
+    expect(run("kineti-state.ts", ["get", "mode"], second).out.trim()).toBe("gate");
+    fs.rmSync(first.root, { recursive: true, force: true });
+    fs.rmSync(second.root, { recursive: true, force: true });
   });
 
   test("stage-agnostic execution supports arbitrary task types and stages", () => {
@@ -91,7 +144,7 @@ describe("kineti-spend", () => {
     expect(run("kineti-spend.ts", ["check"], c).status).toBe(3);
     expect(run("kineti-spend.ts", ["reset"], c).status).toBe(2);
     expect(run("kineti-spend.ts", ["reset", "--i-am-human"], c).status).toBe(0);
-    expect(run("kineti-spend.ts", ["check"], c).status).toBe(0);
+    expect(run("kineti-spend.ts", ["check"], c).status).toBe(3);
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 });
@@ -398,6 +451,11 @@ describe("hardening-cryptography-and-units", () => {
     expect(fs.existsSync(path.join(c.cwd, "AGENTS.md"))).toBe(true);
     expect(fs.existsSync(path.join(c.cwd, ".cursor", "rules", "kineti.mdc"))).toBe(true);
     expect(fs.existsSync(path.join(c.cwd, "CODEX.md"))).toBe(true);
+    const generated = ["CLAUDE.md", "AGENTS.md", path.join(".cursor", "rules", "kineti.mdc"), "CODEX.md"]
+      .map((file) => fs.readFileSync(path.join(c.cwd, file), "utf8")).join("\n");
+    expect(generated).toContain("choose harness, gate, or both");
+    expect(generated).toContain("guidance");
+    expect(generated).not.toContain("/kineti-officehours");
 
     fs.rmSync(c.root, { recursive: true, force: true });
   });
@@ -519,7 +577,7 @@ describe("audit findings regressions (I-01 to I-07)", () => {
     const sg = (a: string[]) => run("kineti-saga.ts", a, c);
 
     // Run 1: init and pass gate
-    expect(st(["init", "--project", "multi-task-proj", "--goal", "Task 1"]).status).toBe(0);
+    expect(st(["init", "--project", "multi-task-proj", "--mode", "both", "--goal", "Task 1"]).status).toBe(0);
     expect(st(["set", "gate.spec", "pass"]).status).toBe(0);
     expect(st(["set", "gate.security", "pass"]).status).toBe(0);
     expect(st(["get", "gate.spec"]).out.trim()).toBe("pass");

@@ -1,4 +1,6 @@
 #!/usr/bin/env bun
+import { withFileLock } from "./ledger-integrity.ts";
+import { inspectSpend } from "./kineti-spend.ts";
 // Public CI initializer. Creates only missing runtime files and never replaces
 // an existing locked goal or spend ledger.
 
@@ -42,7 +44,9 @@ export interface SeedResult {
 function readJson<T>(file: string, label: string): T | null {
   if (!fs.existsSync(file)) return null;
   try {
-    return JSON.parse(fs.readFileSync(file, "utf8")) as T;
+    const value = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("existing value must be a JSON object");
+    return value as T;
   } catch (error) {
     throw new Error(`${label} is not valid JSON: ${(error as Error).message}`);
   }
@@ -78,7 +82,7 @@ function validateExistingSpend(spend: Spend): void {
   }
 }
 
-export function seedCIState(workspaceRoot: string = process.cwd(), stageOverride?: number): SeedResult {
+function seedCIStateUnlocked(workspaceRoot: string, stageOverride?: number): SeedResult {
   const root = path.resolve(workspaceRoot);
   if (stageOverride !== undefined && (!Number.isInteger(stageOverride) || stageOverride < 1 || stageOverride > 13)) {
     throw new Error("--stage must be an integer from 1 to 13");
@@ -111,6 +115,7 @@ export function seedCIState(workspaceRoot: string = process.cwd(), stageOverride
     throw new Error(".kineti/state.json exists without a locked root_goal; set the goal explicitly with `kineti state set root_goal ...`");
   }
   const spend = readJson<Spend>(spendPath, ".kineti/spend.json");
+  if (!spend) inspectSpend(root);
   if (spend) validateExistingSpend(spend);
   if (state && stageOverride !== undefined && state.stage !== stageOverride) {
     throw new Error("existing .kineti/state.json was kept unchanged; update its stage explicitly before using --stage");
@@ -139,7 +144,8 @@ export function seedCIState(workspaceRoot: string = process.cwd(), stageOverride
   }
   if (spendCreated) {
     writeJsonAtomic(spendPath, {
-      total_microcents: 0,
+      total_usd: 0, total_microcents: 0, entries: 0,
+      by_stage: {}, by_stage_microcents: {}, reason: null,
       tripped: false,
       limit_microcents: Math.round(spendLimitUsd * 1_000_000),
     });
@@ -147,6 +153,11 @@ export function seedCIState(workspaceRoot: string = process.cwd(), stageOverride
 
   try { fs.chmodSync(kdir, 0o700); } catch { /* Best effort on platforms without POSIX modes. */ }
   return { project: effectiveProject, stage: state?.stage ?? stage, stateCreated, spendCreated, spendLimitUsd };
+}
+
+export function seedCIState(workspaceRoot = process.cwd(), stageOverride?: number): SeedResult {
+  const root = path.resolve(workspaceRoot);
+  return withFileLock(path.join(root, ".kineti-seed.lock"), () => seedCIStateUnlocked(root, stageOverride));
 }
 
 export function main(argv: string[] = process.argv.slice(2)): void {

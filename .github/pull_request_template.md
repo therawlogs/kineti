@@ -19,7 +19,7 @@ List the commands run and describe the verification steps:
 1. Command: `bun test tests/`
 2. Command: `cargo test --manifest-path core-native/Cargo.toml`
 3. Command: `bun run typecheck`
-4. Test proof label: `bun bin/kineti-evidence.ts run --label <label-name> -- bun test tests/`
+4. Test proof label: `bun bin/kineti-evidence.ts run --label <label-name> --required-test tests -- bun test tests/`
 
 ## Kineti Safety and Governance Checklist
 
@@ -28,7 +28,7 @@ Please review and check all items before submitting:
 - [ ] **Tests pass**: `bun test tests/` passes with 0 failures.
 - [ ] **Rust engine tests pass**: `cargo test --manifest-path core-native/Cargo.toml` passes with 0 failures.
 - [ ] **Typecheck clean**: `bun run typecheck` passes with 0 errors.
-- [ ] **Cryptographic proof**: Fresh test proof is recorded via `bun bin/kineti-evidence.ts run --label <name> -- <command>` and verified with `bun bin/kineti-evidence.ts check --label <name>`.
+- [ ] **Cryptographic proof**: Fresh test proof is recorded via `bun bin/kineti-evidence.ts run --label <name> --required-test <test-file-or-directory> -- <command>` and verified with `bun bin/kineti-evidence.ts check --label <name>`.
 - [ ] **Undo safety**: An undo command was registered via `bun bin/kineti-saga.ts push "<undo-command>"` for any file or system mutation.
 - [ ] **Spending limit**: Spending is verified under the $50.00 ceiling via `bun bin/kineti-spend.ts check`.
 - [ ] **Secrets and privacy**: Zero secrets, private API keys, personal filesystem paths (`/Users/...`), personal emails, or machine hostnames are included in this PR.
