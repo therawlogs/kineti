@@ -149,3 +149,58 @@ jobs:
               core.setFailed(`ERROR: PR report could not be checked or written: ${error.message}`);
               throw error;
             }
+
+  consumer-acceptance:
+    name: Pinned reusable Action acceptance
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/kineti-completion-20261021'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      KINETI_CLIENT_PROJECT: ${{ runner.temp }}/kineti-disposable-caller
+      KINETI_MACHINE_DIR: ${{ runner.temp }}/kineti-disposable-caller/.kineti/machine
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.0'
+      - name: Provision disposable owner service
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y bubblewrap busybox-static musl
+          sudo env KINETI_CALLER_UID="$(id -u)" KINETI_CALLER_GID="$(id -g)" KINETI_CLIENT_PROJECT="$KINETI_CLIENT_PROJECT" "$(command -v bun)" acceptance/github-provision.ts
+          service_root="$(cat .kineti/github-input/service-root.txt)"
+          sudo "$(command -v bun)" bin/kineti-linux-service.ts serve "$service_root" 17889 > .kineti/github-service.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl -s -o /dev/null http://127.0.0.1:17889/; then break; fi
+            sleep 1
+          done
+      - name: Authentic candidate succeeds through pinned reusable Action
+        uses: therawlogs/kineti@9261aaa53b860d1184bf6d094261032eacae1de0
+        with:
+          trusted-commit: 9261aaa53b860d1184bf6d094261032eacae1de0
+          client-project: ${{ env.KINETI_CLIENT_PROJECT }}
+          manifest: ${{ github.workspace }}/.kineti/github-input/manifest.json
+          artifact: ${{ github.workspace }}/.kineti/github-input/candidate.sh
+      - name: Substitute candidate bytes
+        run: sudo sh -c 'printf "substituted\n" > .kineti/github-input/candidate.sh'
+      - name: Substitution must fail
+        id: substitution
+        continue-on-error: true
+        uses: therawlogs/kineti@9261aaa53b860d1184bf6d094261032eacae1de0
+        with:
+          trusted-commit: 9261aaa53b860d1184bf6d094261032eacae1de0
+          client-project: ${{ env.KINETI_CLIENT_PROJECT }}
+          manifest: ${{ github.workspace }}/.kineti/github-input/manifest.json
+          artifact: ${{ github.workspace }}/.kineti/github-input/candidate.sh
+      - name: Check denial and record summary
+        env:
+          SUBSTITUTION_OUTCOME: ${{ steps.substitution.outcome }}
+        run: |
+          test "$SUBSTITUTION_OUTCOME" = failure
+          printf '%s\n' 'Pinned reusable Action accepted exact approved bytes and rejected substitution.' >> "$GITHUB_STEP_SUMMARY"
