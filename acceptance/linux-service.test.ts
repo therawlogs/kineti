@@ -32,7 +32,7 @@ test("real isolated control executes trusted checks, signs observations and expo
  const f=fixture();try {const e=await f.evaluate();expect(e.decision).toBe("accepted");expect(e.execution.observations[0].stdout_sha256).toBe(sha("hello\n"));const r=f.exportRequest(e);expect(await f.service.handle(r)).toMatchObject({state:"applied"});expect(fs.readFileSync(path.join(f.root,"output/release/app.sh"))).toEqual(f.artifact);await expect(f.service.handle(r)).rejects.toThrow("replay");await expect(f.service.handle({...r,request_id:crypto.randomUUID()})).rejects.toThrow("signature");const newRequest=f.request("export",r.arguments);await expect(f.service.handle(newRequest)).rejects.toThrow("replay");}finally{f.service.close();}
 });
 test("candidate has UID 65534 and cannot read service policy or signing authority",async()=>{
- const script=`/bin/busybox id -u\ntest ! -e '${base}' || exit 4\ntest ! -e /home || exit 5\ntest ! -e /etc/passwd || exit 6\n`;
+ const script=`/bin/busybox id -u\ntest ! -e '${base}' || exit 4\ntest ! -e /home || exit 5\ntest ! -e /etc/passwd || exit 6\n/bin/busybox awk '/Max file size/ { if ($4 > 1048576 || $4 == "unlimited") exit 7 }' /proc/self/limits\n`;
  const f=fixture(script,[{id:"isolation-check",argv:["/bin/busybox","sh","/candidate"],stdin_base64:"",expected_exit:0,stdout_sha256:sha("65534\n"),stderr_sha256:sha(""),timeout_ms:3000}]);try {expect((await f.evaluate()).decision).toBe("accepted");}finally{f.service.close();}
 });
 test("failed output and timed-out checks cannot export",async()=>{

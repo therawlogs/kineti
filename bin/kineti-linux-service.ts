@@ -68,12 +68,14 @@ export async function runIsolatedCheck(config: LinuxServiceConfig, artifact: str
     fs.writeFileSync(path.join(group,"pids.max"),"16");
     fs.writeFileSync(path.join(group,"cpu.max"),"100000 100000");
   } catch(e) { fs.rmdirSync(group); throw e; }
-  const args = ["--cpu=5", "--as=268435456", "--fsize=1048576", "--nofile=64", "--nproc=32", "--", rt.bwrap,
+  // Runtime copies may exceed 1 MiB (Ubuntu's static BusyBox does). The trusted
+  // inner shell lowers the candidate limit before executing its declared argv.
+  const args = ["--cpu=5", "--as=268435456", "--fsize=16777216", "--nofile=64", "--nproc=32", "--", rt.bwrap,
     "--unshare-all", "--die-with-parent", "--new-session", "--clearenv", "--setenv", "PATH", "/bin",
     ...mounts, "--proc", "/proc", "--dev", "/dev", "--size", "16777216", "--tmpfs", "/tmp",
     "--chdir", "/tmp", "--uid", "65534", "--gid", "65534", "--cap-drop", "ALL"];
   for (const [key, value] of Object.entries(config.contract.environment)) args.push("--setenv", key, value);
-  args.push("--", ...check.argv);
+  args.push("--", "/bin/busybox", "sh", "-c", 'ulimit -f 1024 || exit 125; exec "$@"', "kineti-candidate", ...check.argv);
   return await new Promise<{ exit: number | null; stdout: Buffer; stderr: Buffer; fault: string | null }>((resolve) => {
     const child = spawn(rt.busybox, ["sh","-c",'echo $$ > "$1/cgroup.procs" || exit 125; shift; exec "$@"',"kineti-launch",group,rt.prlimit,...args], { detached: true, env: { PATH: "/usr/bin:/bin" }, stdio: ["pipe", "pipe", "pipe", ...handles] });
     const out: Buffer[] = [], err: Buffer[] = []; let count = 0, fault: string | null = null;
