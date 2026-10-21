@@ -157,10 +157,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-    env:
-      KINETI_CLIENT_PROJECT: ${{ runner.temp }}/kineti-disposable-caller
-      KINETI_MACHINE_DIR: ${{ runner.temp }}/kineti-disposable-caller/.kineti/machine
     steps:
+      - name: Set private caller paths
+        run: |
+          printf 'KINETI_CLIENT_PROJECT=%s/kineti-disposable-caller\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'KINETI_MACHINE_DIR=%s/kineti-disposable-caller/.kineti/machine\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.sha }}
