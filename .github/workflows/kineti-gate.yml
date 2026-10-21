@@ -190,6 +190,11 @@ jobs:
           artifact: ${{ github.workspace }}/.kineti/github-input/candidate.sh
       - name: Substitute candidate bytes
         run: sudo sh -c 'printf "substituted\n" > .kineti/github-input/candidate.sh'
+      - name: Report trusted evaluator diagnostics on failure
+        if: failure()
+        run: |
+          sudo "$(command -v bun)" -e 'import {Database} from "bun:sqlite"; import fs from "node:fs"; const root=fs.readFileSync(".kineti/github-input/service-root.txt","utf8");const db=new Database(root+"/requests.sqlite",{readonly:true});for(const row of db.query("SELECT result FROM evaluations").all()){const r=JSON.parse(row.result).result;console.log(JSON.stringify({decision:r.decision,checks:r.checks,execution:r.execution}));}db.close();'
+          cat .kineti/github-service.log
       - name: Substitution must fail
         id: substitution
         continue-on-error: true
