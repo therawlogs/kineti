@@ -464,6 +464,7 @@ describe("hardening-cryptography-and-units", () => {
 describe("governance state file permissions", () => {
   test("writeJson and appendJsonl create and re-assert owner-only mode", async () => {
     const { writeJson, appendJsonl } = await import("../bin/lib.ts");
+    fs.mkdirSync(path.join(REPO, ".kineti", "scratch"), { recursive: true });
     const dir = fs.mkdtempSync(path.join(REPO, ".kineti", "scratch", "perm-"));
     try {
       const jsonFile = path.join(dir, "state.json");

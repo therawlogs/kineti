@@ -81,6 +81,7 @@ export interface EvidenceCheck {
 export interface CIOptions {
   requiredEvidenceLabels?: string[];
   maxEvidenceAgeMinutes?: number;
+  evidenceCommands?: Record<string, string[]>;
 }
 
 const STAGE_NAMES: Record<number, string> = {
@@ -212,7 +213,9 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
     if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) return { label, status: "stale", at: latest.at };
     try {
       if (!issuer) throw new Error("missing receipt issuer");
-      validateReceipt(latest, { root: workspaceRoot, trustedPublicKey: issuer, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand: verifyCommand ? splitLegacyCommand(verifyCommand) : undefined });
+      const declared=options.evidenceCommands?.[label];
+      if(options.evidenceCommands && (!Array.isArray(declared)||!declared.length||!declared.every(x=>typeof x==='string'&&x.length>0&&!x.includes('\0'))))throw new Error("missing or malformed required command");
+      validateReceipt(latest, { root: workspaceRoot, trustedPublicKey: issuer, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand: declared ?? (verifyCommand ? splitLegacyCommand(verifyCommand) : undefined) });
       return { label, status: "fresh", at: latest.at };
     } catch { return { label, status: "invalid-receipt", at: latest.at }; }
   });
@@ -298,6 +301,7 @@ Usage:
 
 Options:
   --require-evidence <label>    Specify required evidence receipt label (repeatable)
+  --evidence-commands <file>    Owner-defined JSON map of label to exact command argv
   --max-evidence-age <minutes>  Maximum allowable evidence age (default 240)
   --json                        Output structured JSON CI report
   --badge-only                  Output Shields.io badge URL only
@@ -319,9 +323,13 @@ function main() {
   let badgeOnly = false;
   const requiredEvidenceLabels: string[] = [];
   let maxEvidenceAgeMinutes = 240;
+  let evidenceCommands: Record<string,string[]> | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
+      case "--evidence-commands":
+        try {const file=argv[++i];const parsed=JSON.parse(fs.readFileSync(file,"utf8"));if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw new Error("expected object");evidenceCommands=parsed;}catch{console.error("kineti ci: --evidence-commands needs a JSON object file");process.exit(2);}
+        break;
       case "--summary-file":
         summaryFile = argv[++i] ?? null;
         break;
@@ -351,7 +359,7 @@ function main() {
     }
   }
 
-  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes });
+  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes, evidenceCommands });
 
   if (badgeOnly) {
     console.log(report.badgeUrl);
