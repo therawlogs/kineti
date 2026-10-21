@@ -570,3 +570,12 @@ describe("Kineti Universal MCP Server (kineti-mcp.ts)", () => {
     }
   });
 });
+
+test("Antigravity server names stay distinct across project roots and repeat initialization",()=>{
+ const a=makeTmpDir('agy-scope-a-'),b=makeTmpDir('agy-scope-b-');
+ try {const names=[];for(const root of [a,b]){for(let n=0;n<2;n++){const r=Bun.spawnSync([process.execPath,MCP_SCRIPT,'init',root,'--host','antigravity'],{cwd:REPO,stdout:'pipe',stderr:'pipe'});expect(r.exitCode).toBe(0);}const c=JSON.parse(fs.readFileSync(path.join(root,'.agents/plugins/kineti/mcp_config.json'),'utf8'));const keys=Object.keys(c.mcpServers);expect(keys).toHaveLength(1);expect(keys[0]).toMatch(/^kineti_[a-f0-9]{12}$/);names.push(keys[0]);}expect(names[0]).not.toBe(names[1]);}
+ finally{fs.rmSync(a,{recursive:true,force:true});fs.rmSync(b,{recursive:true,force:true});}
+ const root=makeTmpDir('agy-migrate-');
+ try {const file=path.join(root,'mcp.json'),server={command:'bun',args:['project-a']},name='kineti_123456abcdef';fs.writeFileSync(file,JSON.stringify({mcpServers:{kineti:server,other:{command:'other'}}}));writeCursorConfig(file,server,{serverName:name,migrateLegacy:true,at:1});const migrated=JSON.parse(fs.readFileSync(file,'utf8'));expect(migrated.mcpServers.kineti).toBeUndefined();expect(migrated.mcpServers[name]).toEqual(server);expect(migrated.mcpServers.other.command).toBe('other');fs.writeFileSync(file,JSON.stringify({mcpServers:{kineti:{command:'custom'}}}));const before=fs.readFileSync(file,'utf8');expect(()=>writeCursorConfig(file,server,{serverName:name,migrateLegacy:true,at:2})).toThrow('preserved');expect(fs.readFileSync(file,'utf8')).toBe(before);}
+ finally{fs.rmSync(root,{recursive:true,force:true});}
+});

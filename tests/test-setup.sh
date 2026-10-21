@@ -95,8 +95,8 @@ mkdir -p "$GUIDANCE_ROOT"
 printf 'keep my rules\n' > "$GUIDANCE_ROOT/AGENTS.md"
 HOME="$GUIDANCE_HOME" bash "$HERE/setup.sh" --install-root "$GUIDANCE_ROOT" >/dev/null
 [[ "$(cat "$GUIDANCE_ROOT/AGENTS.md")" == "keep my rules" ]] || { echo "FAIL: existing project guidance was overwritten"; exit 1; }
-rg -q "not a security enforcement hook" "$GUIDANCE_ROOT/CLAUDE.md" || { echo "FAIL: generated guidance overclaims enforcement"; exit 1; }
-if rg -q "Stage 6|Do NOT skip stages|manual slash commands" "$GUIDANCE_ROOT"/{CLAUDE.md,CODEX.md,.cursor/rules/kineti.mdc}; then
+grep -q "not a security enforcement hook" "$GUIDANCE_ROOT/CLAUDE.md" || { echo "FAIL: generated guidance overclaims enforcement"; exit 1; }
+if grep -Eq "Stage 6|Do NOT skip stages|manual slash commands" "$GUIDANCE_ROOT"/{CLAUDE.md,CODEX.md,.cursor/rules/kineti.mdc}; then
   echo "FAIL: generated guidance contains a retired workflow restriction"; exit 1
 fi
 

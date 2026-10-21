@@ -154,7 +154,9 @@ test("weekly maintenance enters each approved project from a separate launch fol
 
 test("PR reporting selects the exact author and marker and preserves stale and error states", async () => {
   const workflow = fs.readFileSync(path.join(repo, ".github/workflows/kineti-gate.yml"), "utf8");
-  const code = workflow.slice(workflow.lastIndexOf("          script: |") + "          script: |".length).split("\n").map(line => line.replace(/^ {12}/, "")).join("\n");
+  const lines = workflow.slice(workflow.lastIndexOf("          script: |") + "          script: |".length).split("\n");
+  const end = lines.findIndex((line, i) => i > 0 && line.trim() !== "" && !line.startsWith("            "));
+  const code = lines.slice(0, end < 0 ? undefined : end).map(line => line.replace(/^ {12}/, "")).join("\n");
   const execute = new Function("github", "context", "core", "process", "Buffer", `return (async () => {${code}\n})();`);
   const head = "a".repeat(40), other = "b".repeat(40), marker = "<!-- kineti-ci-report:v1 -->";
   for (const mode of ["current", "stale", "race", "missing", "api-error"]) {

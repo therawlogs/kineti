@@ -46,7 +46,7 @@ The papers were removed from the tree and will be re-added when ready. The figur
 - [**WORKFLOW-09.md**](./WORKFLOW-09.md) — Independent evaluation with immutable artifacts and deterministic reviewer summaries.
 - [**WORKFLOW-CONTRACTS.md**](./WORKFLOW-CONTRACTS.md) — Inputs, approvals, outputs, dependencies, and acceptance checks for workflows 01–13.
 - [**REVIEW-SUMMARY.md**](./REVIEW-SUMMARY.md) — Canonical, digest-bound evaluator result format.
-- [Removed research history](./archive/removed-scope-20261017/CONTAINMENT-EVALUATION.md) — Historical only; R06 and R24 were removed by owner decision.
+- R06 and R24 research was removed by owner decision. Local archived notes are outside the published source tree.
 - [**CLEAN_MACHINE_SETUP.md**](./CLEAN_MACHINE_SETUP.md) — Isolated install checks and unsupported natural-language routing cases.
 - [**DEMO-CLIP.md**](./DEMO-CLIP.md) — Capture instructions; current clip status.
 

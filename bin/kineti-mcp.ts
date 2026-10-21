@@ -13,6 +13,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
+import {createHash} from "node:crypto";
 import { readJson, projectKdir, loadLimits, loadVerifyCommand, Limits, splitLegacyCommand, assertInsideProject, isAllowedEvidenceCommand } from "./lib.ts";
 import { writeCursorConfig } from "./kineti-config.ts";
 import { applyProtectedWrite, GateFailure } from "./kineti-protected-write.ts";
@@ -638,8 +639,9 @@ function handleInit(subArgs: string[]) {
       fs.mkdirSync(cursorDir,{recursive:true});fs.writeFileSync(marker,JSON.stringify({name:"Kineti"})+"\n",{flag:"wx",mode:0o600});
     }
   }
-  const backup = writeCursorConfig(cursorMcpFile, kinetiServer);
-  const mcpConfig = { mcpServers: { kineti: kinetiServer } };
+  const serverName=host==="antigravity"?`kineti_${createHash("sha256").update(fs.realpathSync(targetDir)).digest("hex").slice(0,12)}`:"kineti";
+  const backup = writeCursorConfig(cursorMcpFile, kinetiServer,{serverName,migrateLegacy:host==="antigravity"});
+  const mcpConfig = { mcpServers: { [serverName]: kinetiServer } };
   console.log(`[kineti-mcp] Merged ${host} MCP config at: ${cursorMcpFile}`);
   if (fs.existsSync(backup)) console.log(`[kineti-mcp] Backup: ${backup}`);
   console.log(`\nTo register with Claude Desktop, add the following to ~/Library/Application Support/Claude/claude_desktop_config.json:`);

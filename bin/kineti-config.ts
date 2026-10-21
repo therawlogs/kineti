@@ -17,6 +17,8 @@ export function writeCursorConfig(file: string, nextServer: unknown, hooks: {
   beforeRename?: () => void;
   rename?: typeof fs.renameSync;
   at?: number;
+  serverName?: string;
+  migrateLegacy?: boolean;
 } = {}): string {
   const dir = path.dirname(file);
   fs.mkdirSync(dir, { recursive: true });
@@ -27,13 +29,19 @@ export function writeCursorConfig(file: string, nextServer: unknown, hooks: {
   }
   const servers = current.mcpServers ?? {};
   if (!servers || typeof servers !== "object" || Array.isArray(servers)) throw new Error("Cursor mcpServers must be an object");
-  if (Object.hasOwn(servers, "kineti")) {
-    if (stableJson(servers.kineti) === stableJson(nextServer)) return "";
-    throw new Error("Cursor MCP config already has a different kineti entry; resolve the conflict before running init");
+  const name=hooks.serverName ?? "kineti";
+  if(!/^kineti(?:_[a-f0-9]{12})?$/.test(name))throw new Error("invalid Kineti server name");
+  const mergedServers={...servers};
+  const legacy=hooks.migrateLegacy && name!=="kineti" && Object.hasOwn(servers,"kineti");
+  if(legacy){if(stableJson(servers.kineti)!==stableJson(nextServer))throw new Error("Legacy kineti entry differs; configuration preserved for owner review");delete mergedServers.kineti;}
+  if (Object.hasOwn(servers, name)) {
+    if (stableJson(servers[name]) !== stableJson(nextServer)) throw new Error("Cursor MCP config already has a different kineti entry; resolve the conflict before running init");
+    if(!legacy)return "";
   }
+  mergedServers[name]=nextServer;
   const backup = file + ".bak." + (hooks.at ?? Date.now());
   if (fs.existsSync(file)) fs.copyFileSync(file, backup, fs.constants.COPYFILE_EXCL);
-  const merged = { ...current, mcpServers: { ...servers, kineti: nextServer } };
+  const merged = { ...current, mcpServers: mergedServers };
   const temp = path.join(dir, "." + path.basename(file) + "." + process.pid + "." + Math.random().toString(36).slice(2) + ".tmp");
   try {
     hooks.beforeWrite?.();
