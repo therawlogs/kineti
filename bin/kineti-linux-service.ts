@@ -47,6 +47,19 @@ function unsigned(r: SignedServiceRequest) { const { signature: _, ...body } = r
 /** Bounded pipes, process-group termination, namespaces, no network, no authority mounts. */
 export async function runIsolatedCheck(config: LinuxServiceConfig, artifact: string, check: TrustedCliCheck) {
   const rt = config.runtime;
+  const handles: number[] = [];
+  const mounts: string[] = [];
+  const mountFile = (source: string, destination: string, permissions: string) => {
+    const fd=fs.openSync(source,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
+    handles.push(fd);
+    mounts.push("--perms",permissions,"--ro-bind-data",String(handles.length+2),destination);
+  };
+  try {
+  // Open trusted inputs before Bubblewrap changes identity. No private parent
+  // directory or authority file is mounted or made traversable to the candidate.
+  mountFile(rt.busybox,"/bin/busybox","0555");
+  for(const entry of fs.readdirSync(rt.library_dir))mountFile(path.join(rt.library_dir,entry),"/lib/"+entry,"0555");
+  mountFile(artifact,"/candidate","0444");
   const group = path.join(rt.cgroup_root, crypto.randomUUID());
   fs.mkdirSync(group);
   try {
@@ -57,18 +70,18 @@ export async function runIsolatedCheck(config: LinuxServiceConfig, artifact: str
   } catch(e) { fs.rmdirSync(group); throw e; }
   const args = ["--cpu=5", "--as=268435456", "--fsize=1048576", "--nofile=64", "--nproc=32", "--", rt.bwrap,
     "--unshare-all", "--die-with-parent", "--new-session", "--clearenv", "--setenv", "PATH", "/bin",
-    "--ro-bind", rt.busybox, "/bin/busybox", "--ro-bind", rt.library_dir, "/lib", "--proc", "/proc", "--dev", "/dev", "--size", "16777216", "--tmpfs", "/tmp",
-    "--ro-bind", artifact, "/candidate", "--chdir", "/tmp", "--uid", "65534", "--gid", "65534", "--cap-drop", "ALL"];
+    ...mounts, "--proc", "/proc", "--dev", "/dev", "--size", "16777216", "--tmpfs", "/tmp",
+    "--chdir", "/tmp", "--uid", "65534", "--gid", "65534", "--cap-drop", "ALL"];
   for (const [key, value] of Object.entries(config.contract.environment)) args.push("--setenv", key, value);
   args.push("--", ...check.argv);
   return await new Promise<{ exit: number | null; stdout: Buffer; stderr: Buffer; fault: string | null }>((resolve) => {
-    const child = spawn(rt.busybox, ["sh","-c",'echo $$ > "$1/cgroup.procs" || exit 125; shift; exec "$@"',"kineti-launch",group,rt.prlimit,...args], { detached: true, env: { PATH: "/usr/bin:/bin" }, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(rt.busybox, ["sh","-c",'echo $$ > "$1/cgroup.procs" || exit 125; shift; exec "$@"',"kineti-launch",group,rt.prlimit,...args], { detached: true, env: { PATH: "/usr/bin:/bin" }, stdio: ["pipe", "pipe", "pipe", ...handles] });
     const out: Buffer[] = [], err: Buffer[] = []; let count = 0, fault: string | null = null;
     const kill = (why: string) => { fault = why; try { fs.writeFileSync(path.join(group,"cgroup.kill"),"1"); } catch {} try { process.kill(-child.pid!, "SIGKILL"); } catch {} };
     const timer = setTimeout(() => kill("timeout"), check.timeout_ms);
     const collect = (list: Buffer[], b: Buffer) => { count += b.length; if (count > 2 * 1024 * 1024) kill("output-limit"); else list.push(b); };
-    child.stdout.on("data", b => collect(out, b)); child.stderr.on("data", b => collect(err, b));
-    child.stdin.on("error", () => {}); child.stdin.end(bytes64(check.stdin_base64));
+    child.stdout!.on("data", b => collect(out, b)); child.stderr!.on("data", b => collect(err, b));
+    child.stdin!.on("error", () => {}); child.stdin!.end(bytes64(check.stdin_base64));
     child.on("error", () => { fault = "runner-unavailable"; });
     child.on("close", async code => { clearTimeout(timer);
       try { if (/oom_kill [1-9]/.test(fs.readFileSync(path.join(group,"memory.events"),"utf8"))) fault="memory-limit"; fs.writeFileSync(path.join(group,"cgroup.kill"),"1"); } catch { fault ||= "cgroup-inspection-failed"; }
@@ -77,6 +90,7 @@ export async function runIsolatedCheck(config: LinuxServiceConfig, artifact: str
       if(!cleaned)fault ||= "cgroup-cleanup-pending";
       resolve({ exit: code, stdout: Buffer.concat(out), stderr: Buffer.concat(err), fault }); });
   });
+  } finally { for(const fd of handles)fs.closeSync(fd); }
 }
 
 export class LinuxProtectedService {
