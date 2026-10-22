@@ -1,4 +1,8 @@
-const result = Bun.spawnSync(["bash", "demo-no-key.sh"], { cwd: process.cwd(), stdout: "pipe", stderr: "pipe" });
-if (result.stdout.length) process.stdout.write(new TextDecoder().decode(result.stdout));
-if (result.stderr.length) process.stderr.write(new TextDecoder().decode(result.stderr));
-process.exit(result.exitCode ?? 1);
+const result = Bun.spawnSync({
+  cmd: ["bash", "demo-no-key.sh"],
+  cwd: process.cwd(),
+  stdout: "inherit",
+  stderr: "inherit",
+});
+
+if (result.exitCode !== 0) process.exit(result.exitCode ?? 1);

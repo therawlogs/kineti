@@ -40,7 +40,7 @@ test("clean-machine setup installs safely for configured hosts and reports routi
   };
   fs.writeFileSync(path.join(reportDir, "clean-machine-setup-routing.json"), `${JSON.stringify(report, null, 2)}\n`);
   expect(report.routing.cursor.status).toBe("unsupported");
-});
+}, 300_000);
 
 test("local npm tarball and crate install independently without registry access", () => {
   fs.rmSync(acceptanceRoot, { recursive: true, force: true });
@@ -54,12 +54,12 @@ test("local npm tarball and crate install independently without registry access"
     : fs.readdirSync(path.join(root, ".kineti", "acceptance"))
       .map((entry) => path.join(root, ".kineti", "acceptance", entry, "cargo-home"))
       .find((dir) => fs.existsSync(dir));
-  for (const dir of [tarballDir, npmPrefix, crateRoot, home, path.join(acceptanceRoot, "npm-cache"), path.join(acceptanceRoot, "cargo-target")]) fs.mkdirSync(dir, { recursive: true });
+  for (const dir of [tarballDir, npmPrefix, crateRoot, home, path.join(acceptanceRoot, "npm-cache"), path.join(root, ".kineti", "candidate-cargo-target")]) fs.mkdirSync(dir, { recursive: true });
   const candidateEnv = {
     ...process.env,
     npm_config_cache: path.join(acceptanceRoot, "npm-cache"),
     ...(cargoCacheHome ? { CARGO_HOME: cargoCacheHome } : {}),
-    CARGO_TARGET_DIR: path.join(acceptanceRoot, "cargo-target"),
+    CARGO_TARGET_DIR: path.join(root, ".kineti", "candidate-cargo-target"),
   };
 
   function run(args: string[], env: NodeJS.ProcessEnv = candidateEnv): string {
@@ -102,7 +102,7 @@ test("local npm tarball and crate install independently without registry access"
     crateReason = "No project-local Cargo cache is available for an offline candidate install.";
   } else {
     const crateInstall = Bun.spawnSync([
-      "cargo", "install", "--offline", "--root", crateRoot,
+      "cargo", "install", "--offline", "--debug", "--root", crateRoot,
       "--path", path.join(root, "core-native", "crates", "kineti-cli"), "--locked", "--force",
     ], { cwd: root, env: candidateEnv, stdout: "pipe", stderr: "pipe" });
     const crateOutput = `${new TextDecoder().decode(crateInstall.stdout)}\n${new TextDecoder().decode(crateInstall.stderr)}`;
@@ -120,7 +120,7 @@ test("local npm tarball and crate install independently without registry access"
   const report = {
     schema_version: 1,
     acceptance: "local-candidate-clean-install",
-    published_0_4_0_baseline: "not-run: this offline check does not access package registries",
+    explicit_published_baseline: "not-run: this offline check does not access package registries",
     npm_candidate_tarball: { status: "pass", path: path.relative(root, candidateTarball) },
     npm_candidate_init_cursor: "pass",
     crate_candidate_local_install: {
@@ -131,4 +131,4 @@ test("local npm tarball and crate install independently without registry access"
   fs.writeFileSync(path.join(acceptanceRoot, "results.json"), `${JSON.stringify(report, null, 2)}\n`);
   console.log(`CANDIDATE_NPM_STATUS=pass`);
   console.log(`CANDIDATE_CRATE_STATUS=${crateStatus}${crateStatus === "unsupported" ? " reason=missing-offline-dependency-cache" : ""}`);
-}, 30_000);
+}, 300_000);

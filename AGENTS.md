@@ -8,7 +8,7 @@ Merged 2026-09-22 from `CLAUDE.md`, `CODEX.md`, `ETHOS.md`, `WORKFLOWS.md`, `MEM
 2. **Check the current task**: Read `.kineti/state.json` before starting. The project can start on any task (bug fix, new feature, code cleanup, review, or full project).
 3. **Plan before building new features**: For new features, show a clear plan and get user approval before writing code in `src/`. For simple bug fixes and small edits, you can fix the issue directly.
 4. **Spending limit**: Check costs with `bun bin/kineti-spend.ts check`. If spending reaches $50.00 ($10 per stage, trips at 95%), stop right away and alert the user.
-5. **Run tests**: Save test results using `bun bin/kineti-evidence.ts run --label <name> -- <command>`. Check with `bun bin/kineti-evidence.ts check --label <name>`. Never claim tests passed without running them.
+5. **Run tests**: Save test results using `bun bin/kineti-evidence.ts run --label <name> --required-test <test-file-or-directory> -- <command>`. Check with `bun bin/kineti-evidence.ts check --label <name>`. Never claim tests passed without running them.
 6. **Save undo steps**: Save an undo command before making changes (`bun bin/kineti-saga.ts push "<undo-command>"`).
 7. **Keep files inside the project**: All code and files must stay inside this project folder. Never write to `/tmp` or outside folders.
 
@@ -103,7 +103,7 @@ Meta skills (anytime, not in pipeline): `anchors` (install rules), `learn` (memo
 - State and tasks: `bin/kineti-state.ts`
 - Costs and spending limit ($50 global, $10 per stage): `bin/kineti-spend.ts check` (`status` is view-only)
 - Undo safety: `bin/kineti-saga.ts`
-- Test checking: `bin/kineti-evidence.ts run --label <name> -- <command>`
+- Test checking: `bin/kineti-evidence.ts run --label <name> --required-test <test-file-or-directory> -- <command>`
 - Web requests: `bin/kineti-egress.ts record --host H --description "..."`
 - Companion dashboard: `bin/kineti-companion.ts` (`http://127.0.0.1:8788`, override `KINETI_COMPANION_PORT`)
 

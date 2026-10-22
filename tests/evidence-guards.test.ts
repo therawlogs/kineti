@@ -5,10 +5,10 @@
 // - Cargo workspace multi-crate safety (no false alarm on 0-test sub-crates)
 
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { checkRunnerGuards, parseTestOutput } from "../bin/kineti-evidence.ts";
-import { readJsonl, writeJson } from "../bin/lib.ts";
+import { checkRunnerGuards, fingerprint, hashFileChunked, parseTestOutput, unsignedRecord, validateOperationalReceipt, validateReceipt, toolchainVersions, type EvidenceRecord } from "../bin/kineti-evidence.ts";
 
 describe("test runner guards (checkRunnerGuards)", () => {
   it("recognizes supported pass summaries and rejects forged or incomplete text", () => {
@@ -104,5 +104,48 @@ test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
       const res = checkRunnerGuards(output, { forbidSkipped: true });
       expect(res.guardFailed).toBe(false);
     });
+  });
+});
+
+describe("operational evidence separation", () => {
+  it("accepts signed typecheck evidence as a local result but never as test evidence", () => {
+    const scratch = path.join(process.cwd(), ".kineti", "test-evidence-operational");
+    fs.mkdirSync(scratch, { recursive: true });
+    const root = fs.mkdtempSync(path.join(scratch, "run-"));
+    try {
+      fs.writeFileSync(path.join(root, "input.txt"), "fixture\n");
+      const pair = crypto.generateKeyPairSync("ed25519");
+      const publicKey = pair.publicKey.export({ type: "spki", format: "pem" }).toString();
+      const privateKey = pair.privateKey.export({ type: "pkcs8", format: "pem" });
+      const inputDigest = fingerprint(root);
+      const receipt: EvidenceRecord = {
+        receipt_version: 2,
+        run_id: crypto.randomUUID(),
+        at: new Date().toISOString(),
+        label: "typecheck-fixture",
+        cmd: "bun run typecheck",
+        result_kind: "check",
+        outcome: "passed",
+        exit_code: 0,
+        fingerprint: inputDigest,
+        manifest: {
+          command: ["bun", "run", "typecheck"],
+          dependencies: [],
+          toolchain: toolchainVersions(),
+          environment: {},
+          input_digest: inputDigest,
+          artifact_digests: [],
+          parser_sha256: hashFileChunked(path.join(import.meta.dir, "..", "bin", "kineti-evidence.ts")),
+        },
+        issuer_key: publicKey,
+      };
+      receipt.signature = crypto.sign(null, Buffer.from(unsignedRecord(receipt)), privateKey).toString("base64");
+
+      expect(validateOperationalReceipt(receipt, { root, trustedPublicKey: publicKey }).outcome).toBe("passed");
+      expect(() => validateReceipt(receipt, { root, trustedPublicKey: publicKey }))
+        .toThrow("only test receipts can authorize the exact-input gate");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

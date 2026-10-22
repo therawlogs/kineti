@@ -33,7 +33,7 @@ bun "$K/kineti-evidence.ts" check --label review      # FRESH or stop
 ```
 Any STALE/MISSING → go back to the stage that owns it. Never re-stamp a
 proof without re-running its command:
-`bun "$K/kineti-evidence.ts" run --label <lane> -- -- <command>`
+`bun "$K/kineti-evidence.ts" run --label <lane> --required-test <test-file-or-directory> -- <command>`
 
 Final gate check:
 `bun "$K/kineti-verify-gate.ts"` → must exit 0.
@@ -42,7 +42,7 @@ Final gate check:
 
 1. **Sync base branch**: fetch, rebase or merge main as project convention.
 2. **Full suite once more** through evidence:
-   `bun "$K/kineti-evidence.ts" run --label ship -- -- <verify command>`
+   `bun "$K/kineti-evidence.ts" run --label ship --required-test <test-file-or-directory> -- <verify command>`
 3. **Fold progress commits**: squash `WIP:` commits into clean commits per
    spec section. Keep non-WIP commits intact so history stays bisectable.
    Message style: imperative subject, body with what and why.

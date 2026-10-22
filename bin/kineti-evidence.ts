@@ -10,6 +10,8 @@ export interface EvidenceRecord {
   at: string;
   label: string;
   cmd: string;
+  result_kind?: "test" | "check" | "package";
+  outcome?: "passed" | "failed" | "unknown";
   exit_code: number | null;
   fingerprint: string;
   guard_failure?: "zero-tests" | "skipped-tests" | "failed-tests" | "unknown-output" | "missing-tests" | "toolchain-changed" | "code-mutated";
@@ -242,6 +244,7 @@ Commands:
 
 Run Options:
   --label <name>                  Receipt label (required)
+  --kind <test|check|package>     Result type (default: test)
   --allow-shell                   Allow shell execution (interactive TTY only)
   --allow-zero-tests              Allow test runs with 0 reported tests
   --forbid-skipped                Treat skipped tests as failure
@@ -318,10 +321,11 @@ export function validateReceipt(value: unknown, options: { root: string; trusted
   if (now - time > (options.maxAgeMinutes ?? 240) * 60_000) fail("receipt expired (maximum age exceeded)", "stale");
   if (r.receipt_version !== 2) fail("legacy or unsupported receipt cannot authorize the exact-input gate", "legacy");
   if (!verifyReceiptSignature(r, options.trustedPublicKey)) fail("receipt issuer is untrusted or receipt signature is invalid");
+  if (r.result_kind !== undefined && r.result_kind !== "test") fail("only test receipts can authorize the exact-input gate");
   if (typeof r.run_id !== "string" || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(r.run_id) || typeof r.label !== "string" || !r.label || typeof r.cmd !== "string" || !isDigest(r.fingerprint)) fail("receipt identity or fingerprint is malformed");
   const m = r.manifest, v = r.verification;
   if (!isObject(m) || !isObject(v)) fail("receipt manifest or verification is missing");
-  if (v!.status !== "valid" || v!.parser !== RECEIPT_PARSER_VERSION || !Number.isSafeInteger(v!.passed) || v!.passed <= 0 || v!.failed !== 0 || v!.skipped !== 0 || r.exit_code !== 0 || r.guard_failure) fail("receipt verification evidence is missing, unknown, or failing");
+  if (v!.status !== "valid" || v!.parser !== RECEIPT_PARSER_VERSION || !Number.isSafeInteger(v!.passed) || v!.passed <= 0 || v!.failed !== 0 || v!.skipped !== 0 || r.exit_code !== 0 || (r.outcome !== undefined && r.outcome !== "passed") || r.guard_failure) fail("receipt verification evidence is missing, unknown, or failing");
   if (r.mutated_during_run !== undefined && typeof r.mutated_during_run !== "boolean") fail("workspace mutation flag is malformed");
   if (r.mutated_during_run && !options.allowWorkspaceMutation) fail("workspace changed during test execution", "stale");
   if (!Array.isArray(m!.command) || !m!.command.length || !m!.command[0] || !m!.command.every((part) => typeof part === "string" && !part.includes("\0"))) fail("command argv is missing or malformed");
@@ -353,6 +357,42 @@ export function validateReceipt(value: unknown, options: { root: string; trusted
   return r as ValidatedReceipt;
 }
 
+/** Validate a signed local typecheck or packaging result without treating it as test evidence. */
+export function validateOperationalReceipt(value: unknown, options: { root: string; trustedPublicKey: string; now?: number; maxAgeMinutes?: number }): EvidenceRecord {
+  const fail = (message: string, kind: "invalid" | "stale" | "legacy" = "invalid"): never => { throw new ReceiptValidationError(message, kind); };
+  if (!isObject(value)) fail("receipt is malformed");
+  const r = value as EvidenceRecord;
+  const now = options.now ?? Date.now();
+  const time = typeof r.at === "string" ? Date.parse(r.at) : NaN;
+  if (!Number.isFinite(time) || new Date(time).toISOString() !== r.at || !Number.isFinite(now) || time > now + 60_000) fail("invalid receipt timestamp", "stale");
+  if (now - time > (options.maxAgeMinutes ?? 240) * 60_000) fail("receipt expired (maximum age exceeded)", "stale");
+  if (r.receipt_version !== 2) fail("legacy or unsupported receipt cannot validate an operational result", "legacy");
+  if (!verifyReceiptSignature(r, options.trustedPublicKey)) fail("receipt issuer is untrusted or receipt signature is invalid");
+  if (r.result_kind !== "check" && r.result_kind !== "package") fail("receipt is not a check or packaging result");
+  if (r.outcome !== "passed" || r.exit_code !== 0 || r.guard_failure || r.mutated_during_run) fail("operational command did not produce a clean passing result");
+  if (typeof r.label !== "string" || !r.label || typeof r.cmd !== "string" || !isDigest(r.fingerprint)) fail("receipt identity or fingerprint is malformed");
+  const m = r.manifest;
+  if (!m || !isObject(m)) throw new ReceiptValidationError("operational command manifest is malformed");
+  if (!Array.isArray(m.command) || !m.command.length || !m.command.every((part) => typeof part === "string" && !part.includes("\0"))) fail("operational command manifest is malformed");
+  if (!isObject(m.toolchain) || !Object.keys(m.toolchain).length || !Object.values(m.toolchain).every((v) => typeof v === "string") || !isObject(m.environment) || !isDigest(m.input_digest) || !isDigest(m.parser_sha256)) fail("operational manifest is malformed");
+  if (m.parser_sha256 !== digestFile(path.join(import.meta.dir, "kineti-evidence.ts"))) fail("receipt parser changed after command result");
+  if (JSON.stringify(m.toolchain) !== JSON.stringify(toolchainVersions())) fail("declared toolchain identity changed after command result", "stale");
+  if (m.input_digest !== r.fingerprint || r.fingerprint !== fingerprint(options.root)) fail("workspace or command inputs changed after command result", "stale");
+  for (const [name, digest] of Object.entries(m.environment)) {
+    if (!/^[A-Z_][A-Z0-9_]*$/i.test(name) || SECRET_ENV_NAME.test(name) || !isDigest(digest)) fail("operational result has an invalid or secret-like environment declaration");
+    if (environmentDigest(name) !== digest) fail("declared environment input changed: " + name, "stale");
+  }
+  for (const items of [m.dependencies, m.artifact_digests]) {
+    if (!Array.isArray(items) || new Set(items.map((item) => item?.path)).size !== items.length || !items.every((item) => isObject(item) && isWorkspacePath(item.path) && isDigest(item.sha256))) fail("operational input inventory is malformed");
+    for (const item of items) {
+      const full = path.resolve(options.root, item.path);
+      try { if (!fs.statSync(full).isFile() || digestFile(full) !== item.sha256) fail("declared input changed or missing: " + item.path, "stale"); }
+      catch (error) { if (error instanceof ReceiptValidationError) throw error; fail("declared input changed or missing: " + item.path, "stale"); }
+    }
+  }
+  return r;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const cmd0 = argv[0];
@@ -375,6 +415,7 @@ function main() {
       return;
     }
     let label = "";
+    let resultKind: EvidenceRecord["result_kind"] = "test";
     let allowShell = false;
     let allowZeroTests = false;
     let forbidSkipped = false;
@@ -385,6 +426,7 @@ function main() {
     if (dd === -1) die("run requires: run --label L [--allow-shell] [--timeout <seconds>] [--allow-zero-tests] [--forbid-skipped] [--allow-workspace-mutation] -- <command...>");
     for (let i = 1; i < dd; i++) {
       if (argv[i] === "--label") label = argv[i + 1] ?? "";
+      if (argv[i] === "--kind") resultKind = argv[++i] as EvidenceRecord["result_kind"];
       if (argv[i] === "--allow-shell") allowShell = true;
       if (argv[i] === "--allow-zero-tests") allowZeroTests = true;
       if (argv[i] === "--forbid-skipped") forbidSkipped = true;
@@ -399,13 +441,23 @@ function main() {
     const cmdArgv = argv.slice(dd + 1);
     const command = cmdArgv.join(" ");
     if (!label || cmdArgv.length === 0) die("run requires --label and a command after --");
+    if (resultKind !== "test" && resultKind !== "check" && resultKind !== "package") die("--kind must be test, check, or package", 2);
+    if (resultKind !== "test" && requiredTests.length) die("--required-test is only valid with --kind test", 2);
     const inventoryPaths = [...new Set(requiredTests.flatMap((rel) => {
       const full = path.resolve(process.cwd(), rel);
       if (!full.startsWith(path.resolve(process.cwd()) + path.sep) || !fs.existsSync(full)) throw new Error(`required test missing or outside workspace: ${rel}`);
       if (fs.statSync(full).isFile()) return [rel];
       if (!fs.statSync(full).isDirectory()) throw new Error(`required test is not a file or directory: ${rel}`);
       const found: string[] = [];
-      const walk = (dir: string) => { for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a,b) => a.name.localeCompare(b.name))) { const child = path.join(dir, entry.name); if (entry.isDirectory()) walk(child); else if (entry.isFile() && /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)) found.push(path.relative(process.cwd(), child)); } };
+      const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a,b) => a.name.localeCompare(b.name))) {
+          const child = path.join(dir, entry.name);
+          if (entry.isDirectory() && !EXCLUDE_DIRS.has(entry.name)) walk(child);
+          else if (entry.isFile() && (/\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
+            || /(?:^test_.*|.*_test)\.py$/.test(entry.name)
+            || (entry.name.endsWith(".rs") && /#\[(?:test|tokio::test|rstest)(?:\(|\])/.test(fs.readFileSync(child, "utf8"))))) found.push(path.relative(process.cwd(), child));
+        }
+      };
       walk(full);
       if (!found.length) throw new Error(`required test inventory is empty: ${rel}`);
       return found;
@@ -413,7 +465,7 @@ function main() {
     const inventory = inventoryPaths.map((rel) => ({ path: rel.split(path.sep).join("/"), sha256: digestFile(path.resolve(process.cwd(), rel)) }));
     for (const name of envNames) if (!/^[A-Z_][A-Z0-9_]*$/i.test(name) || SECRET_ENV_NAME.test(name)) die(`environment input is invalid or secret-like and cannot be recorded: ${name}`, 2);
     const envEvidence = Object.fromEntries(envNames.map((name) => [name, environmentDigest(name)]));
-    const lockPaths = ["bun.lock", "bun.lockb", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock", "requirements.txt", "poetry.lock", "uv.lock"].filter((p) => fs.existsSync(p) && fs.statSync(p).isFile());
+    const lockPaths = ["bun.lock", "bun.lockb", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock", "core-native/Cargo.lock", "requirements.txt", "poetry.lock", "uv.lock"].filter((p) => fs.existsSync(p) && fs.statSync(p).isFile());
     const dependencies = lockPaths.map((p) => ({ path: p, sha256: digestFile(p) }));
     const artifactDigests = artifacts.map((rel) => {
       const full = path.resolve(process.cwd(), rel);
@@ -439,7 +491,7 @@ function main() {
     let guardFailure: "zero-tests" | "skipped-tests" | "failed-tests" | "unknown-output" | "missing-tests" | "toolchain-changed" | "code-mutated" | undefined;
 
     let outputVerification: ReturnType<typeof parseTestOutput> = null;
-    if (code === 0) {
+    if (code === 0 && resultKind === "test") {
       const combinedOutput = (res.stdout || "") + "\n" + (res.stderr || "");
       outputVerification = parseTestOutput(combinedOutput);
       if (!outputVerification) {
@@ -484,12 +536,13 @@ function main() {
 
     const runId = crypto.randomUUID();
     const parsed = outputVerification;
+    const outcome: EvidenceRecord["outcome"] = resultKind === "test" && inventory.length === 0 ? "unknown" : code === 0 ? "passed" : code === null ? "unknown" : "failed";
     const record: EvidenceRecord = {
       receipt_version: 2, run_id: runId,
-      at: nowIso(), label, cmd: command, exit_code: code,
+      at: nowIso(), label, cmd: command, result_kind: resultKind, outcome, exit_code: code,
       fingerprint: fpAfter,
       manifest: { command: cmdArgv, dependencies, toolchain: toolchainBefore, environment: envEvidence, input_digest: fpBefore, artifact_digests: artifactDigests, parser_sha256: parserBefore, ...(protectedEffect ? { protected_effect: protectedEffect } : {}) },
-      verification: { status: parsed && code === 0 && inventory.length > 0 ? "valid" : parsed && code === 0 ? "unsupported" : "invalid", parser: RECEIPT_PARSER_VERSION, passed: parsed?.passed ?? 0, failed: parsed?.failed ?? (code === 0 ? 1 : 0), skipped: parsed?.skipped ?? 0, inventory },
+      ...(resultKind === "test" ? { verification: { status: parsed && code === 0 && inventory.length > 0 ? "valid" : parsed && code === 0 ? "unsupported" : "invalid", parser: RECEIPT_PARSER_VERSION, passed: parsed?.passed ?? 0, failed: parsed?.failed ?? (code === 0 ? 1 : 0), skipped: parsed?.skipped ?? 0, inventory } } : {}),
       ...(guardFailure ? { guard_failure: guardFailure } : {}),
       ...(codeMutated ? { mutated_during_run: true } : {}),
     } satisfies Record;
@@ -498,6 +551,7 @@ function main() {
     record.signature = crypto.sign(null, Buffer.from(unsignedRecord(record)), keys.privateKey).toString("base64");
     appendJsonl(file(), record);
     if (code !== 0) die(`command failed (exit ${code}); recorded as proof anyway`, 1);
+    if (resultKind === "test" && record.verification?.status !== "valid") die(`recorded diagnostic only: ${label}; declared test inventory is required and acceptance is unsupported`, 4);
     ok(`proof recorded: ${label} run=${runId} ${!codeMutated ? "(code unchanged during run)" : "(note: code changed during run)"}`);
     return;
   }
@@ -531,16 +585,21 @@ function main() {
     if (rs.length === 0) { console.error("kineti: MISSING"); process.exit(5); }
     const last = rs[rs.length - 1];
     if (expectCmd && (typeof last.cmd !== "string" || !last.cmd.includes(expectCmd))) { console.error("kineti: STALE (different command)"); process.exit(4); }
+    const resultKind = last.result_kind ?? "test";
     try {
       // Checking never creates a key or enrolls the receipt's issuer.
       const trustedPublicKey = fs.readFileSync(keyFile(), "utf8");
-      validateReceipt(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin, allowWorkspaceMutation });
+      if (resultKind === "check" || resultKind === "package") {
+        validateOperationalReceipt(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin });
+      } else {
+        validateReceipt(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin, allowWorkspaceMutation });
+      }
     } catch (error) {
       const kind = error instanceof ReceiptValidationError ? error.kind : "invalid";
       console.error(`kineti: ${kind === "stale" ? "STALE" : kind === "legacy" ? "LIMITED" : "INVALID"} (${error instanceof ReceiptValidationError ? error.message : "local issuer key is missing or unreadable"})`);
       process.exit(kind === "stale" ? 4 : kind === "legacy" ? 6 : 7);
     }
-    ok(`FRESH: ${label}`);
+    ok(resultKind === "test" ? `FRESH: ${label}` : `FRESH: ${label} (${resultKind} command result; not test evidence)`);
     return;
   }
 

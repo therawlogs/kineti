@@ -13,24 +13,46 @@ describe("Scheduler utility suite", () => {
       if (existsSync(testStorePath)) unlinkSync(testStorePath);
     });
 
-    test("parses cron expressions and calculates deterministic next run times", () => {
+    test("uses local calendar time and returns exact cron instants", () => {
       const scheduler = new SchedulerEngine(testStorePath);
-      const base = new Date("2026-10-01T12:00:00Z");
+      const base = new Date("2026-10-01T12:00:00.000Z");
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const expected: Record<string, [string, string, string]> = {
+        UTC: ["2026-10-01T13:00:00.000Z", "2026-10-01T12:15:00.000Z", "2026-10-02T09:30:00.000Z"],
+        "Asia/Kolkata": ["2026-10-01T12:30:00.000Z", "2026-10-01T12:15:00.000Z", "2026-10-02T04:00:00.000Z"],
+        "Asia/Calcutta": ["2026-10-01T12:30:00.000Z", "2026-10-01T12:15:00.000Z", "2026-10-02T04:00:00.000Z"],
+        "America/New_York": ["2026-10-01T13:00:00.000Z", "2026-10-01T12:15:00.000Z", "2026-10-01T13:30:00.000Z"],
+      };
+      expect(expected[zone], `exact cron instants are specified for ${zone}`).toBeDefined();
 
       // Hourly shortcut
       const nextHourly = scheduler.calculateNextCronRun("@hourly", base);
-      expect(nextHourly.getMinutes()).toBe(0);
-      expect(nextHourly.getHours()).toBe(13);
+      expect(nextHourly.toISOString()).toBe(expected[zone][0]);
 
       // Every 15 minutes step (*/15)
       const next15 = scheduler.calculateNextCronRun("*/15 * * * *", base);
-      expect(next15.getMinutes()).toBe(15);
-      expect(next15.getHours()).toBe(12);
+      expect(next15.toISOString()).toBe(expected[zone][1]);
 
       // Specific minute and hour
       const nextSpecific = scheduler.calculateNextCronRun("30 9 * * *", base);
-      expect(nextSpecific.getMinutes()).toBe(30);
-      expect(nextSpecific.getHours()).toBe(9);
+      expect(nextSpecific.toISOString()).toBe(expected[zone][2]);
+    });
+
+    test("skips nonexistent local times and visits both repeated local times", () => {
+      if (Intl.DateTimeFormat().resolvedOptions().timeZone !== "America/New_York") return;
+      const scheduler = new SchedulerEngine(testStorePath);
+
+      const beforeSpringForward = new Date("2026-03-08T06:59:00.000Z");
+      expect(scheduler.calculateNextCronRun("30 2 * * *", beforeSpringForward).toISOString())
+        .toBe("2026-03-09T06:30:00.000Z");
+
+      const beforeFirstFallBackMatch = new Date("2026-11-01T04:59:00.000Z");
+      expect(scheduler.calculateNextCronRun("30 1 * * *", beforeFirstFallBackMatch).toISOString())
+        .toBe("2026-11-01T05:30:00.000Z");
+
+      const afterFirstFallBackMatch = new Date("2026-11-01T05:31:00.000Z");
+      expect(scheduler.calculateNextCronRun("30 1 * * *", afterFirstFallBackMatch).toISOString())
+        .toBe("2026-11-01T06:30:00.000Z");
     });
 
     test("schedules, executes, and marks one-shot reminders as completed", async () => {

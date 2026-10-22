@@ -26,3 +26,10 @@ These tools manage state, safety, and testing. Run any tool with `bun bin/<name>
 | `kineti-models` | Static task-to-host suggestion table; does not switch models |
 | `kineti-schedule` | Local job storage and trigger callbacks; external watchers are not connected |
 | `kineti-schema` | Simple text truncation and token estimate; not a multimodal standardizer |
+
+| `kineti-workflow` | Version-linked workflow artifacts, decisions and explicit owner approvals |
+| `kineti-context` | Scoped encrypted memory and prepared host context |
+| `kineti-conformance` | Local protocol cases with explicit unsupported host cases |
+| `kineti-review-summary` | Deterministic local or owner-authenticated evaluation summaries |
+
+Declare each test file or directory with `--required-test` when recording test evidence. Commands without a complete declared inventory are diagnostics, not accepted test evidence. Use `--kind check` for typechecking and `--kind package` for packaging. See the repository recovery guide for `kineti egress recover`. Research commands for R06/R24 are removed.
