@@ -19,6 +19,7 @@ kineti-memory = { path = "../kineti-memory", version = "0.5.0" }
 kineti-connectors = { path = "../kineti-connectors", version = "0.5.0" }
 kineti-actions = { path = "../kineti-actions", version = "0.5.0" }
 kineti-gateway = { path = "../kineti-gateway", version = "0.5.0" }
+serde_json = "=1.0.149"
 
 [[bench]]
 name = "benchmarks"

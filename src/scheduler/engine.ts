@@ -207,9 +207,13 @@ export class SchedulerEngine {
 
     const [minPart, hourPart, domPart, monPart, dowPart] = parts;
 
-    // Fast-forward second to 0 of the next minute
-    const candidate = new Date(fromDate.getTime() + 60_000);
-    candidate.setSeconds(0, 0);
+    // Cron fields are read from local calendar time. Advance by elapsed minutes
+    // so a forward clock jump skips nonexistent wall times and a backward jump
+    // visits both distinct instants that share the same wall-clock time.
+    // Starting after fromDate also makes the result strictly later than anchor.
+    const anchor = fromDate.getTime();
+    if (!Number.isFinite(anchor)) throw new Error("Invalid cron anchor");
+    const candidate = new Date(Math.floor(anchor / 60_000) * 60_000 + 60_000);
 
     // Look ahead up to 366 days (527,040 minutes)
     for (let i = 0; i < 527040; i++) {

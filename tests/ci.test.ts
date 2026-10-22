@@ -24,7 +24,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("generates verified report on healthy workspace", () => {
+  it("blocks a configured workspace without test evidence", () => {
     writeJson(path.join(kinetiDir, "state.json"), {
       version: 1,
       current_stage: 7,
@@ -43,16 +43,16 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
 
     const report = generateCIReport(tmpDir);
 
-    expect(report.checksPassed).toBe(true);
+    expect(report.checksPassed).toBe(false);
     expect(report.stageNumber).toBe(7);
     expect(report.stageName).toBe("build");
     expect(report.spendUsd).toBe(1.25);
-    expect(report.badgeUrl).toContain("Checks--Passed");
-    expect(report.badgeUrl).toContain("7c3aed");
-    expect(report.failures).toHaveLength(0);
+    expect(report.badgeUrl).toContain("Checks--Blocked");
+    expect(report.badgeUrl).toContain("ef4444");
+    expect(report.failures.some(f => f.includes("No evidence records"))).toBe(true);
     expect(report.markdownSummary).toContain("Root Goal Hash");
     expect(report.prComment).not.toContain("Build high-integrity microservice");
-    expect(report.prComment).toContain("PASSED");
+    expect(report.prComment).toContain("BLOCKED");
   });
 
   it("detects tripped spend circuit breaker and blocks gate", () => {
@@ -131,7 +131,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     });
 
     const report = generateCIReport(tmpDir);
-    expect(report.checksPassed).toBe(true);
+    expect(report.checksPassed).toBe(false);
     expect(report.stageName).toBe("bugfix");
     expect(report.stageNumber).toBe(0);
     expect(report.markdownSummary).toContain("bugfix");
@@ -239,7 +239,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
 
     expect(report.checksPassed).toBe(false);
     expect(report.evidenceChecks).toEqual([
-      expect.objectContaining({ label: "typecheck", status: "fresh" }),
+      expect.objectContaining({ label: "typecheck", status: "invalid-receipt" }),
       expect.objectContaining({ label: "unit-tests", status: "missing" }),
     ]);
     expect(report.failures.some((failure) => failure.includes("unit-tests") && failure.includes("missing"))).toBe(true);

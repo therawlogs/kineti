@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { startServer, getHarnessStatus, getMiniStatus, describeGate, getFleetStatus, AUTH_TOKEN } from "../bin/kineti-companion.ts";
 import { fingerprint } from "../bin/kineti-evidence.ts";
-import { microcentsToUsd } from "../bin/lib.ts";
+import { loadLimits, microcentsToUsd } from "../bin/lib.ts";
 
 describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
   let server: any;
@@ -32,7 +32,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     expect(status).toBeDefined();
     expect(status.stages.length).toBe(13);
     expect(status.spend).toBeDefined();
-    expect(status.spend.ceiling_usd).toBe(50.0);
+    expect(status.spend.ceiling_usd).toBe(loadLimits().globalUsd);
     expect(status.stages[0].name).toBe("officehours");
     expect(status.stages[12].name).toBe("retro");
   });
@@ -544,7 +544,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     );
     expect(res.status).toBe(200);
     const json = (await res.json()) as any;
-    expect(json.ceiling).toBe(50);
+    expect(json.ceiling).toBe(loadLimits().globalUsd);
     expect(json.enabled).toBe(true);
     expect(json.pending_undo).toBeGreaterThanOrEqual(0);
   });

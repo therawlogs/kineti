@@ -66,7 +66,7 @@
       main {
         position: relative;
         z-index: 1;
-        max-width: 640px;
+        max-width: 920px;
         width: 100%;
         text-align: center;
       }
@@ -94,6 +94,26 @@
       a:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
       .contact { color: var(--link); font-weight: 400; }
       .cta-line { font-size: 16px; margin: 0 0 24px 0; }
+      .demo-card {
+        width: min(100%, 760px);
+        margin: 36px auto 0;
+        padding: 24px;
+        border: 1px solid rgba(242, 237, 230, 0.28);
+        border-radius: 12px;
+        background: rgba(5, 5, 5, 0.82);
+        text-align: left;
+      }
+      .demo-card h2 { font-size: 20px; margin: 0 0 8px; }
+      .demo-caption { color: var(--muted); font-size: 14px; line-height: 1.6; margin: 0 0 16px; }
+      .demo-output {
+        margin: 0;
+        max-height: 280px;
+        overflow: auto;
+        color: var(--foreground);
+        font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
       #bg-toggle {
         position: fixed;
         right: clamp(16px, 4vw, 32px);
@@ -118,6 +138,14 @@
       @media (max-width: 768px) {
         .cosmic-bg video { display: none; }
       }
+      @media (max-width: 520px) {
+        body { align-items: flex-start; padding: 20px 14px 64px; }
+        h1 { font-size: 34px; }
+        p { font-size: 16px; }
+        .demo-card { margin-top: 28px; padding: 16px; }
+        .demo-card h2 { font-size: 18px; }
+        .demo-output { max-height: 320px; font-size: 11px; }
+      }
       @media (prefers-reduced-motion: reduce) {
         .cosmic-bg video { animation: none; }
       }
@@ -132,6 +160,17 @@
         <a href="https://github.com/therawlogs/kineti" target="_blank" rel="noreferrer">GitHub: https://github.com/therawlogs/kineti</a>
         <a class="contact" href="mailto:hello@getkineti.com">hello@getkineti.com</a>
       </div>
+      <section class="demo-card" aria-labelledby="demo-title">
+        <h2 id="demo-title">A stale receipt stops this package command</h2>
+        <div class="demo-caption">This is output from one local run. The stale check blocked packaging; a fresh receipt let the control package finish.</div>
+        <pre class="demo-output">kineti: STALE (workspace or test inputs changed after proof)
+EXPECTED BLOCK: npm pack was not run; no package or success marker exists.
+FRESH: demo
+kineti-0.5.0.tgz
+FRESH: demo-package (package command result; not test evidence)
+CONTROL PASS: .kineti/demos/packages/kineti-0.5.0.tgz
+WORKING CHECKOUT UNCHANGED: bin/lib.ts sha256=9494d6c5670f2f84834b83d9cd40efee77f154e58fccc8739f74b8a710a0101d</pre>
+      </section>
       <button id="bg-toggle" type="button" hidden>Pause background</button>
     </main>
     <script>

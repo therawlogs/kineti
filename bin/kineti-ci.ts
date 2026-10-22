@@ -4,8 +4,9 @@
 // Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import fs from "node:fs";
+import { inspectSpend } from "./kineti-spend.ts";
 import path from "node:path";
-import { fingerprint } from "./kineti-evidence.ts";
+import { fingerprint, validateReceipt } from "./kineti-evidence.ts";
 import {
   loadLimits,
   loadVerifyCommand,
@@ -16,6 +17,7 @@ import {
   readJson,
   readJsonl,
   sha256,
+  splitLegacyCommand,
 } from "./lib.ts";
 
 interface KinetiState {
@@ -72,13 +74,14 @@ export interface CIReport {
 
 export interface EvidenceCheck {
   label: string;
-  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated";
+  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated" | "invalid-receipt";
   at?: string;
 }
 
 export interface CIOptions {
   requiredEvidenceLabels?: string[];
   maxEvidenceAgeMinutes?: number;
+  evidenceCommands?: Record<string, string[]>;
 }
 
 const STAGE_NAMES: Record<number, string> = {
@@ -155,6 +158,7 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
   // 2. Check spend circuit breaker
   const spendPath = path.join(kdir, "spend.json");
   const spend = fs.existsSync(spendPath) ? readJson<SpendRecord>(spendPath) : null;
+  try { inspectSpend(workspaceRoot); } catch { failures.push("Spending accounting is damaged or incomplete; owner recovery required"); }
   const limits = loadLimits(workspaceRoot);
   const totalMicro = spend?.total_microcents ?? 0;
   const limitMicro = Math.round(limits.globalUsd * 1e6);
@@ -194,51 +198,35 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
   let evidenceChecks: EvidenceCheck[] = [];
   let evidenceFresh = true;
 
-  if (requiredLabels.length > 0) {
-    evidenceChecks = requiredLabels.map((label): EvidenceCheck => {
-      const matching = evidenceRecords.filter((record) => record.label === label);
-      if (matching.length === 0) return { label, status: "missing" };
-      const latest = matching[matching.length - 1];
-      const timestamp = Date.parse(latest.at);
-      if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) {
-        return { label, status: "invalid-time", at: latest.at };
-      }
-      if (latest.exit_code !== 0) return { label, status: "failed", at: latest.at };
-      if ((latest as any).mutated_during_run) return { label, status: "workspace-mutated", at: latest.at };
-      if (latest.fingerprint !== currentFp) return { label, status: "fingerprint-mismatch", at: latest.at };
-      if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
-        return { label, status: "stale", at: latest.at };
-      }
-      return { label, status: "fresh", at: latest.at };
-    });
-    for (const check of evidenceChecks) {
-      if (check.status === "fresh") continue;
-      evidenceFresh = false;
-      failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}`);
-    }
-  } else if (evidenceRecords.length > 0) {
-    const latest = evidenceRecords[evidenceRecords.length - 1];
+  const labels = requiredLabels.length ? requiredLabels : evidenceRecords.length ? [evidenceRecords[evidenceRecords.length - 1].label] : [];
+  let issuer: string | undefined;
+  try { issuer = fs.readFileSync(path.join(kdir, "evidence-issuer.pem"), "utf8"); } catch { /* missing trust fails validation */ }
+  const verifyCommand = loadVerifyCommand(workspaceRoot);
+  evidenceChecks = labels.map((label): EvidenceCheck => {
+    const latest = evidenceRecords.filter(record => record.label === label).at(-1);
+    if (!latest) return { label, status: "missing" };
     const timestamp = Date.parse(latest.at);
-    if (latest.exit_code !== 0) {
-      evidenceFresh = false;
-      failures.push(`Latest evidence record '${latest.label}' failed with exit code ${latest.exit_code}`);
-    }
-    if (latest.fingerprint !== currentFp) {
-      evidenceFresh = false;
-      failures.push("Workspace fingerprint mismatch: code modified since last verification record");
-    }
-    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000 || (Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
-      evidenceFresh = false;
-      failures.push(`Latest evidence record '${latest.label}' has an invalid or stale timestamp`);
-    }
-    evidenceChecks = [{
-      label: latest.label,
-      status: evidenceFresh ? "fresh" : latest.exit_code === 0 ? "stale" : "failed",
-      at: latest.at,
-    }];
-  } else if (stageNum >= 11) {
+    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) return { label, status: "invalid-time", at: latest.at };
+    if (latest.exit_code !== 0) return { label, status: "failed", at: latest.at };
+    if ((latest as any).mutated_during_run) return { label, status: "workspace-mutated", at: latest.at };
+    if (latest.fingerprint !== currentFp) return { label, status: "fingerprint-mismatch", at: latest.at };
+    if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) return { label, status: "stale", at: latest.at };
+    try {
+      if (!issuer) throw new Error("missing receipt issuer");
+      const declared=options.evidenceCommands?.[label];
+      if(options.evidenceCommands && (!Array.isArray(declared)||!declared.length||!declared.every(x=>typeof x==='string'&&x.length>0&&!x.includes('\0'))))throw new Error("missing or malformed required command");
+      validateReceipt(latest, { root: workspaceRoot, trustedPublicKey: issuer, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand: declared ?? (verifyCommand ? splitLegacyCommand(verifyCommand) : undefined) });
+      return { label, status: "fresh", at: latest.at };
+    } catch { return { label, status: "invalid-receipt", at: latest.at }; }
+  });
+  for (const check of evidenceChecks) {
+    if (check.status === "fresh") continue;
     evidenceFresh = false;
-    failures.push("No evidence records: run tests before ship");
+    failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}`);
+  }
+  if (!labels.length) {
+    evidenceFresh = false;
+    failures.push("No evidence records: run tests before reporting success");
   }
 
   const checksPassed = failures.length === 0;
@@ -313,6 +301,7 @@ Usage:
 
 Options:
   --require-evidence <label>    Specify required evidence receipt label (repeatable)
+  --evidence-commands <file>    Owner-defined JSON map of label to exact command argv
   --max-evidence-age <minutes>  Maximum allowable evidence age (default 240)
   --json                        Output structured JSON CI report
   --badge-only                  Output Shields.io badge URL only
@@ -334,9 +323,13 @@ function main() {
   let badgeOnly = false;
   const requiredEvidenceLabels: string[] = [];
   let maxEvidenceAgeMinutes = 240;
+  let evidenceCommands: Record<string,string[]> | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
+      case "--evidence-commands":
+        try {const file=argv[++i];const parsed=JSON.parse(fs.readFileSync(file,"utf8"));if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw new Error("expected object");evidenceCommands=parsed;}catch{console.error("kineti ci: --evidence-commands needs a JSON object file");process.exit(2);}
+        break;
       case "--summary-file":
         summaryFile = argv[++i] ?? null;
         break;
@@ -366,7 +359,7 @@ function main() {
     }
   }
 
-  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes });
+  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes, evidenceCommands });
 
   if (badgeOnly) {
     console.log(report.badgeUrl);

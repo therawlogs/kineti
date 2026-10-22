@@ -13,8 +13,7 @@ triggers:
 # kineti-architecture
 
 Produce the drawing builders follow: what talks to what, in what shape,
-what happens when each piece fails, and why this stack beats the others
-on numbers.
+what happens when each piece fails, and why selected tools fit the project.
 
 ## Harness
 
@@ -26,18 +25,16 @@ Log model calls with `--stage architecture`.
 
 ## Inputs
 
-`brief.md`, `diagnostics.md` (loss table + constraint), `design/tokens.json`,
-and any ceilings already known (latency, budget).
+`brief.md`, approved design and data decisions, relevant diagnostics when
+available, and known project limits.
 
 ## Feature discovery and tool selection
 
-Before drawing services, list user outcomes from `brief.md` and storyboard
-steps, then map each to a feature, a measurable result, and an out-of-scope
-decision. For every proposed tool or managed service compare it with at
-least one alternative, including keeping the capability local or not
-building it. Record cost at expected load, limits, data access, failure
-behavior, and exit cost. Select tools only after this comparison; approval
-of the architecture summary approves the selected tools and feature scope.
+Before drawing services, refine feature ideas into accepted scope linked to
+user needs, outcomes, and tests. Compare suitable tools and approaches when
+the choice matters, including local or open-source options where relevant.
+Record relevant costs, limits, data access, failure behavior, and exit cost.
+Keep the user's choices visible; do not silently select paid services.
 
 ## Procedure
 
@@ -58,10 +55,10 @@ of the architecture summary approves the selected tools and feature scope.
 6. **Bounded execution**: every loop, external call, queue, and agent run
    gets explicit time and size limits. Write them next to the component.
    Nothing unbounded anywhere.
-7. **Stack choice by math.** Managed blocks (Supabase, Resend, Vercel) are
-   candidates, never defaults. For each candidate vs alternative (including
-   self-hosting using diagnose's volume numbers): monthly cost at expected
-   load, latency added, control/exit cost. Pick winners in writing.
+7. **Tool choice.** Record why selected tools fit and relevant alternatives,
+   costs, limits, failure behavior, and exit cost. Use measured calculations
+   when making quantitative claims; do not require financial math where it
+   does not help the decision.
 8. **Test matrix**: rows = failure-table rows and state transitions;
    columns = which test proves it. This matrix feeds qa directly.
 9. Show the human a summary of choices. On approval:
@@ -70,20 +67,20 @@ of the architecture summary approves the selected tools and feature scope.
 ## Outputs
 
 `architecture.md` (drawing, contracts, machines, error paths, failure
-table, limits, stack math, test matrix, feature-to-outcome map, and explicit
-tool choices with alternatives).
+table, limits, relevant tool comparisons, test matrix, and feature-to-outcome
+map).
 
 ## Approval and acceptance
 
-Pass when every in-scope outcome maps to a feature and test, each feature
-has a scope decision, each selected tool has a recorded alternative and
-comparison, and the architecture test matrix covers failure paths and
-state transitions. The human approves the summary before implementation.
+Pass when accepted outcomes map to features and tests, scope choices are
+recorded, selected tools have a reason and relevant comparison, and the
+architecture test matrix covers important failure paths and state
+transitions. The human approves the summary before implementation.
 
 ## Hard rules
 
 - No unbounded work anywhere.
-- Stack choices must show their comparison math; "default" is not a reason.
+- Quantitative claims must show their evidence and assumptions.
 - Every arrow has an error path before this stage ends.
 
 ## Memory after

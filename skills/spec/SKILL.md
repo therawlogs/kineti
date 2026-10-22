@@ -34,10 +34,11 @@ Log model calls with `--stage spec`.
    validation rules each side enforces (required fields, ranges, lengths).
 2. **Data shapes**: every stored object as a typed schema (fields, types,
    nullability, indexes). One block per object.
-3. **Acceptance criteria as binary tests.** Each criterion must evaluate
-   to pass/fail with numbers: "p95 latency < 300 ms at 50 rps", "recall ≥
-   0.92 on dataset X". Forbidden words in criteria: fast, robust, scalable,
-   seamless, user-friendly, intuitive.
+3. **Acceptance criteria as observable pass/fail checks.** Use measured
+   thresholds when the decision needs them and the evidence supports them.
+   Do not invent performance targets or force metrics on projects that do
+   not need them. Avoid vague acceptance words such as fast, robust,
+   scalable, seamless, user-friendly, or intuitive.
 4. **Stage-by-stage build order**: which spec sections build first and what
    proves each done (link to its acceptance test).
 5. **Out-of-scope list**: everything explicitly not built now, copied from
@@ -52,21 +53,20 @@ Log model calls with `--stage spec`.
    language and wait for the human's explicit choice. Never edit the locked
    goal or silently reinterpret it. Record the decision in the spec/run
    record.
-7. **Product mode (Workflow 11).** Before packaging or setup, ask the human
-   to select one: `harness` (project workflow skills), `gate` (receipt and
-   protected-action checks), or `both`. Record the selection and included
-   capabilities in `spec.md`; do not infer a mode from host/editor choice.
-8. **Adapter support contract (Workflow 12).** List adapters as
-   `supported`, `stub`, or `unsupported`, with a tested capability and
-   acceptance evidence for every supported claim. An adapter runs in the
-   background and adds its declared capability; it does not replace the
-   user's foreground editor/agent. Until tested, GitHub Action, Codex,
-   Claude Code, and other adapters are stubs/unsupported.
-9. **Natural-language routing contract (Workflow 13).** For each supported
-   host, define natural-language example requests, expected skill, and
-   prohibited accidental route. Test routing without slash commands. A
-   host passes only with inspectable results; unknown hosts and untested
-   routes remain unsupported.
+7. **Product mode.** At new-project activation, ask the human to select
+   `harness` (project workflow skills), `gate` (receipt and protected-action
+   checks), or `both`, with no preselected default. Record the choice before
+   workflow setup. Installing a package does not activate a project. Legacy
+   projects remain readable with selection pending.
+8. **Host capability contract.** Use a versioned declaration with separate
+   claims for installation, workflow guidance, background behavior,
+   natural-language routing, and protected actions. Each claim needs its own
+   acceptance evidence. Instruction text is guidance, not enforcement.
+9. **Natural-language routing contract.** For each host claiming routing,
+   define requests, expected skill, and prohibited accidental route. Test
+   with an isolated live-model runner and inspect results. Static text
+   checks test instructions only. Unknown hosts and untested routes remain
+   unsupported; slash commands may remain optional.
 10. **Declare the verify command** in the project's `kineti.config.json`
    (`settings.verify_command`) — the command that proves the build is
    green (test runner invocation). The verify-gate uses it from now on.
@@ -82,11 +82,12 @@ Present the human with: spec summary, the acceptance tests, the out-of-scope
 list, and the verify command. Ask for explicit approval.
 
 - Approved: `bun "$K/kineti-state.ts" set gate.spec pass && bun "$K/kineti-state.ts" set stage 7`
-- Changes requested: revise and re-present. No code exists yet, so changes are cheap — say so.
+- Changes requested: revise and re-present the affected contract sections before new feature implementation.
 - Rejected: return to the stage the objection belongs to.
 
-No file under `src/` may exist or be created before approval. If one does,
-stop and delete it.
+Do not begin new feature implementation before the human approves its
+contract. Preserve existing source files; direct bug fixes, reviews, and
+cleanup may enter at their relevant workflow step.
 
 ## Outputs
 

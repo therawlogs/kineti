@@ -42,7 +42,7 @@ Log model calls with `--stage qa`.
 4. **Self-repair limit**: five attempts per bug maximum. Still red after
    five → stop, escalate to the human with the five approaches tried.
 5. **Record proof records as you go**:
-   `bun "$K/kineti-evidence.ts" run --label qa -- -- <test command>`
+   `bun "$K/kineti-evidence.ts" run --label qa --required-test <test-file-or-directory> -- <test command>`
 6. **Write `qa-report.md`**: paths tested per width, bugs found/fixed,
    escalation list, screenshots index.
 7. **Exit gate**: before leaving this stage every label must be fresh:

@@ -720,6 +720,27 @@ function generateSettingsHtml(): string {
     }
     .toast.show { opacity: 1; }
 
+    @media (max-width: 640px) {
+      body { display: block; }
+      .sidebar { position: relative; width: 100%; height: auto; padding: 18px 16px 12px; border-right: 0; border-bottom: 1px solid var(--border-color); }
+      .brand { margin-bottom: 12px; padding-left: 0; }
+      .nav-list { flex-direction: row; flex-wrap: wrap; gap: 4px; }
+      .nav-item { min-height: 44px; display: flex; align-items: center; padding: 10px; }
+      .nav-item:last-child { margin-top: 0 !important; }
+      .user-footer { display: none; }
+      .main-content { margin-left: 0; width: 100%; max-width: none; min-width: 0; padding: 24px 16px 48px; }
+      .item-row { gap: 12px; flex-wrap: wrap; }
+      .item-body { min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere; }
+      .item-action { flex-shrink: 0; flex-wrap: wrap; max-width: 100%; }
+      .btn { min-height: 40px; }
+      .copy-btn { min-width: 36px; min-height: 40px; }
+      .toast { left: 16px; right: 16px; bottom: 16px; }
+      table { display: block; max-width: 100%; overflow-x: auto; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition: none !important; }
+    }
+
     /* Test compatibility hooks */
     .test-compat-node { display: none; }
   </style>
@@ -754,7 +775,7 @@ function generateSettingsHtml(): string {
     <!-- TAB 0: HOME -->
     <div id="tab-home" class="tab-pane">
       <h2 class="section-title">Home</h2>
-      <p class="section-desc">Just talk normal. Safety, spending, undo, and proof run in the background.</p>
+      <p class="section-desc">Inspect the checks you run, recorded spending, and available undo steps.</p>
 
       <div class="item-row">
         <div class="item-body">
@@ -803,7 +824,7 @@ function generateSettingsHtml(): string {
       <div class="item-row" style="border: none;">
         <div class="item-body">
           <div class="item-title">Kineti</div>
-          <div class="item-subtitle" id="home-power-desc">All checks running</div>
+          <div class="item-subtitle" id="home-power-desc">Local checks enabled</div>
         </div>
         <div class="item-action">
           <label class="switch">
@@ -1085,7 +1106,7 @@ function generateSettingsHtml(): string {
           const syncEl = document.getElementById('home-sync');
           if (syncEl) syncEl.innerText = m.sync_enabled ? 'Manual encrypted transfer enabled' : 'Manual encrypted transfer disabled';
           document.getElementById('toggle-power').checked = m.enabled !== false;
-          document.getElementById('home-power-desc').innerText = m.enabled !== false ? 'All checks running' : 'Paused';
+          document.getElementById('home-power-desc').innerText = m.enabled !== false ? 'Local checks enabled' : 'Paused';
         })
         .catch(() => {});
     }
@@ -1403,6 +1424,14 @@ function generateSettingsHtml(): string {
       }
     }
 
+    document.addEventListener('click', function(event) {
+      const button = event.target.closest('[data-mesh-action]');
+      if (!button) return;
+      const actions = { approveMesh, blockMesh, unblockMesh };
+      const action = actions[button.dataset.meshAction];
+      if (typeof action === 'function') action(button.dataset.meshId);
+    });
+
     function refreshMeshUI() {
       fetch('/api/mesh')
         .then(r => r.json())
@@ -1419,8 +1448,8 @@ function generateSettingsHtml(): string {
                   '<div class="item-subtitle">Requested Tier: ' + escapeHtml(r.requested_tier) + (r.note ? ' • "' + escapeHtml(r.note) + '"' : '') + '</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn btn-primary" onclick="approveMesh(\'' + escapeHtml(r.request_id || r.requester_agent_id) + '\')">Approve</button>' +
-                  '<button class="btn btn-danger" onclick="blockMesh(\'' + escapeHtml(r.requester_agent_id) + '\')">Block</button>' +
+                  '<button class="btn btn-primary" data-mesh-action="approveMesh" data-mesh-id="' + escapeHtml(r.request_id || r.requester_agent_id) + '">Approve</button>' +
+                  '<button class="btn btn-danger" data-mesh-action="blockMesh" data-mesh-id="' + escapeHtml(r.requester_agent_id) + '">Block</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1438,7 +1467,7 @@ function generateSettingsHtml(): string {
                   '<div class="item-subtitle">Tier: ' + escapeHtml(p.tier) + ' • Connected</div>' +
                 '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn btn-danger" onclick="blockMesh(\'' + escapeHtml(p.peer_agent_id || p.agent_id) + '\')">Block</button>' +
+                  '<button class="btn btn-danger" data-mesh-action="blockMesh" data-mesh-id="' + escapeHtml(p.peer_agent_id || p.agent_id) + '">Block</button>' +
                 '</div>' +
               '</div>'
             ).join('');
@@ -1453,7 +1482,7 @@ function generateSettingsHtml(): string {
               '<div class="vault-item-row">' +
                 '<div>' + escapeHtml(b) + '</div>' +
                 '<div class="item-action">' +
-                  '<button class="btn" onclick="unblockMesh(\'' + escapeHtml(b) + '\')">Unblock</button>' +
+                  '<button class="btn" data-mesh-action="unblockMesh" data-mesh-id="' + escapeHtml(b) + '">Unblock</button>' +
                 '</div>' +
               '</div>'
             ).join('');

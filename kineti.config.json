@@ -19,7 +19,7 @@
     { "n": 13, "id": "retro", "gate": false }
   ],
   "settings": {
-    "spend_limit_usd": { "global": 50.0, "per_stage_default": 10.0 },
+    "spend_limit_usd": { "global": 50.0, "per_stage_default": 10.0, "per_stage": { "build": 75.0 } },
     "qa_max_self_repair_attempts": 5,
     "data_quality_threshold": 0.8,
     "hurdle_rate_min": 0.5,

@@ -7,8 +7,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { withFileLock } from "./ledger-integrity.ts";
 import {
-  appendJsonl, die, ensureDir, loadLimits, machineDir, nowIso,
+  appendJsonl, ensureDir, loadLimits, machineDir, nowIso,
   ok, projectKdir, readJson, readJsonl, usdToMicrocents, writeJson,
 } from "./lib.ts";
 
@@ -51,43 +52,79 @@ function priceFor(model: string): { in: number; out: number } | null {
   return null;
 }
 
-function file(): string { return path.join(projectKdir(), "spend.json"); }
-function logFile(): string { return path.join(projectKdir(), "spend.log.jsonl"); }
+function file(root = process.cwd()): string { return path.join(root, ".kineti", "spend.json"); }
+function logFile(root = process.cwd()): string { return path.join(root, ".kineti", "spend.log.jsonl"); }
 
-function load(): SpendState {
-  const loaded = readJson<SpendState>(file());
-  if (loaded) {
-    // Sanitize stored numbers: non-finite ledger values fail closed to 0-based recovery.
-    if (!Number.isFinite(loaded.total_microcents)) {
-      loaded.total_microcents = Number.isFinite(loaded.total_usd) ? usdToMicrocents(loaded.total_usd) : 0;
+class SpendError extends Error {
+  constructor(message: string, readonly code: number) { super(message); }
+}
+function die(message: string, code = 1): never { throw new SpendError(message, code); }
+
+// Hold one lock across validation, limits, accounting and writes. Never silently
+// reclaim an abandoned lock: interrupted accounting requires owner inspection.
+async function withSpendLock(fn: () => Promise<void>): Promise<void> {
+  ensureDir(projectKdir());
+  const lock = path.join(projectKdir(), "spend.lock");
+  const deadline = Date.now() + 15_000;
+  let fd: number;
+  while (true) {
+    try { fd = fs.openSync(lock, "wx", 0o600); break; }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (Date.now() >= deadline) die("spend lock timed out; inspect interrupted accounting before recovery", 3);
+      await new Promise(resolve => setTimeout(resolve, 10));
     }
-    if (!Number.isFinite(loaded.total_usd)) loaded.total_usd = 0;
-    if (!loaded.by_stage || typeof loaded.by_stage !== "object") loaded.by_stage = {};
-    if (!loaded.by_stage_microcents || typeof loaded.by_stage_microcents !== "object") {
-      loaded.by_stage_microcents = {};
-      for (const [stg, amt] of Object.entries(loaded.by_stage || {})) {
-        loaded.by_stage_microcents[stg] = usdToMicrocents(amt);
-      }
-    } else {
-      for (const [stg, v] of Object.entries(loaded.by_stage_microcents)) {
-        if (!Number.isFinite(v)) {
-          const fallback = (loaded.by_stage as Record<string, number>)?.[stg];
-          loaded.by_stage_microcents[stg] = Number.isFinite(fallback) ? usdToMicrocents(fallback as number) : 0;
-        }
-      }
-    }
-    if (!Number.isFinite(loaded.entries)) loaded.entries = 0;
-    return loaded;
   }
-  return {
-    tripped: false,
-    reason: null,
-    total_usd: 0,
-    total_microcents: 0,
-    by_stage: {},
-    by_stage_microcents: {},
-    entries: 0,
-  };
+  try {
+    fs.writeFileSync(fd!, JSON.stringify({ pid: process.pid, at: nowIso() }));
+    await fn();
+  } finally { fs.closeSync(fd!); fs.unlinkSync(lock); }
+}
+
+function load(root = process.cwd()): SpendState {
+  const marker = path.join(root, ".kineti", "spend.initialized.json");
+  const damaged = (): never => die("spend accounting is damaged or incomplete; owner inspection and explicit recovery required", 3);
+  const exists = fs.existsSync(file(root));
+  if (!exists) {
+    if (fs.existsSync(logFile(root)) || fs.existsSync(marker)) damaged();
+    return { tripped: false, reason: null, total_usd: 0, total_microcents: 0, by_stage: {}, by_stage_microcents: {}, entries: 0 };
+  }
+  let s: SpendState;
+  try { s = JSON.parse(fs.readFileSync(file(root), "utf8")); } catch { return damaged(); }
+  const money = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v >= 0;
+  const integer = (v: unknown): v is number => money(v) && Number.isSafeInteger(v);
+  const amounts = (v: unknown): v is Record<string, number> => !!v && typeof v === "object" && !Array.isArray(v) && Object.values(v).every(money);
+  if (!s! || typeof s !== "object" || typeof s.tripped !== "boolean" || !(s.reason === null || typeof s.reason === "string") || !money(s.total_usd) || !integer(s.entries) || !amounts(s.by_stage)) damaged();
+  // Read legacy integer-less accounting without changing its stored identity.
+  if (s.total_microcents === undefined) s.total_microcents = usdToMicrocents(s.total_usd);
+  if (s.by_stage_microcents === undefined) s.by_stage_microcents = Object.fromEntries(Object.entries(s.by_stage).map(([k, v]) => [k, usdToMicrocents(v)]));
+  if (!integer(s.total_microcents) || !amounts(s.by_stage_microcents) || !Object.values(s.by_stage_microcents).every(integer)) damaged();
+  if (round(s.total_microcents / 1e6) !== round(s.total_usd)) damaged();
+  let entries: Entry[] = [];
+  if (fs.existsSync(logFile(root))) {
+    const text = fs.readFileSync(logFile(root), "utf8");
+    if (text && !text.endsWith("\n")) damaged();
+    try { entries = text ? text.slice(0, -1).split("\n").map(line => JSON.parse(line)) : []; } catch { return damaged(); }
+  }
+  let total = 0;
+  const stages: Record<string, number> = Object.create(null);
+  for (const entry of entries) {
+    if (!entry || typeof entry.stage !== "string" || !entry.stage || typeof entry.model !== "string" || !money(entry.tokens_in) || !money(entry.tokens_out) || !money(entry.usd)) damaged();
+    const micro = entry.microcents === undefined ? usdToMicrocents(entry.usd) : entry.microcents;
+    if (!integer(micro)) damaged();
+    total += micro;
+    stages[entry.stage] = (stages[entry.stage] ?? 0) + micro;
+    if (!integer(total) || !integer(stages[entry.stage])) damaged();
+  }
+  if (entries.length !== s.entries || total !== s.total_microcents) damaged();
+  for (const stage of new Set([...Object.keys(stages), ...Object.keys(s.by_stage_microcents), ...Object.keys(s.by_stage)])) {
+    if ((stages[stage] ?? 0) !== (s.by_stage_microcents[stage] ?? 0) || round((stages[stage] ?? 0) / 1e6) !== round(s.by_stage[stage] ?? 0)) damaged();
+  }
+  return s;
+}
+
+export function inspectSpend(root = process.cwd()): SpendState {
+  return withFileLock(path.join(root, ".kineti", "spend.lock"), () => load(root));
 }
 
 
@@ -130,6 +167,7 @@ async function main() {
     return;
   }
 
+  return withSpendLock(async () => {
   const limits = loadLimits();
   const s = load();
 
@@ -173,7 +211,7 @@ async function main() {
       const p = priceFor(model);
       if (p !== null) {
         usd = (tin / 1e6) * p.in + (tout / 1e6) * p.out;
-        pricingMode = "exact";
+        pricingMode = "estimate";
       } else if (allowEstimate) {
         usd = (tin / 1e6) * DEFAULT_PRICE.in + (tout / 1e6) * DEFAULT_PRICE.out;
         pricingMode = "estimate";
@@ -182,8 +220,12 @@ async function main() {
       }
     }
 
+    s.by_stage = Object.assign(Object.create(null), s.by_stage);
+    s.by_stage_microcents = Object.assign(Object.create(null), s.by_stage_microcents);
     const microcents = usdToMicrocents(usd);
-    s.total_microcents = (s.total_microcents ?? usdToMicrocents(s.total_usd)) + microcents;
+    if (!Number.isSafeInteger(microcents) || microcents < 0 || !Number.isSafeInteger(s.total_microcents + microcents)) die("spend amount exceeds safe accounting range", 2);
+    writeJson(path.join(projectKdir(), "spend.initialized.json"), { version: 1 });
+    s.total_microcents = s.total_microcents + microcents;
     s.total_usd = round(s.total_microcents / 1e6);
 
     s.by_stage_microcents[stage] = (s.by_stage_microcents[stage] ?? usdToMicrocents(s.by_stage[stage] ?? 0)) + microcents;
@@ -212,14 +254,14 @@ async function main() {
   if (cmd === "check" || cmd === "status" || cmd === "economics") {
     if (s.tripped) {
       console.error(`kineti: TRIPPED: ${s.reason}`);
-      process.exit(3);
+      throw new SpendError("spend limit reached", 3);
     }
     let over = false;
     for (const [stg, spentMicro] of Object.entries(s.by_stage_microcents)) {
-      if (spentMicro >= Math.round(stageLimit(limits, stg) * 1e6)) over = true;
+      if (spentMicro >= Math.round(stageLimit(limits, stg) * limits.safetyFactor * 1e6)) over = true;
     }
-    if (s.total_microcents >= Math.round(limits.globalUsd * 1e6)) over = true;
-    if (over && (cmd === "check" || cmd === "economics")) { console.error("kineti: over limit"); process.exit(3); }
+    if (s.total_microcents >= Math.round(limits.globalUsd * limits.safetyFactor * 1e6)) over = true;
+    if (over && (cmd === "check" || cmd === "economics")) { console.error("kineti: over limit"); throw new SpendError("spend limit reached", 3); }
 
     const globalCeilingMicrocents = Math.round(limits.globalUsd * limits.safetyFactor * 1e6);
     const headroomMicro = Math.max(0, globalCeilingMicrocents - s.total_microcents);
@@ -230,12 +272,17 @@ async function main() {
       let verifiedOutcomes = 0;
       if (fs.existsSync(evidenceFile)) {
         try {
-          const records = readJsonl<{ label?: string; exit_code?: number }>(evidenceFile);
-          verifiedOutcomes = records.filter(r => r.exit_code === 0).length;
-        } catch {}
+          const { validateReceipt } = await import("./kineti-evidence.ts");
+          const trustedPublicKey = fs.readFileSync(path.join(projectKdir(), "evidence-issuer.pem"), "utf8");
+          const records = readJsonl<any>(evidenceFile);
+          const latest = new Map(records.map(record => [record.label, record]));
+          for (const record of latest.values()) {
+            try { validateReceipt(record, { root: process.cwd(), trustedPublicKey }); verifiedOutcomes++; } catch { /* invalid or stale local receipts do not count */ }
+          }
+        } catch { /* missing evidence is not a verified outcome */ }
       }
-      const costPerOutcome = s.total_usd / Math.max(1, verifiedOutcomes);
-      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; verified_outcomes=${verifiedOutcomes}; cost_per_outcome=$${costPerOutcome.toFixed(2)} (benchmark target: $0.31)`);
+      const costPerOutcome = verifiedOutcomes > 0 ? `$${(s.total_usd / verifiedOutcomes).toFixed(2)}` : "unknown";
+      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; fresh_local_test_receipts=${verifiedOutcomes}; recorded_cost_per_receipt=${costPerOutcome}; provider_billing=unknown`);
       return;
     }
 
@@ -273,6 +320,7 @@ async function main() {
   }
 
   die(`unknown command: ${cmd}. Use log | check | status | economics | reset`, 2);
+  });
 }
 
 function trip(s: SpendState, reason: string): never {
@@ -287,4 +335,7 @@ function trip(s: SpendState, reason: string): never {
 
 function round(n: number): number { return Math.round(n * 1e4) / 1e4; }
 
-void main();
+if (import.meta.main) void main().catch(error => {
+  console.error(`kineti: ${error instanceof Error ? error.message : String(error)}`);
+  process.exitCode = error instanceof SpendError ? error.code : 3;
+});

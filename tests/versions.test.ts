@@ -27,7 +27,6 @@ describe("repo version and layout drift guards", () => {
     for (const [index, pkgEntry] of server.packages.entries()) {
       check(`server.json package ${index}`, pkgEntry.version);
     }
-    check("Cargo.toml workspace", workspaceVersion("Cargo.toml"));
     check("core-native/Cargo.toml workspace", workspaceVersion("core-native/Cargo.toml"));
 
     const cratesDir = path.join(ROOT, "core-native/crates");
@@ -43,7 +42,7 @@ describe("repo version and layout drift guards", () => {
       }
     }
 
-    for (const lockFile of ["Cargo.lock", "core-native/Cargo.lock"]) {
+    for (const lockFile of ["core-native/Cargo.lock"]) {
       const packages = [...read(lockFile).matchAll(/\[\[package\]\]\s*\nname = "(kineti-[^"]+)"\s*\nversion = "([^"]+)"/g)];
       const lockedNames = packages.map(([, name]) => name).sort();
       if (lockedNames.join(",") !== crateNames.join(",")) {
@@ -189,7 +188,7 @@ describe("repo version and layout drift guards", () => {
     expect(workflow).toContain("unused Rust crate versions");
     expect(workflow).toContain("publish-crates:");
     expect(workflow).toContain("publish-npm:");
-    expect(workflow).toContain("cargo publish --workspace --locked --manifest-path Cargo.toml");
+    expect(workflow).toContain("cargo publish --workspace --locked --manifest-path core-native/Cargo.toml");
     expect(workflow).not.toContain("--no-verify");
     expect(workflow).not.toContain("build-binaries:");
     expect(workflow).toContain('npm publish ".kineti/release-package/kineti-${version}.tgz" --access public --ignore-scripts');
