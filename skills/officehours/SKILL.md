@@ -12,8 +12,9 @@ triggers:
 
 # kineti-officehours
 
-You are running YC-style office hours before any work begins. Your job is to
-replace a vague idea with one sentence that can be tested, then lock it.
+Help the user turn a request into a clear goal and a useful project record.
+Use this workflow for a new project; direct fixes and reviews can enter at
+the relevant step.
 
 ## Harness (before anything)
 
@@ -33,31 +34,25 @@ memory verbs; otherwise read `<project>/.kineti/journal.md` if present.
 
 ## Procedure
 
-1. **Ask for the pain, not the idea.** "What happened last week that made
-   this worth doing?" Demand real examples with names, dates, numbers.
-   Hypothetical pain ("users might...") does not count.
-2. **Challenge the framing once, out loud.** State what they asked for,
-   state what their examples actually describe, and ask which they mean.
-   Example: "You said 'dashboard'. Your three examples are all 'I get paged
-   at night'. Are we building a dashboard or an early-warning system?"
-3. **List what must be true** for this to succeed. Mark each as proven
-   (they showed evidence) or assumed (nobody checked).
-4. **Offer two or three build approaches** with effort estimates in days
-   and the cheapest one named clearly.
-5. **Recommend the smallest useful version**: something a real person uses
-   within one week. Say what it deliberately leaves out.
-6. **Write `brief.md`** containing: the pain examples verbatim, the chosen
-   framing, must-be-true list, approaches compared, the smallest version,
-   and explicit out-of-scope items.
-7. **Name the first users and app model.** Record primary and secondary
-   personas, their job, access needs, and the decision each must make. Draw
-   the app model in `brief.md`: user-facing surfaces, main objects, and
-   which work happens in the client, server, or AI. Mark unknowns as
-   assumptions; do not invent research findings.
-8. **Lock the goal.**
+1. **Select the project mode** at activation and show three numbered choices:
+   (1) `harness`, (2) `gate`, or (3) `both`. Do not preselect one. A canceled
+   selection leaves the project inactive; legacy projects remain readable
+   with mode selection pending.
+2. **Understand the request.** Ask for useful examples and evidence when
+   available. Record uncertainty instead of inventing people, business
+   models, measurements, or commercial goals. Noncommercial goals are valid.
+3. **Record the goal and discovery.** Capture personas and their needs,
+   initial feature ideas, app model, responsibilities, constraints, and
+   unanswered questions. Mark what is known, reported, or assumed.
+4. **Compare approaches when it helps the decision.** Include relevant
+   tradeoffs and rough effort or cost ranges where evidence supports them.
+   Do not force a fixed number of approaches or a one-week delivery target.
+5. **Write `brief.md`** with the agreed framing, evidence, assumptions,
+   scope, and unresolved questions.
+6. **Lock the goal only for a newly activated run.**
 
 ```sh
-bun "$K/kineti-state.ts" init --project <slug> --goal "<one testable sentence>"
+bun "$K/kineti-state.ts" init --project <slug> --mode <harness|gate|both> --goal "<one testable sentence>"
 bun "$K/kineti-state.ts" set stage 2
 ```
 
@@ -66,12 +61,10 @@ new run instead of editing it.
 
 ## Approval and acceptance
 
-Show the pain evidence, goal sentence, personas, app model, assumptions,
-and smallest useful version. The human approves the goal and framing before
-the goal is initialized. Pass only when a real pain example supports the
-goal, every key assumption is marked, at least one primary persona is named,
-and the app model assigns each important action to user, client, server, or
-AI. Otherwise revise the brief; do not lock a guessed goal.
+Show the goal, discovery, personas or intended users, app model, constraints,
+and assumptions. The human approves a new run's goal before it is locked.
+Pass when the goal is understandable, important unknowns are visible, and
+the app model assigns relevant work to the user, client, server, or AI.
 
 ## Outputs
 
@@ -79,7 +72,7 @@ AI. Otherwise revise the brief; do not lock a guessed goal.
 
 ## Hard rules
 
-- No feature lists before pain is proven with examples.
+- Keep early feature ideas labeled as ideas until they are evaluated.
 - No building in this stage. Design doc only.
 - Never edit root_goal after locking.
 - Personas and app model are hypotheses unless supported by user evidence.

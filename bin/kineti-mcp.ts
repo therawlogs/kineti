@@ -13,9 +13,13 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import * as readline from "node:readline";
+import {createHash} from "node:crypto";
 import { readJson, projectKdir, loadLimits, loadVerifyCommand, Limits, splitLegacyCommand, assertInsideProject, isAllowedEvidenceCommand } from "./lib.ts";
 import { writeCursorConfig } from "./kineti-config.ts";
 import { applyProtectedWrite, GateFailure } from "./kineti-protected-write.ts";
+import { ContextMemoryStore, localContextScope } from "./kineti-memory-job.ts";
+import { submitServiceRequest } from "./kineti-service-client.ts";
+import { buildMemoryModelRequest } from "./kineti-context.ts";
 
 // Works under bun (import.meta.dir) and plain node (file URL fallback)
 const here: string =
@@ -70,9 +74,9 @@ function runBin(scriptName: string, subArgs: string[]): { exitCode: number; stdo
   } catch {
     safeRoot = process.cwd();
   }
-  const res = spawnSync("bun", [scriptPath, ...subArgs], {
+  const res = spawnSync(process.execPath, [scriptPath, ...subArgs], {
     cwd: safeRoot,
-    env: { ...process.env, KINETI_MACHINE_DIR: path.join(safeRoot, ".kineti", "machine") },
+    env: { ...process.env, KINETI_MACHINE_DIR: process.env.KINETI_MACHINE_DIR || path.join(safeRoot, ".kineti", "machine") },
     encoding: "utf8",
     timeout: 60000,
     killSignal: "SIGKILL",
@@ -150,9 +154,39 @@ const TOOLS = [
     },
   },
   {
+    name: "kineti_linux_service",
+    description: "Submit an owner-signed artifact for independent Linux evaluation, export approved bytes, or inspect a durable request. Requires provisioned owner-only service-client configuration. Protects only the service-owned output; native editor writes remain outside this action.",
+    inputSchema: {type:"object",properties:{operation:{type:"string",enum:["evaluate","export","inspect"]},arguments:{type:"object"}},required:["operation","arguments"]},
+  },
+  {
     name: "kineti_protected_write",
     description: "Write only the exact bytes, destination, and arguments bound to a fresh versioned Kineti receipt. Only writes routed through this MCP tool are gated; host-native file tools are outside its protection.",
     inputSchema: { type: "object", properties: { label: { type: "string" }, run_id: { type: "string" }, destination: { type: "string" }, arguments: {}, content: { type: "string" } }, required: ["label", "run_id", "destination", "arguments", "content"] },
+  },
+  {
+    name: "kineti_context_memory",
+    description: "Store, retrieve, prepare a bounded model context payload, correct, or delete encrypted memory scoped to the local OS user and current project. Memory is selected before it is returned to the host.",
+    inputSchema: {
+      type: "object", properties: {
+        action: { type: "string", enum: ["store", "retrieve", "prepare", "correct", "delete"] },
+        id: { type: "string", pattern: "^mem-[a-zA-Z0-9][a-zA-Z0-9-]{2,100}$", description: "Memory id beginning with mem-. For correction, the existing id; for delete, the id to remove." }, new_id: { type: "string", pattern: "^mem-[a-zA-Z0-9][a-zA-Z0-9-]{2,100}$", description: "New mem- id for a correction." }, content: { type: "string" },
+        query: { type: "string" }, prompt: { type: "string", description: "Current user request for the prepared model payload." }, limit: { type: "integer", minimum: 1, maximum: 20 },
+        tags: { type: "array", items: { type: "string" } },
+        sources: { type: "array", items: { type: "object", properties: { source_id: { type: "string" }, path: { type: "string" }, sha256: { type: "string" } }, required: ["source_id", "path", "sha256"] } },
+        confirm: { type: "string", description: "For deletion, repeat the exact memory id." },
+      }, required: ["action"],
+    },
+  },
+  {
+    name: "kineti_workflow",
+    description: "Inspect project workflow progress, record exact artifact versions, and register numbered scope conflicts. Human approvals require the Kineti terminal command.",
+    inputSchema: { type: "object", properties: {
+      action: { type: "string", enum: ["status", "record", "conflict-add", "conflict-list"] },
+      step: { type: "string", enum: ["discovery", "design", "data-intake", "no-data", "architecture", "outcome"] },
+      file: { type: "string", description: "Relative project path to the artifact" },
+      id: { type: "string" }, request: { type: "string" }, affected: { type: "array", items: { type: "string" } },
+      options: { type: "array", minItems: 2, items: { type: "string" } },
+    }, required: ["action"] },
   },
   {
     name: "kineti_evidence_check",
@@ -282,7 +316,7 @@ function resolveStageNumber(val: any): number | null {
   return STAGE_NAMES[s] ?? null;
 }
 
-function handleToolCall(name: string, args: Record<string, any>): { content: { type: string; text: string }[]; isError?: boolean } {
+async function handleToolCall(name: string, args: Record<string, any>): Promise<{ content: { type: string; text: string }[]; isError?: boolean }> {
   try {
     switch (name) {
       case "kineti_status": {
@@ -339,6 +373,11 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
         };
       }
 
+      case "kineti_linux_service": {
+        if (!["evaluate","export","inspect"].includes(args.operation) || !args.arguments || typeof args.arguments!=="object" || Array.isArray(args.arguments)) throw new Error("invalid Linux service request");
+        const response=await submitServiceRequest(args.operation,args.arguments,workspaceRoot);
+        return {content:[{type:"text",text:JSON.stringify(response)}],isError:response.http_status===null || response.http_status>=400};
+      }
       case "kineti_protected_write": {
         try {
           const text = applyProtectedWrite({ label: args.label, runId: args.run_id, destination: args.destination, ...(Object.hasOwn(args, "arguments") ? { arguments: args.arguments } : {}), content: args.content }, workspaceRoot);
@@ -347,6 +386,51 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
           const code = error instanceof GateFailure ? error.exitCode : 3;
           return { content: [{ type: "text", text: `kineti: ${code === 1 ? "blocked" : code === 2 ? "invalid input" : "write failure"} (exit ${code}): ${(error as Error).message}` }], isError: true };
         }
+      }
+
+      case "kineti_context_memory": {
+        const action = String(args.action);
+        if (!["store", "retrieve", "prepare", "correct", "delete"].includes(action)) return { content: [{ type: "text", text: "kineti: invalid memory action" }], isError: true };
+        try {
+          const memory = new ContextMemoryStore(workspaceRoot, workspaceRoot), scope = localContextScope(workspaceRoot);
+          if (action === "retrieve") return { content: [{ type: "text", text: JSON.stringify(memory.retrieve(scope, String(args.query ?? ""), args.limit === undefined ? 8 : Number(args.limit)), null, 2) }] };
+          if (action === "prepare") {
+            if (typeof args.prompt !== "string") throw new Error("memory prepare requires prompt text");
+            const request = buildMemoryModelRequest(memory, scope, args.prompt, String(args.query ?? ""), args.limit === undefined ? 8 : Number(args.limit));
+            return { content: [{ type: "text", text: JSON.stringify(request, null, 2) }] };
+          }
+          if (action === "store" || action === "correct") {
+            const id = String(action === "store" ? args.id ?? "" : args.new_id ?? "");
+            if (!id || typeof args.content !== "string") throw new Error("memory store requires id and content");
+            const record = memory.append({ id, scope, content: args.content,
+              tags: args.tags === undefined ? [] : args.tags as string[],
+              sources: args.sources === undefined ? [] : args.sources as any[],
+              ...(action === "correct" ? { correction_of: String(args.id ?? "") } : {}) });
+            return { content: [{ type: "text", text: `STORED ${record.id}: ${record.data.content_sha256}` }] };
+          }
+          const id = String(args.id ?? "");
+          if (!id || args.confirm !== id) throw new Error("memory delete requires confirm to repeat the exact memory id");
+          memory.delete(id, scope);
+          return { content: [{ type: "text", text: `DELETED ${id}: encrypted content and key removed; only journal audit metadata remains` }] };
+        } catch (error) {
+          return { content: [{ type: "text", text: `kineti: memory operation failed: ${(error as Error).message}` }], isError: true };
+        }
+      }
+
+      case "kineti_workflow": {
+        const action = String(args.action), cmdArgs: string[] = [];
+        if (action === "status") cmdArgs.push("status");
+        else if (action === "record") {
+          if (!args.step || !args.file) return { content: [{ type: "text", text: "kineti: workflow record requires step and file" }], isError: true };
+          cmdArgs.push("record", "--step", String(args.step), "--file", String(args.file));
+        } else if (action === "conflict-add") {
+          if (!args.id || !args.request || !Array.isArray(args.affected) || !Array.isArray(args.options)) return { content: [{ type: "text", text: "kineti: conflict-add requires id, request, affected, and options" }], isError: true };
+          cmdArgs.push("conflict", "add", "--id", String(args.id), "--request", String(args.request), "--affected", args.affected.map(String).join(","));
+          for (const option of args.options) cmdArgs.push("--option", String(option));
+        } else if (action === "conflict-list") cmdArgs.push("conflict", "list");
+        else return { content: [{ type: "text", text: "kineti: invalid workflow action" }], isError: true };
+        const res = runBin("kineti-workflow.ts", cmdArgs);
+        return { content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }], isError: res.exitCode !== 0 };
       }
 
       case "kineti_evidence_check": {
@@ -392,8 +476,10 @@ function handleToolCall(name: string, args: Record<string, any>): { content: { t
       }
 
       case "kineti_saga_push": {
-        const inverseStr = Array.isArray(args.inverse) ? (args.inverse as string[]).map(String).join(" ") : String(args.inverse);
-        const res = runBin("kineti-saga.ts", ["push", String(args.step), inverseStr]);
+        const structured = Array.isArray(args.inverse);
+        if (structured && (!args.inverse.length || !args.inverse[0] || !args.inverse.every((part: unknown) => typeof part === "string" && !part.includes("\0")))) throw new Error("inverse must be a nonempty argv array of strings");
+        const command = structured ? ["push", "--label", String(args.step), "--inverse-argv", JSON.stringify(args.inverse)] : ["push", String(args.step), String(args.inverse)];
+        const res = runBin("kineti-saga.ts", command);
         return {
           content: [{ type: "text", text: (res.stdout + (res.stderr ? `\n${res.stderr}` : "")).trim() }],
           isError: res.exitCode !== 0,
@@ -465,7 +551,7 @@ function startServer() {
     terminal: false,
   });
 
-  rl.on("line", (line: string) => {
+  rl.on("line", async (line: string) => {
     const trimmed = line.trim();
     if (!trimmed) return;
 
@@ -512,7 +598,7 @@ function startServer() {
     if (method === "tools/call") {
       const toolName = params?.name;
       const toolArgs = params?.arguments ?? {};
-      const result = handleToolCall(toolName, toolArgs);
+      const result = await handleToolCall(toolName, toolArgs);
       sendResponse(id, null, result);
       return;
     }
@@ -532,18 +618,31 @@ function sendResponse(id: string | number | null, error: any, result: any) {
 }
 
 function handleInit(subArgs: string[]) {
-  const rawTargetDir = subArgs[0] ? path.resolve(subArgs[0]) : process.cwd();
+  const hostIndex=subArgs.indexOf("--host"), host=hostIndex<0?"cursor":subArgs[hostIndex+1];
+  if(host!=="cursor"&&host!=="antigravity")throw new Error("MCP host must be cursor or antigravity");
+  const rawTargetDir = subArgs[0] && !subArgs[0].startsWith("--") ? path.resolve(subArgs[0]) : process.cwd();
   const targetDir = assertInsideProject(rawTargetDir, process.env.KINETI_WORKSPACE_ROOT || process.cwd());
-  const cursorDir = path.join(targetDir, ".cursor");
-  const cursorMcpFile = path.join(cursorDir, "mcp.json");
+  const cursorDir = host==="cursor"?path.join(targetDir,".cursor"):path.join(targetDir,".agents/plugins/kineti");
+  const cursorMcpFile = path.join(cursorDir,host==="cursor"?"mcp.json":"mcp_config.json");
 
   const kinetiServer = {
-    command: "bun",
+    command: process.execPath,
     args: [path.join(here, "kineti-protect.ts"), "--workspace-root", targetDir],
+    env: { KINETI_WORKSPACE_ROOT: targetDir },
   };
-  const backup = writeCursorConfig(cursorMcpFile, kinetiServer);
-  const mcpConfig = { mcpServers: { kineti: kinetiServer } };
-  console.log(`[kineti-mcp] Merged Cursor MCP config at: ${cursorMcpFile}`);
+  if(host==="antigravity") {
+    const marker=path.join(cursorDir,"plugin.json");
+    if(fs.existsSync(marker)) {if(JSON.parse(fs.readFileSync(marker,"utf8")).name!=="Kineti")throw new Error("existing plugin is not Kineti; configuration preserved");}
+    else {
+      const undo=spawnSync(process.execPath,[path.join(here,"kineti-saga.ts"),"push","antigravity-plugin-marker","--inverse-argv",JSON.stringify(["rm","-f",path.relative(targetDir,marker)])],{cwd:targetDir,encoding:"utf8"});
+      if(undo.status!==0)throw new Error("could not register plugin undo");
+      fs.mkdirSync(cursorDir,{recursive:true});fs.writeFileSync(marker,JSON.stringify({name:"Kineti"})+"\n",{flag:"wx",mode:0o600});
+    }
+  }
+  const serverName=host==="antigravity"?`kineti_${createHash("sha256").update(fs.realpathSync(targetDir)).digest("hex").slice(0,12)}`:"kineti";
+  const backup = writeCursorConfig(cursorMcpFile, kinetiServer,{serverName,migrateLegacy:host==="antigravity"});
+  const mcpConfig = { mcpServers: { [serverName]: kinetiServer } };
+  console.log(`[kineti-mcp] Merged ${host} MCP config at: ${cursorMcpFile}`);
   if (fs.existsSync(backup)) console.log(`[kineti-mcp] Backup: ${backup}`);
   console.log(`\nTo register with Claude Desktop, add the following to ~/Library/Application Support/Claude/claude_desktop_config.json:`);
   console.log(JSON.stringify(mcpConfig, null, 2));

@@ -46,7 +46,7 @@ We follow the Developer Certificate of Origin (DCO) version 1.1. When you contri
    `Signed-off-by: Full Name <email@example.com>`
 2. You can have Git add this automatically by passing the `-s` flag:
    `git commit -s -m "feat: add spend ceiling notification"`
-3. Pull requests without a valid DCO sign-off cannot be merged into main.
+3. Reviewers require a valid DCO sign-off before merging. This repository does not currently configure an automated DCO enforcement check.
 
 ## 6. Pull request review lifecycle
 

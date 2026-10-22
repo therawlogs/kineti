@@ -31,9 +31,13 @@ echo "=== kineti weekly job $(date '+%Y-%m-%d %H:%M') ==="
 for p in "${project_list[@]}"; do
   [[ -f "$p/.kineti/journal.jsonl" ]] || continue
   echo "--- $p"
-  "$BUN" "$KIN/bin/kineti-memory-job.ts" sweep        --dir "$p"
-  "$BUN" "$KIN/bin/kineti-memory-job.ts" verify-chain --dir "$p"
-  "$BUN" "$KIN/bin/kineti-memory-job.ts" time-order   --dir "$p"
-  "$BUN" "$KIN/bin/kineti-memory-job.ts" promote      --dir "$p" || true
+  (
+    cd "$p"
+    "$BUN" "$KIN/bin/kineti-memory-job.ts" verify-chain --dir .
+    "$BUN" "$KIN/bin/kineti-memory-job.ts" sweep        --dir .
+    "$BUN" "$KIN/bin/kineti-memory-job.ts" verify-chain --dir .
+    "$BUN" "$KIN/bin/kineti-memory-job.ts" time-order   --dir .
+    "$BUN" "$KIN/bin/kineti-memory-job.ts" promote      --dir .
+  )
 done
 echo "=== done ==="

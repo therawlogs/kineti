@@ -1,3 +1,6 @@
 Cursor: add to .cursor/rules/kineti.mdc
-- Start every task with /kineti-officehours, then follow stages 1-13 in order.
-- Rules in AGENTS.md apply: plain words, numbered choices, check spend, save undo, run tests.
+- For a new project, ask the user to choose harness, gate, or both before setup.
+- Continue in natural language through discovery and approved workflow steps.
+- Direct fixes, reviews, and cleanup can start at the relevant step.
+- Slash commands are optional. These instructions provide guidance; only separately tested capabilities are enforcement.
+- Follow project rules for spending, undo steps, and evidence-backed tests.

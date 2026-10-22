@@ -80,10 +80,10 @@ jobs:
         run: bun bin/kineti-evidence.ts run --label release-ts-tests --required-test tests --timeout 600 -- bun test tests/
 
       - name: Run Rust Engine Test Suite
-        run: bun bin/kineti-evidence.ts run --label release-rust-tests --required-test core-native/Cargo.toml --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
+        run: bun bin/kineti-evidence.ts run --label release-rust-tests --required-test core-native/crates --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
 
       - name: Run Native CLI Self-Check
-        run: cargo run -p kineti-cli -- test-all
+        run: cargo run --manifest-path core-native/Cargo.toml -p kineti-cli -- test-all
 
       - name: Run Installer Smoke Test
         run: bun run test:setup
@@ -92,7 +92,7 @@ jobs:
         run: bun scripts/release-package-check.ts
 
       - name: Check Rust crate packages
-        run: cargo package --workspace --locked --manifest-path Cargo.toml
+        run: cargo package --workspace --locked --manifest-path core-native/Cargo.toml
 
       - name: Verify every evidence record is fresh
         run: |
@@ -156,7 +156,7 @@ jobs:
       - name: Publish workspace crates in dependency order
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --workspace --locked --manifest-path Cargo.toml
+        run: cargo publish --workspace --locked --manifest-path core-native/Cargo.toml
 
       - name: Verify egress ledger
         run: bun bin/kineti-egress.ts verify

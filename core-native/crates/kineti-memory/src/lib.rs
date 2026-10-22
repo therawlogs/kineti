@@ -16,6 +16,8 @@ pub mod causal_check;
 pub mod epistemic;
 pub mod graph;
 pub mod hnsw;
+pub mod local;
+pub use local::{LocalMemoryRecord, PersistentLocalMemory};
 pub mod otd;
 pub mod spatial;
 pub mod storage;
@@ -47,7 +49,9 @@ use std::sync::RwLock;
 use tombstone::TombstoneMask;
 use vector::{SearchMatch, VectorIndex};
 
-/// Unified Memory Engine coordinating vector search, causal graph traversal, and style profiles.
+/// In-memory prototype coordinating graph/vector experiments. Caller-supplied
+/// labels are partitions, not authenticated identities. Product local memory
+/// uses [`PersistentLocalMemory`] with the encrypted OS-user/project authority.
 #[derive(Debug, Default)]
 pub struct MemoryEngine {
     /// In-memory vector embedding index.
