@@ -12,18 +12,21 @@ triggers:
 
 # kineti-build
 
-Write the approved spec into working code, one piece at a time, with an
-undo step registered before every change and money checked constantly.
+Implement approved feature work in small pieces, with an undo step registered
+before every change and spending checked at checkpoints. Direct fixes,
+reviews, and cleanup may enter at the relevant step.
 
 ## Harness (every session)
 
 ```sh
 KIN="$(cat "$HOME/.kineti/repo")"; K="$KIN/bin"
 bun "$K/kineti-spend.ts" check || exit 3
-bun "$K/kineti-state.ts" get gate.spec | grep -q pass || { echo "spec not approved"; exit 2; }
 RUN="build-$(date +%s)"
 bun "$K/kineti-saga.ts" begin --run-id "$RUN"
 ```
+For new feature work, confirm that its outcome contract and required
+approvals are current before editing. A direct fix does not need an unrelated
+full-project spec gate.
 Log every model call: `--stage build`.
 
 ## Procedure
@@ -40,9 +43,9 @@ Log every model call: `--stage build`.
 4. **Check money between pieces**: `bun "$K/kineti-spend.ts" check`.
 5. **Verify continuously**: after each piece run the declared verify
    command. Red means fix now, not later.
-6. **Progress commits** after each green piece:
-   `git commit -m "WIP: <piece>" -m "Decisions: ... Failed approaches: ..."`
-   Local-only by default; never push in this stage.
+6. **Checkpoint the work** after each green piece with a clear diff and
+   evidence. Commit only when the user or repository workflow asks for it;
+   never push in this stage.
 7. **Failed approaches go to memory immediately** — approach, why it
    failed, one-line lesson. These are the most valuable records the
    system keeps.
@@ -61,7 +64,7 @@ a failing undo is logged and the rest still run.
 ## Hard rules
 
 - A change is allowed only after its undo step is registered.
-- Spec not approved → nothing happens. No scaffolding exceptions.
+- Missing approval blocks only the feature work that depends on it.
 - Red verify at piece end blocks starting the next piece.
 
 ## Memory after

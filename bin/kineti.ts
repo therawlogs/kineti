@@ -6,7 +6,9 @@
  *
  * Use:
  *   kineti init [--host <name>]
- *   kineti state init --project <name> --goal <text>
+ *   kineti state init --project <name> --mode <harness|gate|both> --goal <text>
+ *   kineti workflow <status|record|approve|conflict>
+ *   kineti conformance --adapter <local-protocol|second-host-stub>
  *   kineti companion [--port 8788]
  *   kineti mcp
  *   kineti test -- <cmd>
@@ -52,6 +54,13 @@ const COMMAND_MAP: Record<string, { script: string; isShell?: boolean }> = {
   memory: { script: "bin/kineti-memory-job.ts" },
   "evidence-verify": { script: "bin/kineti-evidence-verify.ts" },
   "protected-write": { script: "bin/kineti-protected-write.ts" },
+  workflow: { script: "bin/kineti-workflow.ts" },
+  incident: { script: "bin/kineti-memory-job.ts" },
+  context: { script: "bin/kineti-context.ts" },
+  "linux-service": {script:"bin/kineti-linux-service.ts"},
+  "service-client": {script:"bin/kineti-service-client.ts"},
+  "native-memory": {script:"bin/kineti-native-memory.ts"},
+  conformance: { script: "bin/kineti-conformance.ts" },
 };
 
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
@@ -98,6 +107,8 @@ if (subcommand === "spend" && subArgs.length === 0) {
   }
 } else if (subcommand === "undo" && subArgs.length === 0) {
   execArgs = ["rollback"];
+} else if (subcommand === "incident") {
+  execArgs = ["incident", ...subArgs];
 } else if ((subcommand === "status" || subcommand === "state") && subArgs.length === 0) {
   execArgs = ["get"];
 }
@@ -131,6 +142,13 @@ Kineti OS - local test receipts, undo, and reported spend
 Commands:
   kineti init          Install agent instructions and skills
   kineti state init    Create local project state and lock a goal
+  kineti workflow      Record versioned project decisions and approvals
+  kineti incident      Inspect scoped, evidence-linked incident records
+  kineti context       Store, retrieve, correct, or delete local memory
+  kineti linux-service Operate the user-run Linux evaluator/export service
+  kineti service-client Submit an authenticated request through local SSH forwarding
+  kineti native-memory Encrypted current-memory bridge for the native graph/vector API
+  kineti conformance   Run shared gate fixtures; unsupported adapters stay unsupported
   kineti seed          Create missing CI state from kineti.config.json
   kineti companion     Open visual dashboard (http://127.0.0.1:8788)
   kineti mcp           Start MCP server

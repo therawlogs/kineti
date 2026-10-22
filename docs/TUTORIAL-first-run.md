@@ -129,7 +129,7 @@ Kineti can record that a test command finished and bind its result to a workspac
 
 ```bash
 # Run tests and save a local receipt with the current workspace fingerprint
-kineti test -- bun test
+kineti test --required-test tests -- bun test tests/
 
 # Verify that the test receipt is fresh and code has not changed
 kineti test check --label test

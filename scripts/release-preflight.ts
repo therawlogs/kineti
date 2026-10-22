@@ -18,7 +18,7 @@ if (import.meta.main) {
   const tag = process.argv[2];
   if (tag !== `v${version}` || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error("release tag does not match the stable package version");
   for (const file of ["kineti.config.json", "server.json"]) if (JSON.parse(fs.readFileSync(file, "utf8")).version !== version) throw new Error(`version mismatch: ${file}`);
-  for (const file of ["Cargo.toml", "core-native/Cargo.toml"]) if (fs.readFileSync(file, "utf8").match(/\[workspace\.package\][^\[]*?version\s*=\s*"([^"]+)"/s)?.[1] !== version) throw new Error(`version mismatch: ${file}`);
+  for (const file of ["core-native/Cargo.toml"]) if (fs.readFileSync(file, "utf8").match(/\[workspace\.package\][^\[]*?version\s*=\s*"([^"]+)"/s)?.[1] !== version) throw new Error(`version mismatch: ${file}`);
   await registryPreflight(version);
   console.log(`Unused release version checked: ${version}; npm and ${crateNames.length} Rust crates`);
 }

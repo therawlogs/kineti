@@ -19,7 +19,7 @@ until that host can be exercised with an isolated live model runner. Installing
 a skill or finding its description is not evidence that a model selected it.
 
 Package-install acceptance is separate: `scripts/clean-install-acceptance.ts`
-installs published npm and crate version `0.4.0` as a baseline, then installs
+requires `KINETI_BASELINE_VERSION`, `KINETI_NPM_TARBALL` and `KINETI_CRATE_PATH` as explicit inputs, then installs
 the locally built npm tarball and crate candidate into distinct directories.
 The published baseline is not evidence for the candidate. A registry failure
 leaves that baseline incomplete; rerun when registry access is available.
