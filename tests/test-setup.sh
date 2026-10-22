@@ -4,9 +4,8 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Keep the isolated HOME inside the project, as required by AGENTS.md.
-TMP="$HERE/.kineti/acceptance/setup-smoke"
-rm -rf "$TMP"
-mkdir -p "$TMP"
+mkdir -p "$HERE/.kineti/acceptance"
+TMP="$(mktemp -d "$HERE/.kineti/acceptance/setup-smoke.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
 run() { HOME="$TMP/home" bash "$HERE/setup.sh" "$@"; }

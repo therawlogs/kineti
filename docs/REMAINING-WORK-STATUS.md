@@ -1,5 +1,20 @@
 # Kineti remaining-work status
 
+## Latest acceptance amendment — October 22, 2026
+
+This amendment takes precedence over the dated historical status below. The completion contract is still not fully accepted.
+
+- GitHub manual run [39771704308](https://github.com/therawlogs/kineti/actions/runs/39771704308) passed both repository verification and pinned reusable Action acceptance at commit `1e19ebdff70940b8a6325a8ce2333a32ec5f570b`. The reusable Action accepted exact approved bytes and rejected substitution. Main was not merged, released or deployed. The later installer-test scratch-directory repair remains a local follow-up until published and checked.
+- Ubuntu acceptance reproduced two sandbox setup failures. Read-only file descriptors now provide immutable runtime inputs without exposing private authority directories. A trusted inner shell applies the candidate file-size limit before its declared command. All 11 Linux service tests passed after repair; UID 65534, cgroups, network separation, replay, crash recovery and authority isolation remain tested.
+- CI supports an explicit owner-defined label-to-command JSON map through `--evidence-commands`. Both required suites keep exact command matching. Installer tests now use unique project-local scratch directories, allowing concurrent checks without deleting each other's files.
+- Current full local suites passed 339 tests in each of UTC, Asia/Kolkata and America/New_York. These are repeated environment checks, not 1,017 distinct tests. Final receipts must be checked again after this document change.
+- Antigravity returned the approved tracker project, Both mode, locked goal and all five exact approval digests after restart. Project-specific server names avoid connection reuse; the host adds a plugin prefix, so callers must discover the actual exposed tool namespace.
+- Actual Cursor and Antigravity memory responses delivered the original entry, then only its correction, then an empty context after deletion. Antigravity's interrupted deletion was resumed in a fresh project conversation and its raw tool responses were inspected. Evidence remains private under `.kineti/completion-e/`.
+- Remaining acceptance: Cursor's approved tracker restart/handoff and remaining live workflow/background/conflict cases are blocked by its existing account usage limit. No credits or upgrade were purchased. R05's shared protocol corpus still reports service-effect cases and the second-host stub as unsupported; the separate real Linux service tests do not certify that stub.
+- Recorded spending remains $55 against the owner-approved $75 total cap; stop threshold $71.25. Current provider billing is unknown. Keys, original damaged ledgers, failed attempts and recovery evidence are preserved.
+
+The matrix below retains original identifiers, titles and scope. Its dated pending GitHub, unlock and memory-delivery statements are superseded above. R06/R15/R18/R24 remain removed by owner decision; R25–R27 remain parked.
+
 Updated October 17, 2026. This is the review record for the implementation work covered by [the remaining-work contract](REMAINING-WORK-CONTRACT.md). It keeps the original R01–R27 identifiers, titles, and scope tags. The verdict is separate from implementation status: partial work and written tests do not pass behavior that has not been exercised.
 
 ## Current amendment and repair progress — October 21, 2026
