@@ -18,7 +18,7 @@ use kineti_memory::{
 mod evaluator;
 
 use std::env;
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, Read, Write};
 
 fn main() {
     let args = match normalized_args(env::args().collect()) {
@@ -43,6 +43,7 @@ fn main() {
             eprintln!("trusted evaluator is supported only on x86-64 Linux");
             std::process::exit(2);
         }
+        "memory" => run_local_memory(),
         "chat" => run_interactive_chat(),
         "status" => run_status(),
         "test-all" => run_test_suite(),
@@ -58,6 +59,7 @@ fn normalized_args(raw: Vec<String>) -> Result<Vec<String>, String> {
     let mut out = raw.iter().take(2).cloned().collect::<Vec<_>>();
     let command = raw.get(1).map(String::as_str).unwrap_or("help");
     if ![
+        "memory",
         "chat",
         "status",
         "test-all",
@@ -141,7 +143,7 @@ fn run_status() {
     let quota = UserSpendQuota::new("local_dev_user", UserTier::Pro.daily_quota_microcents());
 
     println!("\n--- Kineti Assistant Status ---");
-    println!("Architecture: Pure Native Rust (Zero Node/Python dependencies)");
+    println!("Native prototype components; durable local memory uses the separately installed Bun bridge.");
     println!(
         "Spend Quota: Limit ${:.2} | Spent ${:.2}",
         quota.limit_microcents() as f32 / 1_000_000.0,
@@ -810,4 +812,68 @@ fn run_anti_drift_demo() {
     println!("  Promotion (One-off instruction): {:?}", promo_oneoff);
 
     println!("\n✓ 360º Human Model Anti-Drift Verification Succeeded!\n");
+}
+
+/// Execute the versioned, OS-scoped persistent local memory API. Content enters stdin.
+fn run_local_memory() {
+    if let Err(error) = local_memory_request() {
+        eprintln!("local memory: {error}");
+        std::process::exit(2);
+    }
+}
+fn local_memory_request() -> Result<(), String> {
+    use kineti_memory::PersistentLocalMemory;
+    use serde_json::{json, Value};
+    let mut text = String::new();
+    io::stdin()
+        .take(65_537)
+        .read_to_string(&mut text)
+        .map_err(|e| e.to_string())?;
+    if text.len() > 65_536 {
+        return Err("request too large".into());
+    }
+    let request: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    if request["version"] != 1 || request.get("scope").is_some() || request.get("user").is_some() {
+        return Err("version 1 required; identity is derived from the actual OS account".into());
+    }
+    let bun =
+        env::var("KINETI_BUN").map_err(|_| "KINETI_BUN must name the installed Bun executable")?;
+    let bridge = env::var("KINETI_NATIVE_BRIDGE")
+        .map_err(|_| "KINETI_NATIVE_BRIDGE must name the installed native-memory bridge")?;
+    let memory = PersistentLocalMemory::open(
+        &env::current_dir().map_err(|e| e.to_string())?,
+        std::path::Path::new(&bun),
+        std::path::Path::new(&bridge),
+    )?;
+    let field = |name: &str| {
+        request[name]
+            .as_str()
+            .ok_or_else(|| format!("missing field {name}"))
+    };
+    let embedding = || -> Result<Vec<f32>, String> {
+        request["embedding"]
+            .as_array()
+            .ok_or("embedding array required")?
+            .iter()
+            .map(|v| {
+                v.as_f64()
+                    .map(|n| n as f32)
+                    .filter(|n| n.is_finite())
+                    .ok_or_else(|| "finite embedding required".to_string())
+            })
+            .collect()
+    };
+    let result=match field("operation")? {
+      "ingest"=>{memory.put(field("id")?,field("category")?,field("key")?,field("value")?,&embedding()?)?;json!({"state":"stored"})},
+      "correct"=>{memory.correct(field("corrects")?,field("id")?,field("category")?,field("key")?,field("value")?,&embedding()?)?;json!({"state":"corrected"})},
+      "delete"=>{if field("confirm")?!=field("id")?{return Err("matching deletion confirmation required".into());}memory.delete(field("id")?)?;json!({"state":"deleted"})},
+      "graph"=>Value::Array(memory.graph(request["category"].as_str())?.iter().map(|f|json!({"id":f.id.as_str(),"category":f.category,"key":f.key,"value":f.value,"source_memory_id":f.source_message_id,"created_at_ms":f.created_at_ms})).collect()),
+      "vectors"=>Value::Array(memory.vectors(&embedding()?,request["limit"].as_u64().unwrap_or(8) as usize)?.iter().map(|m|json!({"id":m.id,"score":m.score,"snippet":m.snippet})).collect()),
+      _=>return Err("operation must be ingest, correct, delete, graph or vectors".into())
+    };
+    println!(
+        "{}",
+        serde_json::to_string(&result).map_err(|e| e.to_string())?
+    );
+    Ok(())
 }

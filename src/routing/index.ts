@@ -14,6 +14,7 @@ import {
 } from "../../bin/kineti-evidence.ts";
 import {
   readSpending,
+  saveSpending,
   spendingStop,
   withAccountingLock,
 } from "../../bin/spending-state.ts";
@@ -612,7 +613,7 @@ function reserve(
       microcents: micro,
       status: "reserved",
     };
-    writeJson(path.join(root, ".kineti/spend.json"), {
+    saveSpending(root, {
       ...s,
       routing_reservations: pending,
     });
@@ -672,7 +673,7 @@ export function settle(
       s.tripped = true;
       s.reason = stop;
     }
-    writeJson(path.join(root, ".kineti/spend.json"), {
+    saveSpending(root, {
       ...s,
       routing_reservations: pending,
     });
@@ -696,7 +697,7 @@ function markUnknown(root: string, runId: string) {
       pending = reservations(s);
     if (!pending[runId]) throw new Error("lost routing reservation");
     pending[runId].status = "unknown";
-    writeJson(path.join(root, ".kineti/spend.json"), {
+    saveSpending(root, {
       ...s,
       routing_reservations: pending,
     });

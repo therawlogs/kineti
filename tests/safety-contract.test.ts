@@ -36,14 +36,16 @@ test("corrupt accounting fails closed; resetting a threshold does not release it
   const root=fixture(),file=path.join(root,".kineti/spend.json");
   fs.writeFileSync(file,JSON.stringify({total_microcents:null,tripped:false}));
   expect(run(root,"spend",["check"]).exitCode).not.toBe(0);
-  fs.writeFileSync(file,JSON.stringify({total_microcents:48_000_000,tripped:true}));
+  fs.rmSync(file);
+  expect(run(root,"spend",["log","--stage=build","--tokens-in=0","--tokens-out=0","--usd=48"]).exitCode).toBe(3);
   expect(run(root,"spend",["reset","--i-am-human"]).exitCode).toBe(0);
   expect(run(root,"spend",["check"]).exitCode).toBe(3);
   const state=readSpending(root);expect(spendingStop(state,loadLimits(root))).toContain("threshold");
   fs.writeFileSync(path.join(root,".kineti/spend.log.jsonl"),"not-json\n");
-  expect(run(root,"spend",["check"]).exitCode).toBe(2);
+  expect(run(root,"spend",["check"]).exitCode).toBe(3);
   fs.rmSync(path.join(root,".kineti/spend.log.jsonl"));
-  fs.writeFileSync(file,JSON.stringify({total_microcents:9_500_000,by_stage_microcents:{build:9_500_000},tripped:false}));
+  fs.rmSync(file); fs.rmSync(path.join(root,".kineti/spend.initialized.json"));
+  expect(run(root,"spend",["log","--stage=build","--tokens-in=0","--tokens-out=0","--usd=9.5"]).exitCode).toBe(3);
   expect(run(root,"spend",["check"]).exitCode).toBe(3);
 });
 test("simultaneous spending updates are not lost",async()=>{

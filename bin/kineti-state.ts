@@ -10,6 +10,8 @@ export interface RunState {
   root_goal: string | null;
   root_goal_locked_at: string | null;
   stage: number | string;
+  /** Missing/null means a legacy project whose product mode is still pending. */
+  mode?: "harness" | "gate" | "both" | null;
   task?: {
     type?: string;
     name?: string;
@@ -29,7 +31,12 @@ function file(): string {
 }
 
 function load(): RunState | null {
-  return readJson<RunState>(file());
+  if (!fs.existsSync(file())) return null;
+  const state = readJson<RunState>(file());
+  if (!state || typeof state !== "object" || Array.isArray(state) || validate(state).length) {
+    die("existing state is damaged; refusing to replace the locked goal. Owner inspection required", 3);
+  }
+  return state;
 }
 
 function validate(s: RunState): string[] {
@@ -37,6 +44,7 @@ function validate(s: RunState): string[] {
   if (s.version !== 1) errs.push("version must be 1");
   if (typeof s.project !== "string" || s.project.length === 0) errs.push("project required");
   if (s.root_goal !== null && typeof s.root_goal !== "string") errs.push("root_goal must be string or null");
+  if (s.mode !== undefined && s.mode !== null && !["harness", "gate", "both"].includes(s.mode)) errs.push("mode must be harness|gate|both or pending");
   if (typeof s.stage === "number") {
     if (!Number.isInteger(s.stage) || s.stage < 1 || s.stage > 13) {
       errs.push("stage must be integer 1-13");
@@ -66,6 +74,7 @@ Commands:
 Init / New-run Options:
   --project <name>       Project name
   --goal <text>          Root goal to lock for this run
+  --mode <harness|gate|both> Explicit product mode; omitted mode stays pending
   --stage <1-13|name>    Initial stage (default 1)
   --task <type>          Task type (e.g. bugfix, feature, cleanup)
   --task-name <name>     Human-readable task title
@@ -75,7 +84,7 @@ Init / New-run Options:
 
 function main() {
   const raw = process.argv.slice(2);
-  const [cmd, ...rest] = checkedOptions(raw, ["init", "new-run"].includes(raw[0]) ? ["--project", "--goal", "--stage", "--task", "--task-name"] : [], raw[0] === "new-run" ? ["--force"] : [], [], 3);
+  const [cmd, ...rest] = checkedOptions(raw, ["init", "new-run"].includes(raw[0]) ? ["--project", "--goal", "--mode", "--stage", "--task", "--task-name"] : [], raw[0] === "new-run" ? ["--force"] : [], [], 3);
   const f = file();
 
   if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {
@@ -90,9 +99,11 @@ function main() {
     let initialStage: number | string = 1;
     let taskType: string | undefined = undefined;
     let taskName: string | undefined = undefined;
+    let mode: RunState["mode"] = null;
     for (let i = 0; i < rest.length; i++) {
       if (rest[i] === "--project") project = rest[++i] ?? "";
       else if (rest[i] === "--goal") goal = rest[++i] ?? null;
+      else if (rest[i] === "--mode") mode = rest[++i] as RunState["mode"];
       else if (rest[i] === "--stage") {
         const val = rest[++i] ?? "1";
         if (/^-?\d+$/.test(val)) {
@@ -111,6 +122,8 @@ function main() {
       }
     }
     if (!project) die("init requires --project NAME");
+    if (mode !== null && mode !== "harness" && mode !== "gate" && mode !== "both") die("--mode must be harness, gate, or both", 2);
+    if (mode === null && !taskType) die("new-project init requires an explicit --mode (harness|gate|both); a canceled choice must not initialize the project", 2);
     if (taskType && initialStage === 1) {
       initialStage = taskType;
     }
@@ -120,14 +133,15 @@ function main() {
       root_goal: goal,
       root_goal_locked_at: goal ? nowIso() : null,
       stage: initialStage,
+      mode,
       ...(taskType ? { task: { type: taskType, ...(taskName ? { name: taskName } : {}) } } : {}),
       gates: {},
-      history: [{ at: nowIso(), event: `init project=${project} stage=${initialStage}${taskType ? ` task=${taskType}` : ""}` }],
+      history: [{ at: nowIso(), event: `init project=${project} stage=${initialStage}${mode ? ` mode=${mode}` : " mode=pending"}${taskType ? ` task=${taskType}` : ""}` }],
     };
     writeJson(f, s);
-    const hooked = scaffoldRootHooks();
+    const hooked = mode ? scaffoldRootHooks() : [];
     const hookMsg = hooked.length ? ` (installed root platform hooks: ${hooked.join(", ")})` : "";
-    ok((goal ? `state created; goal locked` : `state created; set the goal with: set root_goal "..."`) + hookMsg);
+    ok((mode ? (goal ? `state created; goal locked; mode=${mode}` : `state created; mode=${mode}; set the goal with: set root_goal "..."`) : `state created; mode pending; choose harness, gate, or both with: set mode <value>`) + hookMsg);
     return;
   }
 
@@ -192,6 +206,7 @@ function main() {
       root_goal: goal,
       root_goal_locked_at: goal ? nowIso() : null,
       stage: initialStage,
+      mode: project === s.project ? (s.mode ?? null) : null,
       ...(taskType ? { task: { type: taskType, ...(taskName ? { name: taskName } : {}) } } : {}),
       gates: {},
       history: [
@@ -209,6 +224,7 @@ function main() {
     const key = rest[0];
     if (!key) { console.log(JSON.stringify(s, null, 2)); return; }
     let v = (s as any)[key];
+    if (key === "mode" && (v === undefined || v === null)) v = "pending";
     if (v === undefined && key.startsWith("gate.")) {
       v = (s.gates as any)?.[key.slice(5)];
     }
@@ -231,6 +247,16 @@ function main() {
       s.root_goal = value;
       s.root_goal_locked_at = nowIso();
       s.history.push({ at: nowIso(), event: "goal locked" });
+    } else if (key === "mode") {
+      if (value !== "harness" && value !== "gate" && value !== "both") die("mode must be harness|gate|both", 2);
+      if (s.mode) {
+        if (s.mode === value) { ok(`mode = ${value} (unchanged)`); return; }
+        die("refused: project mode is already selected; start a separate project to choose another mode", 3);
+      }
+      s.mode = value;
+      s.history.push({ at: nowIso(), event: `mode selected=${value}` });
+      const hooked = scaffoldRootHooks();
+      if (hooked.length) process.stderr.write(`installed root platform hooks: ${hooked.join(", ")}\n`);
     } else if (key === "stage") {
       const trimmed = value.trim();
       if (/^-?\d+$/.test(trimmed)) {
@@ -266,7 +292,7 @@ function main() {
       s.gates[g] = value;
       s.history.push({ at: nowIso(), event: `gate ${g}=${value}` });
     } else {
-      die(`refused: only root_goal (once), stage, task, task.*, gate.* are settable`, 2);
+      die(`refused: only root_goal (once), mode (once), stage, task, task.*, gate.* are settable`, 2);
     }
     const errs = validate(s);
     if (errs.length) die(`invalid state after write: ${errs.join("; ")}`, 2);

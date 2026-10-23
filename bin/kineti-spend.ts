@@ -7,8 +7,9 @@
 
 import fs from "node:fs";
 import { appendAudit } from "./kineti-audit.ts";
+import { validateReceipt } from "./kineti-evidence.ts";
 import { checkedOptions } from "./strict-options.ts";
-import { readSpending, spendingStop, withAccountingLock } from "./spending-state.ts";
+import { readSpending, saveSpending, spendingStop, withAccountingLock } from "./spending-state.ts";
 import path from "node:path";
 import {
   appendJsonl, ensureDir, loadLimits, machineDir, nowIso,
@@ -63,6 +64,7 @@ function file(): string { return path.join(projectKdir(), "spend.json"); }
 function logFile(): string { return path.join(projectKdir(), "spend.log.jsonl"); }
 
 function load(): SpendState { return readSpending(process.cwd(), true); }
+export function inspectSpend(root = process.cwd()): SpendState { return withAccountingLock(root, () => readSpending(root, true)); }
 
 
 function stageLimit(limits: ReturnType<typeof loadLimits>, stage: string): number {
@@ -175,7 +177,7 @@ function main() {
     s.by_stage_microcents[stage] = (s.by_stage_microcents[stage] ?? usdToMicrocents(s.by_stage[stage] ?? 0)) + microcents;
     s.by_stage[stage] = round(s.by_stage_microcents[stage] / 1e6);
     s.entries += 1;
-    writeJson(file(), s);
+    saveSpending(process.cwd(), s);
     appendJsonl(logFile(), {
       at: nowIso(),
       stage,
@@ -219,12 +221,16 @@ function main() {
       let verifiedOutcomes = 0;
       if (fs.existsSync(evidenceFile)) {
         try {
-          const records = readJsonl<{ label?: string; exit_code?: number }>(evidenceFile);
-          verifiedOutcomes = records.filter((r: any) => r.exit_code === 0 && [2, 3].includes(r.receipt_version) && r.verification?.status === "valid" && r.verification?.passed > 0 && r.verification?.failed === 0 && r.verification?.skipped === 0).length;
-        } catch {}
+          const trustedPublicKey = fs.readFileSync(path.join(projectKdir(), "evidence-issuer.pem"), "utf8");
+          const records = readJsonl<any>(evidenceFile);
+          const latest = new Map(records.map(record => [record.label, record]));
+          for (const record of latest.values()) {
+            try { validateReceipt(record, { root: process.cwd(), trustedPublicKey }); verifiedOutcomes++; } catch { /* invalid or stale local receipts do not count */ }
+          }
+        } catch { /* missing evidence is not a verified outcome */ }
       }
-      const costPerOutcome = s.total_usd / Math.max(1, verifiedOutcomes);
-      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; declared_passing_receipts=${verifiedOutcomes}; recorded_cost_per_declared_receipt=$${costPerOutcome.toFixed(2)} (declared records, not verified outcomes or provider billing)`);
+      const costPerOutcome = verifiedOutcomes > 0 ? `$${(s.total_usd / verifiedOutcomes).toFixed(2)}` : "unknown";
+      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; fresh_local_test_receipts=${verifiedOutcomes}; recorded_cost_per_receipt=${costPerOutcome}; provider_billing=unknown`);
       return;
     }
 
@@ -249,7 +255,7 @@ function main() {
       writeJson(mirrorPath, { ...mirror, ceiling: newCeiling });
     }
     s.tripped = false; s.reason = null;
-    writeJson(file(), s);
+    saveSpending(process.cwd(), s);
     const refreshedLimits = loadLimits();
     const refreshedCeilingMicrocents = Math.round(refreshedLimits.globalUsd * refreshedLimits.safetyFactor * 1e6);
     const remainingHeadroom = Math.max(0, round((refreshedCeilingMicrocents - s.total_microcents) / 1e6));
@@ -266,7 +272,7 @@ function main() {
 
 function trip(s: SpendState, reason: string): never {
   s.tripped = true; s.reason = reason;
-  writeJson(file(), s);
+  saveSpending(process.cwd(), s);
   try {
     ensureDir(machineDir());
     fs.appendFileSync(path.join(machineDir(), "alerts.log"), `${nowIso()} SPEND TRIPPED: ${reason}\n`);
@@ -276,4 +282,4 @@ function trip(s: SpendState, reason: string): never {
 
 function round(n: number): number { return Math.round(n * 1e4) / 1e4; }
 
-try { main(); } catch (error) { console.error(`kineti: ${(error as Error).message}`); process.exitCode = error instanceof SpendExit ? error.code : 2; }
+if (import.meta.main) try { main(); } catch (error) { console.error(`kineti: ${(error as Error).message}`); process.exitCode = error instanceof SpendExit ? error.code : 3; }

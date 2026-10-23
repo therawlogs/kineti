@@ -10,6 +10,7 @@ import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { die, ok, projectKdir, readJson, readJsonl, writeJson } from "./lib.ts";
 import { appendAudit } from "./kineti-audit.ts";
+import { importJournalTail, journalSnapshot } from "./kineti-memory-job.ts";
 
 const VERSION = 1;
 
@@ -28,7 +29,7 @@ function keyFromPassphrase(pass: string, salt: Buffer): Buffer {
 
 function collectSnapshot(): Record<string, unknown> {
   const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
-  const journal = readJsonl<any>(path.join(projectKdir(), "journal.jsonl")).slice(-50);
+  const journal = journalSnapshot(process.cwd());
   const prefs = readJson<any>(path.join(projectKdir(), "companion_settings.json")) || {};
   return {
     version: VERSION,
@@ -115,20 +116,7 @@ if (import.meta.main) {
     const snap = JSON.parse(plain);
     const hash = snapshotHash({ ...snap });
     if (hash !== payload.snapshot_sha256) die("snapshot hash mismatch, refusing import", 3);
-    // Merge journal tail, dedupe by timestamp+text. Never touch root_goal.
-    const journalFile = path.join(projectKdir(), "journal.jsonl");
-    const existing = readJsonl<any>(journalFile);
-    const seen = new Set(existing.map((j) => `${j.at}|${JSON.stringify(j)}`));
-    const incoming = Array.isArray(snap.journal_tail) ? snap.journal_tail : [];
-    let added = 0;
-    for (const j of incoming) {
-      const k = `${j.at}|${JSON.stringify(j)}`;
-      if (!seen.has(k)) {
-        fs.appendFileSync(journalFile, JSON.stringify(j) + "\n");
-        seen.add(k);
-        added += 1;
-      }
-    }
+    const added = importJournalTail(process.cwd(), snap.journal_tail, hash);
     const state = readJson<any>(path.join(projectKdir(), "state.json")) || {};
     const goalMatch = (state.root_goal ?? null) === (snap.goal ?? null);
     try { appendAudit("user", "sync.import", `added=${added} goal_match=${goalMatch} sha=${String(payload.snapshot_sha256).slice(0, 12)}`); } catch {}

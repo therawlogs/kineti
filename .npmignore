@@ -24,7 +24,16 @@ core-native/
 # Not shipped to consumers
 website/
 tests/
-docs/
+docs/*
+!docs/RECOVERY.md
+!docs/CANONICAL-FORMATS.md
+!docs/LOCAL-WORKFLOW-APIS.md
+!docs/PROTECTED-WRITE.md
+!docs/LINUX-SERVICE.md
+!docs/NATIVE-MEMORY.md
+!docs/GITHUB-ACTION.md
+!docs/ROUTING.md
+!docs/EVALUATOR.md
 docs/archive/
 docs/archive.zip
 preview/
@@ -43,3 +52,22 @@ ROADMAP.md
 # installed design workflow skill.
 !skills/design/
 !skills/design/SKILL.md
+
+# Source-only UI/benchmark material and retired installation path
+src/components/
+src/harness/
+src/security/sanitizer.ts
+public/
+install.sh
+tsconfig*.json
+
+# Repository configuration is not consumer configuration
+AGENTS.md
+kineti.config.json
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+
+acceptance/
+
+# Reusable GitHub source integration ships from GitHub, not npm
+action.yml

@@ -208,6 +208,17 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
     let runtime = runtime_digest()?;
     let helper = digest(&fs::read(HELPER)?);
     let supervisor = digest(&fs::read(std::env::current_exe()?)?);
+    // Retain the original input under the trusted account before running any candidate.
+    // An interrupted export can then be investigated without candidate-supplied bytes.
+    let retained_path = state.join("artifacts").join(format!("{id}.artifact"));
+    let mut retained = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o400)
+        .open(&retained_path)?;
+    retained.write_all(&bytes)?;
+    retained.sync_all()?;
+    File::open(state.join("artifacts"))?.sync_all()?;
     let job = Path::new("/var/lib/kineti-jobs").join(format!("{id}.sh"));
     let mut artifact = OpenOptions::new()
         .write(true)
@@ -296,7 +307,7 @@ pub fn cli(args: &[String]) -> Result<()> {
             let state = Path::new(&args[1]);
             if state.exists() { return Err("refusing to replace existing evaluator state".into()); }
             fs::create_dir(state)?; fs::set_permissions(state,fs::Permissions::from_mode(0o700))?;
-            for dir in ["operations","exports"] { fs::create_dir(state.join(dir))?; }
+            for dir in ["operations","exports","artifacts"] { fs::create_dir(state.join(dir))?; }
             let key = SigningKey::generate(&mut OsRng);
             let mut f = OpenOptions::new().write(true).create_new(true).mode(0o600).open(state.join("signing.key"))?;
             f.write_all(&key.to_bytes())?; f.sync_all()?;

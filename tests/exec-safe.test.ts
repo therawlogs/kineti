@@ -100,8 +100,17 @@ describe("0.1 shell removal", () => {
 
   test("safe exec unit: timeout kills long runs", async () => {
     const { runSafeCommand } = await import("../bin/lib.ts");
-    const res = runSafeCommand(["sleep", "2"], { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: 400 });
-    expect(res.exitCode).not.toBe(0);
-    expect(res.stderr).toContain("timeout");
+    const c = makeCtx();
+    const priorMachine = process.env.KINETI_MACHINE_DIR;
+    process.env.KINETI_MACHINE_DIR = c.machine;
+    try {
+      const res = runSafeCommand(["sleep", "2"], { cwd: process.cwd(), workspaceRoot: process.cwd(), timeoutMs: 400 });
+      expect(res.exitCode).not.toBe(0);
+      expect(res.stderr).toContain("timeout");
+    } finally {
+      if (priorMachine === undefined) delete process.env.KINETI_MACHINE_DIR;
+      else process.env.KINETI_MACHINE_DIR = priorMachine;
+      fs.rmSync(c.root, { recursive: true, force: true });
+    }
   });
 });

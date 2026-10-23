@@ -1,0 +1,41 @@
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
+import { LinuxProtectedService, signServiceRequest, type LinuxServiceConfig, type SignedServiceRequest } from "../bin/kineti-linux-service.ts";
+import { evaluationDigest, signOwnerManifest } from "../src/security/evaluation-contract.ts";
+if(process.platform!=="linux")throw new Error("This acceptance suite requires real Linux isolation; no mock fallback.");
+fs.mkdirSync("/sys/fs/cgroup/kineti-acceptance",{recursive:true});fs.writeFileSync("/sys/fs/cgroup/cgroup.subtree_control","+cpu +memory +pids");fs.writeFileSync("/sys/fs/cgroup/kineti-acceptance/cgroup.subtree_control","+cpu +memory +pids");
+const base=path.resolve(".kineti/github-service-acceptance"); fs.mkdirSync(base,{recursive:true,mode:0o700});
+const sha=(x:string|Uint8Array)=>crypto.createHash("sha256").update(x).digest("hex");
+const pair=()=>{const p=crypto.generateKeyPairSync("ed25519");return {private:p.privateKey.export({type:"pkcs8",format:"pem"}).toString(),public:p.publicKey.export({type:"spki",format:"pem"}).toString()};};
+let n=0;
+function fixture(script="printf 'hello\\n'\n", checks?: any[]) {
+ const root=path.join(base,`case-${++n}`);fs.mkdirSync(root,{mode:0o700});const lib=path.join(root,"runtime-lib");fs.mkdirSync(lib,{mode:0o755});
+ const loader=fs.readdirSync("/lib").find(x=>/^ld-musl.*\.so\.1$/.test(x));if(!loader)throw new Error("musl-runtime-required");
+ fs.copyFileSync(`/lib/${loader}`,path.join(lib,loader));fs.chmodSync(path.join(lib,loader),0o555);fs.copyFileSync(`/lib/${loader}`,path.join(lib,"libc.musl-runtime.so.1"));fs.chmodSync(path.join(lib,"libc.musl-runtime.so.1"),0o555);
+ const owner=pair(), evaluator=pair(),caller=pair(); const runtime={bwrap:"/usr/bin/bwrap",prlimit:"/usr/bin/prlimit",busybox:"/bin/busybox",library_dir:lib,cgroup_root:"/sys/fs/cgroup/kineti-acceptance",sha256:{} as Record<string,string>};
+ for(const p of [runtime.bwrap,runtime.prlimit,runtime.busybox,...fs.readdirSync(lib).map(x=>path.join(lib,x))])runtime.sha256[p]=sha(fs.readFileSync(p));
+ const artifact=Buffer.from(script);const contract={version:1 as const,environment:{LANG:"C"},checks:checks||[{id:"hello-check",argv:["/bin/busybox","sh","/candidate"],stdin_base64:"",expected_exit:0,stdout_sha256:sha("hello\n"),stderr_sha256:sha(""),timeout_ms:3000}]};
+ const policy={version:1 as const,destinations:["release/app.sh"],caller_keys:{"client-one":caller.public},revoked_callers:[] as string[],revoked_evaluations:[] as string[],max_age_ms:60000};
+ const pins={artifact_sha256:sha(artifact),contract_sha256:evaluationDigest(contract),policy:{id:"export-policy",version:"1",sha256:evaluationDigest(policy)},owner:{id:"owner-service",key_id:"owner-key"},evaluator:{id:"linux-evaluator",key_id:"eval-key"},runner:{id:"linux-bwrap",version:"1",image_sha256:evaluationDigest(runtime.sha256)},required_checks:contract.checks.map(x=>({id:x.id,argv:x.argv,input_sha256:[sha(Buffer.from(x.stdin_base64,"base64"))]}))};
+ const config:LinuxServiceConfig={version:1,owner_public_key:owner.public,evaluator_private_key:evaluator.private,pins,contract,policy,runtime};fs.writeFileSync(path.join(root,"config.json"),JSON.stringify(config),{mode:0o600});
+ const service=new LinuxProtectedService(root,{initialize:true});
+ const manifest=signOwnerManifest({schema:"kineti-independent-evaluation/v1",evaluation_id:`evaluation-${n}`,artifact_sha256:pins.artifact_sha256,contract_sha256:pins.contract_sha256,policy:pins.policy,owner:pins.owner,runner:pins.runner,required_checks:pins.required_checks},owner.private);
+ const request=(operation:SignedServiceRequest["operation"],args:Record<string,unknown>,overrides={})=>signServiceRequest({version:1,operation,caller:"client-one",request_id:crypto.randomUUID(),expires_ms:Date.now()+60000,arguments:args,...overrides},caller.private);
+ const evaluate=()=>service.handle(request("evaluate",{manifest,artifact_base64:artifact.toString("base64")})) as Promise<any>;
+ const exportRequest=(evaluation:any)=>request("export",{action:"export-artifact",evaluation_id:manifest.evaluation_id,evaluation_sha256:evaluationDigest((({evaluation_id:_,...result})=>result)(evaluation)),policy_sha256:pins.policy.sha256,destination:"release/app.sh",digest:sha(artifact)});
+ return {root,service,config,manifest,artifact,caller,owner,request,evaluate,exportRequest};
+}
+function reset(){fs.rmSync(base,{recursive:true,force:true});fs.mkdirSync(base,{mode:0o700});} reset();
+// Trusted owner bootstrap for the synthetic manual GitHub consumer check only.
+const uid=Number(process.env.KINETI_CALLER_UID),gid=Number(process.env.KINETI_CALLER_GID),client=process.env.KINETI_CLIENT_PROJECT;
+if(process.getuid!()!==0||!Number.isSafeInteger(uid)||uid<1||!Number.isSafeInteger(gid)||gid<1||!client||!path.isAbsolute(client)||fs.existsSync(client))throw Error("fresh absolute caller root and explicit non-root identity required");
+const f=fixture();f.service.close();fs.chmodSync(path.resolve(".kineti"),0o755);
+const log=path.resolve(".kineti/github-service.log");fs.writeFileSync(log,"",{mode:0o600});fs.chownSync(log,uid,gid);
+fs.mkdirSync(path.join(client,".kineti"),{recursive:true,mode:0o700});
+const evaluatorPublic=crypto.createPublicKey(f.config.evaluator_private_key).export({type:"spki",format:"pem"}).toString();
+fs.writeFileSync(path.join(client,".kineti/service-client.key"),f.caller.private,{mode:0o600});
+fs.writeFileSync(path.join(client,".kineti/service-client.json"),JSON.stringify({version:1,endpoint:"http://127.0.0.1:17889/v1/request",caller:"client-one",private_key_file:".kineti/service-client.key",owner_public_key:f.config.owner_public_key,evaluator_public_key:evaluatorPublic,pins:f.config.pins}),{mode:0o600});
+for(const item of [client,path.join(client,".kineti"),path.join(client,".kineti/service-client.key"),path.join(client,".kineti/service-client.json")])fs.chownSync(item,uid,gid);
+const input=path.resolve(".kineti/github-input");fs.mkdirSync(input,{mode:0o755});fs.writeFileSync(path.join(input,"manifest.json"),JSON.stringify(f.manifest));fs.writeFileSync(path.join(input,"candidate.sh"),f.artifact);fs.writeFileSync(path.join(input,"service-root.txt"),f.root);
+console.log("Disposable owner-signed service configured. Private keys were not printed.");

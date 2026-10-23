@@ -28,7 +28,7 @@ test("fabricated summaries, early exit and incomplete checks deny export",()=>{
  expect(docker(["exec",container,"cat","/var/lib/kineti/state/outside-sentinel"]).text).toBe("unchanged");
 });
 test("genuine execution exports exact bytes with a verifiable service signature; replay is idempotent",()=>{
- const req=request(),r=submit(req);expect(r.value).toMatchObject({status:"applied"});expect(r.code).toBe(0);expect(r.value.status).toBe("applied");expect(r.value.checks).toHaveLength(4);expect(r.value.checks[0].command.slice(-2)).toEqual(["2","3"]);expect(r.value.previous.status).toBe("pending");verifySignature(r.value.previous);verifySignature(r.value);expect(destination(req).text).toBe(genuine);
+ const req=request(),r=submit(req);expect(r.value).toMatchObject({status:"applied"});expect(r.code).toBe(0);expect(r.value.status).toBe("applied");expect(docker(["exec",container,"cat",`/var/lib/kineti/state/artifacts/${req.operation_id}.artifact`]).text).toBe(genuine);expect(r.value.checks).toHaveLength(4);expect(r.value.checks[0].command.slice(-2)).toEqual(["2","3"]);expect(r.value.previous.status).toBe("pending");verifySignature(r.value.previous);verifySignature(r.value);expect(destination(req).text).toBe(genuine);
  const replay=submit(req);expect(replay.value).toEqual(r.value);
  const changed=submit({...req,session_id:crypto.randomUUID()});expect(changed.code).toBe(1);expect(changed.value.reason).toContain("substitution");expect(destination(req).text).toBe(genuine);
 });

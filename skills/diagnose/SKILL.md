@@ -1,6 +1,6 @@
 ---
 name: diagnose
-description: Prove in dollars where the business loses time or money today. Stage 2 of 13.
+description: Gather evidence about project constraints when it helps a decision. Stage 2 of 13.
 stage: intake
 version: 0.5.0
 triggers:
@@ -12,8 +12,9 @@ triggers:
 
 # kineti-diagnose
 
-Before designing anything, measure the wound. This stage converts messy
-complaints into a loss table a CFO would accept, and finds the bottleneck.
+Use diagnosis when project decisions benefit from evidence about delays,
+costs, or constraints. It is supporting analysis, not a required business
+case for every project.
 
 ## Harness
 
@@ -28,57 +29,50 @@ Log model calls with `--stage diagnose`.
 
 ## Inputs
 
-`brief.md`, approved `design/storyboard.md` and mock-data shape, names of
-systems to inspect, logs/exports the human provides. Intake is downstream of
-the design approval; before that, use only explicitly labeled mock examples.
+`brief.md`, approved `design/storyboard.md` and mock-data shape, approved
+data purpose when real inputs are needed, and any systems or evidence the
+user chooses to provide.
 
 ## Procedure
 
-1. **Check the intake gate.** Confirm the human-approved storyboard and
-   mock-data shape exist. If either is absent, stop and route back to
-   `kineti-design`; do not request, inspect, or import real data.
+1. **Check the design and data gates.** Confirm the approved storyboard and
+   mock-data shape exist. If absent, do not begin data intake. Real-data use
+   requires a separately approved purpose; otherwise use mock data or no data.
 2. **Map the process as steps.** Every step is one box: who does it, what
    tool, what triggers the next box. Include manual handoffs as boxes.
-3. **Record data intake.** For every provided dataset, record its owner,
+3. **Record approved data use.** For every provided dataset, record its owner,
    source, purpose, fields needed, sensitivity, retention/deletion rule, and
    whether it is real or mock in `data-intake.md`. Request only fields needed
    to test the approved storyboard. Get approval for real-data use before
    opening or processing it; otherwise analyze documented metadata only.
-4. **Mark the waste.** On each box record: wait time before it starts,
-   repeats/rework loops, manual copying between tools.
-5. **Convert to dollars (P90, not worst case).** For each waste item:
-   `cost = frequency × hours_blocked × loaded_hourly_rate`. Use the 90th
-   percentile of observed durations, never the single worst event. Show
-   every input number next to every result.
-6. **Find the constraint.** The slowest required step caps everything
-   downstream. Name it explicitly; improving non-constraints wastes money.
-7. **Write cause chains for the top three losses.** Each link needs
-   evidence (a log line, a ticket, a measurement). A link supported only by
-   guessing scores half confidence. Stop at five links or at a hard
-   physical limit, whichever comes first.
-8. **Write `diagnostics.md`:** loss table sorted by cost, the constraint,
-   three cause chains with confidence per link, data sources used.
-9. Move stage: `bun "$K/kineti-state.ts" set stage 3`.
+4. **Record relevant evidence.** Include wait time, rework, or manual copying
+   when those measures apply and are available.
+5. **Estimate impact only when appropriate.** State assumptions and show
+   calculations for quantitative claims. Leave values unknown when evidence
+   is missing; do not force dollar or percentile estimates.
+6. **Describe dependencies and possible causes carefully.** Link each claim
+   to evidence. Time order alone does not prove cause; label uncertain links
+   as hypotheses and include competing explanations when relevant.
+7. **Write `diagnostics.md`** with the evidence, constraints, unknowns, and
+   data sources that matter to the current decision.
+8. Move stage when the analysis is ready: `bun "$K/kineti-state.ts" set stage 3`.
 
 ## Approval and acceptance
 
-Human approval of the storyboard/mock-data shape is a prerequisite. Human
-approval of real-data purpose and scope is required before processing real
-data. Pass when every intake item has provenance, purpose, sensitivity,
-retention, and real/mock status, and `diagnostics.md` identifies its data
-sources. Missing approval or metadata means stop, not infer consent.
+Human approval of the storyboard/mock-data shape is required before data
+intake. Human approval of real-data purpose and scope is required before
+processing it. Pass when relevant claims and data sources are inspectable,
+unknowns remain visible, and no cause is stated as fact without evidence.
 
 ## Outputs
 
-`diagnostics.md`. Loss table also stored to memory (dossier).
+`diagnostics.md`. Relevant findings may be added to project memory with source references.
 
 ## Hard rules
 
-- Every dollar figure shows its math inline.
-- No solutions proposed in this stage. Measurement only.
-- P90 bounds, not maximums — hyperbole kills credibility at the gate.
+- Every quantitative claim shows its evidence and assumptions.
+- Do not turn sequence or correlation into a causal claim.
 
 ## Memory after
 
-Store: loss table, constraint name, cause chains. These feed the
-feasibility gate's money math later.
+Store: relevant findings, evidence references, and unresolved questions.

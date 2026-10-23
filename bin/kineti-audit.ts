@@ -10,6 +10,7 @@ import path from "node:path";
 import {
   computeDelimitedHash, die, ensureDir, machineDir, nowIso, ok, readJsonl,
 } from "./lib.ts";
+import { checkCheckpoint, commitCheckpoint, readStrictLines, withFileLock } from "./ledger-integrity.ts";
 
 interface AuditEntry {
   seq: number;
@@ -26,11 +27,16 @@ function auditFile(): string {
 }
 
 function loadChain(): AuditEntry[] {
-  return readJsonl<AuditEntry>(auditFile());
+  checkCheckpoint(auditFile());
+  const chain = readStrictLines<AuditEntry>(auditFile());
+  const problem = validateChain(chain);
+  if (problem !== null) throw new Error(`audit chain invalid at ${problem}`);
+  return chain;
 }
 
 /** Append one entry to the hash-chained audit log. Exported for spend/companion use. */
 export function appendAudit(actor: string, action: string, detail: string): AuditEntry {
+  return withFileLock(`${auditFile()}.lock`, () => {
   const chain = loadChain();
   const prev = chain.length > 0 ? chain[chain.length - 1].hash : "GENESIS";
   const seq = chain.length;
@@ -50,23 +56,28 @@ export function appendAudit(actor: string, action: string, detail: string): Audi
   try {
     fs.chmodSync(auditFile(), 0o600);
   } catch { /* ignore chmod failures on some systems */ }
+  commitCheckpoint(auditFile());
   return entry;
+  });
 }
 
-/** Verify the full chain. Returns true when intact. */
-export function verifyAudit(): { ok: boolean; count: number; badSeq: number | null } {
-  const chain = loadChain();
+function validateChain(chain: AuditEntry[]): number | null {
   let prev = "GENESIS";
-  for (const e of chain) {
-    const expect = computeDelimitedHash([
-      String(e.seq), e.at, e.actor, e.action, e.detail, e.prev_hash,
-    ]);
-    if (e.prev_hash !== prev || e.hash !== expect) {
-      return { ok: false, count: chain.length, badSeq: e.seq };
-    }
+  for (let i = 0; i < chain.length; i++) {
+    const e = chain[i];
+    if (!e || e.seq !== i || ![e.at, e.actor, e.action, e.detail, e.prev_hash, e.hash].every(v => typeof v === "string")) return i;
+    const expected = computeDelimitedHash([String(e.seq), e.at, e.actor, e.action, e.detail, e.prev_hash]);
+    if (e.prev_hash !== prev || e.hash !== expected) return i;
     prev = e.hash;
   }
-  return { ok: true, count: chain.length, badSeq: null };
+  return null;
+}
+
+export function verifyAudit(): { ok: boolean; count: number; badSeq: number | null } {
+  return withFileLock(`${auditFile()}.lock`, () => {
+    try { const chain = loadChain(); return { ok: true, count: chain.length, badSeq: null }; }
+    catch { return { ok: false, count: 0, badSeq: 0 }; }
+  });
 }
 
 function main() {
@@ -108,4 +119,4 @@ function main() {
   die("unknown command: use log | verify | show", 2);
 }
 
-if (import.meta.main) main();
+if (import.meta.main) { try { main(); } catch (error) { console.error(`kineti: ${(error as Error).message}`); process.exitCode = 3; } }

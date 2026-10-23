@@ -24,7 +24,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("generates verified report on healthy workspace", () => {
+  it("blocks a configured workspace without test evidence", () => {
     writeJson(path.join(kinetiDir, "state.json"), {
       version: 1,
       current_stage: 7,
@@ -39,20 +39,23 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
       total_microcents: 1250000, // $1.25
       tripped: false,
       limit_microcents: 50000000,
+      reason: null, total_usd: 1.25, entries: 1, by_stage: { build: 1.25 }, by_stage_microcents: { build: 1250000 },
     });
+
+    fs.writeFileSync(path.join(kinetiDir,"spend.log.jsonl"), JSON.stringify({stage:"build",model:"fixture",tokens_in:0,tokens_out:0,usd:1.25,microcents:1250000})+"\n");
 
     const report = generateCIReport(tmpDir);
 
-    expect(report.checksPassed).toBe(true);
+    expect(report.checksPassed).toBe(false);
     expect(report.stageNumber).toBe(7);
     expect(report.stageName).toBe("build");
     expect(report.spendUsd).toBe(1.25);
-    expect(report.badgeUrl).toContain("Checks--Passed");
-    expect(report.badgeUrl).toContain("7c3aed");
-    expect(report.failures).toHaveLength(0);
+    expect(report.badgeUrl).toContain("Checks--Blocked");
+    expect(report.badgeUrl).toContain("ef4444");
+    expect(report.failures.some(f => f.includes("No evidence records"))).toBe(true);
     expect(report.markdownSummary).toContain("Root Goal Hash");
     expect(report.prComment).not.toContain("Build high-integrity microservice");
-    expect(report.prComment).toContain("PASSED");
+    expect(report.prComment).toContain("BLOCKED");
   });
 
   it("detects tripped spend circuit breaker and blocks gate", () => {
@@ -70,7 +73,10 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
       total_microcents: 52000000, // $52.00
       tripped: true,
       limit_microcents: 50000000,
+      reason: "circuit breaker", total_usd: 52, entries: 1, by_stage: { build: 52 }, by_stage_microcents: { build: 52000000 },
     });
+
+    fs.writeFileSync(path.join(kinetiDir,"spend.log.jsonl"), JSON.stringify({stage:"build",model:"fixture",tokens_in:0,tokens_out:0,usd:52,microcents:52000000})+"\n");
 
     const report = generateCIReport(tmpDir);
 
@@ -131,7 +137,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
     });
 
     const report = generateCIReport(tmpDir);
-    expect(report.checksPassed).toBe(true);
+    expect(report.checksPassed).toBe(false);
     expect(report.stageName).toBe("bugfix");
     expect(report.stageNumber).toBe(0);
     expect(report.markdownSummary).toContain("bugfix");
@@ -239,7 +245,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
 
     expect(report.checksPassed).toBe(false);
     expect(report.evidenceChecks).toEqual([
-      expect.objectContaining({ label: "typecheck", status: "invalid" }),
+      expect.objectContaining({ label: "typecheck", status: "invalid-receipt" }),
       expect.objectContaining({ label: "unit-tests", status: "missing" }),
     ]);
     expect(report.failures.some((failure) => failure.includes("unit-tests") && failure.includes("missing"))).toBe(true);

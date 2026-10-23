@@ -17,7 +17,19 @@ bun bin/kineti-evidence.ts check --label release-check
 
 After a source edit, the check reports a stale receipt. Rerun the same `run` command, then check again. With an installed package, use `kineti test run --label release-check --required-test tests -- bun test tests/` and `kineti test check --label release-check` from the project directory.
 
-Example blocked bad release: a release script checks the receipt, receives a non-zero `STALE` result after a source edit, and stops before packaging. This is a check your script must run; Kineti does not stop unrelated release commands or intercept every editor action.
+Run `bash demo-no-key.sh` to see this with a local copy of the package and test files. It edits only a fixture under `.kineti/demos/`, checks the stale receipt before `npm pack`, then proves a fresh control can package. The run records its result and package digest in the fixture. It does not edit the working checkout. This check gates only the command that uses it; it does not stop unrelated release commands or intercept every editor action.
+
+Output from the executed lifecycle:
+
+```text
+kineti: STALE (workspace or test inputs changed after proof)
+EXPECTED BLOCK: npm pack was not run; no package or success marker exists.
+FRESH: demo
+kineti-0.5.0.tgz
+FRESH: demo-package (package command result; not test evidence)
+CONTROL PASS: .kineti/demos/packages/kineti-0.5.0.tgz
+WORKING CHECKOUT UNCHANGED: bin/lib.ts sha256=9494d6c5670f2f84834b83d9cd40efee77f154e58fccc8739f74b8a710a0101d
+```
 
 ```text
 $ kineti spend status
@@ -51,10 +63,10 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 - **Transactional SAGA Undo Stack**: Newest-first rollback of inverses the agent registered. A failed inverse prints `rollback incomplete`, exits 1, and that step stays pending.
 - **Versioned Test Receipts**: Kineti records the test command, parsed test summary, required-test inventory, workspace fingerprint, and a local Ed25519 signature. The signature identifies the local issuer key; it does not establish a trusted organization or prove tests were adequate. The separate verifier can check the declared evidence when given the trusted public key.
 - **Visual Companion**: A local dashboard for project state, activity, team details, and local budgets.
-- **Model Context Protocol (MCP)**: 15 tools: 14 governance tools plus the plain-talk helper. The opt-in protected-write launcher targets Cursor; real host acceptance remains unverified.
+- **Model Context Protocol (MCP)**: 18 tools, including the signed Linux service client and the plain-talk helper. Cursor service allow/deny calls have run locally; other host capabilities are reported separately in `hosts/capabilities.v1.json`.
 
 ### 3. Test Inventory & Evaluation Roadmap
-- **Test inventory**: 287 TypeScript governance test cases and 250 native Rust test cases (537 total test cases); passing tests verify tested paths, not every external integration or agent action.
+- **Test inventory**: 356 TypeScript governance test cases and 251 native Rust test cases (607 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Not provided**: a complete agent sandbox or cloud connector service.
 
@@ -95,10 +107,10 @@ The opt-in protected file-write launcher targets Cursor in this release; real Cu
 Initialize local project state separately from editor setup:
 
 ```bash
-kineti state init --project my-project --goal "Describe the outcome for this run"
+kineti state init --project my-project --mode both --goal "Describe the outcome for this run"
 ```
 
-`kineti init` installs agent instructions and skills. `kineti state init` creates local task state. In CI, use `kineti seed` to create only missing state and spend files from `kineti.config.json`; it keeps existing locked state unchanged.
+Before activation, choose `harness`, `gate`, or `both`; the example uses `both`. There is no default. `kineti init` installs agent instructions and skills but does not activate a project. A legacy state without a selected mode reads as `pending` until the user chooses one. In CI, use `kineti seed` to create only missing state and spend files from `kineti.config.json`; it keeps existing locked state unchanged.
 
 #### Manual Configuration by Editor
 
@@ -204,10 +216,10 @@ kineti mcp
 kineti spend check
 
 # Run tests, declare the required inventory, and save a versioned receipt
-bun bin/kineti-evidence.ts run --label unit --required-test tests/lib.test.ts -- bun test tests/lib.test.ts
+bun bin/kineti-evidence.ts run --label unit --required-test tests/harness.test.ts -- bun test tests/harness.test.ts
 
 # Check local test receipt freshness
-kineti test check --label test
+kineti test check --label unit
 
 # Check a receipt's declared evidence elsewhere using a trusted public key
 kineti evidence-verify --receipt receipt.json --trusted-key .kineti/evidence-issuer.pem --workspace .
@@ -242,7 +254,7 @@ cargo install kineti-cli@0.5.0
 cargo test --manifest-path core-native/Cargo.toml
 
 # Run the 5 native verification demo flows
-cargo run --package kineti-cli -- test-all
+cargo run --manifest-path core-native/Cargo.toml --package kineti-cli -- test-all
 ```
 
 ---
@@ -313,6 +325,8 @@ Today Kineti provides local ledger tooling, registered rollback, spend totals ba
 ---
 
 ## Documentation
+
+For the user-operated evaluator and durable output, see [Linux service](docs/LINUX-SERVICE.md). For scoped durable graph/vector retrieval, see [Native memory](docs/NATIVE-MEMORY.md). The source-only [GitHub Action](docs/GITHUB-ACTION.md) still needs consumer-run acceptance.
 
 For protected-write trust setup and guarantees, see [Protected write policy and limits](docs/PROTECTED-WRITE.md).
 

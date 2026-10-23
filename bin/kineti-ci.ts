@@ -4,10 +4,10 @@
 // Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import fs from "node:fs";
-import path from "node:path";
 import { checkedOptions } from "./strict-options.ts";
-import { readSpending, spendingStop, withAccountingLock } from "./spending-state.ts";
-import { validateReceipt, configuredCommand, parseExpectedCommand, fingerprint } from "./kineti-evidence.ts";
+import {readSpending,spendingStop,withAccountingLock} from "./spending-state.ts";
+import path from "node:path";
+import { configuredCommand,parseExpectedCommand,fingerprint, validateReceipt } from "./kineti-evidence.ts";
 import {
   loadLimits,
   loadVerifyCommand,
@@ -18,6 +18,7 @@ import {
   readJson,
   readJsonl,
   sha256,
+  splitLegacyCommand,
 } from "./lib.ts";
 
 interface KinetiState {
@@ -74,7 +75,7 @@ export interface CIReport {
 
 export interface EvidenceCheck {
   label: string;
-  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated" | "invalid";
+  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated" | "invalid-receipt";
   at?: string;
   reason?: string;
 }
@@ -82,7 +83,8 @@ export interface EvidenceCheck {
 export interface CIOptions {
   requiredEvidenceLabels?: string[];
   maxEvidenceAgeMinutes?: number;
-  expectedCommands?: Record<string, string[]>;
+  evidenceCommands?: Record<string, string[]>;
+  expectedCommands?: Record<string,string[]>;
   requireCommandMappings?: boolean;
 }
 
@@ -158,16 +160,12 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
   }
 
   // 2. Check spend circuit breaker
-  const spendPath = path.join(kdir, "spend.json");
-  let spendUsd = 0, spendTripped = true, spendLimitUsd = 0;
-  try {
-    const {snapshot, limits} = withAccountingLock(workspaceRoot, () => ({ snapshot: readSpending(workspaceRoot), limits: loadLimits(workspaceRoot) }));
-    spendLimitUsd = limits.globalUsd;
-    spendUsd = snapshot.total_microcents / 1e6;
-    const stop = spendingStop(snapshot, limits);
-    spendTripped = !!stop;
-    if (stop) failures.push(`Spend circuit breaker: ${stop}`);
-  } catch (error) { failures.push(`Spending accounting invalid: ${(error as Error).message}`); }
+  let spendUsd=0,spendLimitUsd=0,spendTripped=true;
+  try{
+    const {snapshot,limits}=withAccountingLock(workspaceRoot,()=>({snapshot:readSpending(workspaceRoot,true),limits:loadLimits(workspaceRoot)}));
+    spendUsd=snapshot.total_microcents/1e6;spendLimitUsd=limits.globalUsd;
+    const stop=spendingStop(snapshot,limits);spendTripped=!!stop;if(stop)failures.push(`Spend circuit breaker: ${stop}`);
+  }catch(error){failures.push(`Spending accounting is damaged or incomplete: ${(error as Error).message}`);}
 
   // 2b. Check gates — security blocks ship (kineti.config.json: security blocks ship,
   // ship requires evidence_fresh + security_pass). Stage-agnostic tasks (stageNum 0)
@@ -190,70 +188,43 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
   // 3. Check evidence and workspace fingerprint
   const currentFp = fingerprint(workspaceRoot);
   const evidencePath = path.join(kdir, "evidence.jsonl");
-  let evidenceRecords: EvidenceRecord[] = [];
-  try { evidenceRecords = fs.existsSync(evidencePath) ? fs.readFileSync(evidencePath, "utf8").split("\n").filter(line => line.trim()).map(line => JSON.parse(line)) : []; }
-  catch { failures.push("Evidence ledger is corrupt; refusing to skip records"); }
+  let evidenceRecords:EvidenceRecord[]=[];
+  try {evidenceRecords=fs.existsSync(evidencePath)?fs.readFileSync(evidencePath,"utf8").split("\n").filter(line=>line.trim()).map(line=>JSON.parse(line)):[];}catch{failures.push("Evidence ledger is corrupt; refusing to skip records");}
   
   const requiredLabels = [...new Set((options.requiredEvidenceLabels ?? []).map((label) => label.trim()).filter(Boolean))];
   const maxEvidenceAgeMinutes = options.maxEvidenceAgeMinutes ?? 240;
   let evidenceChecks: EvidenceCheck[] = [];
   let evidenceFresh = true;
 
-  if (requiredLabels.length > 0) {
-    evidenceChecks = requiredLabels.map((label): EvidenceCheck => {
-      const matching = evidenceRecords.filter((record) => record.label === label);
-      if (matching.length === 0) return { label, status: "missing" };
-      const latest = matching[matching.length - 1];
-      const timestamp = Date.parse(latest.at);
-      if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) {
-        return { label, status: "invalid-time", at: latest.at };
-      }
-      if (latest.exit_code !== 0) return { label, status: "failed", at: latest.at };
-      if ((latest as any).mutated_during_run) return { label, status: "workspace-mutated", at: latest.at };
-      if (latest.fingerprint !== currentFp) return { label, status: "fingerprint-mismatch", at: latest.at };
-      if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
-        return { label, status: "stale", at: latest.at };
-      }
-      try {
-        const expectedCommand = options.expectedCommands?.[label] ?? configuredCommand(workspaceRoot, label, options.requireCommandMappings);
-        if (options.requireCommandMappings && !expectedCommand) throw new Error(`label ${label}: missing expected command mapping; recorded arguments ${JSON.stringify((latest as any).manifest?.command)}`);
-        const trustedPublicKey = fs.readFileSync(path.join(kdir, "evidence-issuer.pem"), "utf8");
-        validateReceipt(latest, { root: workspaceRoot, trustedPublicKey, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand });
-      } catch (error) { return { label, status: "invalid", at: latest.at, reason: (error as Error).message }; }
-      return { label, status: "fresh", at: latest.at };
-    });
-    for (const check of evidenceChecks) {
-      if (check.status === "fresh") continue;
-      evidenceFresh = false;
-      failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}${check.reason ? ": " + check.reason : ""}`);
-    }
-  } else if (evidenceRecords.length > 0) {
-    const latest = evidenceRecords[evidenceRecords.length - 1];
-    try {
-      const trustedPublicKey = fs.readFileSync(path.join(kdir, "evidence-issuer.pem"), "utf8");
-      validateReceipt(latest, { root: workspaceRoot, trustedPublicKey, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand: configuredCommand(workspaceRoot, latest.label) });
-    } catch (error) { evidenceFresh = false; failures.push(`Latest evidence '${latest.label}' is invalid: ${(error as Error).message}`); }
+  const labels = requiredLabels.length ? requiredLabels : evidenceRecords.length ? [evidenceRecords[evidenceRecords.length - 1].label] : [];
+  let issuer: string | undefined;
+  try { issuer = fs.readFileSync(path.join(kdir, "evidence-issuer.pem"), "utf8"); } catch { /* missing trust fails validation */ }
+  const verifyCommand = loadVerifyCommand(workspaceRoot);
+  evidenceChecks = labels.map((label): EvidenceCheck => {
+    const latest = evidenceRecords.filter(record => record.label === label).at(-1);
+    if (!latest) return { label, status: "missing" };
     const timestamp = Date.parse(latest.at);
-    if (latest.exit_code !== 0) {
-      evidenceFresh = false;
-      failures.push(`Latest evidence record '${latest.label}' failed with exit code ${latest.exit_code}`);
-    }
-    if (latest.fingerprint !== currentFp) {
-      evidenceFresh = false;
-      failures.push("Workspace fingerprint mismatch: code modified since last verification record");
-    }
-    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000 || (Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
-      evidenceFresh = false;
-      failures.push(`Latest evidence record '${latest.label}' has an invalid or stale timestamp`);
-    }
-    evidenceChecks = [{
-      label: latest.label,
-      status: evidenceFresh ? "fresh" : latest.exit_code === 0 ? "stale" : "failed",
-      at: latest.at,
-    }];
-  } else if (stageNum >= 11) {
+    if (!Number.isFinite(timestamp) || timestamp > Date.now() + 60_000) return { label, status: "invalid-time", at: latest.at };
+    if (latest.exit_code !== 0) return { label, status: "failed", at: latest.at };
+    if ((latest as any).mutated_during_run) return { label, status: "workspace-mutated", at: latest.at };
+    if (latest.fingerprint !== currentFp) return { label, status: "fingerprint-mismatch", at: latest.at };
+    if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) return { label, status: "stale", at: latest.at };
+    try {
+      if (!issuer) throw new Error("missing receipt issuer");
+      const declared=options.expectedCommands?.[label] ?? options.evidenceCommands?.[label] ?? configuredCommand(workspaceRoot,label,options.requireCommandMappings);
+      if((options.evidenceCommands || options.requireCommandMappings) && (!Array.isArray(declared)||!declared.length||!declared.every(x=>typeof x==='string'&&x.length>0&&!x.includes('\0'))))throw new Error("missing or malformed required command");
+      validateReceipt(latest, { root: workspaceRoot, trustedPublicKey: issuer, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand: declared });
+      return { label, status: "fresh", at: latest.at };
+    } catch(error) { return { label, status: "invalid-receipt", at: latest.at, reason:(error as Error).message }; }
+  });
+  for (const check of evidenceChecks) {
+    if (check.status === "fresh") continue;
     evidenceFresh = false;
-    failures.push("No evidence records: run tests before ship");
+    failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}${check.reason ? ": "+check.reason : ""}`);
+  }
+  if (!labels.length) {
+    evidenceFresh = false;
+    failures.push("No evidence records: run tests before reporting success");
   }
 
   const checksPassed = failures.length === 0;
@@ -328,6 +299,7 @@ Usage:
 
 Options:
   --require-evidence <label>    Specify required evidence receipt label (repeatable)
+  --evidence-commands <file>    Owner-defined JSON map of label to exact command argv
   --max-evidence-age <minutes>  Maximum allowable evidence age (default 240)
   --json                        Output structured JSON CI report
   --badge-only                  Output Shields.io badge URL only
@@ -338,7 +310,7 @@ Options:
 }
 
 function main() {
-  const argv = checkedOptions(process.argv.slice(2), ["--summary-file", "--pr-comment-file", "--require-evidence", "--max-evidence-age", "--expect-command"], ["--json", "--badge-only", "--require-command-mappings"], ["--require-evidence", "--expect-command"], 0);
+  const argv = checkedOptions(process.argv.slice(2),["--evidence-commands","--expect-command","--summary-file","--pr-comment-file","--require-evidence","--max-evidence-age"],["--json","--badge-only","--require-command-mappings"],["--require-evidence","--expect-command"],0);
   if (argv.includes("--help") || argv.includes("-h")) {
     printHelp();
     process.exit(0);
@@ -349,18 +321,16 @@ function main() {
   let badgeOnly = false;
   const requiredEvidenceLabels: string[] = [];
   let maxEvidenceAgeMinutes = 240;
-  const expectedCommands: Record<string, string[]> = {};
-  let requireCommandMappings = false;
+  let evidenceCommands: Record<string,string[]> | undefined;
+  const expectedCommands:Record<string,string[]>={};let requireCommandMappings=false;
 
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
-      case "--require-command-mappings": requireCommandMappings = true; break;
-      case "--expect-command": {
-        const raw = argv[++i], eq = raw.indexOf("=");
-        if (eq <= 0 || Object.hasOwn(expectedCommands, raw.slice(0,eq))) { console.error("invalid or duplicate command mapping"); process.exit(2); }
-        try { expectedCommands[raw.slice(0,eq)] = parseExpectedCommand(raw.slice(eq+1)); } catch (error) { console.error(String(error)); process.exit(2); }
+      case "--require-command-mappings":requireCommandMappings=true;break;
+      case "--expect-command":{const raw=argv[++i],eq=raw.indexOf("=");if(eq<=0||Object.hasOwn(expectedCommands,raw.slice(0,eq))){console.error("invalid or duplicate expected command mapping");process.exit(2);}try{expectedCommands[raw.slice(0,eq)]=parseExpectedCommand(raw.slice(eq+1));}catch(error){console.error(String(error));process.exit(2);}break;}
+      case "--evidence-commands":
+        try {const file=argv[++i];const parsed=JSON.parse(fs.readFileSync(file,"utf8"));if(!parsed||typeof parsed!=="object"||Array.isArray(parsed))throw new Error("expected object");evidenceCommands=parsed;}catch{console.error("kineti ci: --evidence-commands needs a JSON object file");process.exit(2);}
         break;
-      }
       case "--summary-file":
         summaryFile = argv[++i] ?? null;
         break;
@@ -390,7 +360,7 @@ function main() {
     }
   }
 
-  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes, expectedCommands, requireCommandMappings });
+  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes, evidenceCommands, expectedCommands, requireCommandMappings });
 
   if (badgeOnly) {
     console.log(report.badgeUrl);

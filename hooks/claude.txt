@@ -1,5 +1,8 @@
 # Kineti hook block for Claude Code
 Add a "kineti" section to CLAUDE.md (global at ~/.claude/CLAUDE.md):
-  When starting a new product run /kineti-officehours first and follow the
-  kineti stage order. List available skills: officehours, diagnose, design,
-  architecture, feasibility, spec, build, review, qa, security, ship, watch, retro, learn.
+  For a new project, ask the user to choose harness, gate, or both before
+  setup, then continue in natural language through the relevant workflow.
+  Direct fixes, reviews, and cleanup can start at the relevant step. Slash
+  commands are optional. This block provides guidance, not enforcement.
+  Available skills: officehours, diagnose, design, architecture, feasibility,
+  spec, build, review, qa, security, ship, watch, retro, learn.

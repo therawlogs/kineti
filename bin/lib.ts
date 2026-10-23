@@ -17,6 +17,20 @@ export function machineDir(): string {
   }
 }
 
+/** Project opt-in affects outbound accounting only, never keys or other machine configuration. */
+export function egressDir(): string {
+  if (process.env.KINETI_MACHINE_DIR) return process.env.KINETI_MACHINE_DIR;
+  const recoveryPath = path.join(process.cwd(), ".kineti", "egress-recovery.json");
+  if (fs.existsSync(recoveryPath)) {
+    const recovery = readJson<{ version: number; machine_dir: string }>(recoveryPath);
+    if (!recovery || recovery.version !== 1 || typeof recovery.machine_dir !== "string" || path.isAbsolute(recovery.machine_dir)) throw new Error("damaged active egress recovery pointer");
+    const target = assertWithinProject(recovery.machine_dir);
+    if (!fs.existsSync(path.join(target, "recovery.json"))) throw new Error("replacement egress recovery metadata is missing");
+    return target;
+  }
+  return machineDir();
+}
+
 export function projectKdir(): string {
   return path.join(process.cwd(), ".kineti");
 }
@@ -82,23 +96,22 @@ function lockFileMode(file: string): void {
 }
 
 export function readJsonl<T>(file: string): T[] {
-  if (!fs.existsSync(file)) return [];
-  try {
-    const text = fs.readFileSync(file, "utf8");
-    const lines = text.split("\n").filter((l) => l.trim().length > 0);
-    const items: T[] = [];
-    for (let i = 0; i < lines.length; i++) {
-      try {
-        items.push(JSON.parse(lines[i]) as T);
-      } catch (err) {
-        console.error(`kineti: warning: corrupt line ${i + 1} in ${file} skipped: ${(err as Error).message}`);
-      }
-    }
-    return items;
-  } catch (err) {
-    console.error(`kineti: error reading ${file}: ${(err as Error).message}`);
-    return [];
+  let text: string;
+  try { text = fs.readFileSync(file, "utf8"); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
   }
+  const lines = text.split("\n");
+  const items: T[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    // Preserve line numbers. A trailing newline is normal; malformed nonempty
+    // records must never disappear from an integrity check or later append.
+    if (!lines[i].trim()) continue;
+    try { items.push(JSON.parse(lines[i]) as T); }
+    catch { throw new Error(`corrupt JSONL line ${i + 1} in ${file}; refusing to skip history`); }
+  }
+  return items;
 }
 
 export function appendJsonl(file: string, value: unknown): void {
@@ -140,7 +153,7 @@ export function loadLimits(cwd: string = process.cwd()): Limits {
   }
   const rawStageDefault = Number(s.per_stage_default ?? 10);
   const perStageDefaultUsd = Number.isFinite(rawStageDefault) && rawStageDefault > 0 ? rawStageDefault : 10;
-  const perStage: Record<string, number> = {};
+  const perStage: Record<string, number> = Object.create(null);
   const rawPerStage = s.per_stage;
   if (rawPerStage && typeof rawPerStage === "object" && !Array.isArray(rawPerStage)) {
     for (const [k, v] of Object.entries(rawPerStage)) {
@@ -369,7 +382,7 @@ function appendExecToEgressLedger(argv: string[], cwd: string): string | null {
     const { spawnSync } = require("node:child_process") as typeof import("node:child_process");
     const result = spawnSync("bun", [path.join(import.meta.dir, "kineti-egress.ts"), "record",
       "--host", `local-exec:${argv[0]?.split("/").pop() || "unknown"}`,
-      "--description", `exec: ${argv.join(" ")} in ${cwd}`.slice(0, 500)],
+      "--description", `exec-v2 argv_sha256=${sha256(JSON.stringify(argv))} cwd_sha256=${sha256(cwd)} argc=${argv.length}`],
       { cwd, encoding: "utf8", timeout: 20_000, shell: false });
     return result.status === 0 ? null : (result.stderr?.trim() || "execution ledger could not be recorded");
   } catch { return "execution ledger could not be recorded"; }
@@ -474,11 +487,12 @@ export function splitLegacyCommand(cmd: string): string[] {
     }
     if (c === "'") { inSingle = true; hasToken = true; }
     else if (c === '"') { inDouble = true; hasToken = true; }
-    else if (c === "\\" && i + 1 < trimmed.length) { cur += trimmed[i + 1]; i++; hasToken = true; }
+    else if (c === "\\") { if (i + 1 >= trimmed.length) throw new Error("malformed legacy command: trailing escape"); cur += trimmed[i + 1]; i++; hasToken = true; }
     else if (/\s/.test(c)) {
       if (hasToken) { out.push(cur); cur = ""; hasToken = false; }
     } else { cur += c; hasToken = true; }
   }
+  if (inSingle || inDouble) throw new Error("malformed legacy command: unmatched quote or trailing escape; inspect before execution");
   if (hasToken) out.push(cur);
   return out;
 }
@@ -495,7 +509,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
   if (!fs.existsSync(claudePath)) {
     fs.writeFileSync(
       claudePath,
-      `# Kineti OS — Rules for Claude Code\n\nThis project uses Kineti OS to keep work safe and organized.\n\n## Rules\n1. Plain words and numbered choices: Speak in plain English without metaphors or jargon. Give numbered options (1, 2, 3).\n2. Check the current task: Read .kineti/state.json before starting.\n3. Plan before building new features: Get user approval before writing code in src/.\n4. Run tests: Save test proofs with bun bin/kineti-evidence.ts run.\n5. Spending limit: Stop right away if spending reaches $50.00.\n6. Save undo steps: Save an undo command before making changes.\n`
+      `# Kineti OS — Rules for Claude Code\n\nThis project uses Kineti OS to keep work safe and organized.\n\n## Rules\n1. Use plain words and numbered choices.\n2. Check .kineti/state.json before starting project work.\n3. At new-project activation, ask the user to choose harness, gate, or both. Do not assume a default.\n4. Direct fixes, reviews, and cleanup can start at the relevant step; slash commands are optional.\n5. These instructions provide guidance. They are not an enforcement hook.\n6. Check spending, save an undo step before changes, and record test evidence.\n`
     );
     installed.push("CLAUDE.md");
   }
@@ -505,7 +519,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
   if (!fs.existsSync(agentsPath)) {
     fs.writeFileSync(
       agentsPath,
-      `# Kineti OS — Rules for AI Agents\n\nThis project uses Kineti OS to keep work safe and organized.\n\n## Rules\n1. Plain words and numbered choices: Speak in simple English without metaphors.\n2. Check the current task: Read .kineti/state.json before starting.\n3. Plan before building new features: Get approval before writing code in src/.\n4. Run tests: Save test proofs before claiming work is finished.\n5. Spending limit: Stop right away if spending reaches $50.00.\n6. Save undo steps: Save undo commands before making changes.\n`
+      `# Kineti OS — Rules for AI Agents\n\nThis project uses Kineti OS to keep work safe and organized.\n\n## Rules\n1. Use plain words and numbered choices.\n2. Check .kineti/state.json before starting project work.\n3. At new-project activation, ask the user to choose harness, gate, or both. Do not assume a default.\n4. Direct fixes, reviews, and cleanup can start at the relevant step; slash commands are optional.\n5. These instructions provide guidance. They are not an enforcement hook.\n6. Check spending, save an undo step before changes, and record test evidence.\n`
     );
     installed.push("AGENTS.md");
   }
@@ -517,7 +531,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
     ensureDir(cursorRulesDir);
     fs.writeFileSync(
       cursorRulePath,
-      `---\ndescription: Kineti OS Safety Rules\nglobs: *\nalwaysApply: true\n---\n\n# Kineti OS — Rules for Cursor\n\n- Plain words and numbered choices: Speak in simple English without metaphors.\n- Check .kineti/state.json to see the current goal and task.\n- For new features, get user approval before writing code in src/.\n- Stop right away if spending reaches $50.00.\n`
+      `---\ndescription: Kineti OS workflow guidance\nglobs: *\nalwaysApply: true\n---\n\n# Kineti OS — Guidance for Cursor\n\n- Use plain words and numbered choices.\n- Check .kineti/state.json before project work.\n- At new-project activation, ask the user to choose harness, gate, or both; do not assume a default.\n- Direct fixes, reviews, and cleanup can start at the relevant step. Slash commands are optional.\n- This rule provides guidance. It does not enforce protected actions.\n- Check spending, save undo steps, and record test evidence.\n`
     );
     installed.push(".cursor/rules/kineti.mdc");
   }
@@ -527,7 +541,7 @@ export function scaffoldRootHooks(targetDir: string = process.cwd()): string[] {
   if (!fs.existsSync(codexPath)) {
     fs.writeFileSync(
       codexPath,
-      `# Kineti OS — Rules for OpenAI Codex\n\nThis project uses Kineti OS to keep work safe and organized.\n\n1. Plain words and numbered choices (1, 2, 3).\n2. Read .kineti/state.json to see the current task.\n3. For new features, get approval before writing code in src/.\n4. Stop if spending reaches $50.00.\n5. Run and check tests.\n`
+      `# Kineti OS — Guidance for OpenAI Codex\n\nThis project uses Kineti OS to keep work safe and organized.\n\n1. Use plain words and numbered choices.\n2. Read .kineti/state.json before project work.\n3. At new-project activation, ask the user to choose harness, gate, or both; do not assume a default.\n4. Direct fixes, reviews, and cleanup can start at the relevant step. Slash commands are optional.\n5. This file provides guidance and is not an enforcement hook.\n6. Check spending, save undo steps, and record test evidence.\n`
     );
     installed.push("CODEX.md");
   }
