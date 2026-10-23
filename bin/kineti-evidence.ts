@@ -633,7 +633,7 @@ function main() {
     try {
       // Checking never creates a key or enrolls the receipt's issuer.
       const trustedPublicKey = fs.readFileSync(keyFile(), "utf8");
-      (resultKind === "test" ? validateReceipt : validateOperationalReceipt)(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin, allowWorkspaceMutation, expectedCommand: expectedCommand ?? configuredCommand(process.cwd(), label) });
+      (resultKind === "test" ? validateReceipt : validateOperationalReceipt)(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin, allowWorkspaceMutation, expectedCommand: expectedCommand ?? configuredCommand(process.cwd(), label, resultKind !== "test") });
     } catch (error) {
       const kind = error instanceof ReceiptValidationError ? error.kind : "invalid";
       console.error(`kineti: ${kind === "stale" ? "STALE" : kind === "legacy" ? "LIMITED" : "INVALID"} (${error instanceof ReceiptValidationError ? error.message : "local issuer key is missing or unreadable"})`);

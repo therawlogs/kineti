@@ -80,3 +80,12 @@ test("governance commands reject unknown and duplicate flags before creating rec
  for(const [tool,args] of cases) expect(run(root,tool,args).exitCode).toBe(2);
  expect(fs.existsSync(path.join(root,".kineti/saga.jsonl"))).toBe(false);expect(fs.existsSync(path.join(root,".kineti/spend.log.jsonl"))).toBe(false);
 });
+
+test("operational receipts use explicit label mappings without inheriting the test command",()=>{
+  const root=fixture();
+  expect(run(root,"evidence",["run","--label=version-check","--kind=check","--","bun","--version"]).exitCode).toBe(0);
+  expect(run(root,"evidence",["check","--label=version-check"]).exitCode).toBe(0);
+  const wrong=run(root,"evidence",["check","--label=version-check","--expect-command",'["bun","test"]']);
+  expect(wrong.exitCode).toBe(7);expect(wrong.stderr.toString()).toContain("recorded arguments");
+  expect(run(root,"ci",["--require-evidence=version-check","--json"]).exitCode).toBe(1);
+});
