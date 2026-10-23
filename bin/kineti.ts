@@ -16,8 +16,10 @@
  *   kineti spend [status|reset|add]
  *   kineti status
  *   kineti verify
+ *   kineti run --help    Owned task execution, status and cancellation
+ *   kineti run --host codex --task-file FILE   Execute a bounded coding task
  *   kineti route --help  Model access, policy, planning, bounded execution and verification
-  kineti swarm <goal>
+ *   kineti swarm <goal>
  *   kineti ci [--require-evidence <label> ...]
  *   kineti seed [--stage <1-13>]
  */
@@ -49,6 +51,7 @@ const COMMAND_MAP: Record<string, { script: string; isShell?: boolean }> = {
   state: { script: "bin/kineti-state.ts" },
   verify: { script: "bin/kineti-verify-gate.ts" },
   route: { script: "bin/kineti-route.ts" },
+  run: { script: "bin/kineti-run.ts" },
   swarm: { script: "bin/kineti-swarm.ts" },
   ci: { script: "bin/kineti-ci.ts" },
   seed: { script: "bin/kineti-seed.ts" },
@@ -161,6 +164,7 @@ Commands:
   kineti spend         Show spend vs $50 cap
   kineti status        Show task and gate state
   kineti verify        Check test proof before commit
+  kineti run --help    Owned task execution, status and cancellation
   kineti route --help  Model access, policy, planning, bounded execution and verification
   kineti swarm <goal>  Signing simulation only; requires --simulate
   kineti ci            Check required test evidence and project gates

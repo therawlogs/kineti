@@ -20,7 +20,8 @@
     "docs/NATIVE-MEMORY.md",
     "docs/GITHUB-ACTION.md",
     "docs/ROUTING.md",
-    "docs/EVALUATOR.md"
+    "docs/EVALUATOR.md",
+    "docs/HARNESS.md"
   ],
   "allowed_prefixes": [
     "bin/",
@@ -31,7 +32,9 @@
     "skills/",
     "hooks/",
     "hosts/",
-    "src/routing/"
+    "src/routing/",
+    "src/harness-runtime/",
+    "scripts/harness/"
   ],
   "required_files": [
     "bin/kineti.js",
@@ -44,7 +47,11 @@
     "src/security/canonical-json.ts",
     "hosts/capabilities.v1.json",
     "skills/design/SKILL.md",
-    "setup.sh"
+    "setup.sh",
+    "bin/kineti-run.ts",
+    "src/harness-runtime/controller.ts",
+    "scripts/harness/check-spend.ts",
+    "scripts/harness/Dockerfile"
   ],
   "forbidden_files": [
     "install.sh",

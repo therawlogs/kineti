@@ -33,12 +33,14 @@ docs/*
 !docs/NATIVE-MEMORY.md
 !docs/GITHUB-ACTION.md
 !docs/ROUTING.md
+!docs/HARNESS.md
 !docs/EVALUATOR.md
 docs/archive/
 docs/archive.zip
 preview/
 design/
-scripts/
+scripts/*
+!scripts/harness/
 GOOD_ROADMAP.md
 ROADMAP.md
 *.tgz

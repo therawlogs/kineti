@@ -66,7 +66,7 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 - **Model Context Protocol (MCP)**: 18 tools, including the signed Linux service client and the plain-talk helper. Cursor service allow/deny calls have run locally; other host capabilities are reported separately in `hosts/capabilities.v1.json`.
 
 ### 3. Test Inventory & Evaluation Roadmap
-- **Test inventory**: 361 TypeScript governance test cases and 251 native Rust test cases (612 total test cases); passing tests verify tested paths, not every external integration or agent action.
+- **Test inventory**: 380 TypeScript governance test cases and 251 native Rust test cases (631 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Not provided**: a complete agent sandbox or cloud connector service.
 
@@ -350,3 +350,5 @@ Humans and agents follow the same steps in [**CONTRIBUTING.md**](CONTRIBUTING.md
 - **Security Disclosures**: [security@getkineti.com](mailto:security@getkineti.com) (disclosure policy and SLA in [SECURITY.md](SECURITY.md))
 - **Website**: [getkineti.com](https://getkineti.com)
 - **GitHub Issues**: [github.com/therawlogs/kineti/issues](https://github.com/therawlogs/kineti/issues)
+
+Experimental owned execution: [Codex controller, bounded tools, checker and current live blockers](docs/HARNESS.md). Genuine live coding and delegation acceptance remain pending.

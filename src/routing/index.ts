@@ -569,7 +569,7 @@ function reservations(s: any): Record<string, Reservation> {
     throw new Error("corrupt routing reservations");
   return values;
 }
-function reserve(
+export function reserve(
   root: string,
   runId: string,
   sessionId: string,
@@ -578,7 +578,7 @@ function reserve(
   cap: number,
 ) {
   withAccountingLock(root, () => {
-    const s = readSpending(root),
+    const s = readSpending(root,true),
       limits = loadLimits(root),
       pending = reservations(s),
       stop = spendingStop(
@@ -693,7 +693,7 @@ export function settle(
     });
   });
 }
-function markUnknown(root: string, runId: string) {
+export function markUnknown(root: string, runId: string) {
   withAccountingLock(root, () => {
     const s = readSpending(root),
       pending = reservations(s);

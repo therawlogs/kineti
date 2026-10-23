@@ -26,6 +26,7 @@ export interface EvidenceRecord {
   issuer_key?: string;
   signature?: string;
   routing?: { [name: string]: unknown };
+  harness?: { [name: string]: unknown };
 }
 export interface ExactInputManifest {
   command: string[];

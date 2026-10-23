@@ -21,6 +21,7 @@ var COMMAND_MAP = {
   state: { script: "bin/kineti-state.ts" },
   verify: { script: "bin/kineti-verify-gate.ts" },
   route: { script: "bin/kineti-route.ts" },
+  run: { script: "bin/kineti-run.ts" },
   swarm: { script: "bin/kineti-swarm.ts" },
   ci: { script: "bin/kineti-ci.ts" },
   seed: { script: "bin/kineti-seed.ts" },
@@ -125,6 +126,7 @@ Commands:
   kineti spend         Show spend vs $50 cap
   kineti status        Show task and gate state
   kineti verify        Check test proof before commit
+  kineti run --help    Owned task execution, status and cancellation
   kineti route --help  Model access, policy, planning, bounded execution and verification
   kineti swarm <goal>  Signing simulation only; requires --simulate
   kineti ci            Check required test evidence and project gates
