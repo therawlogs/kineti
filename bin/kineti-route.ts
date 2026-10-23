@@ -155,6 +155,8 @@ async function main(raw: string[]) {
     }
     if (sub === "declare" || sub === "revoke") {
       const model = required("--model");
+      if (!model.trim() || model.startsWith("-") || model.includes("\0"))
+        throw new Error("invalid model ID");
       withAccountingLock(root, () => {
         const m = read();
         let row = m.models.find((v) => v.id === model);

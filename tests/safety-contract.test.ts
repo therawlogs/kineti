@@ -89,3 +89,17 @@ test("operational receipts use explicit label mappings without inheriting the te
   expect(wrong.exitCode).toBe(7);expect(wrong.stderr.toString()).toContain("recorded arguments");
   expect(run(root,"ci",["--require-evidence=version-check","--json"]).exitCode).toBe(1);
 });
+
+test("invalid values on an untouched workspace create no lock directory or records",()=>{
+  for(const [tool,args] of [
+    ["spend",["log","--stage=build","--tokens-in=NaN","--tokens-out=0"]],
+    ["spend",["log","--stage=build","--tokens-in=0","--tokens-out=0","--run-id=bad"]],
+    ["spend",["unknown-command"]],
+    ["spend",["reset"]],
+    ["spend",["reset","--i-am-human","--extend-usd=NaN"]],
+    ["route",["manifest","declare","--host=codex","--model=-bad"]],
+  ] as [string,string[]][]){
+    const base=path.join(repo,".kineti/acceptance/safety-contract");fs.mkdirSync(base,{recursive:true});const root=fs.mkdtempSync(path.join(base,"untouched-"));roots.push(root);
+    expect(run(root,tool,args).exitCode).toBe(2);expect(fs.readdirSync(root)).toEqual([]);
+  }
+});

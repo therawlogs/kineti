@@ -98,6 +98,66 @@ Reset Options:
 `);
 }
 
+function parseUsage(rest: string[]) {
+  let stage = "", model = "default", tin = NaN, tout = NaN, usdOverride: number | null = null;
+  let usdGiven = false;
+  let rateIn: number | null = null, rateOut: number | null = null;
+  let allowEstimate = false;
+  let runId: string | undefined, sessionId: string | undefined;
+  for (let i = 0; i < rest.length; i++) {
+    switch (rest[i]) {
+      case "--stage": stage = rest[++i] ?? ""; break;
+      case "--model": model = rest[++i] ?? "default"; break;
+      case "--tokens-in": tin = Number(rest[++i]); break;
+      case "--tokens-out": tout = Number(rest[++i]); break;
+      case "--usd": usdOverride = Number(rest[++i]); usdGiven = true; break;
+      case "--rate-in": rateIn = Number(rest[++i]); break;
+      case "--rate-out": rateOut = Number(rest[++i]); break;
+      case "--estimate": allowEstimate = true; break;
+      case "--run-id": runId = rest[++i]; break;
+      case "--session-id": sessionId = rest[++i]; break;
+    }
+  }
+  if (Object.hasOwn(Object.prototype, stage) || stage === "prototype" || stage.includes("\0") || stage.trim() !== stage) die("invalid stage name", 2);
+  if (!stage) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]", 2);
+  if (!Number.isSafeInteger(tin) || tin < 0) die(`log requires safe integer --tokens-in >= 0 (got ${rest.join(" ")})`, 2);
+  if (!Number.isSafeInteger(tout) || tout < 0) die(`log requires safe integer --tokens-out >= 0 (got ${rest.join(" ")})`, 2);
+  if (usdGiven && (usdOverride === null || !Number.isFinite(usdOverride) || (usdOverride as number) < 0)) {
+    die("log requires finite --usd >= 0", 2);
+  }
+  if (rateIn !== null && (!Number.isFinite(rateIn) || rateIn < 0)) die("log requires finite --rate-in >= 0", 2);
+  if (rateOut !== null && (!Number.isFinite(rateOut) || rateOut < 0)) die("log requires finite --rate-out >= 0", 2);
+
+  let usd: number;
+  let pricingMode: "rate_card_estimate" | "override" | "custom_rate" | "estimate";
+
+  if (usdGiven) {
+    usd = usdOverride!;
+    pricingMode = "override";
+  } else if (rateIn !== null && rateOut !== null) {
+    usd = (tin / 1e6) * rateIn + (tout / 1e6) * rateOut;
+    pricingMode = "custom_rate";
+  } else {
+    const p = priceFor(model);
+    if (p !== null) {
+      usd = (tin / 1e6) * p.in + (tout / 1e6) * p.out;
+      pricingMode = "rate_card_estimate";
+    } else if (allowEstimate) {
+      usd = (tin / 1e6) * DEFAULT_PRICE.in + (tout / 1e6) * DEFAULT_PRICE.out;
+      pricingMode = "estimate";
+    } else {
+      die(`unknown model '${model}': specify --usd override, --rate-in/--rate-out, or --estimate to proceed`, 2);
+    }
+  }
+
+  for (const id of [runId, sessionId]) if (id && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) die("invalid execution/session identity", 2);
+  if ((rateIn === null) !== (rateOut === null)) die("both rate options are required", 2);
+  const microcents = usdToMicrocents(usd);
+  if (!model.trim() || model.includes("\0")) die("invalid model name", 2);
+  if (!Number.isSafeInteger(microcents) || microcents < 0) die("cost exceeds safe accounting range", 2);
+  return {stage, model, tin, tout, usd, microcents, pricingMode, runId, sessionId};
+}
+
 function main() {
   const [cmd, ...raw] = process.argv.slice(2);
   const specs: Record<string, string[]> = { log: ["--stage", "--model", "--tokens-in", "--tokens-out", "--usd", "--rate-in", "--rate-out", "--run-id", "--session-id"], reset: ["--extend-usd"] };
@@ -109,6 +169,19 @@ function main() {
     return;
   }
 
+  if (!["log", "check", "status", "economics", "reset"].includes(cmd)) die(`unknown command: ${cmd}`, 2);
+  const usage = cmd === "log" ? parseUsage(rest) : undefined;
+  let extendUsd = 0;
+  if (cmd === "reset") {
+    if (!rest.includes("--i-am-human")) die("reset requires --i-am-human (breakers are human-only)", 2);
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i] === "--extend-usd") {
+        extendUsd = Number(rest[++i]);
+        if (!Number.isFinite(extendUsd) || extendUsd <= 0) die("reset requires finite --extend-usd > 0", 2);
+      }
+    }
+  }
+
   return withAccountingLock(process.cwd(), () => {
   const limits = loadLimits();
   const s = load();
@@ -116,60 +189,7 @@ function main() {
   if (cmd === "log") {
     const stopped = spendingStop(s, limits);
     if (stopped) die(`breaker is tripped: ${stopped}. Only a human may reset it.`, 3);
-    let stage = "", model = "default", tin = NaN, tout = NaN, usdOverride: number | null = null;
-    let usdGiven = false;
-    let rateIn: number | null = null, rateOut: number | null = null;
-    let allowEstimate = false;
-    let runId: string | undefined, sessionId: string | undefined;
-    for (let i = 0; i < rest.length; i++) {
-      switch (rest[i]) {
-        case "--stage": stage = rest[++i] ?? ""; break;
-        case "--model": model = rest[++i] ?? "default"; break;
-        case "--tokens-in": tin = Number(rest[++i]); break;
-        case "--tokens-out": tout = Number(rest[++i]); break;
-        case "--usd": usdOverride = Number(rest[++i]); usdGiven = true; break;
-        case "--rate-in": rateIn = Number(rest[++i]); break;
-        case "--rate-out": rateOut = Number(rest[++i]); break;
-        case "--estimate": allowEstimate = true; break;
-        case "--run-id": runId = rest[++i]; break;
-        case "--session-id": sessionId = rest[++i]; break;
-      }
-    }
-    if (Object.hasOwn(Object.prototype, stage) || stage === "prototype" || stage.includes("\0") || stage.trim() !== stage) die("invalid stage name", 2);
-    if (!stage) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]", 2);
-    if (!Number.isSafeInteger(tin) || tin < 0) die(`log requires safe integer --tokens-in >= 0 (got ${rest.join(" ")})`, 2);
-    if (!Number.isSafeInteger(tout) || tout < 0) die(`log requires safe integer --tokens-out >= 0 (got ${rest.join(" ")})`, 2);
-    if (usdGiven && (usdOverride === null || !Number.isFinite(usdOverride) || (usdOverride as number) < 0)) {
-      die("log requires finite --usd >= 0", 2);
-    }
-    if (rateIn !== null && (!Number.isFinite(rateIn) || rateIn < 0)) die("log requires finite --rate-in >= 0", 2);
-    if (rateOut !== null && (!Number.isFinite(rateOut) || rateOut < 0)) die("log requires finite --rate-out >= 0", 2);
-
-    let usd: number;
-    let pricingMode: "rate_card_estimate" | "override" | "custom_rate" | "estimate";
-
-    if (usdGiven) {
-      usd = usdOverride!;
-      pricingMode = "override";
-    } else if (rateIn !== null && rateOut !== null) {
-      usd = (tin / 1e6) * rateIn + (tout / 1e6) * rateOut;
-      pricingMode = "custom_rate";
-    } else {
-      const p = priceFor(model);
-      if (p !== null) {
-        usd = (tin / 1e6) * p.in + (tout / 1e6) * p.out;
-        pricingMode = "rate_card_estimate";
-      } else if (allowEstimate) {
-        usd = (tin / 1e6) * DEFAULT_PRICE.in + (tout / 1e6) * DEFAULT_PRICE.out;
-        pricingMode = "estimate";
-      } else {
-        die(`unknown model '${model}': specify --usd override, --rate-in/--rate-out, or --estimate to proceed`, 2);
-      }
-    }
-
-    for (const id of [runId, sessionId]) if (id && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) die("invalid execution/session identity", 2);
-    if ((rateIn === null) !== (rateOut === null)) die("both rate options are required", 2);
-    const microcents = usdToMicrocents(usd);
+    const {stage, model, tin, tout, usd, microcents, pricingMode, runId, sessionId} = usage!;
     if (!Number.isSafeInteger(microcents) || !Number.isSafeInteger(s.total_microcents + microcents)) die("cost exceeds safe accounting range", 2);
     s.total_microcents = (s.total_microcents ?? usdToMicrocents(s.total_usd)) + microcents;
     s.total_usd = round(s.total_microcents / 1e6);
@@ -239,15 +259,7 @@ function main() {
   }
 
   if (cmd === "reset") {
-    if (!rest.includes("--i-am-human")) die("reset requires --i-am-human (breakers are human-only)", 2);
     const actor = process.env.USER || process.env.LOGNAME || "human";
-    let extendUsd = 0;
-    for (let i = 0; i < rest.length; i++) {
-      if (rest[i] === "--extend-usd") {
-        extendUsd = Number(rest[++i]);
-        if (!Number.isFinite(extendUsd) || extendUsd <= 0) die("reset requires finite --extend-usd > 0", 2);
-      }
-    }
     if (extendUsd > 0) {
       const mirrorPath = path.join(projectKdir(), "mirror.json");
       const mirror = readJson<{ ceiling?: number }>(mirrorPath) ?? {};
