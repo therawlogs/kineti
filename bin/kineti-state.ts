@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { die, ok, nowIso, projectKdir, readJson, writeJson, readJsonl, ensureDir, scaffoldRootHooks } from "./lib.ts";
 
@@ -73,7 +74,8 @@ Init / New-run Options:
 }
 
 function main() {
-  const [cmd, ...rest] = process.argv.slice(2);
+  const raw = process.argv.slice(2);
+  const [cmd, ...rest] = checkedOptions(raw, ["init", "new-run"].includes(raw[0]) ? ["--project", "--goal", "--stage", "--task", "--task-name"] : [], raw[0] === "new-run" ? ["--force"] : [], [], 3);
   const f = file();
 
   if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {

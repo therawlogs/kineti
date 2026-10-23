@@ -5,7 +5,9 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fingerprint } from "./kineti-evidence.ts";
+import { checkedOptions } from "./strict-options.ts";
+import { readSpending, spendingStop, withAccountingLock } from "./spending-state.ts";
+import { validateReceipt, configuredCommand, parseExpectedCommand, fingerprint } from "./kineti-evidence.ts";
 import {
   loadLimits,
   loadVerifyCommand,
@@ -72,13 +74,16 @@ export interface CIReport {
 
 export interface EvidenceCheck {
   label: string;
-  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated";
+  status: "fresh" | "missing" | "failed" | "stale" | "fingerprint-mismatch" | "invalid-time" | "workspace-mutated" | "invalid";
   at?: string;
+  reason?: string;
 }
 
 export interface CIOptions {
   requiredEvidenceLabels?: string[];
   maxEvidenceAgeMinutes?: number;
+  expectedCommands?: Record<string, string[]>;
+  requireCommandMappings?: boolean;
 }
 
 const STAGE_NAMES: Record<number, string> = {
@@ -154,17 +159,15 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
 
   // 2. Check spend circuit breaker
   const spendPath = path.join(kdir, "spend.json");
-  const spend = fs.existsSync(spendPath) ? readJson<SpendRecord>(spendPath) : null;
-  const limits = loadLimits(workspaceRoot);
-  const totalMicro = spend?.total_microcents ?? 0;
-  const limitMicro = Math.round(limits.globalUsd * 1e6);
-  const spendUsd = microcentsToUsd(totalMicro);
-  const spendLimitUsd = limits.globalUsd;
-  const spendTripped = spend?.tripped ?? false;
-
-  if (spendTripped) {
-    failures.push(`Spend circuit breaker is tripped: $${spendUsd.toFixed(4)} exceeds limit`);
-  }
+  let spendUsd = 0, spendTripped = true, spendLimitUsd = 0;
+  try {
+    const {snapshot, limits} = withAccountingLock(workspaceRoot, () => ({ snapshot: readSpending(workspaceRoot), limits: loadLimits(workspaceRoot) }));
+    spendLimitUsd = limits.globalUsd;
+    spendUsd = snapshot.total_microcents / 1e6;
+    const stop = spendingStop(snapshot, limits);
+    spendTripped = !!stop;
+    if (stop) failures.push(`Spend circuit breaker: ${stop}`);
+  } catch (error) { failures.push(`Spending accounting invalid: ${(error as Error).message}`); }
 
   // 2b. Check gates — security blocks ship (kineti.config.json: security blocks ship,
   // ship requires evidence_fresh + security_pass). Stage-agnostic tasks (stageNum 0)
@@ -187,7 +190,9 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
   // 3. Check evidence and workspace fingerprint
   const currentFp = fingerprint(workspaceRoot);
   const evidencePath = path.join(kdir, "evidence.jsonl");
-  const evidenceRecords = fs.existsSync(evidencePath) ? readJsonl<EvidenceRecord>(evidencePath) : [];
+  let evidenceRecords: EvidenceRecord[] = [];
+  try { evidenceRecords = fs.existsSync(evidencePath) ? fs.readFileSync(evidencePath, "utf8").split("\n").filter(line => line.trim()).map(line => JSON.parse(line)) : []; }
+  catch { failures.push("Evidence ledger is corrupt; refusing to skip records"); }
   
   const requiredLabels = [...new Set((options.requiredEvidenceLabels ?? []).map((label) => label.trim()).filter(Boolean))];
   const maxEvidenceAgeMinutes = options.maxEvidenceAgeMinutes ?? 240;
@@ -209,12 +214,18 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
       if ((Date.now() - timestamp) / 60_000 > maxEvidenceAgeMinutes) {
         return { label, status: "stale", at: latest.at };
       }
+      try {
+        const expectedCommand = options.expectedCommands?.[label] ?? configuredCommand(workspaceRoot, label, options.requireCommandMappings);
+        if (options.requireCommandMappings && !expectedCommand) throw new Error(`label ${label}: missing expected command mapping; recorded arguments ${JSON.stringify((latest as any).manifest?.command)}`);
+        const trustedPublicKey = fs.readFileSync(path.join(kdir, "evidence-issuer.pem"), "utf8");
+        validateReceipt(latest, { root: workspaceRoot, trustedPublicKey, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand });
+      } catch (error) { return { label, status: "invalid", at: latest.at, reason: (error as Error).message }; }
       return { label, status: "fresh", at: latest.at };
     });
     for (const check of evidenceChecks) {
       if (check.status === "fresh") continue;
       evidenceFresh = false;
-      failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}`);
+      failures.push(`Required evidence '${check.label}' is ${check.status.replaceAll("-", " ")}${check.reason ? ": " + check.reason : ""}`);
     }
   } else if (evidenceRecords.length > 0) {
     const latest = evidenceRecords[evidenceRecords.length - 1];
@@ -323,7 +334,7 @@ Options:
 }
 
 function main() {
-  const argv = process.argv.slice(2);
+  const argv = checkedOptions(process.argv.slice(2), ["--summary-file", "--pr-comment-file", "--require-evidence", "--max-evidence-age", "--expect-command"], ["--json", "--badge-only", "--require-command-mappings"], ["--require-evidence", "--expect-command"], 0);
   if (argv.includes("--help") || argv.includes("-h")) {
     printHelp();
     process.exit(0);
@@ -334,9 +345,18 @@ function main() {
   let badgeOnly = false;
   const requiredEvidenceLabels: string[] = [];
   let maxEvidenceAgeMinutes = 240;
+  const expectedCommands: Record<string, string[]> = {};
+  let requireCommandMappings = false;
 
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
+      case "--require-command-mappings": requireCommandMappings = true; break;
+      case "--expect-command": {
+        const raw = argv[++i], eq = raw.indexOf("=");
+        if (eq <= 0 || Object.hasOwn(expectedCommands, raw.slice(0,eq))) { console.error("invalid or duplicate command mapping"); process.exit(2); }
+        try { expectedCommands[raw.slice(0,eq)] = parseExpectedCommand(raw.slice(eq+1)); } catch (error) { console.error(String(error)); process.exit(2); }
+        break;
+      }
       case "--summary-file":
         summaryFile = argv[++i] ?? null;
         break;
@@ -366,7 +386,7 @@ function main() {
     }
   }
 
-  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes });
+  const report = generateCIReport(process.cwd(), { requiredEvidenceLabels, maxEvidenceAgeMinutes, expectedCommands, requireCommandMappings });
 
   if (badgeOnly) {
     console.log(report.badgeUrl);

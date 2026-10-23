@@ -110,7 +110,7 @@ jobs:
           read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
           args=()
           for label in "${labels[@]}"; do args+=(--require-evidence "$label"); done
-          bun bin/kineti.js ci "${args[@]}"
+          bun bin/kineti.js ci --require-command-mappings --expect-command 'release-ts-tests=["bun","test","tests/"]' --expect-command 'release-rust-tests=["cargo","test","--manifest-path","core-native/Cargo.toml"]' "${args[@]}"
 
       - name: Upload verified npm package
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

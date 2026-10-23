@@ -1,11 +1,14 @@
 #!/usr/bin/env bun
 import crypto from "node:crypto";
+import { checkedOptions } from "./strict-options.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { appendJsonl, computeDelimitedHash, die, loadVerifyCommand, nowIso, ok, projectKdir, readJsonl, runSafeCommand, sha256 } from "./lib.ts";
 
 export interface EvidenceRecord {
-  receipt_version?: 2;
+  receipt_version?: 2 | 3;
+  session_id?: string;
+  parent_run_id?: string;
   run_id?: string;
   at: string;
   label: string;
@@ -229,7 +232,11 @@ export function checkRunnerGuards(
   return { guardFailed: false };
 }
 
-function records(): Record[] { return readJsonl<Record>(file()); }
+function records(): Record[] {
+  if (!fs.existsSync(file())) return [];
+  try { return fs.readFileSync(file(), "utf8").split("\n").filter(line => line.trim()).map(line => JSON.parse(line)); }
+  catch { die("INVALID: corrupt evidence ledger", 7); }
+}
 
 function printHelp(): void {
   console.log(`
@@ -251,6 +258,9 @@ Run Options:
 Check Options:
   --label <name>                  Receipt label to check (required)
   --max-age <minutes>             Maximum receipt age in minutes (default 240)
+  --expect-command <JSON argv>   Require exact verification arguments
+  --session-id <uuid>            Correlate new signed receipts (run only)
+  --parent-run-id <uuid>         Reference a parent execution (run only)
   --expect-cmd <substring>        Ensure command matches expected substring
   --allow-workspace-mutation      Allow receipts where workspace mutated during test
   --run-id <id>                   Select a unique receipt run
@@ -301,12 +311,26 @@ export function environmentDigest(name: string): string {
 export class ReceiptValidationError extends Error {
   constructor(message: string, readonly kind: "invalid" | "stale" | "legacy" = "invalid") { super(message); }
 }
-export type ValidatedReceipt = EvidenceRecord & { receipt_version: 2; run_id: string; manifest: ExactInputManifest; verification: NonNullable<EvidenceRecord["verification"]>; issuer_key: string; signature: string };
+export type ValidatedReceipt = EvidenceRecord & { receipt_version: 2 | 3; run_id: string; manifest: ExactInputManifest; verification: NonNullable<EvidenceRecord["verification"]>; issuer_key: string; signature: string };
 const isObject = (v: unknown): v is { [key: string]: unknown } => !!v && typeof v === "object" && !Array.isArray(v);
 const isDigest = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{64}$/.test(v);
 const isWorkspacePath = (v: unknown): v is string => typeof v === "string" && !!v && !v.includes("\0") && !path.isAbsolute(v) && !v.split(/[\\/]/).some((part) => part === ".." || part === "");
 
 /** Shared checks for signed local evidence. Captured output is not independent test observation. */
+export function parseExpectedCommand(raw: string): string[] {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { throw new Error("expected command must be a JSON argument array"); }
+  if (!Array.isArray(value) || !value.length || !value.every(v => typeof v === "string" && !v.includes("\0")) || !value[0]) throw new Error("expected command must be a nonempty JSON argument array");
+  return value;
+}
+export function configuredCommand(root: string, label: string, requireMapping = false): string[] | undefined {
+  const file = path.join(root, "kineti.config.json");
+  if (!fs.existsSync(file)) return undefined;
+  const settings = JSON.parse(fs.readFileSync(file, "utf8")).settings ?? {};
+  const value = settings.verify_commands?.[label] ?? (requireMapping ? undefined : settings.verify_command_argv);
+  return value === undefined ? undefined : parseExpectedCommand(JSON.stringify(value));
+}
+
 export function validateReceipt(value: unknown, options: { root: string; trustedPublicKey: string; now?: number; maxAgeMinutes?: number; allowWorkspaceMutation?: boolean; expectedCommand?: string[] }): ValidatedReceipt {
   const fail = (message: string, kind: "invalid" | "stale" | "legacy" = "invalid"): never => { throw new ReceiptValidationError(message, kind); };
   if (!isObject(value)) fail("receipt is malformed");
@@ -316,9 +340,11 @@ export function validateReceipt(value: unknown, options: { root: string; trusted
   if (!Number.isFinite(time) || !Number.isFinite(now) || new Date(time).toISOString() !== r.at) fail("invalid receipt timestamp", "stale");
   if (time > now + 60_000) fail("receipt timestamp is in the future", "stale");
   if (now - time > (options.maxAgeMinutes ?? 240) * 60_000) fail("receipt expired (maximum age exceeded)", "stale");
-  if (r.receipt_version !== 2) fail("legacy or unsupported receipt cannot authorize the exact-input gate", "legacy");
+  if (r.receipt_version !== 2 && r.receipt_version !== 3) fail("legacy or unsupported receipt cannot authorize the exact-input gate", "legacy");
   if (!verifyReceiptSignature(r, options.trustedPublicKey)) fail("receipt issuer is untrusted or receipt signature is invalid");
   if (typeof r.run_id !== "string" || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(r.run_id) || typeof r.label !== "string" || !r.label || typeof r.cmd !== "string" || !isDigest(r.fingerprint)) fail("receipt identity or fingerprint is malformed");
+  const uuid = (v: unknown) => typeof v === "string" && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(v);
+  if (r.receipt_version === 3 && (!uuid(r.session_id) || (r.parent_run_id !== undefined && !uuid(r.parent_run_id)))) fail("signed session identity is malformed");
   const m = r.manifest, v = r.verification;
   if (!isObject(m) || !isObject(v)) fail("receipt manifest or verification is missing");
   if (v!.status !== "valid" || v!.parser !== RECEIPT_PARSER_VERSION || !Number.isSafeInteger(v!.passed) || v!.passed <= 0 || v!.failed !== 0 || v!.skipped !== 0 || r.exit_code !== 0 || r.guard_failure) fail("receipt verification evidence is missing, unknown, or failing");
@@ -326,7 +352,7 @@ export function validateReceipt(value: unknown, options: { root: string; trusted
   if (r.mutated_during_run && !options.allowWorkspaceMutation) fail("workspace changed during test execution", "stale");
   if (!Array.isArray(m!.command) || !m!.command.length || !m!.command[0] || !m!.command.every((part) => typeof part === "string" && !part.includes("\0"))) fail("command argv is missing or malformed");
   if (!isObject(m!.toolchain) || !Object.keys(m!.toolchain).length || !Object.values(m!.toolchain).every((v) => typeof v === "string") || !isObject(m!.environment) || !isDigest(m!.input_digest) || !isDigest(m!.parser_sha256)) fail("proof manifest is malformed");
-  if (options.expectedCommand && (!options.expectedCommand.length || JSON.stringify(m!.command) !== JSON.stringify(options.expectedCommand))) fail("receipt command does not match the configured verification command");
+  if (options.expectedCommand && (!options.expectedCommand.length || JSON.stringify(m!.command) !== JSON.stringify(options.expectedCommand))) fail(`label ${r.label}: expected arguments ${JSON.stringify(options.expectedCommand)}, recorded arguments ${JSON.stringify(m!.command)}; receipt command does not match the configured verification command`);
   for (const items of [m!.dependencies, v!.inventory, m!.artifact_digests]) {
     if (!Array.isArray(items) || new Set(items.map((item) => item?.path)).size !== items.length || !items.every((item) => isObject(item) && isWorkspacePath(item.path) && isDigest(item.sha256))) fail("proof input inventory is malformed");
   }
@@ -354,7 +380,8 @@ export function validateReceipt(value: unknown, options: { root: string; trusted
 }
 
 function main() {
-  const argv = process.argv.slice(2);
+  const raw = process.argv.slice(2);
+  const argv = checkedOptions(raw, raw[0] === "run" ? ["--label", "--timeout", "--required-test", "--env-name", "--artifact", "--protected-write", "--session-id", "--parent-run-id"] : ["--label", "--run-id", "--max-age", "--expect-cmd", "--expect-command"], raw[0] === "run" ? ["--allow-shell", "--allow-zero-tests", "--forbid-skipped", "--allow-workspace-mutation"] : ["--allow-workspace-mutation"], ["--required-test", "--env-name", "--artifact"], 1, raw[0] === "run");
   const cmd0 = argv[0];
 
   if (!cmd0 || cmd0 === "--help" || cmd0 === "-h") {
@@ -375,6 +402,7 @@ function main() {
       return;
     }
     let label = "";
+    let sessionId = crypto.randomUUID() as string, parentRunId: string | undefined;
     let allowShell = false;
     let allowZeroTests = false;
     let forbidSkipped = false;
@@ -384,7 +412,9 @@ function main() {
     let protectedWrite: { destination: string; arguments: unknown; content: string } | undefined;
     if (dd === -1) die("run requires: run --label L [--allow-shell] [--timeout <seconds>] [--allow-zero-tests] [--forbid-skipped] [--allow-workspace-mutation] -- <command...>");
     for (let i = 1; i < dd; i++) {
-      if (argv[i] === "--label") label = argv[i + 1] ?? "";
+      if (argv[i] === "--label") label = argv[++i] ?? "";
+      else if (argv[i] === "--session-id") sessionId = argv[++i];
+      else if (argv[i] === "--parent-run-id") parentRunId = argv[++i];
       if (argv[i] === "--allow-shell") allowShell = true;
       if (argv[i] === "--allow-zero-tests") allowZeroTests = true;
       if (argv[i] === "--forbid-skipped") forbidSkipped = true;
@@ -395,10 +425,11 @@ function main() {
       if (argv[i] === "--artifact") artifacts.push(argv[++i] ?? "");
       if (argv[i] === "--protected-write") { try { protectedWrite = JSON.parse(argv[++i] ?? "") as typeof protectedWrite; } catch { die("--protected-write must be JSON", 2); } }
     }
-    if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) die("--timeout must be a positive number of seconds");
+    if (!Number.isFinite(timeoutSec) || timeoutSec <= 0) die("--timeout must be a positive number of seconds", 2);
     const cmdArgv = argv.slice(dd + 1);
     const command = cmdArgv.join(" ");
-    if (!label || cmdArgv.length === 0) die("run requires --label and a command after --");
+    if (!label || cmdArgv.length === 0) die("run requires --label and a command after --", 2);
+    for (const id of [sessionId, parentRunId]) if (id && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) die("invalid session/parent identity", 2);
     const inventoryPaths = [...new Set(requiredTests.flatMap((rel) => {
       const full = path.resolve(process.cwd(), rel);
       if (!full.startsWith(path.resolve(process.cwd()) + path.sep) || !fs.existsSync(full)) throw new Error(`required test missing or outside workspace: ${rel}`);
@@ -485,7 +516,7 @@ function main() {
     const runId = crypto.randomUUID();
     const parsed = outputVerification;
     const record: EvidenceRecord = {
-      receipt_version: 2, run_id: runId,
+      receipt_version: 3, run_id: runId, session_id: sessionId, ...(parentRunId ? { parent_run_id: parentRunId } : {}),
       at: nowIso(), label, cmd: command, exit_code: code,
       fingerprint: fpAfter,
       manifest: { command: cmdArgv, dependencies, toolchain: toolchainBefore, environment: envEvidence, input_digest: fpBefore, artifact_digests: artifactDigests, parser_sha256: parserBefore, ...(protectedEffect ? { protected_effect: protectedEffect } : {}) },
@@ -509,6 +540,7 @@ function main() {
     }
     let label = "", runId: string | null = null, maxAgeMin = 240, expectCmd: string | null = null;
     let allowWorkspaceMutation = false;
+    let expectedCommand: string[] | undefined;
     for (let i = 1; i < argv.length; i++) {
       switch (argv[i]) {
         case "--label": label = argv[++i] ?? ""; break;
@@ -523,6 +555,7 @@ function main() {
           break;
         }
         case "--expect-cmd": expectCmd = argv[++i] ?? null; break;
+        case "--expect-command": expectedCommand = parseExpectedCommand(argv[++i]); break;
         case "--allow-workspace-mutation": allowWorkspaceMutation = true; break;
       }
     }
@@ -534,7 +567,7 @@ function main() {
     try {
       // Checking never creates a key or enrolls the receipt's issuer.
       const trustedPublicKey = fs.readFileSync(keyFile(), "utf8");
-      validateReceipt(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin, allowWorkspaceMutation });
+      validateReceipt(last, { root: process.cwd(), trustedPublicKey, maxAgeMinutes: maxAgeMin, allowWorkspaceMutation, expectedCommand: expectedCommand ?? configuredCommand(process.cwd(), label) });
     } catch (error) {
       const kind = error instanceof ReceiptValidationError ? error.kind : "invalid";
       console.error(`kineti: ${kind === "stale" ? "STALE" : kind === "legacy" ? "LIMITED" : "INVALID"} (${error instanceof ReceiptValidationError ? error.message : "local issuer key is missing or unreadable"})`);
@@ -547,4 +580,4 @@ function main() {
   die(`unknown command: ${cmd0}. Use fingerprint | run | check`, 2);
 }
 
-if (import.meta.main) main();
+if (import.meta.main) { try { main(); } catch (error) { console.error(`kineti: ${(error as Error).message}`); process.exitCode = 2; } }

@@ -6,6 +6,7 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { die, ok, projectKdir, readJson, readJsonl, writeJson } from "./lib.ts";
 import { appendAudit } from "./kineti-audit.ts";
@@ -44,7 +45,8 @@ function snapshotHash(snap: Record<string, unknown>): string {
 }
 
 if (import.meta.main) {
-  const [cmd, ...rest] = process.argv.slice(2);
+  const raw = process.argv.slice(2);
+  const [cmd, ...rest] = checkedOptions(raw, raw[0] === "export" ? ["--out", "--passphrase-env"] : raw[0] === "import" ? ["--file", "--passphrase-env"] : [], [], [], 1);
 
   if (cmd === "on" || cmd === "off") {
     const on = cmd === "on";

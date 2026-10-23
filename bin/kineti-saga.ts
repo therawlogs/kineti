@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { appendJsonl, die, loadVerifyCommand, nowIso, ok, projectKdir, readJson, readJsonl, runSafeCommand, sha256, splitLegacyCommand, writeJson } from "./lib.ts";
 
@@ -97,7 +98,8 @@ Rollback Options:
 }
 
 function main() {
-  const [cmd, ...rest] = process.argv.slice(2);
+  const raw = process.argv.slice(2);
+  const [cmd, ...rest] = checkedOptions(raw, raw[0] === "begin" || raw[0] === "commit" || raw[0] === "rollback" ? ["--run-id"] : ["--run-id", "--label", "--inverse"], raw[0] === "rollback" ? ["--allow-shell", "--yes"] : [], [], 3);
   if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {
     printHelp();
     return;
@@ -116,7 +118,7 @@ function main() {
   }
 
   if (cmd === "begin") {
-    if (!runId) die("begin requires --run-id R");
+    if (!runId) die("begin requires --run-id R", 2);
     appendJsonl(file(), { at: nowIso(), kind: "begin", run_id: runId } satisfies Line);
     updateGuard();
     ok(`run ${runId} open`);
@@ -124,8 +126,8 @@ function main() {
   }
 
   if (cmd === "register") {
+    if (!label || !inverse) die("register requires --label L --inverse \"command\"", 2);
     openRun(runId);
-    if (!label || !inverse) die("register requires --label L --inverse \"command\"");
     appendJsonl(file(), { at: nowIso(), kind: "register", run_id: runId, label, inverse, inverse_hash: sha256(inverse) } satisfies Line);
     updateGuard();
     ok(`undo step registered: ${label}`);

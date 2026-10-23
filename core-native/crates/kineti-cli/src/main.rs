@@ -14,14 +14,30 @@ use kineti_memory::{
     CommitmentTimeVerifier, ConsequenceLevel, GapFillingPolicy, Perishability,
     PromotionSignalDetector,
 };
+#[cfg(target_os = "linux")]
+mod evaluator;
+
 use std::env;
 use std::io::{self, BufRead, Write};
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args = match normalized_args(env::args().collect()) {
+        Ok(args) => args,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(2);
+        }
+    };
     let command = args.get(1).map(|s| s.as_str()).unwrap_or("help");
 
     match command {
+        #[cfg(target_os = "linux")]
+        "evaluator" => {
+            if let Err(error) = evaluator::cli(&args[2..]) {
+                eprintln!("{error}");
+                std::process::exit(2);
+            }
+        }
         "chat" => run_interactive_chat(),
         "status" => run_status(),
         "test-all" => run_test_suite(),
@@ -33,6 +49,72 @@ fn main() {
     }
 }
 
+fn normalized_args(raw: Vec<String>) -> Result<Vec<String>, String> {
+    let mut out = raw.iter().take(2).cloned().collect::<Vec<_>>();
+    let command = raw.get(1).map(String::as_str).unwrap_or("help");
+    if ![
+        "chat",
+        "status",
+        "test-all",
+        "epistemic",
+        "epistemic-eval",
+        "anti-drift",
+        "--version",
+        "-v",
+        "version",
+        "help",
+        "--help",
+        "-h",
+        "evaluator",
+    ]
+    .contains(&command)
+    {
+        return Err(format!("unknown command: {command}"));
+    }
+    if command == "evaluator" {
+        if raw.iter().skip(2).any(|a| a.starts_with('-')) {
+            return Err("evaluator uses positional arguments; unknown option".into());
+        }
+        return Ok(raw);
+    }
+    if command != "epistemic-eval" {
+        if raw.len() > 2 {
+            return Err("unexpected arguments".into());
+        }
+        return Ok(raw);
+    }
+    let mut seen = std::collections::HashSet::new();
+    let mut i = 2;
+    while i < raw.len() {
+        let (name, inline) = match raw[i].split_once('=') {
+            Some((a, b)) => (a, Some(b.to_string())),
+            None => (raw[i].as_str(), None),
+        };
+        if !["--item", "--tags", "--scope"].contains(&name) || !seen.insert(name.to_string()) {
+            return Err(format!("unknown or duplicate option: {name}"));
+        }
+        let value = match inline {
+            Some(v) => v,
+            None => {
+                i += 1;
+                raw.get(i).cloned().ok_or("missing option value")?
+            }
+        };
+        if value.is_empty() || value.starts_with("--") {
+            return Err("missing option value".into());
+        }
+        if name == "--scope"
+            && !["health", "work", "finance", "schedule", "taste"].contains(&value.as_str())
+        {
+            return Err("invalid scope".into());
+        }
+        out.push(name.to_string());
+        out.push(value);
+        i += 1;
+    }
+    Ok(out)
+}
+
 fn print_help() {
     println!(
         "\n=======================================================\n\
@@ -40,6 +122,7 @@ fn print_help() {
            Website: getkineti.com | Crates.io: kineti-cli\n\
          =======================================================\n\n\
          Usage:\n\
+           kineti-cli evaluator   Linux trusted fake-publish service (see docs/EVALUATOR.md)\n\
            kineti-cli status      Show memory and spend quota status\n\
            kineti-cli test-all    Run end-to-end verification checks\n\
            kineti-cli epistemic   Demonstrate 360º Human Model & Epistemic Engine\n\
@@ -64,7 +147,7 @@ fn run_status() {
         router.memory.query_facts("local_dev_user", None).len()
     );
     println!("Supported Channels: Apple iMessage (macOS bridge) & Meta WhatsApp Cloud API");
-    println!("Real-World Actions: Active (Shopping, Tickets, Brave Search, FLUX.1)");
+    println!("Real-World Actions: example connectors; live provider execution is unverified");
     println!("-------------------------------\n");
 }
 

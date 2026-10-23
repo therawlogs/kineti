@@ -9,6 +9,7 @@
  */
 
 import * as fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -37,7 +38,7 @@ function resolvePackageVersion(): string {
 
 // Workspace root resolution
 let workspaceRoot = process.cwd();
-const args = process.argv.slice(2);
+const args = checkedOptions(process.argv.slice(2), ["--workspace-root"], [], [], 2);
 
 // Check if run as CLI helper (e.g. `kineti-mcp init`)
 if (args[0] === "init") {

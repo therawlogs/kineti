@@ -1,6 +1,6 @@
 //! # Stripe Issuing & Link Autonomous Payments Engine (`stripe_issuing`)
 //!
-//! Autonomous generation of dynamically authorized, one-time-use virtual cards:
+//! Simulation only: no provider is connected. Demonstrates generation of dynamically authorized, one-time-use virtual cards:
 //! - Single-use virtual cards masked from end merchants.
 //! - Enforces exact user-approved spend caps (`amount_cents <= approved_cap`).
 //! - Short TTL (default 15 minutes) with auto-cancellation.
@@ -17,6 +17,8 @@ use std::sync::RwLock;
 /// Single-use virtual card generated for an autonomous transaction.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VirtualCard {
+    /// Always true: this value is not issued by a payment provider.
+    pub simulation: bool,
     /// Unique card identifier in Stripe Issuing (e.g. "ic_1A2B3C...").
     pub card_id: String,
     /// Associated user ID.
@@ -63,13 +65,14 @@ impl StripeIssuingEngine {
         merchant: &str,
     ) -> VirtualCard {
         let now = current_epoch_millis();
-        let card_id = format!("ic_vc_{}_{}", user_id, now);
+        let card_id = format!("sim_vc_{}_{}", user_id, now);
         // Deterministic pseudo-card generation for safe sandbox testing
         let seed = now ^ (spend_cap_cents as u64);
         let pan = format!("40001234{:08}", seed % 100_000_000);
         let cvv = format!("{:03}", (seed % 900) + 100);
 
         let card = VirtualCard {
+            simulation: true,
             card_id: card_id.clone(),
             user_id: user_id.to_string(),
             pan,
@@ -139,7 +142,7 @@ impl StripeIssuingEngine {
 
 impl KinetiConnectorProtocol for StripeIssuingEngine {
     fn connector_name(&self) -> &'static str {
-        "stripe_issuing"
+        "stripe_issuing_simulation"
     }
 
     fn supported_actions(&self) -> &[&'static str] {
@@ -159,6 +162,9 @@ impl KinetiConnectorProtocol for StripeIssuingEngine {
         action: &str,
         payload: &Value,
     ) -> Result<Value, ConnectorProtocolError> {
+        if get_str_property(payload, "mode") != Some("simulation") {
+            return Err(ConnectorProtocolError::ExecutionFailed("Card issuance unavailable: no provider is connected. Explicit mode=simulation is required for local examples.".into()));
+        }
         match action {
             "create_virtual_card" => {
                 let user_id = get_str_property(payload, "user_id").unwrap_or("default");
@@ -176,6 +182,7 @@ impl KinetiConnectorProtocol for StripeIssuingEngine {
 
                 let card = self.create_virtual_card(user_id, cap_cents, merchant);
                 let mut map = BTreeMap::new();
+                map.insert("simulation".into(), Value::Bool(true));
                 map.insert("card_id".to_string(), Value::String(card.card_id));
                 map.insert(
                     "masked_pan".to_string(),

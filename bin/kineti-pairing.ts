@@ -4,6 +4,7 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { die, ok, projectKdir, readJson, writeJson, machineDir, MIN_PROJECT_CEILING_USD, MAX_PROJECT_CEILING_USD, DEFAULT_PROJECT_CEILING_USD } from "./lib.ts";
 import { appendAudit } from "./kineti-audit.ts";
@@ -170,7 +171,8 @@ export function setMirror(enabled: boolean, noteSync: boolean, actor = "user", c
 }
 
 function cli(): void {
-  const [cmd, ...rest] = process.argv.slice(2);
+  const raw = process.argv.slice(2);
+  const [cmd, ...rest] = checkedOptions(raw, raw[0] === "mirror" ? ["--ceiling"] : [], raw[0] === "mirror" ? ["--with-notes"] : [], [], 2);
   if (cmd === "make") {
     die("cloud pairing is not available in this release; no code was created", 2);
   }

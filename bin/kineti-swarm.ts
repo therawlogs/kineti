@@ -48,8 +48,8 @@ function runSwarmSimulation(rootGoalOverride?: string) {
   console.log(`  • Goal drift check against altered goal: ${wouldDrift ? "DRIFT CAUGHT & BLOCKED" : "UNCAUGHT"}`);
 
   // Step 5: Coder writes code, runs tests, and signs output
-  console.log("\n[4] Worker Executing Code & Signing Outcome Evidence...");
-  const testEvidence = "bun test -- 14 tests passing, 0 regressions, pool latency 3.8ms";
+  console.log("\n[4] Simulating a worker signature (no execution)...");
+  const testEvidence = "SIMULATION ONLY: no task or tests executed; cannot authorize protected effects";
   const workerResult = submitWorkerResult(coder, task, testEvidence);
   console.log(`  • Evidence Hash:    ${workerResult.evidenceHash.slice(0, 16)}...`);
   console.log(`  • Worker Signature: ${workerResult.workerSignature.slice(0, 20)}...`);
@@ -75,14 +75,14 @@ function runSwarmSimulation(rootGoalOverride?: string) {
   const isTicketValid = verifyDualSignedTicket(ticket, coder, reviewer);
   console.log(`  • Dual-Signature Verified: ${isTicketValid ? "VALID (Non-repudiable)" : "INVALID"}`);
 
-  ok("Swarm coordination and cryptographic identity simulation completed successfully.\n");
+  ok("Simulation finished. No work executed and no protected effect authorized.\n");
 }
 
 if (import.meta.main) {
-  const customGoal = process.argv.slice(2).join(" ").trim() || undefined;
-  if (customGoal) console.log(`Using custom goal from CLI args.`);
-  else console.log(`No goal arg given — running fixed demo. Usage: kineti swarm "Your goal here"`);
-  runSwarmSimulation(customGoal);
+  if (process.argv[2] !== "--simulate") {
+    console.error("kineti: live swarm execution is unavailable; use --simulate for a signing demonstration only");
+    process.exitCode = 2;
+  } else runSwarmSimulation(process.argv.slice(3).join(" "));
 }
 
 export { runSwarmSimulation };

@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { die, loadVerifyCommand, machineDir, nowIso, ok, readJson, sha256, writeJson } from "./lib.ts";
 
@@ -13,7 +14,7 @@ function repoKey(): string {
 }
 
 function main() {
-  const argv = process.argv.slice(2);
+  const argv = checkedOptions(process.argv.slice(2), [], ["--trust", "--status"], [], 0);
   const cmd = argv[0];
   const declared = loadVerifyCommand();
 

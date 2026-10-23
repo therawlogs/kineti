@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fingerprint, ReceiptValidationError, validateReceipt } from "./kineti-evidence.ts";
@@ -114,6 +115,7 @@ export function applyProtectedWrite(input: unknown, root = process.cwd(), now = 
 }
 
 if (import.meta.main) {
+  checkedOptions(process.argv.slice(2), [], [], [], 0);
   try {
     const raw = await new Response(Bun.stdin.stream()).text();
     let input: unknown;

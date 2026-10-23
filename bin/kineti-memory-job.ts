@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { assertInsideProject, computeDelimitedHash, die, nowIso, ok, readJsonl, sha256 } from "./lib.ts";
 
@@ -73,9 +74,10 @@ function ageDays(iso: string): number {
 }
 
 function main() {
-  const [cmd] = process.argv.slice(2);
-  const di = process.argv.indexOf("--dir");
-  const rawDir = di > -1 ? path.resolve(process.argv[di + 1]) : process.cwd();
+  const args = checkedOptions(process.argv.slice(2), ["--dir"]);
+  const [cmd] = args;
+  const di = args.indexOf("--dir");
+  const rawDir = di > -1 ? path.resolve(args[di + 1]) : process.cwd();
   const dir = assertInsideProject(rawDir, process.env.KINETI_WORKSPACE_ROOT || process.cwd());
 
   if (cmd === "sweep") {

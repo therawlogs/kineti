@@ -73,7 +73,7 @@ const target = COMMAND_MAP[subcommand];
 if (!target) {
   console.error(`kineti: unknown command '${subcommand}'`);
   printHelp();
-  process.exit(1);
+  process.exit(2);
 }
 
 const rootDir = path.resolve(here, "..");
@@ -90,10 +90,10 @@ if (subcommand === "spend" && subArgs.length === 0) {
   } else if (subArgs[0] === "check") {
     execArgs = subArgs;
   } else if (subArgs[0] === "run") {
-    const hasLabel = subArgs.includes("--label");
+    const hasLabel = subArgs.some(arg => arg === "--label" || arg.startsWith("--label="));
     execArgs = hasLabel ? subArgs : ["run", "--label", "test", ...subArgs.slice(1)];
   } else if (subArgs.length > 0) {
-    const hasLabel = subArgs.includes("--label");
+    const hasLabel = subArgs.some(arg => arg === "--label" || arg.startsWith("--label="));
     execArgs = hasLabel ? ["run", ...subArgs] : ["run", "--label", "test", ...subArgs];
   }
 } else if (subcommand === "undo" && subArgs.length === 0) {
@@ -141,7 +141,7 @@ Commands:
   kineti spend         Show spend vs $50 cap
   kineti status        Show task and gate state
   kineti verify        Check test proof before commit
-  kineti swarm <goal>  Run multi-agent task
+  kineti swarm <goal>  Signing simulation only; requires --simulate
   kineti ci            Check required test evidence and project gates
 `);
 }

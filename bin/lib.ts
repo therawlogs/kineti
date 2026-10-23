@@ -170,7 +170,7 @@ const KNOWN_CONFIG_TOP_KEYS = new Set([
 
 const KNOWN_CONFIG_SETTINGS_KEYS = new Set([
   "spend_limit_usd", "qa_max_self_repair_attempts", "data_quality_threshold",
-  "hurdle_rate_min", "verify_command", "verify_command_argv", "ci_stage", "freeze_during",
+  "hurdle_rate_min", "verify_command", "verify_command_argv", "verify_commands", "ci_stage", "freeze_during",
 ]);
 
 const warnedConfigKeys = new Set<string>();

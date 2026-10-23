@@ -239,7 +239,7 @@ describe("Kineti GitHub Actions CI Verification & Badging", () => {
 
     expect(report.checksPassed).toBe(false);
     expect(report.evidenceChecks).toEqual([
-      expect.objectContaining({ label: "typecheck", status: "fresh" }),
+      expect.objectContaining({ label: "typecheck", status: "invalid" }),
       expect.objectContaining({ label: "unit-tests", status: "missing" }),
     ]);
     expect(report.failures.some((failure) => failure.includes("unit-tests") && failure.includes("missing"))).toBe(true);

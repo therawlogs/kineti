@@ -6,11 +6,17 @@
 // Author: Kineti Research Team (therawlogs.com | Foundational AI Research)
 
 import fs from "node:fs";
+import { appendAudit } from "./kineti-audit.ts";
+import { checkedOptions } from "./strict-options.ts";
+import { readSpending, spendingStop, withAccountingLock } from "./spending-state.ts";
 import path from "node:path";
 import {
-  appendJsonl, die, ensureDir, loadLimits, machineDir, nowIso,
+  appendJsonl, ensureDir, loadLimits, machineDir, nowIso,
   ok, projectKdir, readJson, readJsonl, usdToMicrocents, writeJson,
 } from "./lib.ts";
+
+class SpendExit extends Error { constructor(message: string, readonly code: number) { super(message); } }
+function die(message: string, code = 1): never { throw new SpendExit(message, code); }
 
 interface Entry {
   at: string;
@@ -20,6 +26,8 @@ interface Entry {
   tokens_out: number;
   usd: number;
   microcents: number;
+  run_id?: string;
+  session_id?: string;
   pricing_mode?: "exact" | "override" | "custom_rate" | "estimate";
 }
 interface SpendState {
@@ -54,41 +62,7 @@ function priceFor(model: string): { in: number; out: number } | null {
 function file(): string { return path.join(projectKdir(), "spend.json"); }
 function logFile(): string { return path.join(projectKdir(), "spend.log.jsonl"); }
 
-function load(): SpendState {
-  const loaded = readJson<SpendState>(file());
-  if (loaded) {
-    // Sanitize stored numbers: non-finite ledger values fail closed to 0-based recovery.
-    if (!Number.isFinite(loaded.total_microcents)) {
-      loaded.total_microcents = Number.isFinite(loaded.total_usd) ? usdToMicrocents(loaded.total_usd) : 0;
-    }
-    if (!Number.isFinite(loaded.total_usd)) loaded.total_usd = 0;
-    if (!loaded.by_stage || typeof loaded.by_stage !== "object") loaded.by_stage = {};
-    if (!loaded.by_stage_microcents || typeof loaded.by_stage_microcents !== "object") {
-      loaded.by_stage_microcents = {};
-      for (const [stg, amt] of Object.entries(loaded.by_stage || {})) {
-        loaded.by_stage_microcents[stg] = usdToMicrocents(amt);
-      }
-    } else {
-      for (const [stg, v] of Object.entries(loaded.by_stage_microcents)) {
-        if (!Number.isFinite(v)) {
-          const fallback = (loaded.by_stage as Record<string, number>)?.[stg];
-          loaded.by_stage_microcents[stg] = Number.isFinite(fallback) ? usdToMicrocents(fallback as number) : 0;
-        }
-      }
-    }
-    if (!Number.isFinite(loaded.entries)) loaded.entries = 0;
-    return loaded;
-  }
-  return {
-    tripped: false,
-    reason: null,
-    total_usd: 0,
-    total_microcents: 0,
-    by_stage: {},
-    by_stage_microcents: {},
-    entries: 0,
-  };
-}
+function load(): SpendState { return readSpending(process.cwd(), true); }
 
 
 function stageLimit(limits: ReturnType<typeof loadLimits>, stage: string): number {
@@ -122,23 +96,29 @@ Reset Options:
 `);
 }
 
-async function main() {
-  const [cmd, ...rest] = process.argv.slice(2);
+function main() {
+  const [cmd, ...raw] = process.argv.slice(2);
+  const specs: Record<string, string[]> = { log: ["--stage", "--model", "--tokens-in", "--tokens-out", "--usd", "--rate-in", "--rate-out", "--run-id", "--session-id"], reset: ["--extend-usd"] };
+  const rest = checkedOptions(raw, specs[cmd] ?? [], cmd === "log" ? ["--estimate"] : cmd === "reset" ? ["--i-am-human"] : ["--economics"], [], 0);
+  if (rest.filter((v,i) => !v.startsWith("-") && (i === 0 || !rest[i-1].startsWith("--"))).length) die("unexpected positional argument", 2);
 
   if (!cmd || cmd === "--help" || cmd === "-h" || rest.includes("--help") || rest.includes("-h")) {
     printHelp();
     return;
   }
 
+  return withAccountingLock(process.cwd(), () => {
   const limits = loadLimits();
   const s = load();
 
   if (cmd === "log") {
-    if (s.tripped) die(`breaker is tripped: ${s.reason}. Only a human may reset it.`, 3);
+    const stopped = spendingStop(s, limits);
+    if (stopped) die(`breaker is tripped: ${stopped}. Only a human may reset it.`, 3);
     let stage = "", model = "default", tin = NaN, tout = NaN, usdOverride: number | null = null;
     let usdGiven = false;
     let rateIn: number | null = null, rateOut: number | null = null;
     let allowEstimate = false;
+    let runId: string | undefined, sessionId: string | undefined;
     for (let i = 0; i < rest.length; i++) {
       switch (rest[i]) {
         case "--stage": stage = rest[++i] ?? ""; break;
@@ -149,6 +129,8 @@ async function main() {
         case "--rate-in": rateIn = Number(rest[++i]); break;
         case "--rate-out": rateOut = Number(rest[++i]); break;
         case "--estimate": allowEstimate = true; break;
+        case "--run-id": runId = rest[++i]; break;
+        case "--session-id": sessionId = rest[++i]; break;
       }
     }
     if (!stage) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]", 2);
@@ -182,7 +164,10 @@ async function main() {
       }
     }
 
+    for (const id of [runId, sessionId]) if (id && !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id)) die("invalid execution/session identity", 2);
+    if ((rateIn === null) !== (rateOut === null)) die("both rate options are required", 2);
     const microcents = usdToMicrocents(usd);
+    if (!Number.isSafeInteger(microcents) || !Number.isSafeInteger(s.total_microcents + microcents)) die("cost exceeds safe accounting range", 2);
     s.total_microcents = (s.total_microcents ?? usdToMicrocents(s.total_usd)) + microcents;
     s.total_usd = round(s.total_microcents / 1e6);
 
@@ -199,6 +184,7 @@ async function main() {
       usd: round(usd),
       microcents,
       pricing_mode: pricingMode,
+      ...(runId ? { run_id: runId } : {}), ...(sessionId ? { session_id: sessionId } : {}),
     } satisfies Entry);
 
     const globalCeilingMicrocents = Math.round(limits.globalUsd * limits.safetyFactor * 1e6);
@@ -212,14 +198,16 @@ async function main() {
   if (cmd === "check" || cmd === "status" || cmd === "economics") {
     if (s.tripped) {
       console.error(`kineti: TRIPPED: ${s.reason}`);
-      process.exit(3);
+      throw new SpendExit("spending stopped", 3);
     }
+    const stop = spendingStop(s, limits);
+    if (stop && cmd !== "status") die(stop, 3);
     let over = false;
     for (const [stg, spentMicro] of Object.entries(s.by_stage_microcents)) {
       if (spentMicro >= Math.round(stageLimit(limits, stg) * 1e6)) over = true;
     }
     if (s.total_microcents >= Math.round(limits.globalUsd * 1e6)) over = true;
-    if (over && (cmd === "check" || cmd === "economics")) { console.error("kineti: over limit"); process.exit(3); }
+    if (over && (cmd === "check" || cmd === "economics")) { console.error("kineti: over limit"); throw new SpendExit("spending stopped", 3); }
 
     const globalCeilingMicrocents = Math.round(limits.globalUsd * limits.safetyFactor * 1e6);
     const headroomMicro = Math.max(0, globalCeilingMicrocents - s.total_microcents);
@@ -265,7 +253,6 @@ async function main() {
     const refreshedCeilingMicrocents = Math.round(refreshedLimits.globalUsd * refreshedLimits.safetyFactor * 1e6);
     const remainingHeadroom = Math.max(0, round((refreshedCeilingMicrocents - s.total_microcents) / 1e6));
     try {
-      const { appendAudit } = await import("./kineti-audit.ts");
       appendAudit(actor, "spend.reset", `breaker reset by human; total $${s.total_usd}${extendUsd > 0 ? ` (ceiling extended by $${extendUsd})` : ""}`);
     } catch { /* audit must never block reset */ }
     ok(`breaker reset by human (total $${s.total_usd}, headroom to trip: $${remainingHeadroom})`);
@@ -273,6 +260,7 @@ async function main() {
   }
 
   die(`unknown command: ${cmd}. Use log | check | status | economics | reset`, 2);
+  });
 }
 
 function trip(s: SpendState, reason: string): never {
@@ -287,4 +275,4 @@ function trip(s: SpendState, reason: string): never {
 
 function round(n: number): number { return Math.round(n * 1e4) / 1e4; }
 
-void main();
+try { main(); } catch (error) { console.error(`kineti: ${(error as Error).message}`); process.exitCode = error instanceof SpendExit ? error.code : 2; }

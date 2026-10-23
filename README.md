@@ -54,7 +54,7 @@ Rust core with a hash-chained ledger and a commit check. Spend breaker exits wit
 - **Model Context Protocol (MCP)**: 15 tools: 14 governance tools plus the plain-talk helper. The opt-in protected-write launcher targets Cursor; real host acceptance remains unverified.
 
 ### 3. Test Inventory & Evaluation Roadmap
-- **Test inventory**: 270 TypeScript governance test cases and 250 native Rust test cases (520 total test cases); passing tests verify tested paths, not every external integration or agent action.
+- **Test inventory**: 276 TypeScript governance test cases and 250 native Rust test cases (526 total test cases); passing tests verify tested paths, not every external integration or agent action.
 - **Frontier figures in `src/harness/benchmark.ts` are design targets, not measured results**: the ALE 76.4% pass rate, SWE-bench 4.2 min MTTR, and $0.31 per-outcome numbers are goal constants for the evaluation program. They have not been produced by empirical runs.
 - **Not provided**: a complete agent sandbox or cloud connector service.
 

@@ -15,7 +15,8 @@ describe("Scheduler utility suite", () => {
 
     test("parses cron expressions and calculates deterministic next run times", () => {
       const scheduler = new SchedulerEngine(testStorePath);
-      const base = new Date("2026-10-01T12:00:00Z");
+      // Cron uses local clock fields. Use local noon rather than assuming UTC noon is local noon.
+      const base = new Date(2026, 9, 1, 12, 0, 0);
 
       // Hourly shortcut
       const nextHourly = scheduler.calculateNextCronRun("@hourly", base);
@@ -26,6 +27,7 @@ describe("Scheduler utility suite", () => {
       const next15 = scheduler.calculateNextCronRun("*/15 * * * *", base);
       expect(next15.getMinutes()).toBe(15);
       expect(next15.getHours()).toBe(12);
+      expect(next15.getTime() - base.getTime()).toBe(15 * 60_000);
 
       // Specific minute and hour
       const nextSpecific = scheduler.calculateNextCronRun("30 9 * * *", base);

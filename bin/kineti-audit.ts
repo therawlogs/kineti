@@ -5,6 +5,7 @@
 // No delete or edit command exists by design. View-only for users.
 
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import {
   computeDelimitedHash, die, ensureDir, machineDir, nowIso, ok, readJsonl,
@@ -69,7 +70,8 @@ export function verifyAudit(): { ok: boolean; count: number; badSeq: number | nu
 }
 
 function main() {
-  const [cmd, ...rest] = process.argv.slice(2);
+  const raw = process.argv.slice(2);
+  const [cmd, ...rest] = checkedOptions(raw, raw[0] === "log" ? ["--actor", "--action", "--detail"] : [], [], [], 1);
   if (cmd === "log") {
     let actor = process.env.USER || process.env.LOGNAME || "human";
     let action = "";

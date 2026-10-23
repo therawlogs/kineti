@@ -13,6 +13,10 @@ description = "Native CLI and server runner for Kineti AI assistant"
 workspace = true
 
 [dependencies]
+serde_json = "1"
+sha2 = "0.10"
+ed25519-dalek = { version = "2.2", features = ["rand_core"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
 kineti-core = { path = "../kineti-core", version = "0.5.0" }
 kineti-reflex = { path = "../kineti-reflex", version = "0.5.0" }
 kineti-memory = { path = "../kineti-memory", version = "0.5.0" }

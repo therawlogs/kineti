@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
+import { checkedOptions } from "./strict-options.ts";
 import path from "node:path";
 import { appendJsonl, computeDelimitedHash, die, machineDir, nowIso, ok, readJson, readJsonl, sha256, writeJson } from "./lib.ts";
 
@@ -92,7 +93,8 @@ function assertState(chain: Receipt[], state: { count: number; last_hash: string
 }
 
 function main() {
-  const [cmd, ...rest] = process.argv.slice(2);
+  const raw = process.argv.slice(2).map(arg => arg === "--desc" ? "--description" : arg.startsWith("--desc=") ? "--description=" + arg.slice(7) : arg);
+  const [cmd, ...rest] = checkedOptions(raw, raw[0] === "record" ? ["--host", "--description"] : [], [], [], 1);
 
   if (cmd === "record") {
     let host = "", desc = "";

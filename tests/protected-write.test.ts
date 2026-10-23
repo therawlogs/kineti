@@ -283,7 +283,7 @@ describe("Cursor MCP protected write", () => {
       ["missing signature", (r) => delete r.signature, "signature is invalid"],
       ["malformed signature", (r) => r.signature = "%%%", "signature is invalid"],
       ["invalid time", (r) => r.at = "not-a-time", "invalid receipt timestamp"],
-      ["unsupported version", (r) => r.receipt_version = 3, "unsupported receipt"],
+      ["unsupported version", (r) => (r as any).receipt_version = 4, "unsupported receipt"],
       ["missing verification", (r) => delete r.verification, "verification is missing"],
       ["zero", (r) => r.verification.passed = 0, "verification evidence"],
       ["negative", (r) => r.verification.passed = -1, "verification evidence"],

@@ -3,6 +3,7 @@
 // an existing locked goal or spend ledger.
 
 import fs from "node:fs";
+import { strictOptions } from "./strict-options.ts";
 import path from "node:path";
 
 interface Config {
@@ -150,6 +151,7 @@ export function seedCIState(workspaceRoot: string = process.cwd(), stageOverride
 }
 
 export function main(argv: string[] = process.argv.slice(2)): void {
+  try { argv = strictOptions(argv, ["--stage"], ["--help", "-h"], [], 0); } catch (error) { console.error(String(error)); process.exitCode = 2; return; }
   if (argv.length === 1 && (argv[0] === "--help" || argv[0] === "-h")) {
     console.log("Usage: kineti seed [--stage <1-13>]\nCreate only missing .kineti/state.json and .kineti/spend.json from kineti.config.json.");
     return;

@@ -91,7 +91,7 @@ describe("kineti-spend", () => {
     expect(run("kineti-spend.ts", ["check"], c).status).toBe(3);
     expect(run("kineti-spend.ts", ["reset"], c).status).toBe(2);
     expect(run("kineti-spend.ts", ["reset", "--i-am-human"], c).status).toBe(0);
-    expect(run("kineti-spend.ts", ["check"], c).status).toBe(0);
+    expect(run("kineti-spend.ts", ["check"], c).status).toBe(3);
     fs.rmSync(c.root, { recursive: true, force: true });
   });
 });
