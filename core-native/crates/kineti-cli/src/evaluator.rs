@@ -124,6 +124,29 @@ fn check_owner(path: &Path) -> Result<()> {
     }
     Ok(())
 }
+// After durable intent, an error cannot promise that the effect was denied.
+// Inspect only the original operation; never create an authorization during recovery.
+fn failure_response(state: &Path, request: &Value, reason: &str) -> Value {
+    let Some(id) = request["operation_id"].as_str().filter(|id| uuid(id)) else {
+        return json!({"status":"denied","reason":reason});
+    };
+    let request_digest = digest(&serde_json::to_vec(request).unwrap_or_default());
+    let journal = state.join("operations").join(format!("{id}.json"));
+    let uncertain = match fs::read(journal) {
+        Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
+            Ok(record) => {
+                record["request_digest"] == request_digest && record["status"] != "denied"
+            }
+            Err(_) => true,
+        },
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => state
+            .join("exports")
+            .join(format!("{id}.artifact"))
+            .exists(),
+        Err(_) => true,
+    };
+    json!({"status":if uncertain {"unknown"} else {"denied"},"operation_id":id,"reason":reason})
+}
 fn handle(state: &Path, request: &Value) -> Result<Value> {
     check_owner(state)?;
     let obj = request.as_object().ok_or("request must be an object")?;
@@ -286,6 +309,9 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
     if std::env::var("KINETI_EVALUATOR_FAILPOINT").as_deref() == Ok("after-rename") {
         std::process::exit(86);
     }
+    if std::env::var("KINETI_EVALUATOR_FAILPOINT").as_deref() == Ok("completion-error") {
+        return Err("injected completion record failure after export".into());
+    }
     let previous = result.clone();
     result["previous"] = previous;
     result["status"] = json!("applied");
@@ -358,7 +384,8 @@ pub fn cli(args: &[String]) -> Result<()> {
                 let response = (|| -> Result<Value> {
                     let n = BufReader::new((&stream).take(MAX_REQUEST+1)).read_line(&mut line)?;
                     if n as u64 > MAX_REQUEST || !line.ends_with('\n') { return Err("oversize or truncated request".into()); }
-                    handle(state,&serde_json::from_str::<Value>(&line)?)
+                    let request = serde_json::from_str::<Value>(&line)?;
+                    Ok(handle(state,&request).unwrap_or_else(|error| failure_response(state,&request,&error.to_string())))
                 })().unwrap_or_else(|e| json!({"status":"denied","reason":e.to_string()}));
                 // A disconnected client must not kill the service after a durable effect.
                 let _ = writeln!(stream,"{response}");

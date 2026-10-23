@@ -50,4 +50,4 @@ The current runtime manifest targets x86-64 Ubuntu 24.04. Other platforms requir
 
 Create `/var/lib/kineti` owned by evaluator, `/var/lib/kineti-jobs` owned by evaluator with mode 0711, and a runtime socket directory owned by evaluator. Initialize `/var/lib/kineti/state` once as evaluator. Keep state private (0700). The supplied systemd unit disables networking and restricts writable paths. On restart, remove an abandoned socket only after confirming the prior daemon is stopped; never remove durable state. Service provisioning requires administrator permission on that host. Rerun the full acceptance suite against that deployment before making a deployment-level claim.
 
-The automated test uses injected service failpoints after intent and rename. These are owner-controlled process settings, never client request fields.
+The automated test uses injected service failpoints after intent and rename, and a completion-record error after export. An error after durable intent returns `unknown`; a denial cannot conceal an export that may already have happened. These are owner-controlled process settings, never client request fields.

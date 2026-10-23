@@ -66,3 +66,11 @@ test("crash before export stays unknown and blocks new operations",async()=>{
  expect(submit(req,name).value.status).toBe("unknown");expect(docker(["start",name]).code).toBe(0);await ready(name);
  expect(submit(req,name).value.status).toBe("unknown");expect(submit(request(),name).value.reason).toContain("unreconciled");
 },15_000);
+
+test("completion record failure after export remains unknown and reconciles without another effect",async()=>{
+ const name=`kineti-completion-${crypto.randomUUID()}`;await start(name,"completion-error");const req=request();
+ const response=submit(req,name);expect(response.code).toBe(1);expect(response.value.status).toBe("unknown");
+ expect(docker(["exec",name,"cat",`/var/lib/kineti/state/exports/${req.operation_id}.artifact`]).text).toBe(genuine);
+ const reconciled=submit(req,name);expect(reconciled.code).toBe(0);expect(reconciled.value.status).toBe("applied");verifySignature(reconciled.value);
+ expect(submit(req,name).value).toEqual(reconciled.value);
+},15_000);
