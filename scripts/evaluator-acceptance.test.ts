@@ -3,12 +3,12 @@ import crypto from "node:crypto";
 import path from "node:path";
 const containers: string[] = [];
 const container=`kineti-evaluator-${crypto.randomUUID()}`;
-const env={...process.env,DOCKER_CONFIG:path.join(process.cwd(),".kineti/docker")};
+const env={...process.env,DOCKER_CONFIG:process.env.DOCKER_CONFIG??path.join(process.cwd(),".kineti/docker")};
 function docker(args:string[],input?:string){const r=Bun.spawnSync(["docker",...args],{env,stdin:input===undefined?"ignore":Buffer.from(input),stdout:"pipe",stderr:"pipe"});return {code:r.exitCode,text:r.stdout.toString(),error:r.stderr.toString()};}
 async function ready(name=container){for(let i=0;i<8;i++){if(docker(["exec",name,"test","-S","/run/kineti/evaluator.sock"]).code===0)return;await Bun.sleep(100);}throw new Error("Evaluator startup failed: "+JSON.stringify(docker(["logs",name])));}
 async function start(name:string, failpoint?:string){
  containers.push(name);
- const args=["run","-d","--name",name,"--network=none","--read-only","--memory=256m","--pids-limit=64","--cap-drop=ALL","--cap-add=SETUID","--cap-add=SETGID","--cap-add=CHOWN","--cap-add=DAC_OVERRIDE","--mount",`type=volume,source=${name}-state,target=/var/lib/kineti`,"--tmpfs","/var/lib/kineti-jobs:mode=0711","--tmpfs","/run:mode=0755","--tmpfs","/tmp:mode=1777,noexec,nosuid"];
+ const args=["run","--init","-d","--name",name,"--network=none","--read-only","--memory=256m","--pids-limit=64","--cap-drop=ALL","--cap-add=SETUID","--cap-add=SETGID","--cap-add=CHOWN","--cap-add=DAC_OVERRIDE","--mount",`type=volume,source=${name}-state,target=/var/lib/kineti`,"--tmpfs","/var/lib/kineti-jobs:mode=0711","--tmpfs","/run:mode=0755","--tmpfs","/tmp:mode=1777,noexec,nosuid"];
  if(failpoint)args.push("--env",`KINETI_EVALUATOR_FAILPOINT=${failpoint}`);
  args.push("kineti-evaluator:acceptance");
  const r=docker(args);if(r.code!==0)throw new Error(r.error);await ready(name);
@@ -20,7 +20,7 @@ beforeAll(async()=>{
 afterAll(()=>{for(const name of containers){docker(["rm","-f",name]);docker(["volume","rm",`${name}-state`]);}});
 const genuine='#!/bin/sh\nprintf "%s\\n" "$(( $1 + $2 ))"\n';
 function request(artifact=genuine){return {operation_id:crypto.randomUUID(),run_id:crypto.randomUUID(),session_id:crypto.randomUUID(),artifact_hex:Buffer.from(artifact).toString("hex"),artifact_sha256:crypto.createHash("sha256").update(artifact).digest("hex"),expires_at:Math.floor(Date.now()/1000)+120};}
-function submit(req:ReturnType<typeof request>,name=container){const r=docker(["exec","-i","--user","10002:10002",name,"sh","-c",`cat > /tmp/${req.operation_id}.json; /usr/local/bin/kineti-cli evaluator submit /run/kineti/evaluator.sock /tmp/${req.operation_id}.json`],JSON.stringify(req));if(!r.text)return {code:r.code,value:{status:"unknown",reason:r.error}};return {code:r.code,value:JSON.parse(r.text)};}
+function submit(req:ReturnType<typeof request>,name=container){const r=docker(["exec","-i","--user","10003:10003",name,"sh","-c",`cat > /tmp/${req.operation_id}.json; /usr/local/bin/kineti-cli evaluator submit /run/kineti/evaluator.sock /tmp/${req.operation_id}.json`],JSON.stringify(req));if(!r.text)return {code:r.code,value:{status:"unknown",reason:r.error}};return {code:r.code,value:JSON.parse(r.text)};}
 function destination(req:ReturnType<typeof request>){return docker(["exec",container,"cat",`/var/lib/kineti/state/exports/${req.operation_id}.artifact`]);}
 function verifySignature(value:any){const {signature, ...unsigned}=value;const sort=(v:any):any=>Array.isArray(v)?v.map(sort):v&&typeof v==="object"?Object.fromEntries(Object.keys(v).sort().map(k=>[k,sort(v[k])])):v;const publicKey=crypto.createPublicKey({key:Buffer.concat([Buffer.from("302a300506032b6570032100","hex"),Buffer.from(value.issuer,"hex")]),type:"spki",format:"der"});expect(crypto.verify(null,Buffer.from(JSON.stringify(sort(unsigned))),publicKey,Buffer.from(signature,"hex"))).toBe(true);}
 test("fabricated summaries, early exit and incomplete checks deny export",()=>{
@@ -28,7 +28,7 @@ test("fabricated summaries, early exit and incomplete checks deny export",()=>{
  expect(docker(["exec",container,"cat","/var/lib/kineti/state/outside-sentinel"]).text).toBe("unchanged");
 });
 test("genuine execution exports exact bytes with a verifiable service signature; replay is idempotent",()=>{
- const req=request(),r=submit(req);expect(r.value).toMatchObject({status:"applied"});expect(r.code).toBe(0);expect(r.value.status).toBe("applied");expect(r.value.checks).toHaveLength(4);verifySignature(r.value);expect(destination(req).text).toBe(genuine);
+ const req=request(),r=submit(req);expect(r.value).toMatchObject({status:"applied"});expect(r.code).toBe(0);expect(r.value.status).toBe("applied");expect(r.value.checks).toHaveLength(4);expect(r.value.checks[0].command.slice(-2)).toEqual(["2","3"]);expect(r.value.previous.status).toBe("pending");verifySignature(r.value.previous);verifySignature(r.value);expect(destination(req).text).toBe(genuine);
  const replay=submit(req);expect(replay.value).toEqual(r.value);
  const changed=submit({...req,session_id:crypto.randomUUID()});expect(changed.code).toBe(1);expect(changed.value.reason).toContain("substitution");expect(destination(req).text).toBe(genuine);
 });
@@ -50,7 +50,7 @@ test("candidate cannot alter trust, export, outside sentinel, or gain privileges
 test("concurrent submissions apply once and preserve execution identity",async()=>{
  const req=request();
  expect(docker(["exec","-i",container,"sh","-c","cat > /tmp/concurrent.json"],JSON.stringify(req)).code).toBe(0);
- const children=Array.from({length:2},()=>Bun.spawn(["docker","exec","--user","10002:10002",container,"/usr/local/bin/kineti-cli","evaluator","submit","/run/kineti/evaluator.sock","/tmp/concurrent.json"],{env,stdout:"pipe",stderr:"pipe"}));
+ const children=Array.from({length:2},()=>Bun.spawn(["docker","exec","--user","10003:10003",container,"/usr/local/bin/kineti-cli","evaluator","submit","/run/kineti/evaluator.sock","/tmp/concurrent.json"],{env,stdout:"pipe",stderr:"pipe"}));
  const results=await Promise.all(children.map(async child=>({code:await child.exited,value:JSON.parse(await new Response(child.stdout).text())})));
  expect(results.map(r=>r.code)).toEqual([0,0]);expect(results[0].value).toEqual(results[1].value);expect(destination(req).text).toBe(genuine);
 });

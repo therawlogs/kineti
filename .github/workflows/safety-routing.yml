@@ -1,0 +1,41 @@
+name: Safety and routing acceptance
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  timezones:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        timezone: [UTC, Asia/Kolkata, America/New_York]
+    env:
+      TZ: ${{ matrix.timezone }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+      - run: bun install --frozen-lockfile
+      - run: bun run build:router && git diff --exit-code -- bin/kineti.js
+      - run: bun bin/kineti.js seed
+      - run: bun run typecheck
+      - run: bun bin/kineti-evidence.ts run --label timezone-tests --required-test tests --env-name TZ --timeout 600 -- bun test tests/
+      - run: bun bin/kineti-evidence.ts check --label timezone-tests --expect-command '["bun","test","tests/"]'
+  linux-evaluator:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+      - run: bun install --frozen-lockfile
+      - run: bun bin/kineti.js seed
+      - run: bash scripts/evaluator/build.sh
+      - run: bun bin/kineti-evidence.ts run --label linux-evaluator --required-test scripts/evaluator-acceptance.test.ts --timeout 120 -- bun test scripts/evaluator-acceptance.test.ts
+      - run: bun bin/kineti-evidence.ts check --label linux-evaluator --expect-command '["bun","test","scripts/evaluator-acceptance.test.ts"]'

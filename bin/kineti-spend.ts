@@ -28,7 +28,7 @@ interface Entry {
   microcents: number;
   run_id?: string;
   session_id?: string;
-  pricing_mode?: "exact" | "override" | "custom_rate" | "estimate";
+  pricing_mode?: "rate_card_estimate" | "override" | "custom_rate" | "estimate";
 }
 interface SpendState {
   tripped: boolean;
@@ -133,9 +133,10 @@ function main() {
         case "--session-id": sessionId = rest[++i]; break;
       }
     }
+    if (Object.hasOwn(Object.prototype, stage) || stage === "prototype" || stage.includes("\0") || stage.trim() !== stage) die("invalid stage name", 2);
     if (!stage) die("log requires --stage S --tokens-in N --tokens-out N [--model M] [--usd X]", 2);
-    if (!Number.isFinite(tin) || tin < 0) die(`log requires finite --tokens-in >= 0 (got ${rest.join(" ")})`, 2);
-    if (!Number.isFinite(tout) || tout < 0) die(`log requires finite --tokens-out >= 0 (got ${rest.join(" ")})`, 2);
+    if (!Number.isSafeInteger(tin) || tin < 0) die(`log requires safe integer --tokens-in >= 0 (got ${rest.join(" ")})`, 2);
+    if (!Number.isSafeInteger(tout) || tout < 0) die(`log requires safe integer --tokens-out >= 0 (got ${rest.join(" ")})`, 2);
     if (usdGiven && (usdOverride === null || !Number.isFinite(usdOverride) || (usdOverride as number) < 0)) {
       die("log requires finite --usd >= 0", 2);
     }
@@ -143,7 +144,7 @@ function main() {
     if (rateOut !== null && (!Number.isFinite(rateOut) || rateOut < 0)) die("log requires finite --rate-out >= 0", 2);
 
     let usd: number;
-    let pricingMode: "exact" | "override" | "custom_rate" | "estimate";
+    let pricingMode: "rate_card_estimate" | "override" | "custom_rate" | "estimate";
 
     if (usdGiven) {
       usd = usdOverride!;
@@ -155,7 +156,7 @@ function main() {
       const p = priceFor(model);
       if (p !== null) {
         usd = (tin / 1e6) * p.in + (tout / 1e6) * p.out;
-        pricingMode = "exact";
+        pricingMode = "rate_card_estimate";
       } else if (allowEstimate) {
         usd = (tin / 1e6) * DEFAULT_PRICE.in + (tout / 1e6) * DEFAULT_PRICE.out;
         pricingMode = "estimate";
@@ -219,11 +220,11 @@ function main() {
       if (fs.existsSync(evidenceFile)) {
         try {
           const records = readJsonl<{ label?: string; exit_code?: number }>(evidenceFile);
-          verifiedOutcomes = records.filter(r => r.exit_code === 0).length;
+          verifiedOutcomes = records.filter((r: any) => r.exit_code === 0 && [2, 3].includes(r.receipt_version) && r.verification?.status === "valid" && r.verification?.passed > 0 && r.verification?.failed === 0 && r.verification?.skipped === 0).length;
         } catch {}
       }
       const costPerOutcome = s.total_usd / Math.max(1, verifiedOutcomes);
-      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; verified_outcomes=${verifiedOutcomes}; cost_per_outcome=$${costPerOutcome.toFixed(2)} (benchmark target: $0.31)`);
+      ok(`total $${s.total_usd} of $${limits.globalUsd}; entries ${s.entries}; tripped=${s.tripped}; headroom_to_trip=$${headroomUsd}; declared_passing_receipts=${verifiedOutcomes}; recorded_cost_per_declared_receipt=$${costPerOutcome.toFixed(2)} (declared records, not verified outcomes or provider billing)`);
       return;
     }
 

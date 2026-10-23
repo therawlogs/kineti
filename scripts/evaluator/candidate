@@ -10,4 +10,8 @@ done
 ulimit -t 2
 ulimit -f 32
 ulimit -v 65536
-exec /usr/bin/setpriv --reuid=10002 --regid=10002 --clear-groups --no-new-privs /usr/bin/timeout --signal=KILL 3 /bin/sh "$1" "$2" "$3"
+status=0
+/usr/bin/setpriv --reuid=10002 --regid=10002 --clear-groups --no-new-privs /usr/bin/timeout --signal=KILL 3 /bin/sh "$1" "$2" "$3" || status=$?
+# The worker UID is exclusive to this serial evaluator. Also kill detached descendants.
+/usr/bin/setpriv --reuid=10002 --regid=10002 --clear-groups --no-new-privs /bin/kill -KILL -1 >/dev/null 2>&1 || true
+exit "$status"

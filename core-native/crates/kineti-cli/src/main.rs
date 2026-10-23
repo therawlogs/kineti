@@ -38,6 +38,11 @@ fn main() {
                 std::process::exit(2);
             }
         }
+        #[cfg(not(target_os = "linux"))]
+        "evaluator" => {
+            eprintln!("trusted evaluator is supported only on x86-64 Linux");
+            std::process::exit(2);
+        }
         "chat" => run_interactive_chat(),
         "status" => run_status(),
         "test-all" => run_test_suite(),

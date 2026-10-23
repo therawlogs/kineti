@@ -25,7 +25,36 @@
     "hurdle_rate_min": 0.5,
     "verify_command": "bun test",
     "ci_stage": 9,
-    "freeze_during": ["build", "review", "qa"]
+    "freeze_during": ["build", "review", "qa"],
+    "verify_commands": {
+      "gate-ts-tests": [
+        "bun",
+        "test",
+        "tests/"
+      ],
+      "gate-rust-tests": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "core-native/Cargo.toml"
+      ],
+      "release-ts-tests": [
+        "bun",
+        "test",
+        "tests/"
+      ],
+      "release-rust-tests": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "core-native/Cargo.toml"
+      ],
+      "release-check": [
+        "bun",
+        "test",
+        "tests/"
+      ]
+    }
   },
   "memory": {
     "engine": "gbrain",

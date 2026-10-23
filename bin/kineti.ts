@@ -14,7 +14,8 @@
  *   kineti spend [status|reset|add]
  *   kineti status
  *   kineti verify
- *   kineti swarm <goal>
+ *   kineti route --help  Model access, policy, planning, bounded execution and verification
+  kineti swarm <goal>
  *   kineti ci [--require-evidence <label> ...]
  *   kineti seed [--stage <1-13>]
  */
@@ -45,6 +46,7 @@ const COMMAND_MAP: Record<string, { script: string; isShell?: boolean }> = {
   status: { script: "bin/kineti-state.ts" },
   state: { script: "bin/kineti-state.ts" },
   verify: { script: "bin/kineti-verify-gate.ts" },
+  route: { script: "bin/kineti-route.ts" },
   swarm: { script: "bin/kineti-swarm.ts" },
   ci: { script: "bin/kineti-ci.ts" },
   seed: { script: "bin/kineti-seed.ts" },
@@ -136,11 +138,12 @@ Commands:
   kineti mcp           Start MCP server
   kineti test -- <cmd> Run tests and save proof
   kineti evidence-verify --receipt <file> --trusted-key <pem> [--workspace <dir>]
-  kineti protected-write < request.json (0 allowed, 1 blocked, 2 invalid input, 3 write failure)
+  kineti protected-write < request.json (experimental local writer; does not authorize evaluator exports)
   kineti undo          Undo last change
   kineti spend         Show spend vs $50 cap
   kineti status        Show task and gate state
   kineti verify        Check test proof before commit
+  kineti route --help  Model access, policy, planning, bounded execution and verification
   kineti swarm <goal>  Signing simulation only; requires --simulate
   kineti ci            Check required test evidence and project gates
 `);

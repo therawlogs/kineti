@@ -40,6 +40,9 @@ test("corrupt accounting fails closed; resetting a threshold does not release it
   expect(run(root,"spend",["reset","--i-am-human"]).exitCode).toBe(0);
   expect(run(root,"spend",["check"]).exitCode).toBe(3);
   const state=readSpending(root);expect(spendingStop(state,loadLimits(root))).toContain("threshold");
+  fs.writeFileSync(path.join(root,".kineti/spend.log.jsonl"),"not-json\n");
+  expect(run(root,"spend",["check"]).exitCode).toBe(2);
+  fs.rmSync(path.join(root,".kineti/spend.log.jsonl"));
   fs.writeFileSync(file,JSON.stringify({total_microcents:9_500_000,by_stage_microcents:{build:9_500_000},tripped:false}));
   expect(run(root,"spend",["check"]).exitCode).toBe(3);
 });

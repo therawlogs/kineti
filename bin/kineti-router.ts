@@ -197,11 +197,12 @@ function swarmSaveReply(userText: string): string {
 }
 
 function modelReply(userText: string): string {
-  const pick = recommend(userText);
+  const host = userText.match(/\b(opencode|codex)\b/i)?.[1].toLowerCase() as "opencode" | "codex" | undefined;
+  const pick = recommend(userText, host);
   try { appendAudit("user", "model.suggest", `${pick.task}: ${pick.host}/${pick.model}`); } catch {}
   return (
-    `Static suggestion for ${pick.task}: ${pick.host} (${pick.model}) — ${pick.reason}. ` +
-    `Kineti does not switch your active tool or model.\nChoices:\n1. Use the suggestion yourself.\n2. Stay with your current tool.`
+    `Model routing ${pick.status === "blocked" ? "is blocked" : "selection"}: ${pick.reason}${pick.model ? "; " + pick.host + "/" + pick.model : ""}. ` +
+    `Kineti does not switch your active tool or model.\nChoices:\n1. Review model access and policy with kineti route.\n2. Stay with your current tool.`
   );
 }
 

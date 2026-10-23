@@ -113,7 +113,7 @@ describe("kineti-router intent classification", () => {
     expect(classifyIntent("which model is best for this bug?")).toBe("model");
     const r = route("which model is best for this bug?");
     expect(r.intent).toBe("model");
-    expect(r.reply).toContain("Static suggestion");
+    expect(r.reply).toContain("Model routing is blocked");
     expect(r.reply).toContain("does not switch your active tool or model");
     expect(r.reply).toContain("Choices:");
   });

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-export DOCKER_CONFIG="$PWD/.kineti/docker"
+export DOCKER_CONFIG="${DOCKER_CONFIG:-$PWD/.kineti/docker}"
 mkdir -p "$DOCKER_CONFIG"
 cargo build --locked -p kineti-cli
 mkdir -p .kineti/implementation/evaluator-context/.kineti/implementation .kineti/implementation/evaluator-context/scripts/evaluator

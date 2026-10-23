@@ -21,7 +21,7 @@ export interface RawInput {
 }
 
 export interface CheckedInput {
-  kind: TaskType;
+  kind: TaskType | null;
   task: string;
   entities: string[];
   images: string[];
@@ -34,7 +34,7 @@ export interface CheckedInput {
 
 export interface SchemaMemoryEntry {
   sig: string;
-  kind: TaskType;
+  kind: TaskType | null;
   task: string;
   entities: string[];
   before: number;
@@ -115,7 +115,7 @@ export function checkInput(raw: RawInput, actor = "user"): CheckedInput {
 
   const toolTail = tool.length > MAX_TOOL_TAIL ? tool.slice(-MAX_TOOL_TAIL) : tool;
   const task = cleanText(text || toolTail);
-  const kind = classifyTask(task);
+  const kind = task.trim() ? classifyTask(task) : null;
   const entities = extractEntities(`${text} ${toolTail}`);
   const after = estimateTokens(task);
   const entry: SchemaMemoryEntry = {

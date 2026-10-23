@@ -21,6 +21,7 @@ export interface EvidenceRecord {
   verification?: { status: "valid" | "limited" | "invalid" | "unsupported"; parser: string; passed: number; failed: number; skipped: number; inventory: Array<{ path: string; sha256: string }> };
   issuer_key?: string;
   signature?: string;
+  routing?: { [name: string]: unknown };
 }
 export interface ExactInputManifest {
   command: string[];
@@ -45,9 +46,9 @@ export const FULL_HASH_MAX_BYTES = 50 * 1024 * 1024;
 const CHUNK_BYTES = 1024 * 1024;
 
 function file(): string { return path.join(projectKdir(), "evidence.jsonl"); }
-function keyFile(): string { return path.join(projectKdir(), "evidence-issuer.pem"); }
-function issuerKeypair() {
-  const pubFile = keyFile(), privFile = `${pubFile}.private`;
+function keyFile(root = process.cwd()): string { return path.join(root, ".kineti/evidence-issuer.pem"); }
+function issuerKeypair(root = process.cwd()) {
+  const pubFile = keyFile(root), privFile = `${pubFile}.private`;
   fs.mkdirSync(path.dirname(pubFile), { recursive: true });
   const lockFile = `${pubFile}.init.lock`;
   let lockFd: number | null = null;
@@ -232,10 +233,16 @@ export function checkRunnerGuards(
   return { guardFailed: false };
 }
 
-function records(): Record[] {
-  if (!fs.existsSync(file())) return [];
-  try { return fs.readFileSync(file(), "utf8").split("\n").filter(line => line.trim()).map(line => JSON.parse(line)); }
-  catch { die("INVALID: corrupt evidence ledger", 7); }
+export function readEvidence(root = process.cwd()): EvidenceRecord[] {
+  const source = path.join(root, ".kineti/evidence.jsonl");
+  if (!fs.existsSync(source)) return [];
+  return fs.readFileSync(source,"utf8").split("\n").filter(line=>line.trim()).map(line=>JSON.parse(line));
+}
+function records(): Record[] { try { return readEvidence(); } catch { die("INVALID: corrupt evidence ledger",7); } }
+export function issueEvidence(record: EvidenceRecord, root = process.cwd()): EvidenceRecord {
+  const keys = issuerKeypair(root); record.issuer_key = keys.publicKey;
+  record.signature = crypto.sign(null,Buffer.from(unsignedRecord(record)),keys.privateKey).toString("base64");
+  appendJsonl(path.join(root,".kineti/evidence.jsonl"),record); return record;
 }
 
 function printHelp(): void {

@@ -366,7 +366,7 @@ describe("Kineti Visual Companion Server (kineti-companion.ts)", () => {
     const authHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${AUTH_TOKEN}` };
     const status = (await (await server.fetch(new Request("http://localhost/api/models", { headers: authHeaders }))).json()) as any;
     expect(status.automatic_switching).toBe(false);
-    expect(status.table.code.host).toBeString();
+    expect(status.table).toEqual({});
     const response = await server.fetch(new Request("http://localhost/api/models/auto", {
       method: "POST", headers: authHeaders, body: JSON.stringify({ on: true }),
     }));

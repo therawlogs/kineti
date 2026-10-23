@@ -35,6 +35,21 @@ fn hex(bytes: &[u8]) -> String {
 fn digest(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))
 }
+fn runtime_digest() -> Result<String> {
+    let mut parts = Vec::new();
+    for name in [
+        "/bin/sh",
+        "/bin/dash",
+        "/usr/bin/sudo",
+        "/usr/bin/setpriv",
+        "/usr/bin/timeout",
+        "/lib/x86_64-linux-gnu/libc.so.6",
+        "/lib64/ld-linux-x86-64.so.2",
+    ] {
+        parts.push(json!({"path":name,"sha256":digest(&fs::read(name)?)}));
+    }
+    Ok(digest(&serde_json::to_vec(&parts)?))
+}
 fn decode(s: &str) -> Result<Vec<u8>> {
     if !s.len().is_multiple_of(2) || !s.bytes().all(|c| c.is_ascii_hexdigit()) {
         return Err("invalid hex".into());
@@ -162,6 +177,8 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
             if destination.exists()
                 && digest(&fs::read(&destination)?) == field(request, "artifact_sha256")?
             {
+                let previous = old.clone();
+                old["previous"] = previous;
                 old["status"] = json!("applied");
                 old.as_object_mut()
                     .ok_or("invalid journal")?
@@ -188,7 +205,7 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
     }
     let p = policy(state, request, &key)?;
     let policy_digest = digest(&serde_json::to_vec(&p)?);
-    let runtime = digest(&fs::read("/bin/dash")?);
+    let runtime = runtime_digest()?;
     let helper = digest(&fs::read(HELPER)?);
     let supervisor = digest(&fs::read(std::env::current_exe()?)?);
     let job = Path::new("/var/lib/kineti-jobs").join(format!("{id}.sh"));
@@ -221,11 +238,11 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
         let passed = status.success()
             && observed.len() < 4096
             && String::from_utf8_lossy(&observed).trim() == *expected;
-        checks.push(json!({"id":format!("sum-{index}"),"status":if passed {"pass"} else {"fail"},"exit_code":status.code(),"observed_sha256":digest(&observed)}));
+        checks.push(json!({"id":format!("sum-{index}"),"status":if passed {"pass"} else {"fail"},"exit_code":status.code(),"command":["/bin/sh",job.to_string_lossy(),a,b],"observed_sha256":digest(&observed)}));
     }
-    fs::remove_file(job)?;
+    fs::remove_file(&job)?;
     let accepted = checks.iter().all(|c| c["status"] == "pass");
-    let mut result = json!({"schema_version":1,"operation_id":id,"run_id":request["run_id"],"session_id":request["session_id"],"request_digest":request_digest,"artifact_sha256":request["artifact_sha256"],"command":["/bin/sh","<retained-artifact>","<case-a>","<case-b>"],"inventory":"sum-v1","runtime_sha256":runtime,"helper_sha256":helper,"supervisor_sha256":supervisor,"policy_sha256":policy_digest,"destination":format!("exports/{id}.artifact"),"expires_at":expiry,"checks":checks,"status":if accepted {"pending"} else {"denied"}});
+    let mut result = json!({"schema_version":1,"operation_id":id,"run_id":request["run_id"],"session_id":request["session_id"],"request_digest":request_digest,"artifact_sha256":request["artifact_sha256"],"command":["/bin/sh",job.to_string_lossy()],"inventory":"sum-v1","runtime_sha256":runtime,"helper_sha256":helper,"supervisor_sha256":supervisor,"policy_sha256":policy_digest,"destination":format!("exports/{id}.artifact"),"expires_at":expiry,"checks":checks,"status":if accepted {"pending"} else {"denied"}});
     result = signed(result, &key)?;
     sync_json(&journal, &result)?;
     if !accepted {
@@ -236,7 +253,7 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
     }
     if expiry <= now()
         || policy_digest != digest(&serde_json::to_vec(&policy(state, request, &key)?)?)
-        || digest(&fs::read("/bin/dash")?) != runtime
+        || runtime_digest()? != runtime
         || digest(&fs::read(HELPER)?) != helper
     {
         return Err("authorization inputs changed before export".into());
@@ -258,6 +275,8 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
     if std::env::var("KINETI_EVALUATOR_FAILPOINT").as_deref() == Ok("after-rename") {
         std::process::exit(86);
     }
+    let previous = result.clone();
+    result["previous"] = previous;
     result["status"] = json!("applied");
     result
         .as_object_mut()
@@ -269,6 +288,9 @@ fn handle(state: &Path, request: &Value) -> Result<Value> {
 }
 
 pub fn cli(args: &[String]) -> Result<()> {
+    if !cfg!(target_arch = "x86_64") {
+        return Err("trusted evaluator runtime manifest supports x86-64 Linux only".into());
+    }
     match args.first().map(String::as_str) {
         Some("init") if args.len() == 2 => {
             let state = Path::new(&args[1]);
@@ -301,6 +323,7 @@ pub fn cli(args: &[String]) -> Result<()> {
             let mut record: Value = serde_json::from_slice(&fs::read(&journal)?)?;
             if record["status"] != "pending" { println!("{record}"); return Ok(()); }
             let destination = state.join("exports").join(format!("{}.artifact",args[2]));
+            let previous = record.clone();
             if destination.exists() {
                 if digest(&fs::read(&destination)?) != field(&record,"artifact_sha256")? { return Err("destination differs; manual investigation required".into()); }
                 record["status"] = json!("applied");
@@ -309,6 +332,7 @@ pub fn cli(args: &[String]) -> Result<()> {
                 if stage.exists() { fs::remove_file(stage)?; File::open(state.join("exports"))?.sync_all()?; }
                 record["status"] = json!("denied"); record["recovery"] = json!("owner confirmed no export; original authorization consumed");
             }
+            record["previous"] = previous;
             record.as_object_mut().ok_or("invalid journal")?.remove("signature");
             let bytes: [u8;32] = fs::read(state.join("signing.key"))?.try_into().map_err(|_| "invalid service key")?;
             record = signed(record,&SigningKey::from_bytes(&bytes))?;sync_json(&journal,&record)?;println!("{record}");

@@ -9,6 +9,7 @@ import { die, ok, projectKdir, readJson, writeJson, readJsonl, ensureDir, nowIso
 import { fingerprint } from "./kineti-evidence.ts";
 import { TrustedNetworkManager, TrustTier, TrustedPeer } from "../src/swarm/trusted_network.ts";
 import { ViralInviteEngine } from "../src/growth/viral_invites.ts";
+import { recommend } from "./kineti-models.ts";
 import { route as routeTalk } from "./kineti-router.ts";
 
 function parsePort(): number {
@@ -334,12 +335,13 @@ export function getModelStatus(): {
   table: Record<string, { host: string; model: string; reason: string }>;
   history: Array<{ at: string; actor: string; action: string; detail: string }>;
 } {
-  const table = {
-    code: { host: "cursor", model: "default-code", reason: "code edits stay in your editor with full file context" },
-    plan: { host: "claude", model: "default-reasoning", reason: "long plans need careful step-by-step reasoning" },
-    chat: { host: "opencode", model: "default-fast", reason: "quick questions deserve a fast cheap answer" },
-    fix: { host: "codex", model: "default-debug", reason: "bugs need strong reproduction and test loops" },
-  };
+  const table: Record<string, {host: string; model: string; reason: string}> = {};
+  for (const host of ["opencode", "codex"] as const) {
+    for (const [kind, task] of [["code", "implement login"], ["plan", "design storage"], ["chat", "hello"], ["fix", "repair login"]]) {
+      const pick = recommend(task, host);
+      if (pick.status === "selected" && pick.model) table[`${host}/${kind}`] = { host, model: pick.model, reason: pick.reason };
+    }
+  }
   let history: Array<{ at: string; actor: string; action: string; detail: string }> = [];
   try {
     const chain = readJsonl<any>(path.join(machineDir(), "audit.log.jsonl"));
@@ -879,7 +881,7 @@ function generateSettingsHtml(): string {
       </div>
       <hr class="section-divider">
       <h2 class="section-title">Model suggestions</h2>
-      <p class="section-desc">Static suggestions only. Kineti does not switch your active model or tool.</p>
+      <p class="section-desc">Selections require configured model access and policy. This dashboard does not launch a model.</p>
       <div class="item-row">
         <div class="item-body">
           <div class="item-title">Automatic switching</div>
@@ -1157,7 +1159,7 @@ function generateSettingsHtml(): string {
         .then(r => r.json())
         .then(m => {
           const st = document.getElementById('team-model-state');
-          if (st) st.innerText = 'Suggestions only — automatic switching is unavailable';
+          if (st) st.innerText = 'Configured selections only; use the CLI for explicit execution';
           const hist = document.getElementById('team-model-history');
           if (hist) {
             hist.innerHTML = (!m.history || m.history.length === 0)

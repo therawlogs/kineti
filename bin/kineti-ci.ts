@@ -229,6 +229,10 @@ export function generateCIReport(workspaceRoot: string = process.cwd(), options:
     }
   } else if (evidenceRecords.length > 0) {
     const latest = evidenceRecords[evidenceRecords.length - 1];
+    try {
+      const trustedPublicKey = fs.readFileSync(path.join(kdir, "evidence-issuer.pem"), "utf8");
+      validateReceipt(latest, { root: workspaceRoot, trustedPublicKey, maxAgeMinutes: maxEvidenceAgeMinutes, expectedCommand: configuredCommand(workspaceRoot, latest.label) });
+    } catch (error) { evidenceFresh = false; failures.push(`Latest evidence '${latest.label}' is invalid: ${(error as Error).message}`); }
     const timestamp = Date.parse(latest.at);
     if (latest.exit_code !== 0) {
       evidenceFresh = false;

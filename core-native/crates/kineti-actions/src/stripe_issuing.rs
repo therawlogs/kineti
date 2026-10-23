@@ -245,7 +245,11 @@ mod tests {
     #[test]
     fn test_virtual_card_generation_and_spend_cap_enforcement() {
         let engine = StripeIssuingEngine::new();
-        let card = engine.create_virtual_card("user_01", 33000, "Ticketmaster"); // $330.00 cap
+        assert!(engine
+            .execute_verified("create_virtual_card", &Value::Object(BTreeMap::new()))
+            .is_err());
+        let card = engine.create_virtual_card("user_01", 33000, "Ticketmaster"); // $330.00 simulation cap
+        assert!(card.simulation);
 
         assert_eq!(card.spend_cap_cents, 33000);
         assert_eq!(card.status, "active");

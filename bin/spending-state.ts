@@ -30,12 +30,34 @@ export function readSpending(root: string, allowMissing = false): SpendSnapshot 
   if (!s || !money(s.total_microcents) || typeof s.tripped !== "boolean") throw new Error("invalid spending snapshot");
   const stages = s.by_stage_microcents ?? {};
   if (typeof stages !== "object" || stages === null || Array.isArray(stages) || !Object.values(stages).every(money)) throw new Error("invalid stage spending");
+  if (Object.keys(stages).some(stage => Object.hasOwn(Object.prototype, stage) || stage === "prototype")) throw new Error("invalid stage key");
   if (Object.values(stages).reduce<number>((n, v) => n + (v as number), 0) > s.total_microcents) throw new Error("stage spending exceeds total");
   if (s.total_usd !== undefined && (!Number.isFinite(s.total_usd) || Math.abs(s.total_usd - s.total_microcents / 1e6) > 0.000051)) throw new Error("inconsistent spending total");
   if (s.entries !== undefined && !money(s.entries)) throw new Error("invalid spending entries");
+  const log = path.join(root, ".kineti/spend.log.jsonl");
+  if (fs.existsSync(log)) {
+    const records = fs.readFileSync(log,"utf8").split("\n").filter(line=>line.trim()).map(line=>JSON.parse(line));
+    let recorded = 0, entries = 0;
+    for (const record of records) {
+      if (!record || ![undefined,"reservation","settlement","reservation-cancelled"].includes(record.kind)) throw new Error("invalid accounting log entry");
+      if (record.kind === "reservation-cancelled") continue;
+      if (!money(record.microcents)) throw new Error("invalid accounting log amount");
+      if (record.kind !== "reservation") { recorded += record.microcents; entries++; }
+    }
+    if (!Number.isSafeInteger(recorded) || recorded !== s.total_microcents || (s.entries !== undefined && entries !== s.entries)) throw new Error("accounting log and snapshot disagree");
+  }
   return { ...s, reason: s.reason ?? null, total_usd: s.total_microcents / 1e6, entries: s.entries ?? 0, by_stage_microcents: stages, by_stage: Object.fromEntries(Object.entries(stages).map(([k,v]) => [k, (v as number)/1e6])) };
 }
 export function spendingStop(s: SpendSnapshot, limits: ReturnType<typeof loadLimits>): string | null {
+  const pending = (s as SpendSnapshot & { routing_reservations?: unknown }).routing_reservations;
+  if (pending !== undefined) {
+    if (!pending || typeof pending !== "object" || Array.isArray(pending)) return "invalid routing reservations";
+    for (const item of Object.values(pending)) {
+      const r = item as { status?: string; microcents?: number };
+      if (!r || !["reserved", "unknown"].includes(r.status ?? "") || !Number.isSafeInteger(r.microcents) || r.microcents! <= 0) return "invalid routing reservation";
+      return "routing work or cost remains unresolved";
+    }
+  }
   if (s.tripped) return s.reason || "spending circuit breaker is tripped";
   if (s.total_microcents >= Math.round(limits.globalUsd * limits.safetyFactor * 1e6)) return "global spending stop threshold reached";
   for (const [stage, spent] of Object.entries(s.by_stage_microcents)) {
