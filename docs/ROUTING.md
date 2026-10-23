@@ -2,7 +2,7 @@
 
 `kineti route` exposes JSON operations for OpenCode and Codex. Read-only planning does not launch either host or inspect credentials. Every live probe or execution requires explicit `--consent`, a positive owner-set per-run cap, a permitted model, an estimate with its source, and budget headroom. There are no automatic retries.
 
-The cap controls admission and further work using recorded or estimated usage. It cannot guarantee the provider's invoice or stop an in-flight request from overrunning its estimate. The CLI displays this limitation before a launch. Unknown final cost retains a reservation and blocks further launches and CI until explicitly reconciled. Recorded costs and host-calculated prices are not independently verified invoices.
+The cap controls admission and further work using recorded or estimated usage. It cannot guarantee the provider's invoice or stop an in-flight request from overrunning its estimate. The CLI displays this limitation before a launch. Unknown final cost retains a reservation and blocks further launches and CI until explicitly reconciled. Recorded costs and host-calculated prices are not independently verified invoices. Failed or incomplete executions keep their cost unresolved even if partial host cost events were observed.
 
 ## Read-only operations and configuration
 
@@ -32,7 +32,7 @@ A policy contains:
 - `destinations`: explicit network destination hostnames declared before execution. This declaration does not mediate every request made internally by a host.
 - Optional `default_class`: the explicitly chosen treatment of ambiguous tasks.
 
-No host, model, provider or price is silently selected. The deterministic classifier records its rule/version and matching classes. Mixed matches block unless the policy supplies a default. The selected model is the first permitted, suitable model in the owner's order. Expired, revoked or unconfirmed access blocks ordinary routing.
+No host, model, provider or price is silently selected. The deterministic classifier records its rule/version and matching classes. Mixed matches block unless the policy supplies a default. The selected model is the first permitted, suitable model in the owner's order. Expired, revoked or unconfirmed access blocks ordinary routing. Confirmation dates must match the signed execution; editing a date cannot renew access. Probe completion preserves any owner edit or revocation made while the host was running.
 
 ## Bounded calls and outcome checks
 

@@ -23,6 +23,7 @@ import {
   issueEvidence,
   type EvidenceRecord,
 } from "../bin/kineti-evidence.ts";
+import { withAccountingLock } from "../bin/spending-state.ts";
 import { readSpending } from "../bin/spending-state.ts";
 import { generateCIReport } from "../bin/kineti-ci.ts";
 const repo = process.cwd(),
@@ -72,11 +73,13 @@ const text=await new Response(Bun.stdin.stream()).text();
 fs.writeFileSync('.kineti/invocation.json',JSON.stringify({args,text}));
 const mode=fs.existsSync('.kineti/mode')?fs.readFileSync('.kineti/mode','utf8'):'ok';
 if(mode==='fail'){console.log(JSON.stringify({type:'error',message:'fixture auth rejected'}));process.exit(1)}
+if(mode==='pause')await Bun.sleep(250);
 if(mode==='sleep'){await Bun.sleep(2000);process.exit(0)}
 if(mode==='malformed'){console.log('not json');process.exit(0)}
 if(mode==='invalid-utf8'){process.stdout.write(Buffer.from([255]));process.exit(0)}
 const events=args[0]==='exec'?[{type:'thread.started',thread_id:'fixture-session'},{type:'item.completed',item:{type:'agent_message',text:'5'}},{type:'turn.completed',usage:{input_tokens:4,output_tokens:2}}]:[{type:'step_start',sessionID:'fixture-session'},{type:'text',sessionID:'fixture-session',part:{text:'5'}},{type:'step_finish',sessionID:'fixture-session',part:{reason:'stop',cost:0.03}}];
 for(const e of events)console.log(JSON.stringify(e));
+if(mode==='partial'){console.log(JSON.stringify({type:"error",sessionID:"fixture-session",message:"incomplete later response"}));process.exit(1)}
 `,
     { mode: 0o755 },
   );
@@ -113,6 +116,8 @@ for(const e of events)console.log(JSON.stringify(e));
     },
     destinations: ["example.invalid"],
   };
+  fs.mkdirSync(path.dirname(routingPath(root, host, "manifest")), {recursive:true});
+  fs.writeFileSync(routingPath(root, host, "manifest"), JSON.stringify(manifest));
   return { root, exe, manifest, policy };
 }
 afterEach(() => {
@@ -428,4 +433,25 @@ test("CLI rejects invalid options and missing policy without recording an execut
   expect(fs.existsSync(path.join(f.root, ".kineti/invocation.json"))).toBe(
     false,
   );
+});
+
+test("confirmation cannot overwrite an owner revocation or restore a deleted manifest",async()=>{
+ for(const edit of ["revoke","delete"]){
+  const f=fixture("opencode"),file=routingPath(f.root,"opencode","manifest");fs.writeFileSync(path.join(f.root,".kineti/mode"),"pause");
+  const pending=execute(f.root,"opencode","hello",f.manifest,f.policy,{consent:true,probe_model:"fixture/model"});
+  for(let i=0;i<100&&!fs.existsSync(path.join(f.root,".kineti/invocation.json"));i++)await Bun.sleep(10);
+  withAccountingLock(f.root,()=>{if(edit==="delete"){fs.unlinkSync(file);return;}const m=JSON.parse(fs.readFileSync(file,"utf8"));m.models[0].revoked=true;m.revision=crypto.randomUUID();fs.writeFileSync(file,JSON.stringify(m));});
+  await pending;
+  if(edit==="delete"){expect(fs.existsSync(file)).toBe(false);continue;}
+  const current=JSON.parse(fs.readFileSync(file,"utf8"));expect(current.models[0].revoked).toBe(true);expect(current.models[0].provenance).not.toContain("live-call-confirmed");
+ }
+});
+test("editing manifest dates cannot renew an old confirmation",async()=>{
+ const f=fixture();const r=await execute(f.root,"codex","hello",f.manifest,f.policy,{consent:true,probe_model:"fixture/model"});
+ const live=JSON.parse(fs.readFileSync(routingPath(f.root,"codex","manifest"),"utf8"));live.models[0].confirmed_at=new Date(Date.parse(readEvidence(f.root)[0].at)+1000).toISOString();live.models[0].expires_at=new Date(Date.parse(live.models[0].confirmed_at)+24*3600000).toISOString();
+ expect(()=>planRoute(f.root,"codex","hello",live,f.policy)).toThrow("confirmation");
+});
+test("partial host cost cannot settle a failed execution",async()=>{
+ const f=fixture("opencode");fs.writeFileSync(path.join(f.root,".kineti/mode"),"partial");const r=await execute(f.root,"opencode","hello",f.manifest,f.policy,{consent:true,probe_model:"fixture/model"});
+ expect(r.execution.status).toBe("failed");expect(r.budget.status).toBe("unknown");expect(readSpending(f.root).routing_reservations?.[r.run_id].status).toBe("unknown");expect(readSpending(f.root).total_microcents).toBe(0);
 });

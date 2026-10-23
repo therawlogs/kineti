@@ -334,6 +334,8 @@ function validAccess(
     path.join(root, ".kineti/evidence-issuer.pem"),
     "utf8",
   );
+  if (r.at !== model.confirmed_at)
+    return "access confirmation timestamp differs from signed execution";
   if (!verifyExecutionSignature(r, key))
     return "invalid access execution signature";
   return null;
@@ -872,8 +874,12 @@ export async function execute(
   });
   // Missing usage is never free. Reserve remains unresolved until explicitly reconciled.
   markUnknown(root, runId);
-  if (observation.cost.usd !== null)
-    settle(root, runId, observation.cost.usd, observation.cost.source);
+  const finalCost = completed ? observation.cost : {
+    usd: null,
+    source: "unknown: incomplete execution; observed amounts may be partial",
+  };
+  if (finalCost.usd !== null)
+    settle(root, runId, finalCost.usd, finalCost.source);
   const routing = {
     events_sha256: sha256(result.stdout_bytes),
     stderr_sha256: sha256(result.stderr),
@@ -897,8 +903,9 @@ export async function execute(
     budget: {
       cap_usd: plan.cap_usd,
       estimate: plan.estimate,
-      cost: observation.cost,
-      status: observation.cost.usd === null ? "unknown" : "reported",
+      cost: finalCost,
+      observed_cost: observation.cost,
+      status: finalCost.usd === null ? "unknown" : "reported",
       provider_invoice_verified: false,
     },
     outcome: "not-accepted",
@@ -938,18 +945,21 @@ export async function execute(
   };
   issueEvidence(receipt, root);
   if (options.probe_model && completed) {
-    const live = validateManifest(manifest),
-      row = live.models.find((m) => m.id === plan.requested_model)!;
-    row.provenance = [
-      ...new Set([...row.provenance, "live-call-confirmed" as const]),
-    ];
-    row.confirmed_at = receipt.at;
-    row.expires_at = new Date(
-      Date.parse(receipt.at) + live.ttl_hours * 3_600_000,
-    ).toISOString();
-    row.confirmation_run_id = runId;
-    live.revision = crypto.randomUUID();
-    writeJson(routingPath(root, host, "manifest"), live);
+    withAccountingLock(root, () => {
+      const file = routingPath(root, host, "manifest");
+      if (!fs.existsSync(file)) return;
+      const live = validateManifest(JSON.parse(fs.readFileSync(file, "utf8")));
+      // Never replace an owner edit or revocation made while the host was running.
+      if (live.revision !== plan.manifest_revision) return;
+      const row = live.models.find((m) => m.id === plan.requested_model);
+      if (!row || row.revoked) return;
+      row.provenance = [...new Set([...row.provenance, "live-call-confirmed" as const])];
+      row.confirmed_at = receipt.at;
+      row.expires_at = new Date(Date.parse(receipt.at) + live.ttl_hours * 3_600_000).toISOString();
+      row.confirmation_run_id = runId;
+      live.revision = crypto.randomUUID();
+      writeJson(file, live);
+    });
   }
   return { run_id: runId, session_id: sessionId, ...routing };
 }
