@@ -5,6 +5,11 @@ const vm = require("node:vm");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 const code = fs.readFileSync("install.cjs", "utf8");
+// Constraints from the pinned MCP registry schema, plus the executable's required mode.
+const registry = JSON.parse(fs.readFileSync("server.json", "utf8"));
+assert.ok(registry.description.length > 0 && registry.description.length <= 100);
+assert.equal(registry.version, "0.6.0");
+assert.deepEqual(registry.packages[0].packageArguments, [{type: "positional", value: "mcp"}]);
 function attempt(platform, arch, valid) {
   let writes = 0;
   const payload = Buffer.from("disposable fixture");
