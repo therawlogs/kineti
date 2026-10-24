@@ -253,6 +253,17 @@ fn undo_runs_newest_first_and_continues_definite_failure() {
         ]);
         assert!(o.status.success(), "{}", value(&o));
     }
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--label",
+            "missing-executable",
+            "--",
+            "./does-not-exist"
+        ])
+        .status
+        .success());
     let o = p.run(&["undo", "rollback", "--yes"]);
     assert_eq!(o.status.code(), Some(1));
     assert_eq!(fs::read_to_string(p.0.join("order.txt")).unwrap(), "newold");

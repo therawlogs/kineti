@@ -203,14 +203,19 @@ fn summary(output: &str) -> Option<(u64, u64, u64)> {
 /// Execute without a shell. Timeout kills the process group; output is bounded but drained.
 pub fn execute(root: &Path, argv: &[String], timeout: u64) -> Result<(Option<i32>, String, bool)> {
     use std::os::unix::process::CommandExt;
-    let mut child = Command::new(&argv[0])
+    let child = Command::new(&argv[0])
         .args(&argv[1..])
         .current_dir(root)
         .process_group(0)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()?;
+        .spawn();
+    // A spawn failure is definite: the requested executable did not start.
+    let mut child = match child {
+        Ok(child) => child,
+        Err(error) => return Ok((Some(127), format!("command did not start: {error}"), false)),
+    };
     fn drain(mut f: impl Read) -> (Vec<u8>, bool) {
         let mut bytes = vec![];
         let mut chunk = [0; 8192];
