@@ -117,12 +117,12 @@ jobs:
         with:
           name: native-candidate-packages
           path: .kineti/packages
-      - run: python3 scripts/accept-native-install.py --artifacts .kineti/packages --target '${{ matrix.key }}' --rust-target '${{ matrix.triple }}'
+      - run: python3 scripts/accept-native-install.py --artifacts .kineti/packages --target '${{ matrix.key }}' --rust-target '${{ matrix.triple }}' --work-root "$RUNNER_TEMP/kineti-install-acceptance"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: installed-${{ matrix.key }}
-          path: .kineti/install-acceptance/${{ matrix.key }}/report.json
+          path: ${{ runner.temp }}/kineti-install-acceptance/${{ matrix.key }}/report.json
           include-hidden-files: true
           retention-days: 1
 # Deliberately no publishing jobs or tag triggers. Publication needs separate

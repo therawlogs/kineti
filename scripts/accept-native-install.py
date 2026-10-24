@@ -13,13 +13,16 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--artifacts", required=True)
 parser.add_argument("--target", required=True)
 parser.add_argument("--rust-target", required=True)
+parser.add_argument("--work-root")
 options = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 artifacts = Path(options.artifacts).resolve()
 for name, expected in json.loads((artifacts / "SHA256SUMS.json").read_text()).items():
     if hashlib.sha256((artifacts / name).read_bytes()).hexdigest() != expected:
         raise RuntimeError("Candidate artifact digest mismatch: " + name)
-work = root / ".kineti/install-acceptance" / options.target
+work = (Path(options.work_root).resolve() if options.work_root else root / ".kineti/install-acceptance") / options.target
+if options.work_root and (work == root or root in work.parents):
+    raise RuntimeError("Native runner acceptance must use a directory outside the source checkout")
 if work.exists():
     raise RuntimeError("Acceptance directory already exists; preserve and inspect before rerun")
 work.mkdir(parents=True)
@@ -57,7 +60,7 @@ def footprint(directory):
             total += path.stat().st_size
     return total
 
-report = {"target": options.target, "platform": os.uname().sysname, "architecture": os.uname().machine,
+report = {"target": options.target, "platform": os.uname().sysname, "architecture": os.uname().machine, "outside_source_checkout": root not in work.parents and root != work,
           "downloads": {p.name: {"bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()} for p in [crate, archive]},
           "routes": {}}
 for route, installation in [("cargo", cargo_root), ("npm", npm_root)]:
