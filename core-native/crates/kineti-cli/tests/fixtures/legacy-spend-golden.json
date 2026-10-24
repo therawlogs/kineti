@@ -1,0 +1,265 @@
+{
+  "original_verifier_sha256": "0a185d9310de031b225d4819838e13d3cc378bcdd0579d7eb540afd14a7b9491",
+  "cases": [
+    {
+      "input_usd": 0.000001,
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 1,
+        "by_stage": {
+          "build": 0
+        },
+        "by_stage_microcents": {
+          "build": 1
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 0,
+        "microcents": 1
+      },
+      "original_accepts": true,
+      "expected_microcents": 1
+    },
+    {
+      "input_usd": 0.01035,
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.0104,
+        "total_microcents": 10350,
+        "by_stage": {
+          "build": 0.0104
+        },
+        "by_stage_microcents": {
+          "build": 10350
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 0.0104,
+        "microcents": 10350
+      },
+      "original_accepts": true,
+      "expected_microcents": 10350
+    },
+    {
+      "input_usd": 1.0001,
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 1.0001,
+        "total_microcents": 1000100,
+        "by_stage": {
+          "build": 1.0001
+        },
+        "by_stage_microcents": {
+          "build": 1000100
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 1.0001,
+        "microcents": 1000100
+      },
+      "original_accepts": true,
+      "expected_microcents": 1000100
+    },
+    {
+      "input_usd": 0.0000496,
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.0001,
+        "total_microcents": 50,
+        "by_stage": {
+          "build": 0.0001
+        },
+        "by_stage_microcents": {
+          "build": 50
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 0,
+        "microcents": 50
+      },
+      "original_accepts": true,
+      "expected_microcents": 50
+    },
+    {
+      "input_usd": 0.000001,
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.000001,
+        "by_stage": {
+          "build": 0.000001
+        },
+        "entries": 1
+      },
+      "entry": {
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 0.000001
+      },
+      "original_accepts": true,
+      "expected_microcents": 1
+    },
+    {
+      "kind": "display-total",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 1.0041,
+        "total_microcents": 1000100,
+        "by_stage": {
+          "build": 1.0001
+        },
+        "by_stage_microcents": {
+          "build": 1000100
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 1.0001,
+        "microcents": 1000100
+      },
+      "original_accepts": false,
+      "original_error_code": 3
+    },
+    {
+      "kind": "missing-reason",
+      "state": {
+        "tripped": false,
+        "total_usd": 1.0001,
+        "total_microcents": 1000100,
+        "by_stage": {
+          "build": 1.0001
+        },
+        "by_stage_microcents": {
+          "build": 1000100
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 1.0001,
+        "microcents": 1000100
+      },
+      "original_accepts": false,
+      "original_error_code": 3
+    },
+    {
+      "kind": "missing-model",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 1.0001,
+        "total_microcents": 1000100,
+        "by_stage": {
+          "build": 1.0001
+        },
+        "by_stage_microcents": {
+          "build": 1000100
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": null,
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 1.0001,
+        "microcents": 1000100
+      },
+      "original_accepts": false,
+      "original_error_code": 3
+    },
+    {
+      "kind": "missing-integer-stage",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 1.0001,
+        "total_microcents": 1000100,
+        "by_stage": {
+          "build": 1.0001
+        },
+        "by_stage_microcents": {},
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 1.0001,
+        "microcents": 1000100
+      },
+      "original_accepts": false,
+      "original_error_code": 3
+    },
+    {
+      "kind": "integer-less-total-drift",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 1.00011,
+        "by_stage": {
+          "build": 1.0001
+        },
+        "by_stage_microcents": {
+          "build": 1000100
+        },
+        "entries": 1
+      },
+      "entry": {
+        "at": "2026-10-16T17:00:00.000Z",
+        "stage": "build",
+        "model": "reported",
+        "tokens_in": 0,
+        "tokens_out": 0,
+        "usd": 1.0001,
+        "microcents": 1000100
+      },
+      "original_accepts": false,
+      "original_error_code": 3
+    }
+  ]
+}

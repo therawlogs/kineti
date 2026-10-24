@@ -21,7 +21,15 @@ still present. Six genuine TypeScript-generated Ed25519 receipt fixtures cover
 property ordering, numeric keys, Unicode, escapes, numeric boundaries and omitted
 optional fields. Native tests reproduce original JavaScript signing bytes,
 accept genuine signatures, and reject altered receipts and issuer substitution.
-Five separate canonical fixtures prove native encoding parity. Legacy signing
+Five separate canonical fixtures prove native encoding parity. Five valid and five damaged
+legacy spending goldens were checked against the preserved original TypeScript
+reader during the final audit. They cover exponent-form numbers, four-decimal
+USD displays, IEEE-754 rounding boundaries and integer-less records. Native
+validation preserves original integer totals, display precision and required
+fields; small discrepancies, missing model/reason and missing integer stage
+entries fail closed. Four journal fixtures validated by the original reader
+cover both old and delimited hashes, each with fixed-decimal and raw-number
+canonicalization. The native reader also verifies the original journal checkpoint. Legacy signing
 and native canonical encoding are separate paths.
 
 The original local history comparison examined **827 records**. The former
@@ -83,7 +91,7 @@ configuration is preserved. No intervening Codex version is implied supported.
 
 ## New acceptance inventory
 
-The current native suite has **35 tests: 3 library and 32 integration**.
+The current native suite has **37 tests: 3 library and 34 integration**.
 Its named tests live in the crate and map to the
 [retained behavior and exit-code table](GATE-0.6.0-BEHAVIOR.md).
 Six additional mocked installer policy cases test all supported target selections,
@@ -93,7 +101,7 @@ They supplement actual native installations, not replace them.
 Coverage includes exact/empty argv, environment/dependency/runtime changes,
 signature alteration/issuer substitution, stale/future evidence, missing checks,
 corrupted history, concurrent accounting, thresholds/reset, reservations,
-unknown journal costs, reviewed recovery/source preservation, interrupted undo,
+unknown journal costs, reviewed recovery/source preservation, interrupted undo and accounting recovery,
 undo guard inspection, preview/backup/repetition/uninstall, modified user
 configuration, removed command/tool inventory, MCP discovery/calls and self-test.
 Formatting, Clippy and the suite must pass in UTC and Asia/Kolkata for the final

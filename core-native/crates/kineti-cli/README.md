@@ -77,7 +77,8 @@ is readable and signature-checkable; unsupported legacy runtime/parser freshness
 cannot authorize the native gate. Run fresh native checks after migration.
 
 Spending is reported accounting, not provider-bill verification. Integer
-millionths of USD are used, with a 95% total/stage stop. Corruption, unknown costs
+millionths of USD are used, with a 95% total/stage stop. A lower configured
+safety factor can stop spending earlier; configuration cannot raise the 95% stop. Corruption, unknown costs
 and unresolved reservations fail closed. Reset requires audited `--i-am-human`
 confirmation; the flag does not prove a human acted and cannot create headroom.
 
@@ -86,6 +87,8 @@ with `--source` and `--evidence`. Apply requires the exact reviewed
 `--proposal-sha256`, `--apply` and `--i-am-human`. Originals remain unchanged and
 are backed up; a separate recovery view and resolution trail are recorded.
 Unknown records are never cleared. Native chain damage requires inspection.
+Incomplete recovery, altered recovery history, and changes to a reviewed recovery
+view block accounting until inspected.
 
 Undo records intent/completion, runs newest first and continues after definite
 failures. Uncertain interruption blocks replay until inspected and resolved with

@@ -1,0 +1,114 @@
+{
+  "original_verified": true,
+  "source_sha256": "8a9b43ebb18a761cd98c288d3ad608f4099a580137d2b8822e752fbe5eb4d7a5",
+  "records": [
+    {
+      "at": "2026-10-16T17:00:00.000Z",
+      "type": "run-record",
+      "project": "fixture",
+      "id": "rr-journal-golden-0",
+      "data": {
+        "costs_usd": 0,
+        "root_goal": "Fixture only",
+        "stage_outcomes": [],
+        "failed_approaches": [],
+        "numbers": [
+          0.0078125,
+          -0.0078125,
+          5e-7,
+          -5e-324,
+          1e-7
+        ],
+        "keys": {
+          "2": "two",
+          "10": "ten",
+          "😀": "emoji",
+          "": "private-use"
+        }
+      },
+      "prev_hash": "GENESIS",
+      "hash": "74f9c2c4a319498f83beb56176b5e7a50dd8a6f82f5991ab044b77199fd501f2"
+    },
+    {
+      "at": "2026-10-16T17:00:00.000Z",
+      "type": "run-record",
+      "project": "fixture",
+      "id": "rr-journal-golden-1",
+      "data": {
+        "costs_usd": 0,
+        "root_goal": "Fixture only",
+        "stage_outcomes": [],
+        "failed_approaches": [],
+        "numbers": [
+          0.0078125,
+          -0.0078125,
+          5e-7,
+          -5e-324,
+          1e-7
+        ],
+        "keys": {
+          "2": "two",
+          "10": "ten",
+          "😀": "emoji",
+          "": "private-use"
+        }
+      },
+      "prev_hash": "74f9c2c4a319498f83beb56176b5e7a50dd8a6f82f5991ab044b77199fd501f2",
+      "hash": "b2a3aa0a84b620e72646077de45a94ab80f8915c633c9cdef3be79d4a925dd1e"
+    },
+    {
+      "at": "2026-10-16T17:00:00.000Z",
+      "type": "run-record",
+      "project": "fixture",
+      "id": "rr-journal-golden-2",
+      "data": {
+        "costs_usd": 0,
+        "root_goal": "Fixture only",
+        "stage_outcomes": [],
+        "failed_approaches": [],
+        "numbers": [
+          0.0078125,
+          -0.0078125,
+          5e-7,
+          -5e-324,
+          1e-7
+        ],
+        "keys": {
+          "2": "two",
+          "10": "ten",
+          "😀": "emoji",
+          "": "private-use"
+        }
+      },
+      "prev_hash": "b2a3aa0a84b620e72646077de45a94ab80f8915c633c9cdef3be79d4a925dd1e",
+      "hash": "5f0ca439bd5982cc46770b238c90e83243a9e9558034587f3adeb49f3af69efc"
+    },
+    {
+      "at": "2026-10-16T17:00:00.000Z",
+      "type": "run-record",
+      "project": "fixture",
+      "id": "rr-journal-golden-3",
+      "data": {
+        "costs_usd": 0,
+        "root_goal": "Fixture only",
+        "stage_outcomes": [],
+        "failed_approaches": [],
+        "numbers": [
+          0.0078125,
+          -0.0078125,
+          5e-7,
+          -5e-324,
+          1e-7
+        ],
+        "keys": {
+          "2": "two",
+          "10": "ten",
+          "😀": "emoji",
+          "": "private-use"
+        }
+      },
+      "prev_hash": "5f0ca439bd5982cc46770b238c90e83243a9e9558034587f3adeb49f3af69efc",
+      "hash": "888a540b6134a755916fc5f925c3e8ee4b3ff0bba1dbbdc3147abcd4709dc8ca"
+    }
+  ]
+}

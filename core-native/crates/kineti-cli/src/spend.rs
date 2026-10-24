@@ -34,8 +34,24 @@ pub fn money(text: &str) -> Result<u64> {
     }
     Ok(n)
 }
+fn legacy_usd(v: &Value) -> Result<f64> {
+    v.as_f64()
+        .filter(|n| n.is_finite() && *n >= 0.0)
+        .ok_or_else(|| Error(3, "invalid historical monetary amount".into()))
+}
 fn amount(v: &Value) -> Result<u64> {
-    money(&v.to_string()).map_err(|_| Error(3, "invalid historical monetary amount".into()))
+    // Original usdToMicrocents: Math.round(usd * 1_000_000).
+    // Legacy JSON numbers may use exponent notation; new CLI amounts remain decimal-only.
+    let n = (legacy_usd(v)? * 1_000_000.0).round();
+    if !n.is_finite() || n > 9_007_199_254_740_991.0 {
+        return store::fail(3, "historical money exceeds exact supported integer range");
+    }
+    Ok(n as u64)
+}
+fn legacy_matches(micro: u64, usd: &Value) -> Result<bool> {
+    // Preserve the original four-decimal IEEE-754 rounding sequence exactly.
+    let round = |v: f64| (v * 1e4).round() / 1e4;
+    Ok(round(micro as f64 / 1e6) == round(legacy_usd(usd)?))
 }
 fn integer(v: &Value) -> Result<u64> {
     v.as_u64()
@@ -57,6 +73,8 @@ pub struct Account {
     pub global: u64,
     /// Default stage ceiling.
     pub stage_default: u64,
+    /// Configured factor can tighten, but never loosen, the 95% stop.
+    pub safety_factor_ppm: u64,
     /// Stage overrides.
     pub stage_limits: BTreeMap<String, u64>,
     /// Legacy trip flag.
@@ -105,6 +123,11 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
         return Ok((0, BTreeMap::new(), false));
     }
     let s = store::read(&p)?;
+    if s.get("reason")
+        .is_none_or(|v| !v.is_null() && !v.is_string())
+    {
+        return store::fail(3, "legacy trip reason malformed");
+    }
     let entries = store::lines(&log)?;
     let mut total = 0u64;
     let mut stages = BTreeMap::<String, u64>::new();
@@ -113,20 +136,20 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
             .as_str()
             .filter(|s| !s.is_empty())
             .ok_or_else(|| Error(3, "accounting stage missing".into()))?;
+        if !e["model"].is_string() {
+            return store::fail(3, "legacy accounting model missing");
+        }
         for k in ["tokens_in", "tokens_out"] {
             if e[k].as_f64().is_none_or(|v| !v.is_finite() || v < 0.0) {
                 return store::fail(3, "invalid historical token count");
             }
         }
-        let usd = amount(&e["usd"])?;
+        legacy_usd(&e["usd"])?;
         let m = if e.get("microcents").is_some() {
             integer(&e["microcents"])?
         } else {
-            usd
+            amount(&e["usd"])?
         };
-        if (m as u128 + 5_000) / 10_000 != (usd as u128 + 5_000) / 10_000 {
-            return store::fail(3, "ledger integer/USD mismatch");
-        }
         total = total
             .checked_add(m)
             .ok_or_else(|| Error(3, "accounting overflow".into()))?;
@@ -136,9 +159,11 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
             .ok_or_else(|| Error(3, "stage overflow".into()))?;
     }
     if s["entries"].as_u64() != Some(entries.len() as u64)
-        || (amount(&s["total_usd"])? as u128 + 5_000) / 10_000 != (total as u128 + 5_000) / 10_000
-        || s.get("total_microcents")
-            .is_some_and(|v| v.as_u64() != Some(total))
+        || !legacy_matches(total, &s["total_usd"])?
+        || match s.get("total_microcents") {
+            Some(v) => integer(v)?,
+            None => amount(&s["total_usd"])?,
+        } != total
     {
         return store::fail(3, "ledger/state totals differ; reviewed recovery required");
     }
@@ -146,27 +171,31 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
         .as_object()
         .ok_or_else(|| Error(3, "stage totals missing".into()))?;
     for (k, v) in by {
-        if (stages.get(k).copied().unwrap_or(0) as u128 + 5_000) / 10_000
-            != (amount(v)? as u128 + 5_000) / 10_000
-        {
+        if !legacy_matches(stages.get(k).copied().unwrap_or(0), v)? {
             return store::fail(3, "stage accounting differs");
         }
     }
     for (k, v) in &stages {
-        if (by.get(k).map(amount).transpose()?.unwrap_or(0) as u128 + 5_000) / 10_000
-            != (*v as u128 + 5_000) / 10_000
-        {
+        if !legacy_matches(*v, by.get(k).unwrap_or(&json!(0)))? {
             return store::fail(3, "stage missing from state");
         }
     }
-    if let Some(by) = s.get("by_stage_microcents") {
-        for (k, v) in by
+    let mut expected_stages = BTreeMap::new();
+    if let Some(raw) = s.get("by_stage_microcents") {
+        for (k, v) in raw
             .as_object()
             .ok_or_else(|| Error(3, "malformed integer stages".into()))?
         {
-            if integer(v)? != stages.get(k).copied().unwrap_or(0) {
-                return store::fail(3, "integer stage totals differ");
-            }
+            expected_stages.insert(k.clone(), integer(v)?);
+        }
+    } else {
+        for (k, v) in by {
+            expected_stages.insert(k.clone(), amount(v)?);
+        }
+    }
+    for k in stages.keys().chain(expected_stages.keys()).chain(by.keys()) {
+        if expected_stages.get(k).copied().unwrap_or(0) != stages.get(k).copied().unwrap_or(0) {
+            return store::fail(3, "integer stage totals differ");
         }
     }
     Ok((
@@ -189,18 +218,101 @@ fn base_digest(root: &Path) -> Result<String> {
     }
     Ok(digest(a.join(":")))
 }
+fn recovery_guard(root: &Path) -> Result<()> {
+    let base = root.join(".kineti");
+    let log = base.join("accounting-recovery.jsonl");
+    let guard = base.join("accounting-recovery.guard.json");
+    let marker = base.join("accounting-recovery.initialized");
+    let view = base.join("spend.recovery-view.json");
+    if !log.exists() && !guard.exists() && !marker.exists() && !view.exists() {
+        return Ok(());
+    }
+    if !marker.exists()
+        || !log.exists()
+        || !guard.exists()
+        || store::read(&guard)?["sha256"] != digest(fs::read(&log)?)
+    {
+        return store::fail(
+            3,
+            "recovery history changed or was interrupted; exact inspection required",
+        );
+    }
+    let mut pending = BTreeMap::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut last = None;
+    for row in store::lines(&log)? {
+        let id = row["id"]
+            .as_str()
+            .ok_or_else(|| Error(3, "recovery id missing".into()))?
+            .to_owned();
+        match row["kind"].as_str() {
+            Some("recovery-intent") => {
+                if !seen.insert(id.clone()) {
+                    return store::fail(3, "duplicate recovery intent");
+                }
+                pending.insert(id, row);
+            }
+            Some("recovery-completion") => {
+                let intent = pending
+                    .remove(&id)
+                    .ok_or_else(|| Error(3, "recovery completion lacks intent".into()))?;
+                if row["proposal_sha256"] != intent["proposal"]["proposal_sha256"] {
+                    return store::fail(3, "recovery proposal identity differs");
+                }
+                last = Some(row);
+            }
+            _ => return store::fail(3, "unknown recovery operation"),
+        }
+    }
+    if !pending.is_empty() {
+        return store::fail(
+            3,
+            "unfinished recovery intent; inspect before resuming accounting",
+        );
+    }
+    let last = last.ok_or_else(|| Error(3, "recovery completion missing".into()))?;
+    if !view.exists()
+        || last["view_sha256"] != digest(fs::read(&view)?)
+        || last["proposal_sha256"] != store::read(&view)?["proposal_sha256"]
+    {
+        return store::fail(3, "reviewed recovery view changed or is missing");
+    }
+    Ok(())
+}
+fn recovery_append(root: &Path, row: &Value) -> Result<()> {
+    let log = root.join(".kineti/accounting-recovery.jsonl");
+    store::append(&log, row)?;
+    store::write(
+        &root.join(".kineti/accounting-recovery.guard.json"),
+        &json!({"sha256":digest(fs::read(log)?)}),
+    )
+}
 /// Inspect under the caller's spend lock. Every monetary reservation/unknown blocks.
 pub fn load(root: &Path) -> Result<Account> {
     store::state(root)?;
-    for record in store::lines(&root.join(".kineti/journal.jsonl"))? {
+    recovery_guard(root)?;
+    for record in crate::journal::read(root)? {
+        let data = &record["data"];
         if record["type"] == "run-record"
-            && (record["data"]["costs_usd"].is_null()
-                || record["data"]["costs_usd"] == 0
-                    && record["data"]["cost_basis"]
-                        .as_str()
-                        .is_some_and(|s| s.contains("unavailable")))
+            || data.get("costs_usd").is_some()
+            || data.get("root_goal").is_some() && data.get("stage_outcomes").is_some()
         {
-            return store::fail(3,format!("unresolved historical cost {} remains recorded; any implementation-only subscription exception does not authorize publication",record["id"]));
+            let unknown = data["costs_usd"].is_null()
+                || data["costs_usd"] == 0
+                    && data["cost_basis"].as_str().is_some_and(|s| {
+                        ["unavailable", "unknown", "unresolved", "not recorded"]
+                            .iter()
+                            .any(|word| s.to_lowercase().contains(word))
+                    });
+            if unknown {
+                return store::fail(3,format!("unresolved historical cost {} remains recorded; any implementation-only subscription exception does not authorize publication",record["id"]));
+            }
+            if data["costs_usd"]
+                .as_f64()
+                .is_none_or(|n| !n.is_finite() || n < 0.0)
+            {
+                return store::fail(3, "historical accounting note has invalid monetary fields");
+            }
         }
     }
     for p in ["spend.reservations.jsonl", "spend.unknown.jsonl"] {
@@ -251,6 +363,17 @@ pub fn load(root: &Path) -> Result<Account> {
             stage_limits.insert(k.clone(), n);
         }
     }
+    let safety_factor_ppm = match config.pointer("/settings/spend_limit_usd/safety_factor") {
+        Some(v) => {
+            let raw = legacy_usd(v)?;
+            let n = (raw * 1_000_000.0).floor() as u64;
+            if n == 0 || raw > 1.0 {
+                return store::fail(3, "invalid accounting safety factor");
+            }
+            n.min(950_000)
+        }
+        None => 950_000,
+    };
     let mut a = Account {
         total,
         stages,
@@ -258,6 +381,7 @@ pub fn load(root: &Path) -> Result<Account> {
         count: 0,
         global,
         stage_default,
+        safety_factor_ppm,
         stage_limits,
         tripped,
     };
@@ -315,20 +439,27 @@ pub fn load(root: &Path) -> Result<Account> {
     }
     Ok(a)
 }
-fn threshold(limit: u64) -> u64 {
-    (limit as u128 * 95).div_ceil(100) as u64
+fn threshold(limit: u64, factor: u64) -> u64 {
+    if factor == 950_000 {
+        (limit as u128 * 95).div_ceil(100) as u64
+    } else {
+        (limit as u128 * factor as u128 / 1_000_000) as u64
+    }
 }
 /// Require remaining reported headroom.
 pub fn headroom(a: &Account) -> Result<()> {
     if a.tripped
-        || a.total >= threshold(a.global)
-        || a.stages
-            .iter()
-            .any(|(k, v)| *v >= threshold(*a.stage_limits.get(k).unwrap_or(&a.stage_default)))
+        || a.total >= threshold(a.global, a.safety_factor_ppm)
+        || a.stages.iter().any(|(k, v)| {
+            *v >= threshold(
+                *a.stage_limits.get(k).unwrap_or(&a.stage_default),
+                a.safety_factor_ppm,
+            )
+        })
     {
         return store::fail(
             3,
-            "reported spending reached 95% stop; reset without headroom cannot pass",
+            "reported spending reached configured stop (at most 95%); reset without headroom cannot pass",
         );
     }
     Ok(())
@@ -341,7 +472,7 @@ pub fn inspect(root: &Path, check: bool) -> Result<Value> {
         headroom(&a)?;
     }
     Ok(
-        json!({"total_microcents":a.total,"global_microcents":a.global,"stop_microcents":threshold(a.global),"headroom_microcents":threshold(a.global).saturating_sub(a.total),"by_stage_microcents":a.stages,"provider_billing":"unknown","tripped":a.tripped}),
+        json!({"total_microcents":a.total,"global_microcents":a.global,"stop_microcents":threshold(a.global,a.safety_factor_ppm),"headroom_microcents":threshold(a.global,a.safety_factor_ppm).saturating_sub(a.total),"by_stage_microcents":a.stages,"provider_billing":"unknown","safety_factor_ppm":a.safety_factor_ppm,"tripped":a.tripped}),
     )
 }
 fn commit(root: &Path, a: &Account, mut e: Value) -> Result<()> {
@@ -430,6 +561,10 @@ pub fn recovery_proposal(root: &Path) -> Result<Value> {
         "spend.reservations.jsonl",
         "spend.unknown.jsonl",
         "journal.jsonl",
+        "spend.recovery-view.json",
+        "accounting-recovery.jsonl",
+        "accounting-recovery.guard.json",
+        "accounting-recovery.initialized",
     ] {
         let p = root.join(".kineti").join(name);
         if p.exists() {
@@ -503,6 +638,7 @@ pub fn recover_from(
         return store::fail(2, "recovery supporting evidence must not be empty");
     }
     let _lock = Lock::take(&root.join(".kineti/spend.lock"))?;
+    recovery_guard(root)?;
     let proposal = propose_review(
         root,
         source,
@@ -539,17 +675,23 @@ pub fn recover_from(
         }
     }
     let id = store::nonce()?;
-    store::append(
-        &root.join(".kineti/accounting-recovery.jsonl"),
+    store::atomic(
+        &root.join(".kineti/accounting-recovery.initialized"),
+        b"1\n",
+    )?;
+    recovery_append(
+        root,
         &json!({"at":store::now(),"kind":"recovery-intent","id":id,"proposal":proposal,"supporting_evidence_sha256":digest(&evidence_bytes),"identity_proven":false,"unknowns_resolved":false}),
     )?;
     let view = json!({"version":1,"verified_source":proposal["verified_source"],"original_sources":originals,"candidate_sources":proposal["candidate_sources"],"proposal_sha256":expected});
     store::write(&root.join(".kineti/spend.recovery-view.json"), &view)?;
-    let verified = load(root)?;
-    store::append(
-        &root.join(".kineti/accounting-recovery.jsonl"),
-        &json!({"at":store::now(),"kind":"recovery-completion","id":id,"total_microcents":verified.total,"unknowns_resolved":false}),
+    // Verify installed sources before completion; public accounting remains blocked by intent.
+    let verified = legacy(root)?;
+    recovery_append(
+        root,
+        &json!({"at":store::now(),"kind":"recovery-completion","id":id,"proposal_sha256":expected,"view_sha256":digest(fs::read(root.join(".kineti/spend.recovery-view.json"))?),"total_microcents":verified.0,"unknowns_resolved":false}),
     )?;
+    let verified = load(root)?;
     Ok(
         json!({"recovered_view":true,"total_microcents":verified.total,"originals_preserved":true,"unknowns_resolved":false}),
     )

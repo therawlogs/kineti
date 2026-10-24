@@ -2,6 +2,7 @@
 pub mod compat;
 pub mod gate;
 pub mod init;
+mod journal;
 pub mod mcp;
 pub mod receipt;
 pub mod self_test;

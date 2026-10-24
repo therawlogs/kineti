@@ -199,6 +199,22 @@ fn spending_threshold_and_reset_need_headroom() {
         p.run(&["spend", "reset", "--i-am-human"]).status.code(),
         Some(3)
     );
+    let tighter = Project::new();
+    fs::write(tighter.0.join("kineti.config.json"),json!({"settings":{"spend_limit_usd":{"global":50,"per_stage_default":10,"safety_factor":0.5}}}).to_string()).unwrap();
+    assert_eq!(
+        tighter
+            .run(&["spend", "log", "--stage", "build", "--usd", "5"])
+            .status
+            .code(),
+        Some(3)
+    );
+    assert_eq!(
+        tighter
+            .run(&["spend", "reset", "--i-am-human"])
+            .status
+            .code(),
+        Some(3)
+    );
 }
 #[test]
 fn concurrent_accounting_does_not_lose_entries() {
@@ -473,6 +489,64 @@ fn legacy_spend_is_read_without_rewriting() {
         fs::read_to_string(p.0.join(".kineti/spend.json")).unwrap(),
         state.to_string()
     );
+    let golden: Value =
+        serde_json::from_str(include_str!("fixtures/legacy-spend-golden.json")).unwrap();
+    for case in golden["cases"].as_array().unwrap() {
+        let fixture = Project::new();
+        let state = case["state"].to_string();
+        let log = case["entry"].to_string() + "\n";
+        fs::write(fixture.0.join(".kineti/spend.json"), &state).unwrap();
+        fs::write(fixture.0.join(".kineti/spend.log.jsonl"), &log).unwrap();
+        let out = fixture.run(&["spend", "check"]);
+        if case["original_accepts"] == false {
+            assert_eq!(out.status.code(), Some(3), "{}", value(&out));
+            assert_eq!(
+                fs::read_to_string(fixture.0.join(".kineti/spend.json")).unwrap(),
+                state
+            );
+            assert_eq!(
+                fs::read_to_string(fixture.0.join(".kineti/spend.log.jsonl")).unwrap(),
+                log
+            );
+            continue;
+        }
+        assert!(out.status.success(), "{}", value(&out));
+        assert_eq!(
+            value(&out)["result"]["total_microcents"],
+            case["expected_microcents"]
+        );
+        assert_eq!(
+            fs::read_to_string(fixture.0.join(".kineti/spend.json")).unwrap(),
+            state
+        );
+        assert_eq!(
+            fs::read_to_string(fixture.0.join(".kineti/spend.log.jsonl")).unwrap(),
+            log
+        );
+        let mut damaged = case["state"].clone();
+        damaged.as_object_mut().unwrap().remove("reason");
+        fs::write(fixture.0.join(".kineti/spend.json"), damaged.to_string()).unwrap();
+        assert_eq!(fixture.run(&["spend", "check"]).status.code(), Some(3));
+        fs::write(fixture.0.join(".kineti/spend.json"), &state).unwrap();
+        let mut damaged = case["entry"].clone();
+        damaged["model"] = Value::Null;
+        fs::write(
+            fixture.0.join(".kineti/spend.log.jsonl"),
+            damaged.to_string() + "\n",
+        )
+        .unwrap();
+        assert_eq!(fixture.run(&["spend", "check"]).status.code(), Some(3));
+        fs::write(fixture.0.join(".kineti/spend.log.jsonl"), &log).unwrap();
+        let mut damaged = case["state"].clone();
+        damaged["by_stage_microcents"] = json!({});
+        fs::write(fixture.0.join(".kineti/spend.json"), damaged.to_string()).unwrap();
+        assert_eq!(fixture.run(&["spend", "check"]).status.code(), Some(3));
+    }
+    let mut altered = state.clone();
+    altered["total_usd"] = json!(1.004);
+    altered["total_microcents"] = json!(1000000);
+    fs::write(p.0.join(".kineti/spend.json"), altered.to_string()).unwrap();
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
 }
 #[test]
 fn native_mcp_protocol_discovers_and_calls() {
@@ -556,6 +630,33 @@ fn reviewed_recovery_preserves_damaged_original_and_binds_evidence() {
         fs::read_to_string(p.0.join(".kineti/spend.json")).unwrap(),
         "damaged original"
     );
+    assert!(p.run(&["spend", "check"]).status.success());
+    let view_path = p.0.join(".kineti/spend.recovery-view.json");
+    let original_view = fs::read(&view_path).unwrap();
+    let mut changed: Value = serde_json::from_slice(&original_view).unwrap();
+    changed["proposal_sha256"] = json!("0".repeat(64));
+    fs::write(&view_path, changed.to_string()).unwrap();
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    fs::write(&view_path, &original_view).unwrap();
+    assert!(p.run(&["spend", "check"]).status.success());
+    let audit = p.0.join(".kineti/accounting-recovery.jsonl");
+    let original_audit = fs::read(&audit).unwrap();
+    kineti_cli::store::append(
+        &audit,
+        &json!({"kind":"recovery-intent","id":"interrupted-after-view"}),
+    )
+    .unwrap();
+    let guard = p.0.join(".kineti/accounting-recovery.guard.json");
+    let original_guard = fs::read(&guard).unwrap();
+    // Represent a crash after a fully durable intent, before completion.
+    kineti_cli::store::write(
+        &guard,
+        &json!({"sha256":kineti_cli::compat::digest(fs::read(&audit).unwrap())}),
+    )
+    .unwrap();
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    fs::write(&audit, &original_audit).unwrap();
+    fs::write(&guard, &original_guard).unwrap();
     assert!(p.run(&["spend", "check"]).status.success());
     fs::write(source.join(".kineti/spend.json"), "altered snapshot").unwrap();
     assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
@@ -760,4 +861,58 @@ fn undo_guard_inspection_preserves_exact_interrupted_bytes() {
         before
     );
     assert!(p.run(&["undo", "rollback", "--yes"]).status.success());
+}
+
+#[test]
+fn interrupted_recovery_blocks_before_any_view_is_installed() {
+    let p = Project::new();
+    fs::write(p.0.join(".kineti/accounting-recovery.initialized"), "1\n").unwrap();
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    let audit = p.0.join(".kineti/accounting-recovery.jsonl");
+    kineti_cli::store::append(
+        &audit,
+        &json!({"kind":"recovery-intent","id":"interrupted-before-view"}),
+    )
+    .unwrap();
+    kineti_cli::store::write(
+        &p.0.join(".kineti/accounting-recovery.guard.json"),
+        &json!({"sha256":kineti_cli::compat::digest(fs::read(&audit).unwrap())}),
+    )
+    .unwrap();
+    let out = p.run(&["spend", "check"]);
+    assert_eq!(out.status.code(), Some(3));
+    assert!(value(&out)["error"]
+        .as_str()
+        .unwrap()
+        .contains("unfinished recovery"));
+    assert!(!p.0.join(".kineti/spend.recovery-view.json").exists());
+}
+
+#[test]
+fn legacy_accounting_journal_encodings_and_checkpoint_are_preserved() {
+    let p = Project::new();
+    let golden: Value =
+        serde_json::from_str(include_str!("fixtures/legacy-journal-golden.json")).unwrap();
+    let text = golden["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r.to_string() + "\n")
+        .collect::<String>();
+    let file = p.0.join(".kineti/journal.jsonl");
+    fs::write(&file, &text).unwrap();
+    let out = p.run(&["spend", "check"]);
+    assert!(out.status.success(), "{}", value(&out));
+    let checkpoint = p.0.join(".kineti/journal.jsonl.checkpoint.json");
+    let expected =
+        json!({"version":1,"bytes":text.len(),"sha256":kineti_cli::compat::digest(&text)});
+    kineti_cli::store::write(&checkpoint, &expected).unwrap();
+    assert!(p.run(&["spend", "check"]).status.success());
+    let altered = text.replace("Fixture only", "Changed inputs");
+    fs::write(&file, &altered).unwrap();
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    fs::remove_file(checkpoint).unwrap();
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    fs::write(file, &text).unwrap();
+    assert!(p.run(&["spend", "check"]).status.success());
 }
