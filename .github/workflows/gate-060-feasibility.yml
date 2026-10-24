@@ -1,0 +1,59 @@
+name: Gate 0.6.0 native runner feasibility
+
+on:
+  push:
+    branches: [codex/gate-060-feasibility]
+    paths: [.github/workflows/gate-060-feasibility.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: native-${{ matrix.target }}
+    if: github.event.repository.visibility == 'public'
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: linux-x64
+            os: Linux
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+            os: Linux
+            arch: aarch64
+          - runner: macos-15-intel
+            target: darwin-x64
+            os: Darwin
+            arch: x86_64
+          - runner: macos-15
+            target: darwin-arm64
+            os: Darwin
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Verify native environment without checkout or paid services
+        shell: bash
+        env:
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+          RUNNER_LABEL: ${{ matrix.runner }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = "$EXPECTED_OS"
+          test "$(uname -m)" = "$EXPECTED_ARCH"
+          printf 'target=%s label=%s os=%s arch=%s\n' "$TARGET" "$RUNNER_LABEL" "$(uname -s)" "$(uname -m)"
+          if [ "$EXPECTED_OS" = Darwin ]; then
+            sw_vers
+          else
+            cat /etc/os-release
+          fi
+          uname -a
+          rustc --version
+          cargo --version
+          printf 'Native runner access verified. Package installation acceptance has not run.\n'
