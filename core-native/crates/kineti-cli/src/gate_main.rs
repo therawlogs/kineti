@@ -1,4 +1,4 @@
-//! Native gate command entrypoint. Old assistant source remains until compatibility acceptance.
+//! Native gate command entrypoint.
 use kineti_cli::{
     gate, init, mcp, receipt, self_test, spend,
     store::{self, Error, Result},
@@ -69,8 +69,8 @@ impl Args {
         })
     }
     fn clean(&self) -> Result<()> {
-        if !self.position.is_empty() {
-            return store::fail(2, "unexpected positional arguments");
+        if !self.position.is_empty() || !self.command.is_empty() {
+            return store::fail(2, "unexpected positional arguments or command separator");
         }
         Ok(())
     }
@@ -90,36 +90,317 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
     }
     let rest = &args[1..];
     match cmd {
-        "self-test"=>{let a=Args::parse(rest,&[],&[])?;a.clean()?;self_test::run(root)},
-        "mcp"=>{let a=Args::parse(rest,&["--root"],&[])?;a.clean()?;let r=a.one("--root")?.map(std::path::PathBuf::from).unwrap_or(root.into());mcp::serve(&r)?;Ok(json!({"server":"stopped"}))},
-        "init"=>{let a=Args::parse(rest,&["--goal","--codex-home"],&["--apply","--uninstall"])?;a.clean()?;let detected=std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).any(|p|p.join("codex").is_file());let home=a.one("--codex-home")?.map(std::path::PathBuf::from).or_else(||if detected{std::env::var_os("CODEX_HOME").map(std::path::PathBuf::from).or_else(||std::env::var_os("HOME").map(|p|std::path::PathBuf::from(p).join(".codex")))}else{None});init::run(root,a.one("--goal")?,home.as_deref(),a.yes("--apply"),a.yes("--uninstall"))},
-        "ci"=>{let a=Args::parse(rest,&["--require-evidence","--evidence-commands","--max-age-min"],&[])?;a.clean()?;let commands=a.one("--evidence-commands")?.map(|p|store::read(&root.join(p))).transpose()?;gate::ci(root,a.list("--require-evidence"),commands,a.number("--max-age-min",240)?)},
-        "verify"=>{let a=Args::parse(rest,&[],&["--trust","--status"])?;a.clean()?;if a.yes("--trust")&&a.yes("--status"){return store::fail(2,"choose --trust or --status");}gate::verify(root,if a.yes("--trust"){"trust"}else if a.yes("--status"){"status"}else{"run"})},
-        "status"=>{let a=Args::parse(rest,&[],&[])?;a.clean()?;Ok(json!({"state":store::state(root)?,"spend":spend::inspect(root,false)?}))},
-        "test"|"evidence"=>{
-            let sub=rest.first().map(String::as_str).unwrap_or("check");let args=if rest.is_empty(){rest}else{&rest[1..]};
-            if sub=="fingerprint"{let a=Args::parse(args,&[],&[])?;a.clean()?;Ok(json!({"fingerprint":store::inventory_digest(&store::inventory(root)?)?,"format":"native-v3-full-byte-inventory"}))}
-            else if sub=="run"{let a=Args::parse(args,&["--label","--kind","--required-test","--env-name","--artifact","--timeout"],&[])?;a.clean()?;receipt::run(root,receipt::Run{label:a.text("--label","")?,argv:a.command.clone(),tests:a.list("--required-test"),env:a.list("--env-name"),artifacts:a.list("--artifact"),timeout:a.number("--timeout",60)?,kind:a.text("--kind","test")?})}
-            else if sub=="check"{let a=Args::parse(args,&["--label","--max-age-min","--expect-argv","--receipt","--history","--trusted-key"],&["--signature-only"])?;a.clean()?;
-                if a.yes("--signature-only"){let trusted=std::fs::read_to_string(root.join(a.text("--trusted-key",".kineti/evidence-issuer.pem")?))?;if let Some(path)=a.one("--history")?{let rows=store::lines(&root.join(path))?;return Ok(json!({"signature_valid":rows.iter().map(|r|receipt::signature(r,&trusted)).collect::<Vec<_>>(),"independent_test_execution":false,"gate_authorized":false}));}let r=store::read(&root.join(a.text("--receipt","")?))?;if !receipt::signature(&r,&trusted){return store::fail(7,"invalid signature or issuer");}return Ok(json!({"signature_valid":true,"independent_test_execution":false,"gate_authorized":false}));}
-                let expected=a.one("--expect-argv")?.map(serde_json::from_str::<Value>).transpose().map_err(|e|Error(2,e.to_string()))?;
-                receipt::check(root,&a.text("--label","test")?,a.number("--max-age-min",240)?,expected.as_ref())}
-            else{store::fail(2,"test supports run or check")}
-        },
-        "spend"=>{let sub=rest.first().map(String::as_str).unwrap_or("status");let args=if rest.is_empty(){rest}else{&rest[1..]};match sub{
-            "status"|"check"|"economics"=>{let a=Args::parse(args,&[],&[])?;a.clean()?;spend::inspect(root,sub!="status")},
-            "log"=>{let a=Args::parse(args,&["--stage","--model","--tokens-in","--tokens-out","--usd"],&[])?;a.clean()?;let usd=a.one("--usd")?.ok_or_else(||Error(2,"explicit reported --usd required; no inferred provider prices".into()))?;spend::charge(root,&a.text("--stage","")?,&a.text("--model","reported")?,a.number("--tokens-in",0)?,a.number("--tokens-out",0)?,usd)},
-            "reset"=>{let a=Args::parse(args,&["--extend-usd"],&["--i-am-human"])?;a.clean()?;spend::reset(root,a.yes("--i-am-human"),&a.text("--extend-usd","0")?)},
-            "recover"=>{let a=Args::parse(args,&["--source","--proposal-sha256","--evidence"],&["--apply","--i-am-human"])?;a.clean()?;if let Some(source)=a.one("--source")?{let source=root.join(source);if a.yes("--apply"){spend::recover_from(root,&source,&a.text("--proposal-sha256","")?,Path::new(&a.text("--evidence","")?),a.yes("--i-am-human"))}else if let Some(e)=a.one("--evidence")?{spend::propose_review(root,&source,Path::new(e))}else{spend::propose_from(root,&source)}}else if a.yes("--apply"){store::fail(2,"recovery apply needs an evidence-backed --source snapshot")}else{spend::recovery_proposal(root)}},
-            _=>store::fail(2,"unknown spend subcommand")}},
-        "undo"|"saga"=>{let sub=rest.first().map(String::as_str).unwrap_or("rollback");let args=if rest.is_empty(){rest}else{&rest[1..]};match sub{
-            "begin"|"commit"=>{let a=Args::parse(args,&["--run-id"],&[])?;a.clean()?;undo::transaction(root,&a.text("--run-id","")?,sub=="commit")},
-            "push"|"register"=>{let a=Args::parse(args,&["--label","--run-id","--inverse-argv","--inverse"],&[])?;let argv=if !a.command.is_empty(){a.command.clone()}else if let Some(v)=a.one("--inverse-argv")?{serde_json::from_str(v).map_err(|e|Error(2,e.to_string()))?}else if let Some(v)=a.one("--inverse")?.or(a.position.last().map(String::as_str)){shell_words::split(v).map_err(|e|Error(2,e.to_string()))?}else{vec![]};undo::push(root,&a.text("--label",&format!("undo-{}",store::nonce()?))?,&a.text("--run-id","default")?,argv)},
-            "rollback"=>{let a=Args::parse(args,&["--run-id"],&["--yes"])?;a.clean()?;undo::rollback(root,&a.text("--run-id","default")?,a.yes("--yes"))},
-            "inspect"=>{let a=Args::parse(args,&["--expected-sha256"],&["--yes"])?;a.clean()?;undo::inspect(root,a.one("--expected-sha256")?,a.yes("--yes"))},
-            "resolve"=>{let a=Args::parse(args,&["--run-id","--action-id","--outcome"],&["--yes"])?;a.clean()?;undo::resolve(root,&a.text("--run-id","default")?,&a.text("--action-id","")?,&a.text("--outcome","")?,a.yes("--yes"))},
-            _=>store::fail(2,"unknown undo subcommand")}},
-        _=>store::fail(2,format!("command '{cmd}' is removed or not implemented in this development build; see native gate contract"))
+        "self-test" => {
+            let a = Args::parse(rest, &[], &[])?;
+            a.clean()?;
+            self_test::run(root)
+        }
+        "mcp" => {
+            let a = Args::parse(rest, &["--root"], &[])?;
+            a.clean()?;
+            let r = a
+                .one("--root")?
+                .map(std::path::PathBuf::from)
+                .unwrap_or(root.into());
+            mcp::serve(&r)?;
+            Ok(json!({"server":"stopped"}))
+        }
+        "init" => {
+            let a = Args::parse(
+                rest,
+                &["--goal", "--codex-home"],
+                &["--apply", "--uninstall"],
+            )?;
+            a.clean()?;
+            let detected = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+                .any(|p| p.join("codex").is_file());
+            let home = a
+                .one("--codex-home")?
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    if detected {
+                        std::env::var_os("CODEX_HOME")
+                            .map(std::path::PathBuf::from)
+                            .or_else(|| {
+                                std::env::var_os("HOME")
+                                    .map(|p| std::path::PathBuf::from(p).join(".codex"))
+                            })
+                    } else {
+                        None
+                    }
+                });
+            init::run(
+                root,
+                a.one("--goal")?,
+                home.as_deref(),
+                a.yes("--apply"),
+                a.yes("--uninstall"),
+            )
+        }
+        "ci" => {
+            let a = Args::parse(
+                rest,
+                &["--require-evidence", "--evidence-commands", "--max-age-min"],
+                &[],
+            )?;
+            a.clean()?;
+            let commands = a
+                .one("--evidence-commands")?
+                .map(|p| store::read(&root.join(p)))
+                .transpose()?;
+            gate::ci(
+                root,
+                a.list("--require-evidence"),
+                commands,
+                a.number("--max-age-min", 240)?,
+            )
+        }
+        "verify" => {
+            let a = Args::parse(rest, &[], &["--trust", "--status"])?;
+            a.clean()?;
+            if a.yes("--trust") && a.yes("--status") {
+                return store::fail(2, "choose --trust or --status");
+            }
+            gate::verify(
+                root,
+                if a.yes("--trust") {
+                    "trust"
+                } else if a.yes("--status") {
+                    "status"
+                } else {
+                    "run"
+                },
+            )
+        }
+        "status" => {
+            let a = Args::parse(rest, &[], &[])?;
+            a.clean()?;
+            Ok(json!({"state":store::state(root)?,"spend":spend::inspect(root,false)?}))
+        }
+        "test" | "evidence" => {
+            let sub = rest.first().map(String::as_str).unwrap_or("check");
+            let args = if rest.is_empty() { rest } else { &rest[1..] };
+            if sub == "fingerprint" {
+                let a = Args::parse(args, &[], &[])?;
+                a.clean()?;
+                Ok(
+                    json!({"fingerprint":store::inventory_digest(&store::inventory(root)?)?,"format":"native-v3-full-byte-inventory"}),
+                )
+            } else if sub == "run" {
+                let a = Args::parse(
+                    args,
+                    &[
+                        "--label",
+                        "--kind",
+                        "--required-test",
+                        "--env-name",
+                        "--artifact",
+                        "--timeout",
+                    ],
+                    &[],
+                )?;
+                if !a.position.is_empty() {
+                    return store::fail(2, "unexpected positional arguments before command");
+                }
+                receipt::run(
+                    root,
+                    receipt::Run {
+                        label: a.text("--label", "")?,
+                        argv: a.command.clone(),
+                        tests: a.list("--required-test"),
+                        env: a.list("--env-name"),
+                        artifacts: a.list("--artifact"),
+                        timeout: a.number("--timeout", 60)?,
+                        kind: a.text("--kind", "test")?,
+                    },
+                )
+            } else if sub == "check" {
+                let a = Args::parse(
+                    args,
+                    &[
+                        "--label",
+                        "--max-age-min",
+                        "--expect-argv",
+                        "--receipt",
+                        "--history",
+                        "--trusted-key",
+                    ],
+                    &["--signature-only"],
+                )?;
+                a.clean()?;
+                if a.yes("--signature-only") {
+                    let trusted = std::fs::read_to_string(
+                        root.join(a.text("--trusted-key", ".kineti/evidence-issuer.pem")?),
+                    )?;
+                    if let Some(path) = a.one("--history")? {
+                        let rows = store::lines(&root.join(path))?;
+                        return Ok(
+                            json!({"signature_valid":rows.iter().map(|r|receipt::signature(r,&trusted)).collect::<Vec<_>>(),"independent_test_execution":false,"gate_authorized":false}),
+                        );
+                    }
+                    let r = store::read(&root.join(a.text("--receipt", "")?))?;
+                    if !receipt::signature(&r, &trusted) {
+                        return store::fail(7, "invalid signature or issuer");
+                    }
+                    return Ok(
+                        json!({"signature_valid":true,"independent_test_execution":false,"gate_authorized":false}),
+                    );
+                }
+                let expected = a
+                    .one("--expect-argv")?
+                    .map(serde_json::from_str::<Value>)
+                    .transpose()
+                    .map_err(|e| Error(2, e.to_string()))?;
+                receipt::check(
+                    root,
+                    &a.text("--label", "test")?,
+                    a.number("--max-age-min", 240)?,
+                    expected.as_ref(),
+                )
+            } else {
+                store::fail(2, "test supports run or check")
+            }
+        }
+        "spend" => {
+            let sub = rest.first().map(String::as_str).unwrap_or("status");
+            let args = if rest.is_empty() { rest } else { &rest[1..] };
+            match sub {
+                "status" | "check" | "economics" => {
+                    let a = Args::parse(args, &[], &[])?;
+                    a.clean()?;
+                    spend::inspect(root, sub != "status")
+                }
+                "log" => {
+                    let a = Args::parse(
+                        args,
+                        &["--stage", "--model", "--tokens-in", "--tokens-out", "--usd"],
+                        &[],
+                    )?;
+                    a.clean()?;
+                    let usd = a.one("--usd")?.ok_or_else(|| {
+                        Error(
+                            2,
+                            "explicit reported --usd required; no inferred provider prices".into(),
+                        )
+                    })?;
+                    spend::charge(
+                        root,
+                        &a.text("--stage", "")?,
+                        &a.text("--model", "reported")?,
+                        a.number("--tokens-in", 0)?,
+                        a.number("--tokens-out", 0)?,
+                        usd,
+                    )
+                }
+                "reset" => {
+                    let a = Args::parse(args, &["--extend-usd"], &["--i-am-human"])?;
+                    a.clean()?;
+                    spend::reset(root, a.yes("--i-am-human"), &a.text("--extend-usd", "0")?)
+                }
+                "recover" => {
+                    let a = Args::parse(
+                        args,
+                        &["--source", "--proposal-sha256", "--evidence"],
+                        &["--apply", "--i-am-human"],
+                    )?;
+                    a.clean()?;
+                    if let Some(source) = a.one("--source")? {
+                        let source = root.join(source);
+                        if a.yes("--apply") {
+                            spend::recover_from(
+                                root,
+                                &source,
+                                &a.text("--proposal-sha256", "")?,
+                                Path::new(&a.text("--evidence", "")?),
+                                a.yes("--i-am-human"),
+                            )
+                        } else if let Some(e) = a.one("--evidence")? {
+                            spend::propose_review(root, &source, Path::new(e))
+                        } else {
+                            spend::propose_from(root, &source)
+                        }
+                    } else if a.yes("--apply") {
+                        store::fail(
+                            2,
+                            "recovery apply needs an evidence-backed --source snapshot",
+                        )
+                    } else {
+                        spend::recovery_proposal(root)
+                    }
+                }
+                _ => store::fail(2, "unknown spend subcommand"),
+            }
+        }
+        "undo" | "saga" => {
+            let sub = rest.first().map(String::as_str).unwrap_or("rollback");
+            let args = if rest.is_empty() { rest } else { &rest[1..] };
+            match sub {
+                "begin" | "commit" => {
+                    let a = Args::parse(args, &["--run-id"], &[])?;
+                    a.clean()?;
+                    undo::transaction(root, &a.text("--run-id", "")?, sub == "commit")
+                }
+                "push" | "register" => {
+                    let a = Args::parse(
+                        args,
+                        &["--label", "--run-id", "--inverse-argv", "--inverse"],
+                        &[],
+                    )?;
+                    let modes = usize::from(!a.command.is_empty())
+                        + usize::from(a.one("--inverse-argv")?.is_some())
+                        + usize::from(a.one("--inverse")?.is_some())
+                        + usize::from(!a.position.is_empty());
+                    if modes != 1 || a.position.len() > 1 {
+                        return store::fail(2, "provide exactly one inverse command");
+                    }
+                    let argv = if !a.command.is_empty() {
+                        a.command.clone()
+                    } else if let Some(v) = a.one("--inverse-argv")? {
+                        serde_json::from_str(v).map_err(|e| Error(2, e.to_string()))?
+                    } else if let Some(v) = a
+                        .one("--inverse")?
+                        .or(a.position.last().map(String::as_str))
+                    {
+                        shell_words::split(v).map_err(|e| Error(2, e.to_string()))?
+                    } else {
+                        vec![]
+                    };
+                    undo::push(
+                        root,
+                        &a.text("--label", &format!("undo-{}", store::nonce()?))?,
+                        &a.text("--run-id", "default")?,
+                        argv,
+                    )
+                }
+                "rollback" => {
+                    let a = Args::parse(args, &["--run-id"], &["--yes"])?;
+                    a.clean()?;
+                    undo::rollback(root, &a.text("--run-id", "default")?, a.yes("--yes"))
+                }
+                "inspect" => {
+                    let a = Args::parse(args, &["--expected-sha256"], &["--yes"])?;
+                    a.clean()?;
+                    undo::inspect(root, a.one("--expected-sha256")?, a.yes("--yes"))
+                }
+                "resolve" => {
+                    let a =
+                        Args::parse(args, &["--run-id", "--action-id", "--outcome"], &["--yes"])?;
+                    a.clean()?;
+                    undo::resolve(
+                        root,
+                        &a.text("--run-id", "default")?,
+                        &a.text("--action-id", "")?,
+                        &a.text("--outcome", "")?,
+                        a.yes("--yes"),
+                    )
+                }
+                _ => store::fail(2, "unknown undo subcommand"),
+            }
+        }
+        _ => store::fail(
+            2,
+            format!("command '{cmd}' is removed from the native gate; see native gate contract"),
+        ),
     }
 }
 fn main() {

@@ -76,6 +76,10 @@ fn malformed_options_do_not_write() {
     for args in [
         vec!["test", "run", "--unknown"],
         vec!["spend", "log", "--usd", "not-money"],
+        vec![
+            "spend", "log", "--usd", "0.01", "--stage", "build", "--", "/bin/sh",
+        ],
+        vec!["undo", "push", "unexpected", "--", "/bin/sh"],
         vec!["init", "--goal"],
         vec!["undo", "rollback", "--oops"],
     ] {
