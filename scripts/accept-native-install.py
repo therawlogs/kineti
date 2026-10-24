@@ -75,13 +75,24 @@ for route, installation in [("cargo", cargo_root), ("npm", npm_root)]:
     tested = subprocess.check_output([str(binary), "self-test"], env=runtime, cwd=project, text=True)
     assert json.loads(tested)["result"]["fabricated_output_accepted"] is True
     subprocess.run([str(binary), "init", "--goal", "Disposable candidate install acceptance", "--codex-home", runtime["CODEX_HOME"], "--apply"], env=runtime, cwd=project, check=True, stdout=subprocess.PIPE)
+    registry = json.loads((root / "server.json").read_text())
+    mcp_args = [arg["value"] for arg in registry["packages"][0]["packageArguments"]]
+    messages = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "candidate-acceptance", "version": "0.6.0"}}},
+                {"jsonrpc": "2.0", "method": "notifications/initialized"},
+                {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+                {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "kineti_status", "arguments": {}}}]
+    mcp = subprocess.run([str(binary)] + mcp_args, input="".join(json.dumps(m) + "\n" for m in messages), env=runtime, cwd=project, capture_output=True, text=True, timeout=30, check=True)
+    replies = {r["id"]: r for r in map(json.loads, mcp.stdout.splitlines()) if "id" in r}
+    assert len(replies[2]["result"]["tools"]) == 8
+    assert not replies[3]["result"].get("isError", False)
+    assert "Disposable candidate install acceptance" in json.dumps(replies[3])
     size = footprint(installation) + footprint(run)
     if size >= 10_000_000:
         raise RuntimeError(f"{options.target}/{route} installed footprint {size} blocks release")
     if route == "npm":
         assert not (installation / "lib/node_modules/kineti/native").exists()
     report["routes"][route] = {"installed_bytes": size, "version": json.loads(version), "self_test": json.loads(tested),
-                                "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "node_bun_absent_from_runtime_path": True}
+                                "binary_sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "node_bun_absent_from_runtime_path": True, "registry_mcp_discovery_and_call": True}
 
 disabled = work / "npm-scripts-disabled"
 subprocess.run(["npm", "install", "--ignore-scripts", "--global", "--prefix", str(disabled), "--no-audit", "--no-fund", str(archive)], env=env, check=True)
