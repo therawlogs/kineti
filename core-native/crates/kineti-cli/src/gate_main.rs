@@ -76,7 +76,7 @@ impl Args {
     }
 }
 fn help() -> Value {
-    json!({"version":"0.6.0-dev","claim":"Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","spend","undo","saga","status","mcp","self-test"],"status":"native implementation in progress; not a release candidate"})
+    json!({"version":"0.6.0","claim":"Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","spend","undo","saga","status","mcp","self-test"],"status":"candidate; publication requires reviewed artifacts and accounting approval"})
 }
 fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
     let Some(cmd) = args.first().map(String::as_str) else {
@@ -86,7 +86,7 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
         return Ok(help());
     }
     if ["--version", "-v", "version"].contains(&cmd) {
-        return Ok(json!({"version":"0.6.0-dev"}));
+        return Ok(json!({"version":"0.6.0"}));
     }
     let rest = &args[1..];
     match cmd {

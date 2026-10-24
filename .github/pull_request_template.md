@@ -31,6 +31,6 @@ Please review and check all items before submitting:
 - [ ] **Cryptographic proof**: Fresh test proof is recorded via `bun bin/kineti-evidence.ts run --label <name> --required-test <test-file-or-directory> -- <command>` and verified with `bun bin/kineti-evidence.ts check --label <name>`.
 - [ ] **Undo safety**: An undo command was registered via `bun bin/kineti-saga.ts push "<undo-command>"` for any file or system mutation.
 - [ ] **Spending limit**: Spending is verified under the $50.00 ceiling via `bun bin/kineti-spend.ts check`.
-- [ ] **Secrets and privacy**: Zero secrets, private API keys, personal filesystem paths (`/Users/...`), personal emails, or machine hostnames are included in this PR.
+- [ ] **Secrets and privacy**: Zero secrets, private API keys, personal filesystem paths (`$HOME/...`), personal emails, or machine hostnames are included in this PR.
 - [ ] **Plain English**: Descriptions and user-facing messages use plain words and avoid technical jargon or metaphors.
 - [ ] **Developer Certificate of Origin (DCO)**: Commit messages include a DCO sign-off line (`Signed-off-by: Full Name <email>`) certifying rights under the project license.

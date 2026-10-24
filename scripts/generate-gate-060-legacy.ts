@@ -1,8 +1,9 @@
 // Public test-only key, never a project or user signing identity.
 import crypto from "node:crypto";
+import { canonicalJsonV2 } from "./legacy-canonical-fixture.ts";
 import fs from "node:fs";
-import { unsignedRecord, verifyReceiptSignature, type EvidenceRecord } from "../bin/kineti-evidence.ts";
-import { canonicalJsonV2 } from "../src/security/canonical-json.ts";
+import { unsignedRecord, verifyReceiptSignature, type EvidenceRecord } from "./legacy-signer-fixture.ts";
+
 
 const key = crypto.createPrivateKey({
   key: Buffer.from("302e020100300506032b657004220420" + "42".repeat(32), "hex"),

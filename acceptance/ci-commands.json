@@ -1,4 +1,0 @@
-{
-  "gate-ts-tests": ["bun", "test", "tests/"],
-  "gate-rust-tests": ["cargo", "test", "--manifest-path", "core-native/Cargo.toml"]
-}

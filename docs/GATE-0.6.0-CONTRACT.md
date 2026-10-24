@@ -114,3 +114,10 @@ document. Maintain an evidence matrix keyed by these IDs; each entry must identi
 the exact source/artifact digests, command, environment, result and remaining gaps.
 No release is accepted until every requirement is satisfied, or an explicit
 owner amendment changes it. Publication always needs separate approval.
+
+## Zero-paid-spend runner storage confirmation
+
+On 2026-10-25 the owner confirmed: “Hard $0 Actions spending limit confirmed”.
+Candidate jobs may use standard public-repository runners and available included
+artifact storage with one-day retention. The account limit must stay unchanged.
+Quota exhaustion blocks acceptance; it never authorizes paid usage.

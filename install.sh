@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-echo "kineti: standalone-download installation is retired."
-echo "Install Bun, then use: npm install -g kineti"
-echo "Run kineti init --help for supported host setup."
-exit 78
+#!/bin/sh
+printf "%s\n" "Install kineti-cli 0.6.0 through Cargo or kineti 0.6.0 through npm after approved publication. Then preview kineti init --goal <explicit-goal>."
+exit 2

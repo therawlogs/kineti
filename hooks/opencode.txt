@@ -1,7 +1,0 @@
-# Kineti hook block for opencode
-Add to your opencode config:
-  Instructions: load the Kineti skill set. For a new project, ask the user
-  to choose harness, gate, or both before setup, then continue in natural
-  language through the relevant workflow. Direct fixes, reviews, and cleanup
-  can start at the relevant step. Slash commands are optional. This provides
-  guidance, not enforcement.

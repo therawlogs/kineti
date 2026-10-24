@@ -1,6 +1,0 @@
-import {test,expect} from "bun:test";import fs from "node:fs";import path from "node:path";import {validateActionSource} from "../scripts/github-action.ts";
-test("reusable action requires exact owner-approved source and keeps client authority outside candidate workspace",()=>{
- const repo=path.resolve(import.meta.dir,".."),base=path.join(repo,".kineti/action-source-acceptance");fs.mkdirSync(base,{recursive:true});const temp=fs.mkdtempSync(path.join(base,"case-"));
- const client=path.join(temp,"client"),candidate=path.join(temp,"candidate");fs.mkdirSync(client,{mode:0o700});fs.mkdirSync(candidate,{mode:0o700});const env={KINETI_TRUSTED_COMMIT:"a".repeat(40),KINETI_ACTION_REF:"a".repeat(40),KINETI_ACTION_PATH:repo,KINETI_CLIENT_PROJECT:client,GITHUB_WORKSPACE:candidate};
- try{expect(validateActionSource(env)).toBe(client);expect(()=>validateActionSource({...env,KINETI_ACTION_REF:"main"})).toThrow("full commit");expect(()=>validateActionSource({...env,KINETI_TRUSTED_COMMIT:"main"})).toThrow("full commit");expect(()=>validateActionSource({...env,KINETI_ACTION_PATH:candidate})).toThrow("source mismatch");expect(()=>validateActionSource({...env,GITHUB_WORKSPACE:temp})).toThrow("candidate workspace");fs.chmodSync(client,0o755);expect(()=>validateActionSource(env)).toThrow("owner-only");}finally{fs.rmSync(temp,{recursive:true,force:true});}
-});

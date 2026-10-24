@@ -1,28 +1,18 @@
-name: Kineti independent evaluation
-description: Submit exact artifact bytes to a user-run Linux evaluator through a separately provisioned signed client.
+name: Kineti native evidence gate
+description: Check participating CI commands against recorded evidence and reported spending; no protected writes or automatic interception.
 inputs:
-  trusted-commit:
-    description: Owner-approved full commit SHA; must equal the action ref used by the caller.
+  executable:
+    description: Absolute path to the reviewed installed native kineti executable
     required: true
-  client-project:
-    description: Owner-controlled project containing private .kineti/service-client.json. Never use an untrusted PR checkout.
-    required: true
-  manifest:
-    description: Path to the owner-signed manifest JSON. Its signature and all pins are verified by the Linux service.
-    required: true
-  artifact:
-    description: Path to candidate bytes. These bytes are uploaded, never executed in this job.
+  required-label:
+    description: Required test receipt label
     required: true
 runs:
   using: composite
   steps:
-    - name: Independently evaluate approved artifact
+    - name: Check required native evidence
       shell: bash
-      run: bun "$KINETI_ACTION_PATH/scripts/github-action.ts"
       env:
-        KINETI_ACTION_PATH: ${{ github.action_path }}
-        KINETI_ACTION_REF: ${{ github.action_ref }}
-        KINETI_TRUSTED_COMMIT: ${{ inputs.trusted-commit }}
-        KINETI_CLIENT_PROJECT: ${{ inputs.client-project }}
-        KINETI_MANIFEST_FILE: ${{ inputs.manifest }}
-        KINETI_ARTIFACT_FILE: ${{ inputs.artifact }}
+        KINETI_EXECUTABLE: ${{ inputs.executable }}
+        KINETI_REQUIRED_LABEL: ${{ inputs.required-label }}
+      run: '"$KINETI_EXECUTABLE" ci --require-evidence "$KINETI_REQUIRED_LABEL"'

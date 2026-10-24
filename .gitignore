@@ -38,3 +38,9 @@ ROADMAP.md
 docs/archive.zip
 docs/archive/
 
+
+# Generated four-platform package payloads
+/native/
+/checksums.json
+
+__pycache__/

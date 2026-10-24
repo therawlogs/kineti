@@ -1,24 +1,19 @@
 [package]
 name = "kineti-cli"
+autobins = false
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
-readme = "../../README.md"
-description = "Native CLI and server runner for Kineti AI assistant"
+readme = "README.md"
+description = "Record checks, detect changed inputs, and gate participating CI on evidence and reported spending"
 
 [lints]
 workspace = true
 
 [dependencies]
-kineti-core = { path = "../kineti-core", version = "0.5.0" }
-kineti-reflex = { path = "../kineti-reflex", version = "0.5.0" }
-kineti-memory = { path = "../kineti-memory", version = "0.5.0" }
-kineti-connectors = { path = "../kineti-connectors", version = "0.5.0" }
-kineti-actions = { path = "../kineti-actions", version = "0.5.0" }
-kineti-gateway = { path = "../kineti-gateway", version = "0.5.0" }
 serde_json = { version = "=1.0.149", features = ["preserve_order"] }
 ed25519-dalek = "=2.2.0"
 base64 = "=0.22.1"
@@ -32,8 +27,3 @@ toml = "=0.9.12"
 [[bin]]
 name = "kineti"
 path = "src/gate_main.rs"
-
-[[bench]]
-name = "benchmarks"
-harness = false
-path = "benches/benchmarks.rs"

@@ -1,31 +1,25 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/kineti-core",
-    "crates/kineti-reflex",
-    "crates/kineti-memory",
-    "crates/kineti-connectors",
-    "crates/kineti-actions",
-    "crates/kineti-gateway",
     "crates/kineti-cli",
-    "crates/kineti-harness",
 ]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 authors = ["Kineti Team <hello@getkineti.com>"]
 license = "MIT"
 readme = "../README.md"
-description = "Universal agent harness with cryptographic verification"
+description = "Native checks, receipts, reported-spending gate and registered undo"
 homepage = "https://github.com/therawlogs/kineti"
 repository = "https://github.com/therawlogs/kineti"
 
 [workspace.dependencies]
 
 [profile.release]
-opt-level = 3
-lto = "thin"
+opt-level = "z"
+lto = true
+strip = true
 codegen-units = 1
 panic = "abort"
 
