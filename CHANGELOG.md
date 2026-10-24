@@ -1,3 +1,11 @@
+## 0.6.0 — unreleased native gate candidate
+
+- Replace the assistant/harness product with one native safety and reported-spending gate.
+- Limit platforms to Linux and macOS, x64 and arm64. Cursor and Antigravity are unverified.
+- Preserve historical signatures and records; add versioned native receipts and self-test.
+- Ship one Cargo crate and one npm package with four native targets; Node/Bun are not runtime requirements.
+- Remove evaluator/protected-write guarantees. Separate reviewed artifact and accounting approval blocks publication.
+
 # Changelog
 
 Release notes explain what changed and what remains limited. Kineti v0.5.0 is a local tooling release; protected writes are experimental.

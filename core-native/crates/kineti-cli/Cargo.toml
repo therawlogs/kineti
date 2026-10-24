@@ -27,3 +27,11 @@ toml = "=0.9.12"
 [[bin]]
 name = "kineti"
 path = "src/gate_main.rs"
+
+# Cargo installs the packaged crate outside this workspace. Keep the same size profile.
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

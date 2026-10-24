@@ -264,6 +264,11 @@ fn uncertain_undo_requires_inspection() {
             + "\n",
     )
     .unwrap();
+    kineti_cli::store::write(
+        &p.0.join(".kineti/undo.native.guard.json"),
+        &json!({"sha256":kineti_cli::compat::digest(fs::read(&file).unwrap())}),
+    )
+    .unwrap();
     assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
     assert!(p
         .run(&[
@@ -592,4 +597,152 @@ fn named_saga_begin_and_commit_are_preserved() {
             .code(),
         Some(2)
     );
+}
+
+fn resign(p: &Project, r: &mut Value) {
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    use ed25519_dalek::{Signer, SigningKey};
+    let pem = fs::read_to_string(p.0.join(".kineti/evidence-issuer.pem.private")).unwrap();
+    let encoded = pem
+        .lines()
+        .filter(|s| !s.starts_with("-----"))
+        .collect::<String>();
+    let der = STANDARD.decode(encoded).unwrap();
+    let key = SigningKey::from_bytes(der[16..].try_into().unwrap());
+    r.as_object_mut().unwrap().shift_remove("signature");
+    let bytes = kineti_cli::compat::canonical(r).unwrap();
+    r["signature"] = json!(STANDARD.encode(key.sign(bytes.as_bytes()).to_bytes()));
+}
+
+#[test]
+fn signed_expired_and_future_receipts_are_stale() {
+    for time in ["2000-01-01T00:00:00.000Z", "2099-01-01T00:00:00.000Z"] {
+        let p = Project::new();
+        assert!(p.record().status.success());
+        let file = p.0.join(".kineti/evidence.jsonl");
+        let mut rows = kineti_cli::store::lines(&file).unwrap();
+        rows[0]["at"] = json!(time);
+        resign(&p, &mut rows[0]);
+        fs::write(file, rows[0].to_string() + "\n").unwrap();
+        assert_eq!(p.check().status.code(), Some(4));
+    }
+}
+
+#[test]
+fn dependency_and_runtime_identity_changes_are_stale() {
+    let p = Project::new();
+    fs::write(p.0.join("Cargo.lock"), "fixture dependency").unwrap();
+    assert!(p.record().status.success());
+    fs::write(p.0.join("Cargo.lock"), "changed dependency").unwrap();
+    assert_eq!(p.check().status.code(), Some(4));
+    assert!(p.record().status.success());
+    let file = p.0.join(".kineti/evidence.jsonl");
+    let mut rows = kineti_cli::store::lines(&file).unwrap();
+    let last = rows.last_mut().unwrap();
+    last["manifest"]["runtime"]["executable_sha256"] = json!("0".repeat(64));
+    resign(&p, last);
+    fs::write(
+        file,
+        rows.iter()
+            .map(|v| v.to_string() + "\n")
+            .collect::<String>(),
+    )
+    .unwrap();
+    assert_eq!(p.check().status.code(), Some(4));
+}
+
+#[test]
+fn missing_state_has_repair_instruction_and_symlink_inputs_are_rejected() {
+    use std::os::unix::fs::symlink;
+    let p = Project::new();
+    symlink(&p.0, p.0.join("cycle")).unwrap();
+    let out = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "cycle",
+        "--required-test",
+        "cycle",
+        "--",
+        "/bin/sh",
+        "-c",
+        "exit 0",
+    ]);
+    assert_eq!(out.status.code(), Some(2));
+    fs::remove_file(p.0.join(".kineti/state.json")).unwrap();
+    let out = p.run(&["status"]);
+    assert_eq!(out.status.code(), Some(3));
+    assert!(value(&out)["error"]
+        .as_str()
+        .unwrap()
+        .contains("init --goal"));
+}
+
+#[test]
+fn skipped_summary_cannot_authorize_release() {
+    let p = Project::new();
+    let out = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "release",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf '1 pass\\n0 fail\\n1 skip\\n'",
+    ]);
+    assert!(!out.status.success());
+    assert!(!p.check().status.success());
+}
+
+#[test]
+fn excessive_token_integer_is_rejected_before_accounting_writes() {
+    let p = Project::new();
+    let out = p.run(&[
+        "spend",
+        "log",
+        "--stage",
+        "build",
+        "--usd",
+        "0.01",
+        "--tokens-in",
+        "9007199254740992",
+    ]);
+    assert_eq!(out.status.code(), Some(2));
+    assert!(!p.0.join(".kineti/spend.native.jsonl").exists());
+}
+
+#[test]
+fn undo_guard_inspection_preserves_exact_interrupted_bytes() {
+    let p = Project::new();
+    assert!(p
+        .run(&["undo", "push", "--label", "inspect", "--", "/bin/sh", "-c", "exit 0"])
+        .status
+        .success());
+    fs::remove_file(p.0.join(".kineti/undo.native.guard.json")).unwrap();
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    let before = fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    let preview = value(&p.run(&["undo", "inspect"]));
+    let hash = preview["result"]["sha256"].as_str().unwrap();
+    assert_eq!(
+        p.run(&["undo", "inspect", "--expected-sha256", "wrong", "--yes"])
+            .status
+            .code(),
+        Some(3)
+    );
+    assert!(p
+        .run(&["undo", "inspect", "--expected-sha256", hash, "--yes"])
+        .status
+        .success());
+    assert_eq!(
+        fs::read(p.0.join(".kineti/undo-inspection").join(hash)).unwrap(),
+        before
+    );
+    assert_eq!(
+        fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap(),
+        before
+    );
+    assert!(p.run(&["undo", "rollback", "--yes"]).status.success());
 }

@@ -38,7 +38,8 @@ explicit destination. Repetition preserves unrelated settings; edited owned
 settings are refused. `init --uninstall --apply` removes owned integration
 content and preserves project records. Restart existing Codex sessions after
 changes. Cursor and Antigravity configuration is preserved, but those hosts are
-unverified in 0.6.0. There is no automatic native-tool interception.
+unverified in 0.6.0. There is no automatic native-tool interception. Codex integration checks cover only
+0.163.0-alpha.11.2 and stable 0.164.0; no intervening version is implied supported.
 
 ## Record and check
 
@@ -89,13 +90,16 @@ Unknown records are never cleared. Native chain damage requires inspection.
 Undo records intent/completion, runs newest first and continues after definite
 failures. Uncertain interruption blocks replay until inspected and resolved with
 `undo resolve --action-id ID --outcome applied|not-applied --yes`.
+If the history guard was interrupted, `undo inspect` previews its exact bytes;
+`undo inspect --expected-sha256 HASH --yes` records reviewed inspection and keeps
+a byte backup. This does not resolve uncertain action outcomes.
 There is no atomic authorization of later writes or protected-write guarantee.
 
 ## Acceptance
 
-The [contract](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-CONTRACT.md),
-[behavior map and exit codes](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-BEHAVIOR.md), and
-[evidence matrix](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-EVIDENCE.md) govern acceptance. Final installed
+The [contract](docs/GATE-0.6.0-CONTRACT.md),
+[behavior map and exit codes](docs/GATE-0.6.0-BEHAVIOR.md), and
+[evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) govern acceptance. Final installed
 files for each route must be below **10,000,000 bytes** per target, including
 initial integration assets. Download and unpacked-package sizes are separate.
 No unmeasured platform-size claim is made.
@@ -105,5 +109,5 @@ Exit codes: 0 success; 1 failed command/check or incomplete undo; 2 invalid inpu
 legacy, 7 invalid/untrusted; verify 9 missing/untrusted command.
 
 Dated older results, including the historical 631-test result, are separate from
-the new suite inventory. [Historical documents](https://github.com/therawlogs/kineti/blob/main/docs/history/pre-0.6.0/README.md)
+the new suite inventory. [Historical documents](docs/history/pre-0.6.0/README.md)
 and Git history remain available; they are not current product guarantees.

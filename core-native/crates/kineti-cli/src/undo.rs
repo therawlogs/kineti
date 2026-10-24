@@ -37,11 +37,61 @@ fn records(root: &Path) -> Result<Vec<Value>> {
         }
     }
     let mut all = original;
-    all.extend(store::lines(&root.join(".kineti/undo.native.jsonl"))?);
+    let native = root.join(".kineti/undo.native.jsonl");
+    let native_guard = root.join(".kineti/undo.native.guard.json");
+    if native.exists() || native_guard.exists() {
+        let g = store::read(&native_guard)?;
+        if digest(fs::read(&native)?) != g["sha256"].as_str().unwrap_or("") {
+            return store::fail(3,"native undo history changed or was interrupted; inspect exact bytes before undo inspect");
+        }
+    }
+    all.extend(store::lines(&native)?);
     Ok(all)
 }
 fn append(root: &Path, v: Value) -> Result<()> {
-    store::append(&root.join(".kineti/undo.native.jsonl"), &v)
+    let p = root.join(".kineti/undo.native.jsonl");
+    store::append(&p, &v)?;
+    store::write(
+        &root.join(".kineti/undo.native.guard.json"),
+        &json!({"sha256":digest(fs::read(p)?)}),
+    )
+}
+/// Record inspection of exact history bytes without resolving an uncertain action.
+pub fn inspect(root: &Path, expected: Option<&str>, confirmed: bool) -> Result<Value> {
+    let _lock = Lock::take(&root.join(".kineti/undo.lock"))?;
+    let path = root.join(".kineti/undo.native.jsonl");
+    let bytes = fs::read(&path)?;
+    let hash = digest(&bytes);
+    let rows = store::lines(&path)?;
+    if !confirmed {
+        return Ok(json!({"sha256":hash,"records":rows,"requires_inspection":true}));
+    }
+    if expected != Some(hash.as_str()) {
+        return store::fail(3, "undo inspection digest changed or missing");
+    }
+    for r in &rows {
+        if r["kind"] == "register"
+            && r["inverse_hash"]
+                != digest(
+                    r["inverse"]
+                        .as_str()
+                        .ok_or_else(|| Error(3, "inverse missing".into()))?,
+                )
+        {
+            return store::fail(3, "altered inverse cannot be accepted by guard inspection");
+        }
+    }
+    let backup = root.join(".kineti/undo-inspection").join(&hash);
+    store::atomic(&backup, &bytes)?;
+    store::append(
+        &root.join(".kineti/undo-inspection.jsonl"),
+        &json!({"at":store::now(),"sha256":hash,"kind":"guard-inspection","identity_proven":false,"action_outcomes_resolved":false}),
+    )?;
+    store::write(
+        &root.join(".kineti/undo.native.guard.json"),
+        &json!({"sha256":hash}),
+    )?;
+    Ok(json!({"inspected":true,"action_outcomes_resolved":false}))
 }
 /// Open or seal a named run, retaining the saga interface.
 pub fn transaction(root: &Path, run: &str, commit: bool) -> Result<Value> {

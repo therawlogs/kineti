@@ -144,6 +144,9 @@ fn env_digest(name: &str) -> Result<String> {
 fn files(root: &Path, declared: &[String]) -> Result<Value> {
     let mut out = vec![];
     fn walk(root: &Path, p: &Path, out: &mut Vec<Value>) -> Result<()> {
+        if fs::symlink_metadata(p)?.file_type().is_symlink() {
+            return store::fail(2, "declare a resolved project file instead of a symlink");
+        }
         if p.is_dir() {
             let mut es = fs::read_dir(p)?.collect::<std::io::Result<Vec<_>>>()?;
             es.sort_by_key(|e| e.file_name());
@@ -151,6 +154,9 @@ fn files(root: &Path, declared: &[String]) -> Result<Value> {
                 walk(root, &e.path(), out)?;
             }
         } else {
+            if !p.is_file() {
+                return store::fail(2, "declared input must be a regular file or directory");
+            }
             let resolved = p.canonicalize()?;
             if !resolved.starts_with(root.canonicalize()?) {
                 return store::fail(2, "declared file escapes project");
@@ -183,10 +189,15 @@ fn summary(output: &str) -> Option<(u64, u64, u64)> {
     }
     let pass = regex::Regex::new(r"(?m)^\s*(\d+) pass\s*$").unwrap();
     let fail = regex::Regex::new(r"(?m)^\s*(\d+) fail\s*$").unwrap();
+    let skip = regex::Regex::new(r"(?m)^\s*(\d+) skip\s*$").unwrap();
     Some((
         pass.captures(output)?[1].parse().ok()?,
         fail.captures(output)?[1].parse().ok()?,
-        0,
+        skip.captures(output)
+            .map(|c| c[1].parse::<u64>())
+            .transpose()
+            .ok()?
+            .unwrap_or(0),
     ))
 }
 /// Execute without a shell. Timeout kills the process group; output is bounded but drained.

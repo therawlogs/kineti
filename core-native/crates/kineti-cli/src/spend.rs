@@ -367,12 +367,25 @@ pub fn charge(
     usd: &str,
 ) -> Result<Value> {
     let n = money(usd)?;
-    if stage.is_empty() || model.is_empty() {
+    if stage.is_empty()
+        || model.is_empty()
+        || tin > 9_007_199_254_740_991
+        || tout > 9_007_199_254_740_991
+    {
         return store::fail(2, "stage and model required");
     }
     let _lock = Lock::take(&root.join(".kineti/spend.lock"))?;
     let a = load(root)?;
     headroom(&a)?;
+    if a.total
+        .checked_add(n)
+        .is_none_or(|v| v > 9_007_199_254_740_991)
+    {
+        return store::fail(
+            2,
+            "reported amount exceeds exact accounting range; no entry written",
+        );
+    }
     commit(
         root,
         &a,

@@ -1,72 +1,127 @@
-# Kineti 0.6.0 evidence matrix
+# Kineti 0.6.0 candidate evidence
 
-Contract: [GATE-0.6.0-CONTRACT.md](GATE-0.6.0-CONTRACT.md).
-This is checkpoint evidence, not release acceptance or publication approval.
+The [contract](GATE-0.6.0-CONTRACT.md) controls acceptance. This document records
+implementation evidence; it does not approve publication.
 
-## Approved implementation accounting exception
+## Accounting boundary
 
-The owner approved subscription-only implementation with $0 new paid spending
-on 2026-10-25. The contract records the approval and its implementation-only
-boundary. Historical records and monetary unknowns remain unchanged. The latest
-account checkpoint allowed ordinary usage, reported plan_type=prolite, no extra
-credits and 6% account-wide weekly usage. This is not historical billing proof.
+The owner approved subscription-only implementation with **$0 new paid spending**
+and confirmed a hard $0 GitHub Actions spending limit. Standard public runners
+and one-day candidate artifacts are used. No registry publication is authorized.
+The original spending ledger still records $55 against the approved $75 ceiling:
+$71.25 is the 95% stop, leaving $16.25 nominal recorded headroom. This is not
+permission to spend that amount. Historical unknown costs remain unresolved and
+publication-blocking. No costs were guessed, cleared, or inserted to match $55.
+Recovery requires separate review of exact evidence and proposal digests.
 
-## G03: native runner access verified
+## Compatibility before source removal
 
-Public repository: therawlogs/kineti. Actions enabled; authenticated account has
-repository/workflow access. Only standard public-repository runner labels were
-used, with no checkout, external actions, secrets, paid services or deployment.
-GitHub documents these standard runners as free for public repositories:
-https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+Commit `7c2b459` added the native foundation while the former implementation was
+still present. Six genuine TypeScript-generated Ed25519 receipt fixtures cover
+property ordering, numeric keys, Unicode, escapes, numeric boundaries and omitted
+optional fields. Native tests reproduce original JavaScript signing bytes,
+accept genuine signatures, and reject altered receipts and issuer substitution.
+Five separate canonical fixtures prove native encoding parity. Legacy signing
+and native canonical encoding are separate paths.
 
-Run: https://github.com/therawlogs/kineti/actions/runs/40124627870
+The original local history comparison examined **827 records**. The former
+TypeScript verifier and native verifier each accepted **436**, with **zero
+mismatched decisions**. Exact private evidence is retained locally in
+`.kineti/gate-060-port/history-compat.json`. The saved before-removal native run
+passed 29 tests (3 library, 26 integration), and its evidence check was fresh
+before source deletion. Deletion happened in the later commit `1d69914`.
+Original source is preserved by Git history and a private local byte backup.
 
-Workflow commit: `82f39b53700106317e485ef6d36c607ecc1ea11b` on
-`codex/gate-060-feasibility`. This is a feasibility-only remote commit, not the
-0.6.0 release commit. Main and release tags were not changed.
+This proves signature compatibility, not native authority for every old runtime.
+Unsupported historical parser/runtime evidence remains readable and
+signature-checkable, but cannot authorize a native check. Run fresh native
+checks after migration. The historical 631-test result is preserved separately.
 
-| Target | Standard label | Observed native architecture | Result |
+## Actual native environments and candidate installs
+
+Initial access run:
+https://github.com/therawlogs/kineti/actions/runs/40124627870
+
+| Target | Actual runner | Observed architecture | Initial OS |
 | --- | --- | --- | --- |
-| Linux x64 | ubuntu-24.04 | x86_64 | Passed |
-| Linux arm64 | ubuntu-24.04-arm | aarch64 | Passed |
-| macOS x64 | macos-15-intel | x86_64 | Passed |
-| macOS arm64 | macos-15 | arm64 | Passed |
+| Linux x64 | ubuntu-24.04 | x86_64 | Ubuntu 24.04.5 LTS |
+| Linux arm64 | ubuntu-24.04-arm | aarch64 | Ubuntu 24.04.5 LTS |
+| macOS x64 | macos-15-intel | x86_64 | macOS 15.7.9, 24G830 |
+| macOS arm64 | macos-15 | arm64 | macOS 15.7.9, 24G830 |
 
-Exact OS versions, kernel/build identities and Rust/Cargo versions are retained
-in `.kineti/gate-060-feasibility/runner-40124627870.log`; job IDs and the exact
-workflow head are in `runner-40124627870.json` alongside it. These jobs establish
-actual runner access only. Cargo/npm installation and size acceptance remain
-unrun and must use the same actual target environments later.
+Candidate run https://github.com/therawlogs/kineti/actions/runs/40126379788
+passed all native build/test and installation jobs at commit `f2d138b`.
+Both Cargo and npm were installed from packaged candidates outside the source
+checkout on each actual target. Execution and self-test passed with Node and Bun
+absent from the runtime PATH. Disabled npm scripts produced the explicit error.
+Every measured installation was below 10,000,000 bytes; the largest preliminary
+measurement was Cargo Linux x64 at 4,272,773 bytes. These are preliminary sizes,
+not the final candidate packet. Any subsequent source change requires a new
+exact-commit run. Final reports include per-route footprints, download sizes,
+unpacked sizes, binary and artifact digests, runner identities and test logs.
 
-## G04: pinned alpha protocol feasibility verified
+## Codex host integration
 
-Codex: `0.163.0-alpha.11.2`.
+Only these exact versions are in scope: **0.163.0-alpha.11.2** and stable
+**0.164.0**. The alpha executable SHA-256 is
+`248ff9873b6fb35124a86bdffa013a09e1bd17f106385124e3dda73e9eb157ad`.
+Both versions loaded isolated generated configuration, discovered eight native
+gate MCP tools, and successfully called native status through app-server.
+The allowlist contains initialize/initialized, config/read, ephemeral
+thread/start, mcpServerStatus/list and mcpServer/tool/call; no model turn starts.
+The generated configuration points the model provider to an unused local port.
+HOME, CODEX_HOME, XDG and temporary directories stay inside disposable project
+fixtures. Real user configuration and credentials are not loaded or modified.
 
-Executable SHA-256:
-`248ff9873b6fb35124a86bdffa013a09e1bd17f106385124e3dda73e9eb157ad`
+Probe: `scripts/check-gate-060-codex.py --gate <candidate-executable>`; use
+`--codex`, `--expected-version` and `--state-root` to pin each host and output.
+Earlier native proofs are retained under `.kineti/gate-060-port/alpha-native`
+and `stable-native`. Final candidate installation must repeat both proofs and
+record executable/configuration digests. These checks establish host integration,
+not autonomous model behavior. Cursor and Antigravity remain unverified; existing
+configuration is preserved. No intervening Codex version is implied supported.
 
-The executable's own generated JSON schemas established the actual protocol
-parameters. The fixture performed initialize/initialized, config/read,
-thread/start (ephemeral, no turn), mcpServerStatus/list and mcpServer/tool/call.
-Codex reported the native fixture connected, discovered
-`kineti_feasibility_status` and returned `kineti-native-feasibility-ok` from a
-real call. The fixture is compiled Rust; it is not the completed gate.
+## New acceptance inventory
 
-HOME, CODEX_HOME, temporary and XDG directories were isolated inside
-`.kineti/gate-060-feasibility`. The child inherited no API credentials and its
-PATH excluded Node/Bun. Its model provider points to an unused local port; the
-request allowlist contains no model-turn method. No real Codex configuration or
-credential files were loaded or modified by the probe.
+The current native suite has **35 tests: 3 library and 32 integration**.
+Its named tests live in the crate and map to the
+[retained behavior and exit-code table](GATE-0.6.0-BEHAVIOR.md).
+Six additional mocked installer policy cases test all supported target selections,
+unsupported platforms and checksum mismatch without replacing the sentinel.
+They supplement actual native installations, not replace them.
 
-Reproduce with `python3 scripts/check-gate-060-codex.py` using the pinned installed
-Codex and the cached Rust dependencies. This probe is host-local acceptance, not
-a clean-machine release installation check. Exact generated config/binary hashes,
-results, protocol transcript and stderr are retained in the project-local
-feasibility directory. Stable Codex and the final native gate remain unverified.
+Coverage includes exact/empty argv, environment/dependency/runtime changes,
+signature alteration/issuer substitution, stale/future evidence, missing checks,
+corrupted history, concurrent accounting, thresholds/reset, reservations,
+unknown journal costs, reviewed recovery/source preservation, interrupted undo,
+undo guard inspection, preview/backup/repetition/uninstall, modified user
+configuration, removed command/tool inventory, MCP discovery/calls and self-test.
+Formatting, Clippy and the suite must pass in UTC and Asia/Kolkata for the final
+commit. Final artifacts and sizes must be reviewed before publication.
 
-## Remaining requirements
+## Claims audit
 
-G01 is amended for implementation only, not publication. G03 and the early alpha
-portion of G04 have evidence above; the final integration/stable acceptance in
-G04 is still open. G02 and G05–G20 remain unaccepted. No native port, source
-deletion, package publication, size acceptance or stable-host support is claimed.
+| Current surface | Allowed claim and evidence |
+| --- | --- |
+| README and packaged crate README | Gate headline; installation prerequisites; explicit platform restriction; older assistant lineage change; version-pinned Codex integration; limitations and exit table |
+| GitHub Action (`action.yml`) | Runs the native participating CI gate; no Bun/evaluator/protected-write claim |
+| MCP registry (`server.json`) | Native gate candidate, exact 0.6.0; no universal interception claim |
+| Website (`website/index.html`) | Gate-only candidate, platform limits, reported spending and evidence limitations; no deployment claimed |
+| Cargo/npm descriptions | One native implementation; Node needed only for npm installation; no other Kineti crate dependencies |
+| Release workflow | Four native builds, one crate and one bundled npm package, artifact-only acceptance; no publication job or automatic version bump |
+
+Current claims must be checked against final reports. Dated historical documents
+are labeled historical and preserved, not asserted as current behavior. Native
+receipts cannot prove honest tests: self-test deliberately accepts fabricated
+passing output. Local keys do not defend against a same-account adversary.
+Reported costs do not verify provider bills. No protected-write guarantee or
+atomic authorization of later writes is offered.
+
+## Still gated
+
+Final exact-commit rerun, final installed-candidate Codex probes and packet review
+remain required. Registry/tag occupancy must be checked again immediately before
+publication. Historical monetary uncertainty remains publication-blocking.
+Separate publication approval is mandatory; published-package installation
+checks can run only after authorized publication, and partial publication must
+be reported explicitly.

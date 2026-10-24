@@ -36,10 +36,13 @@ jobs:
           echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
       - name: Format, lint and actual native tests in both timezones
         run: |
+          mkdir -p .kineti/native-artifacts
+          python3 scripts/native-runner-identity.py > .kineti/native-artifacts/runner.json
+          node scripts/test-native-installer.cjs
           cargo fmt --manifest-path core-native/Cargo.toml --check
           cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings
-          TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml
-          TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml
+          TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-utc.log
+          TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-kolkata.log
       - name: Build exact native candidate and record fresh test evidence
         env:
           TARGET: ${{ matrix.triple }}
@@ -54,6 +57,8 @@ jobs:
           TZ=UTC "$GATE" test check --label native-utc
           TZ=Asia/Kolkata "$GATE" test run --label native-kolkata --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
           TZ=Asia/Kolkata "$GATE" test check --label native-kolkata
+          cp .kineti/evidence.jsonl .kineti/native-artifacts/evidence.jsonl
+          cp .kineti/evidence-issuer.pem .kineti/native-artifacts/evidence-issuer.pem
       - name: Package the sole crate
         if: matrix.key == 'linux-x64'
         run: |
