@@ -1,6 +1,6 @@
 """Exercise the installed app-server MCP API without credentials or a model turn.
 
-Builds a disposable native read-only MCP fixture, not the 0.6.0 gate. All mutable
+Uses init-generated gate integration with --gate, or an early native fixture. All mutable
 state is isolated under .kineti/gate-060-feasibility. No API key is inherited.
 """
 import argparse
@@ -56,8 +56,8 @@ def main():
         'base_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\n'
         'requires_openai_auth = false\n'
         '[analytics]\nenabled = false\n[feedback]\nenabled = false\n'
-        '[mcp_servers.kineti_feasibility]\n'
-        f'command = {json.dumps(str(native))}\nstartup_timeout_sec = 15\n'
+        + ('' if options.gate else '[mcp_servers.kineti_feasibility]\n'
+           f'command = {json.dumps(str(native))}\nstartup_timeout_sec = 15\n')
     )
     env = {"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "HOME": str(STATE / "home"),
            "CODEX_HOME": str(STATE / "codex-home"), "TMPDIR": str(STATE / "tmp"),
@@ -67,10 +67,9 @@ def main():
     server = "kineti_feasibility"
     tool = "kineti_feasibility_status"
     if options.gate:
-        subprocess.run([str(native), "init", "--goal", "Disposable native host acceptance", "--apply"],
+        subprocess.run([str(native), "init", "--goal", "Disposable native host acceptance", "--codex-home", str(STATE / "codex-home"), "--apply"],
                        cwd=STATE / "work", env=env, check=True, capture_output=True)
-        config_path.write_text(config_path.read_text().replace(
-            "startup_timeout_sec = 15", 'args = ["mcp", "--root", ' + json.dumps(str(STATE / "work")) + ']\nstartup_timeout_sec = 15'))
+        server = "kineti"
         tool = "kineti_status"
     transcript = []
     received = queue.Queue()
@@ -116,20 +115,20 @@ def main():
         result = {"version": version, "codex_sha256": hashlib.sha256(codex.read_bytes()).hexdigest(),
                   "native_sha256": hashlib.sha256(native.read_bytes()).hexdigest(),
                   "config_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
-                  "fixture_only": not bool(options.gate), "model_turn_started": False, "passed": False}
+                  "fixture_only": not bool(options.gate), "init_generated_registration": bool(options.gate), "model_turn_started": False, "passed": False}
         try:
             send("initialize", {"clientInfo": {"name": "kineti_gate_feasibility", "version": "0.6.0"},
                                 "capabilities": {"experimentalApi": True}})
             send("initialized", {}, notify=True)
             config = send("config/read", {"includeLayers": True})
-            assert "kineti_feasibility" in json.dumps(config), "Generated configuration not loaded"
+            assert server in json.dumps(config), "Generated configuration not loaded"
             thread = send("thread/start", {"cwd": str(STATE / "work"), "ephemeral": True,
                                           "approvalPolicy": "never", "sandbox": "read-only"})
             thread_id = thread["thread"]["id"]
             discovery = send("mcpServerStatus/list", {"threadId": thread_id,
-                             "serverName": "kineti_feasibility", "detail": "toolsAndAuthOnly"})
+                             "serverName": server, "detail": "toolsAndAuthOnly"})
             assert tool in json.dumps(discovery), "Native tool not discovered"
-            call = send("mcpServer/tool/call", {"threadId": thread_id, "server": "kineti_feasibility",
+            call = send("mcpServer/tool/call", {"threadId": thread_id, "server": server,
                         "tool": tool, "arguments": {}})
             assert not call.get("isError", False), "Native MCP call failed"
             if not options.gate:
