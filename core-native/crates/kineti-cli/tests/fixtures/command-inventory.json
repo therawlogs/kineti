@@ -1,0 +1,337 @@
+{
+  "version": 1,
+  "origin": "Source inventory before deletion; subcommand literals retain provenance, not evidence of acceptance",
+  "commands": [
+    {
+      "name": "init",
+      "source": "setup.sh",
+      "disposition": "retained",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "companion",
+      "source": "bin/kineti-companion.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "edit-contact",
+        "function",
+        "open-url"
+      ]
+    },
+    {
+      "name": "mcp",
+      "source": "bin/kineti-mcp.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "conflict-add",
+        "conflict-list",
+        "correct",
+        "prepare",
+        "record",
+        "retrieve",
+        "status",
+        "store"
+      ]
+    },
+    {
+      "name": "test",
+      "source": "bin/kineti-evidence.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "check",
+        "fingerprint",
+        "run"
+      ]
+    },
+    {
+      "name": "evidence",
+      "source": "bin/kineti-evidence.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "check",
+        "fingerprint",
+        "run"
+      ]
+    },
+    {
+      "name": "undo",
+      "source": "bin/kineti-saga.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "begin",
+        "commit",
+        "push",
+        "register",
+        "rollback"
+      ]
+    },
+    {
+      "name": "saga",
+      "source": "bin/kineti-saga.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "begin",
+        "commit",
+        "push",
+        "register",
+        "rollback"
+      ]
+    },
+    {
+      "name": "spend",
+      "source": "bin/kineti-spend.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "check",
+        "economics",
+        "log",
+        "reset",
+        "status"
+      ]
+    },
+    {
+      "name": "status",
+      "source": "bin/kineti-state.ts",
+      "disposition": "retained",
+      "discovered_subcommands": [
+        "get",
+        "init",
+        "new-run",
+        "set",
+        "validate"
+      ]
+    },
+    {
+      "name": "state",
+      "source": "bin/kineti-state.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "get",
+        "init",
+        "new-run",
+        "set",
+        "validate"
+      ]
+    },
+    {
+      "name": "verify",
+      "source": "bin/kineti-verify-gate.ts",
+      "disposition": "retained",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "swarm",
+      "source": "bin/kineti-swarm.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "ci",
+      "source": "bin/kineti-ci.ts",
+      "disposition": "retained",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "seed",
+      "source": "bin/kineti-seed.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "egress",
+      "source": "bin/kineti-egress.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "list",
+        "record",
+        "recover",
+        "verify"
+      ]
+    },
+    {
+      "name": "memory",
+      "source": "bin/kineti-memory-job.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "add",
+        "append-run",
+        "incident",
+        "list",
+        "promote",
+        "show",
+        "sweep",
+        "time-order",
+        "undo-memory",
+        "verify-chain"
+      ]
+    },
+    {
+      "name": "evidence-verify",
+      "source": "bin/kineti-evidence-verify.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "protected-write",
+      "source": "bin/kineti-protected-write.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "workflow",
+      "source": "bin/kineti-workflow.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "add",
+        "approve",
+        "conflict",
+        "generate-outcome",
+        "list",
+        "record",
+        "resolve",
+        "status"
+      ]
+    },
+    {
+      "name": "incident",
+      "source": "bin/kineti-memory-job.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "add",
+        "append-run",
+        "incident",
+        "list",
+        "promote",
+        "show",
+        "sweep",
+        "time-order",
+        "undo-memory",
+        "verify-chain"
+      ]
+    },
+    {
+      "name": "context",
+      "source": "bin/kineti-context.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "bind-legacy",
+        "correct",
+        "delete",
+        "prepare",
+        "retrieve",
+        "store"
+      ]
+    },
+    {
+      "name": "linux-service",
+      "source": "bin/kineti-linux-service.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "init",
+        "recover-lock",
+        "request",
+        "serve"
+      ]
+    },
+    {
+      "name": "service-client",
+      "source": "bin/kineti-service-client.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "native-memory",
+      "source": "bin/kineti-native-memory.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    },
+    {
+      "name": "conformance",
+      "source": "bin/kineti-conformance.ts",
+      "disposition": "removed",
+      "discovered_subcommands": []
+    }
+  ],
+  "native_assistant_removed": [
+    "chat",
+    "memory",
+    "test-all",
+    "epistemic",
+    "epistemic-eval",
+    "anti-drift"
+  ],
+  "mcp": [
+    {
+      "name": "kineti_status",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_lock_goal",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_set_stage",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_set_gate",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_evidence_record",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_linux_service",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_protected_write",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_context_memory",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_workflow",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_evidence_check",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_spend_record",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_spend_status",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_saga_push",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_saga_rollback",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_verify_gate_status",
+      "disposition": "retained"
+    },
+    {
+      "name": "kineti_egress_record",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_talk",
+      "disposition": "removed"
+    },
+    {
+      "name": "kineti_epistemic_eval",
+      "disposition": "removed"
+    }
+  ]
+}
