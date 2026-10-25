@@ -1,15 +1,10 @@
-name: Native gate 0.6.0 candidates
+name: Published 0.6.0 native acceptance
 on:
-  push:
-    branches: [codex/gate-060]
   workflow_dispatch:
 permissions:
   contents: read
-concurrency:
-  group: native-gate-candidates-${{ github.ref }}
-  cancel-in-progress: false
 jobs:
-  native:
+  installed:
     if: github.event.repository.visibility == 'public'
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -23,107 +18,75 @@ jobs:
           - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 01c710c8ee3c125d19a0f37988ff95d27e743339
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           targets: ${{ matrix.triple }}
-          components: rustfmt, clippy
-      - name: Prepare native musl linker
+      - name: Native musl linker
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
           echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
           echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
-      - name: Format, lint and actual native tests in both timezones
-        run: |
-          mkdir -p .kineti/native-artifacts
-          python3 scripts/native-runner-identity.py > .kineti/native-artifacts/runner.json
-          node scripts/test-native-installer.cjs
-          cargo fmt --manifest-path core-native/Cargo.toml --check
-          cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings
-          TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-utc.log
-          TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-kolkata.log
-      - name: Build exact native candidate and record fresh test evidence
+      - name: Install exact published registry packages and test native execution
         env:
-          TARGET: ${{ matrix.triple }}
-          KEY: ${{ matrix.key }}
+          TARGET_KEY: ${{ matrix.key }}
+          RUST_TARGET: ${{ matrix.triple }}
+          RUNNER_LABEL: ${{ matrix.runner }}
         run: |
-          cargo build --release --locked --manifest-path core-native/Cargo.toml --target "$TARGET"
-          mkdir -p .kineti/native-artifacts
-          cp "core-native/target/$TARGET/release/kineti" ".kineti/native-artifacts/kineti-$KEY"
-          GATE="$PWD/core-native/target/$TARGET/release/kineti"
-          "$GATE" init --goal "Build universal agent harness with cryptographic verification" --codex-home "$PWD/.kineti/ci-codex" --apply
-          TZ=UTC "$GATE" test run --label native-utc --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
-          TZ=UTC "$GATE" test check --label native-utc --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
-          TZ=Asia/Kolkata "$GATE" test run --label native-kolkata --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
-          TZ=Asia/Kolkata "$GATE" test check --label native-kolkata --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
-          cp .kineti/evidence.jsonl .kineti/native-artifacts/evidence.jsonl
-          cp .kineti/evidence-issuer.pem .kineti/native-artifacts/evidence-issuer.pem
-      - name: Package the sole crate
-        if: matrix.key == 'linux-x64'
-        run: |
-          cargo package --locked --manifest-path core-native/crates/kineti-cli/Cargo.toml
-          cp core-native/target/package/kineti-cli-0.6.0.crate .kineti/native-artifacts/
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: native-${{ matrix.key }}
-          path: .kineti/native-artifacts/
-          include-hidden-files: true
-          retention-days: 1
-  package:
-    needs: native
-    if: github.event.repository.visibility == 'public'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-        with:
-          pattern: native-*
-          merge-multiple: true
-          path: .kineti/native-artifacts
-      - run: python3 scripts/build-native-package.py --artifacts .kineti/native-artifacts --output .kineti/packages
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: native-candidate-packages
-          path: .kineti/packages
-          include-hidden-files: true
-          retention-days: 1
-  install:
-    needs: package
-    if: github.event.repository.visibility == 'public'
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl}
-          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl}
-          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin}
-          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
-        with:
-          targets: ${{ matrix.triple }}
-      - name: Prepare native musl linker
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y musl-tools
-          echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
-          echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
-        with:
-          name: native-candidate-packages
-          path: .kineti/packages
-      - run: python3 scripts/accept-native-install.py --artifacts .kineti/packages --target '${{ matrix.key }}' --rust-target '${{ matrix.triple }}' --work-root "$RUNNER_TEMP/kineti-install-acceptance"
+          mkdir -p .kineti
+          cat > .kineti/published-driver.py <<'PYDRIVER'
+          """Actual native published-package acceptance, using pinned registry versions."""
+          import hashlib,json,os,platform,subprocess,sys,urllib.request
+          from pathlib import Path
+          root=Path.cwd();base=root/'.kineti/published-packages';base.mkdir(parents=True)
+          expected={'kineti-cli-0.6.0.crate':'5787f90a7ad9204d9f651f3fe2a5f1ad0d82ebf2324223a147dfcadd1bd459a9','kineti-0.6.0.tgz':'73ce7ca10e28aa73a5588b62cbb07a89e306e0313273421ca2b0d79c6732ce2e'}
+          headers={'User-Agent':'Kineti-published-acceptance/0.6.0 (https://github.com/therawlogs/kineti)'}
+          def fetch(url):
+           with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=60) as r:return r.read()
+          cargo=json.loads(fetch('https://crates.io/api/v1/crates/kineti-cli/0.6.0'))
+          npm=json.loads(fetch('https://registry.npmjs.org/kineti/0.6.0'))
+          assert cargo['version']['checksum']==expected['kineti-cli-0.6.0.crate']
+          assert npm['dist']['tarball'].startswith('https://registry.npmjs.org/kineti/')
+          for name,url in [('kineti-cli-0.6.0.crate','https://crates.io/api/v1/crates/kineti-cli/0.6.0/download'),('kineti-0.6.0.tgz',npm['dist']['tarball'])]:
+           raw=fetch(url);assert hashlib.sha256(raw).hexdigest()==expected[name],name;(base/name).write_bytes(raw)
+          (base/'SHA256SUMS.json').write_text(json.dumps(expected,indent=2)+'\n')
+          key=os.environ['TARGET_KEY'];triple=os.environ['RUST_TARGET'];runner=os.environ['RUNNER_LABEL']
+          assert platform.machine() in (['aarch64','arm64'] if key.endswith('arm64') else ['x86_64','AMD64'])
+          assert platform.system()==('Linux' if key.startswith('linux') else 'Darwin')
+          commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip();assert commit=='01c710c8ee3c125d19a0f37988ff95d27e743339'
+          # Reuse the reviewed acceptance assertions, but install both packages by their
+          # pinned registry names, not a local crate path or source checkout.
+          text=(root/'scripts/accept-native-install.py').read_text()
+          a='["cargo", "install", "--path", str(crate_source), "--locked", "--target", options.rust_target, "--root", str(cargo_root)]'
+          b='["cargo", "install", "kineti-cli", "--version", "=0.6.0", "--locked", "--target", options.rust_target, "--root", str(cargo_root)]'
+          assert text.count(a)==1;text=text.replace(a,b)
+          assert text.count('str(archive)')==2
+          text=text.replace('str(archive)', '"kineti@0.6.0", "--registry", "https://registry.npmjs.org"')
+          script=root/'.kineti/published-install-check.py';script.write_text(text)
+          work=Path(os.environ['RUNNER_TEMP'])/'kineti-published-acceptance'
+          identity=json.loads(subprocess.check_output([sys.executable,'scripts/native-runner-identity.py'],text=True));identity['workflow_commit']=identity['commit'];identity['commit']=commit;identity['runner_label']=runner
+          (root/'.kineti/published-runner.json').write_text(json.dumps(identity,indent=2)+'\n')
+          subprocess.run([sys.executable,str(script),'--artifacts',str(base),'--target',key,'--rust-target',triple,'--work-root',str(work)],check=True)
+          report=json.loads((work/key/'report.json').read_text());report['runner']=identity;report['published_registry_installations']=True;report['registry_archive_sha256']=expected
+          report['cargo_registry_command']=['cargo','install','kineti-cli','--version','=0.6.0','--locked','--target',triple]
+          report['npm_registry_spec']='kineti@0.6.0'
+          report['package_source_commit']='80cd5d1c27433a402858fd82897db57741271e30'
+          assert report['outside_source_checkout'] and report['scripts_disabled_error_verified']
+          for route in ['cargo','npm']:
+           r=report['routes'][route];assert r['installed_bytes']<10_000_000 and r['node_bun_absent_from_runtime_path'] and r['registry_mcp_discovery_and_call']
+          (root/'.kineti/published-report.json').write_text(json.dumps(report,indent=2)+'\n')
+          PYDRIVER
+          python3 .kineti/published-driver.py
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: installed-${{ matrix.key }}
-          path: ${{ runner.temp }}/kineti-install-acceptance/${{ matrix.key }}/report.json
+          name: published-${{ matrix.key }}
+          path: |
+            .kineti/published-report.json
+            .kineti/published-runner.json
           include-hidden-files: true
           retention-days: 1
-# Deliberately no publishing jobs or tag triggers. Publication needs separate
-# reviewed-artifact approval and accounting policy acceptance.
