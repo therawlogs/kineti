@@ -1504,3 +1504,16 @@ fn malformed_spending_never_initializes_an_empty_workspace() {
         assert_eq!(before, exact_tree(&p.0));
     }
 }
+
+#[test]
+fn verify_missing_and_malformed_declarations_keep_exit_nine() {
+    let p = Project::new();
+    for declaration in [json!(""), json!([]), json!(17), json!([""])] {
+        fs::write(
+            p.0.join("kineti.config.json"),
+            json!({"settings":{"verify_command":declaration}}).to_string(),
+        )
+        .unwrap();
+        assert_eq!(p.run(&["verify", "--status"]).status.code(), Some(9));
+    }
+}

@@ -160,12 +160,14 @@ fn legacy_command(root: &Path, label: &str, test_default: bool) -> Result<Option
     Ok(None)
 }
 fn declared(root: &Path) -> Result<Vec<String>> {
-    let value = legacy_command(root, "verify", true)?.ok_or_else(|| {
-        Error(
-            9,
-            "verify declaration missing; configure settings.verify_command".into(),
-        )
-    })?;
+    let value = legacy_command(root, "verify", true)
+        .map_err(|e| if e.0 == 2 { Error(9, e.1) } else { e })?
+        .ok_or_else(|| {
+            Error(
+                9,
+                "verify declaration missing; configure settings.verify_command".into(),
+            )
+        })?;
     serde_json::from_value(value)
         .map_err(|_| Error(9, "verify command missing or malformed".into()))
 }
