@@ -11,6 +11,7 @@ struct Args {
     values: BTreeMap<String, Vec<String>>,
     position: Vec<String>,
     command: Vec<String>,
+    separator: bool,
 }
 impl Args {
     fn parse(argv: &[String], values: &[&str], flags: &[&str]) -> Result<Self> {
@@ -18,19 +19,26 @@ impl Args {
             values: BTreeMap::new(),
             position: vec![],
             command: vec![],
+            separator: false,
         };
         let mut i = 0;
         while i < argv.len() {
             let s = &argv[i];
             if s == "--" {
+                a.separator = true;
                 a.command = argv[i + 1..].to_vec();
                 break;
             }
-            if values.contains(&s.as_str()) {
+            if let Some((name, value)) = s.strip_prefix("--").and_then(|_| s.split_once('=')) {
+                if !values.contains(&name) || value.is_empty() {
+                    return store::fail(2, format!("invalid valued option {name}"));
+                }
+                a.values.entry(name.into()).or_default().push(value.into());
+            } else if values.contains(&s.as_str()) {
                 i += 1;
                 let v = argv
                     .get(i)
-                    .filter(|s| !s.starts_with("--"))
+                    .filter(|s| !s.is_empty() && !s.starts_with("--"))
                     .ok_or_else(|| Error(2, format!("missing value for {s}")))?;
                 a.values.entry(s.clone()).or_default().push(v.clone());
             } else if flags.contains(&s.as_str()) {
@@ -69,7 +77,7 @@ impl Args {
         })
     }
     fn clean(&self) -> Result<()> {
-        if !self.position.is_empty() || !self.command.is_empty() {
+        if !self.position.is_empty() || self.separator {
             return store::fail(2, "unexpected positional arguments or command separator");
         }
         Ok(())
@@ -251,11 +259,12 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                     .map(serde_json::from_str::<Value>)
                     .transpose()
                     .map_err(|e| Error(2, e.to_string()))?;
-                receipt::check(
+                receipt::check_kind(
                     root,
                     &a.text("--label", "test")?,
                     a.number("--max-age-min", 240)?,
                     expected.as_ref(),
+                    cmd == "evidence",
                 )
             } else {
                 store::fail(2, "test supports run or check")
@@ -295,6 +304,11 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                 "reset" => {
                     let a = Args::parse(args, &["--extend-usd"], &["--i-am-human"])?;
                     a.clean()?;
+                    if a.one("--extend-usd")?
+                        .is_some_and(|v| spend::money(v).is_ok_and(|n| n == 0))
+                    {
+                        return store::fail(2, "explicit extension must be positive");
+                    }
                     spend::reset(root, a.yes("--i-am-human"), &a.text("--extend-usd", "0")?)
                 }
                 "recover" => {
@@ -346,7 +360,7 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                         &["--label", "--run-id", "--inverse-argv", "--inverse"],
                         &[],
                     )?;
-                    let modes = usize::from(!a.command.is_empty())
+                    let modes = usize::from(a.separator)
                         + usize::from(a.one("--inverse-argv")?.is_some())
                         + usize::from(a.one("--inverse")?.is_some())
                         + usize::from(!a.position.is_empty());

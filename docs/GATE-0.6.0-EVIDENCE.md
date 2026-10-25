@@ -91,7 +91,9 @@ configuration is preserved. No intervening Codex version is implied supported.
 
 ## New acceptance inventory
 
-The current native suite has **37 tests: 3 library and 34 integration**.
+At candidate `6ebe8b5`, the native suite had **37 tests: 3 library and 34 integration**.
+Main reconciliation adds regressions; its exact new inventory and results belong
+to the replacement publication packet. See [reconciliation dispositions](GATE-0.6.0-RECONCILIATION.md).
 Its named tests live in the crate and map to the
 [retained behavior and exit-code table](GATE-0.6.0-BEHAVIOR.md).
 Six additional mocked installer policy cases test all supported target selections,

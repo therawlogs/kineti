@@ -250,6 +250,17 @@
       "source": "bin/kineti-conformance.ts",
       "disposition": "removed",
       "discovered_subcommands": []
+    },
+    {
+      "name": "run",
+      "source": "307331a:bin/kineti-run.ts",
+      "disposition": "removed",
+      "discovered_subcommands": [
+        "preflight",
+        "capabilities",
+        "status",
+        "cancel"
+      ]
     }
   ],
   "native_assistant_removed": [

@@ -392,6 +392,9 @@ fn removed_command_and_mcp_inventory_is_explicitly_rejected() {
             let o = p.run(&[name]);
             assert_eq!(o.status.code(), Some(2), "{name}");
             assert!(value(&o)["error"].as_str().unwrap().contains("removed"));
+            for sub in row["discovered_subcommands"].as_array().unwrap() {
+                assert_eq!(p.run(&[name, sub.as_str().unwrap()]).status.code(), Some(2));
+            }
         }
     }
     for name in inventory["native_assistant_removed"].as_array().unwrap() {
@@ -915,4 +918,589 @@ fn legacy_accounting_journal_encodings_and_checkpoint_are_preserved() {
     assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
     fs::write(file, &text).unwrap();
     assert!(p.run(&["spend", "check"]).status.success());
+}
+
+#[test]
+fn legacy_snapshot_only_reservation_cannot_pass_or_write() {
+    let p = Project::new();
+    let state = json!({"tripped":false,"reason":null,"total_usd":0,"total_microcents":0,"by_stage":{},"by_stage_microcents":{},"entries":0,"routing_reservations":{"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa":{"session_id":"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb","stage":"build","microcents":1000000,"status":"unknown"}}});
+    fs::write(p.0.join(".kineti/spend.json"), state.to_string()).unwrap();
+    let before = fs::read(p.0.join(".kineti/spend.json")).unwrap();
+    for args in [
+        vec!["spend", "check"],
+        vec!["spend", "log", "--stage", "build", "--usd", "0.01"],
+        vec!["spend", "reset", "--i-am-human"],
+    ] {
+        let out = p.run(&args);
+        assert_eq!(out.status.code(), Some(3), "{}", value(&out));
+    }
+    assert_eq!(before, fs::read(p.0.join(".kineti/spend.json")).unwrap());
+    assert!(!p.0.join(".kineti/spend.native.jsonl").exists());
+}
+
+#[test]
+fn equals_options_and_empty_delimiter_validate_before_writes() {
+    let p = Project::new();
+    let good = p.run(&[
+        "test",
+        "run",
+        "--label=equals",
+        "--required-test=test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "test \"$1\" = '' && printf '1 pass\\n0 fail\\n'",
+        "fixture",
+        "",
+    ]);
+    assert!(good.status.success(), "{}", value(&good));
+    assert!(p.run(&["test", "check", "--label=equals"]).status.success());
+    for args in [
+        vec!["spend", "check", "--"],
+        vec!["spend", "log", "--usd=0.01", "--stage=   "],
+        vec!["spend", "log", "--usd=0.01", "--model=  "],
+        vec!["spend", "reset", "--i-am-human", "--extend-usd=0"],
+        vec!["test", "check", "--label=equals", "--label", "equals"],
+        vec!["spend", "reset", "--i-am-human=true"],
+    ] {
+        let out = p.run(&args);
+        assert_eq!(out.status.code(), Some(2), "{args:?}: {}", value(&out));
+    }
+    assert!(!p.0.join(".kineti/spend.lock").exists());
+    assert!(!p.0.join(".kineti/spend.native.jsonl").exists());
+}
+
+#[test]
+fn operational_evidence_remains_distinct_from_test_authority() {
+    for kind in ["check", "package"] {
+        let p = Project::new();
+        fs::write(
+            p.0.join("kineti.config.json"),
+            json!({"settings":{"verify_command":"different default test"}}).to_string(),
+        )
+        .unwrap();
+        let record = p.run(&[
+            "evidence",
+            "run",
+            "--label",
+            "operation",
+            "--kind",
+            kind,
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ]);
+        assert!(record.status.success(), "{}", value(&record));
+        let checked = p.run(&["evidence", "check", "--label", "operation"]);
+        assert!(checked.status.success(), "{}", value(&checked));
+        assert_eq!(value(&checked)["result"]["gate_authorized"], false);
+        assert_eq!(
+            p.run(&["test", "check", "--label", "operation"])
+                .status
+                .code(),
+            Some(7)
+        );
+        assert_eq!(
+            p.run(&["ci", "--require-evidence", "operation"])
+                .status
+                .code(),
+            Some(1)
+        );
+    }
+}
+
+#[test]
+fn completion_persistence_failure_does_not_replay_undo_effect() {
+    let p = Project::new();
+    let script="printf x >> .kineti/effect; rm .kineti/undo.native.guard.json; mkdir .kineti/undo.native.guard.json";
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--run-id",
+            "interrupted",
+            "--label",
+            "effect",
+            "--",
+            "/bin/sh",
+            "-c",
+            script
+        ])
+        .status
+        .success());
+    let first = p.run(&["undo", "rollback", "--run-id", "interrupted", "--yes"]);
+    assert_eq!(first.status.code(), Some(3), "{}", value(&first));
+    assert_eq!(fs::read(p.0.join(".kineti/effect")).unwrap(), b"x");
+    let history = fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert_eq!(
+        p.run(&["undo", "rollback", "--run-id", "interrupted", "--yes"])
+            .status
+            .code(),
+        Some(3)
+    );
+    assert_eq!(fs::read(p.0.join(".kineti/effect")).unwrap(), b"x");
+    assert_eq!(
+        history,
+        fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap()
+    );
+}
+
+#[test]
+fn main_legacy_receipts_keep_signatures_without_native_authority() {
+    let f: Value = serde_json::from_str(include_str!("fixtures/main-legacy-golden.json")).unwrap();
+    let key = f["public_key"].as_str().unwrap();
+    for case in f["receipts"].as_array().unwrap() {
+        let r = &case["record"];
+        assert!(kineti_cli::receipt::signature(r, key), "{}", case["name"]);
+        assert_eq!(
+            kineti_cli::compat::legacy_unsigned(r).unwrap(),
+            case["unsigned"].as_str().unwrap()
+        );
+        for field in [
+            "session_id",
+            "parent_run_id",
+            "issuer_key",
+            "signature",
+            "encoding",
+        ] {
+            let mut altered = r.clone();
+            altered[field] = json!("altered");
+            assert!(!kineti_cli::receipt::signature(&altered, key), "{field}");
+        }
+        assert!(!kineti_cli::receipt::signature(r, "untrusted key"));
+        let p = Project::new();
+        fs::write(p.0.join(".kineti/evidence-issuer.pem"), key).unwrap();
+        let bytes = r.to_string() + "\n";
+        fs::write(p.0.join(".kineti/evidence.jsonl"), &bytes).unwrap();
+        assert_eq!(
+            p.run(&["evidence", "check", "--label", r["label"].as_str().unwrap()])
+                .status
+                .code(),
+            Some(6)
+        );
+        assert_eq!(
+            p.run(&["ci", "--require-evidence", r["label"].as_str().unwrap()])
+                .status
+                .code(),
+            Some(1)
+        );
+        assert_eq!(
+            fs::read_to_string(p.0.join(".kineti/evidence.jsonl")).unwrap(),
+            bytes
+        );
+    }
+}
+
+#[test]
+fn main_legacy_accounting_matches_original_decisions_without_rewrites() {
+    let f: Value = serde_json::from_str(include_str!("fixtures/main-legacy-golden.json")).unwrap();
+    for case in f["histories"].as_array().unwrap() {
+        let p = Project::new();
+        let state = case["state"].to_string();
+        let log = case["log"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.to_string() + "\n")
+            .collect::<String>();
+        fs::write(p.0.join(".kineti/spend.json"), &state).unwrap();
+        fs::write(p.0.join(".kineti/spend.log.jsonl"), &log).unwrap();
+        let out = p.run(&["spend", "check"]);
+        assert_eq!(
+            out.status.success(),
+            case["original_check_passes"].as_bool().unwrap(),
+            "{}: {}",
+            case["name"],
+            value(&out)
+        );
+        if out.status.success() {
+            assert_eq!(
+                value(&out)["result"]["total_microcents"],
+                case["total_microcents"]
+            );
+        } else {
+            assert_eq!(out.status.code(), Some(3));
+        }
+        assert_eq!(
+            fs::read_to_string(p.0.join(".kineti/spend.json")).unwrap(),
+            state
+        );
+        assert_eq!(
+            fs::read_to_string(p.0.join(".kineti/spend.log.jsonl")).unwrap(),
+            log
+        );
+    }
+}
+
+#[test]
+fn ci_requires_complete_exact_current_and_legacy_command_declarations() {
+    let command = json!(["/bin/sh", "-c", "printf '1 pass\\n0 fail\\n'"]);
+    for (settings, map, explicit, passes) in [
+        (json!({}), json!({"release":command}), None, true),
+        (json!({}), json!({"release":["wrong"]}), None, false),
+        (json!({}), json!({"other":command}), None, false),
+        (json!({}), json!({"release":"not-array"}), None, false),
+        (json!({}), json!({}), Some(json!({"release":command})), true),
+        (json!({}), json!({}), Some(json!({})), false),
+        (
+            json!({"verify_commands":{"release":command},"verify_command_argv":["wrong"],"verify_command":"wrong"}),
+            json!({}),
+            None,
+            true,
+        ),
+        (
+            json!({"verify_command_argv":command,"verify_command":"wrong"}),
+            json!({}),
+            None,
+            true,
+        ),
+        (
+            json!({"verify_command":"/bin/sh -c \"printf '1 pass\\n0 fail\\n'\""}),
+            json!({}),
+            None,
+            true,
+        ),
+        (
+            json!({"verify_commands":{"release":["wrong"]}}),
+            json!({"release":command}),
+            None,
+            true,
+        ),
+    ] {
+        let p = Project::new();
+        fs::write(
+            p.0.join(".kineti/gate.json"),
+            json!({"required_checks":["release"],"commands":map}).to_string(),
+        )
+        .unwrap();
+        fs::write(
+            p.0.join("kineti.config.json"),
+            json!({"settings":settings}).to_string(),
+        )
+        .unwrap();
+        if let Some(value) = &explicit {
+            fs::write(p.0.join("mapping.json"), value.to_string()).unwrap();
+        }
+        assert!(p.record().status.success());
+        let args = if explicit.is_some() {
+            vec!["ci", "--evidence-commands", "mapping.json"]
+        } else {
+            vec!["ci"]
+        };
+        let out = p.run(&args);
+        assert_eq!(
+            out.status.success(),
+            passes,
+            "settings={settings}, map={map}, explicit={explicit:?}: {}",
+            value(&out)
+        );
+    }
+}
+
+#[test]
+fn operational_label_mapping_and_explicit_override_preserve_exact_argv() {
+    for kind in ["check", "package"] {
+        let p = Project::new();
+        let argv = json!(["/bin/sh", "-c", "exit 0", "fixture", ""]);
+        fs::write(
+            p.0.join("kineti.config.json"),
+            json!({"settings":{"verify_command":"wrong default","verify_commands":{"op":argv}}})
+                .to_string(),
+        )
+        .unwrap();
+        assert!(p
+            .run(&[
+                "evidence",
+                "run",
+                "--label",
+                "op",
+                "--kind",
+                kind,
+                "--env-name",
+                "LANG",
+                "--",
+                "/bin/sh",
+                "-c",
+                "exit 0",
+                "fixture",
+                ""
+            ])
+            .status
+            .success());
+        assert!(p
+            .run(&["evidence", "check", "--label", "op"])
+            .status
+            .success());
+        assert_eq!(
+            p.run(&[
+                "evidence",
+                "check",
+                "--label",
+                "op",
+                "--expect-argv",
+                "[\"wrong\"]"
+            ])
+            .status
+            .code(),
+            Some(7)
+        );
+        assert!(p
+            .run(&[
+                "evidence",
+                "check",
+                "--label",
+                "op",
+                "--expect-argv",
+                &argv.to_string()
+            ])
+            .status
+            .success());
+        let mut changed = std::process::Command::new(env!("CARGO_BIN_EXE_kineti"));
+        let out = changed
+            .args(["evidence", "check", "--label", "op"])
+            .env("LANG", "changed-fixture")
+            .current_dir(&p.0)
+            .output()
+            .unwrap();
+        assert_eq!(out.status.code(), Some(4));
+        fs::write(p.0.join("test.txt"), "changed").unwrap();
+        assert_eq!(
+            p.run(&["evidence", "check", "--label", "op"]).status.code(),
+            Some(4)
+        );
+    }
+}
+
+fn exact_tree(root: &std::path::Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    fn walk(
+        base: &std::path::Path,
+        at: &std::path::Path,
+        out: &mut std::collections::BTreeMap<PathBuf, Vec<u8>>,
+    ) {
+        for entry in fs::read_dir(at).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                out.insert(path.strip_prefix(base).unwrap().to_path_buf(), vec![]);
+                walk(base, &path, out);
+            } else {
+                out.insert(
+                    path.strip_prefix(base).unwrap().to_path_buf(),
+                    fs::read(&path).unwrap(),
+                );
+            }
+        }
+    }
+    let mut result = std::collections::BTreeMap::new();
+    walk(root, root, &mut result);
+    result
+}
+#[test]
+fn malformed_spending_leaves_exact_tree_unchanged_before_and_after_initialization() {
+    for initialized in [false, true] {
+        let p = Project::new();
+        if initialized {
+            let out = p.run(&["spend", "log", "--stage", "build", "--usd", "48"]);
+            assert_eq!(out.status.code(), Some(3));
+        }
+        let before = exact_tree(&p.0);
+        for args in [
+            vec![
+                "spend",
+                "log",
+                "--stage",
+                "build",
+                "--usd",
+                "0.01",
+                "--unknown",
+            ],
+            vec!["spend", "check", "--unknown"],
+            vec!["spend", "status", "--unknown"],
+            vec!["spend", "reset", "--i-am-human", "--unknown"],
+            vec!["spend", "check", "--"],
+            vec!["spend", "log", "--stage", "build", "--usd", "0.01", "--"],
+            vec!["spend", "log", "--stage", " build ", "--usd", "0.01"],
+            vec![
+                "spend", "log", "--stage", "build", "--model", " ", "--usd", "0.01",
+            ],
+            vec!["spend", "log", "--stage", "build", "--usd", "NaN"],
+            vec![
+                "spend",
+                "log",
+                "--stage",
+                "build",
+                "--usd",
+                "0.01",
+                "--tokens-in",
+                "9007199254740992",
+            ],
+            vec!["spend", "reset", "--i-am-human", "--extend-usd", "0"],
+        ] {
+            let out = p.run(&args);
+            assert_eq!(out.status.code(), Some(2), "{args:?}: {}", value(&out));
+            assert_eq!(before, exact_tree(&p.0), "{args:?}");
+        }
+        assert!(kineti_cli::spend::charge(&p.0, "build\0", "reported", 0, 0, "0.01").is_err());
+        assert!(kineti_cli::mcp::call(
+            &p.0,
+            "kineti_spend_record",
+            &json!({"stage":"bad\0","usd":"0.01"})
+        )
+        .is_err());
+        assert_eq!(before, exact_tree(&p.0));
+    }
+}
+
+#[test]
+fn native_receipt_encoding_and_session_cannot_be_substituted() {
+    let p = Project::new();
+    assert!(p.record().status.success());
+    let raw = fs::read_to_string(p.0.join(".kineti/evidence.jsonl")).unwrap();
+    let r: Value = serde_json::from_str(raw.trim()).unwrap();
+    let key = fs::read_to_string(p.0.join(".kineti/evidence-issuer.pem")).unwrap();
+    assert!(kineti_cli::receipt::signature(&r, &key));
+    for field in ["encoding", "receipt_version"] {
+        let mut altered = r.clone();
+        altered.as_object_mut().unwrap().shift_remove(field);
+        assert!(!kineti_cli::receipt::signature(&altered, &key));
+    }
+    let mut altered = r.clone();
+    altered["manifest"]["session_ref"] = json!("different");
+    assert!(!kineti_cli::receipt::signature(&altered, &key));
+}
+
+#[test]
+fn verify_declaration_is_independent_from_required_ci_labels() {
+    let p = Project::new();
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({"commands":{"release":["release-check"]}}).to_string(),
+    )
+    .unwrap();
+    fs::write(
+        p.0.join("kineti.config.json"),
+        json!({"settings":{"verify_command_argv":["/bin/sh","-c","exit 0"]}}).to_string(),
+    )
+    .unwrap();
+    let out = p.run(&["verify", "--status"]);
+    assert!(out.status.success(), "{}", value(&out));
+    assert_eq!(
+        p.run(&["ci", "--require-evidence", "missing"])
+            .status
+            .code(),
+        Some(1)
+    );
+}
+
+#[test]
+fn positional_inverse_equals_and_literal_tail_arguments_are_preserved() {
+    let p = Project::new();
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--run-id",
+            "eq",
+            "--label",
+            "eq",
+            "printf a=b"
+        ])
+        .status
+        .success());
+    assert_eq!(
+        p.run(&["undo", "push", "--inverse", "echo x", "--"])
+            .status
+            .code(),
+        Some(2)
+    );
+    let argv = [
+        "/bin/sh",
+        "-c",
+        "printf '1 pass\\n0 fail\\n'",
+        "fixture",
+        "",
+        "--json",
+        "--x=y",
+        "--",
+    ];
+    let mut args = vec![
+        "test",
+        "run",
+        "--label=tail",
+        "--required-test=test.txt",
+        "--",
+    ];
+    args.extend_from_slice(&argv);
+    let out = p.run(&args);
+    assert!(out.status.success(), "{}", value(&out));
+    assert_eq!(value(&out)["result"]["manifest"]["command"], json!(argv));
+}
+
+#[test]
+fn pending_original_reservations_cannot_be_hidden_by_recovery_snapshot() {
+    let f: Value = serde_json::from_str(include_str!("fixtures/main-legacy-golden.json")).unwrap();
+    for name in ["pending-reserved", "pending-unknown-partial", "log-only"] {
+        let p = Project::new();
+        let c = f["histories"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["name"] == name)
+            .unwrap();
+        fs::write(p.0.join(".kineti/spend.json"), c["state"].to_string()).unwrap();
+        fs::write(
+            p.0.join(".kineti/spend.log.jsonl"),
+            c["log"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.to_string() + "\n")
+                .collect::<String>(),
+        )
+        .unwrap();
+        let source = p.0.join(".kineti/clean-candidate");
+        fs::create_dir_all(source.join(".kineti")).unwrap();
+        fs::write(
+            source.join(".kineti/spend.json"),
+            json!({"tripped":false,"reason":null,"total_usd":0,"by_stage":{},"entries":0})
+                .to_string(),
+        )
+        .unwrap();
+        fs::write(
+            p.0.join("proof.txt"),
+            "Clean snapshot is not proof resolving an existing unknown.",
+        )
+        .unwrap();
+        let before = exact_tree(&p.0);
+        let out = p.run(&[
+            "spend",
+            "recover",
+            "--source",
+            ".kineti/clean-candidate",
+            "--evidence",
+            "proof.txt",
+        ]);
+        assert_eq!(out.status.code(), Some(3), "{}", value(&out));
+        assert_eq!(before, exact_tree(&p.0));
+        // Even a previously created view must not hide original obligations.
+        fs::write(p.0.join(".kineti/spend.recovery-view.json"),json!({"original_sources":[],"candidate_sources":[],"verified_source":".kineti/clean-candidate"}).to_string()).unwrap();
+        assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    }
+}
+
+#[test]
+fn malformed_spending_never_initializes_an_empty_workspace() {
+    let p = Project::new();
+    fs::remove_dir_all(p.0.join(".kineti")).unwrap();
+    fs::remove_file(p.0.join("test.txt")).unwrap();
+    let before = exact_tree(&p.0);
+    for args in [
+        vec!["spend", "check", "--"],
+        vec!["spend", "check", "--unknown"],
+        vec!["spend", "log", "--usd", "0.01", "--stage", " "],
+        vec!["spend", "reset", "--i-am-human", "--unknown"],
+    ] {
+        assert_eq!(p.run(&args).status.code(), Some(2));
+        assert_eq!(before, exact_tree(&p.0));
+    }
 }

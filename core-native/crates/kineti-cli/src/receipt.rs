@@ -95,8 +95,11 @@ fn unsigned(v: &Value) -> Result<String> {
 }
 /// Verify signature without treating parsed output as independent observation.
 pub fn signature(v: &Value, trusted: &str) -> bool {
-    if v["receipt_version"] != 3 {
+    if v.get("encoding").is_none() {
         return verify_legacy(v, trusted);
+    }
+    if v["receipt_version"] != 3 || v["encoding"] != "kineti-canonical-v2" {
+        return false;
     }
     let check = || -> Option<()> {
         if v["issuer_key"].as_str()? != trusted || v["encoding"] != "kineti-canonical-v2" {
@@ -333,6 +336,16 @@ pub fn run(root: &Path, opts: Run) -> Result<Value> {
 }
 /// Signature and freshness are separate. Legacy evidence remains readable without upgraded authority.
 pub fn check(root: &Path, label: &str, max_age: u64, expected: Option<&Value>) -> Result<Value> {
+    check_kind(root, label, max_age, expected, false)
+}
+/// Evidence may describe successful operational commands without test authority.
+pub fn check_kind(
+    root: &Path,
+    label: &str,
+    max_age: u64,
+    expected: Option<&Value>,
+    operational: bool,
+) -> Result<Value> {
     if max_age == 0 || max_age > 5_256_000 {
         return store::fail(2, "receipt age must be 1..5256000 minutes");
     }
@@ -348,7 +361,7 @@ pub fn check(root: &Path, label: &str, max_age: u64, expected: Option<&Value>) -
     if !signature(r, &trusted) {
         return store::fail(7, "altered or untrusted receipt");
     }
-    if r["receipt_version"] != 3 {
+    if r["receipt_version"] != 3 || r["encoding"] != "kineti-canonical-v2" {
         return store::fail(6,"legacy signature is valid; exact legacy runtime/parser freshness is unsupported by this native installation, so it cannot authorize CI");
     }
     let at = time::OffsetDateTime::parse(
@@ -362,17 +375,20 @@ pub fn check(root: &Path, label: &str, max_age: u64, expected: Option<&Value>) -
     if age < -60 || age > max_age as i64 * 60 {
         return store::fail(4, "receipt expired or future-dated");
     }
-    if r["result_kind"] != "test"
+    let is_test = r["result_kind"] == "test";
+    if !(is_test || operational && ["check", "package"].iter().any(|k| r["result_kind"] == *k))
         || r["outcome"] != "passed"
         || r["exit_code"] != 0
         || r["mutated_during_run"] != false
         || r["verification"]["status"] != "valid"
-        || r["verification"]["passed"].as_u64().unwrap_or(0) == 0
-        || r["verification"]["failed"] != 0
-        || r["verification"]["skipped"] != 0
-        || r["verification"]["inventory"]
-            .as_array()
-            .is_none_or(|a| a.is_empty())
+        || r["verification"]["truncated"] != false
+        || is_test
+            && (r["verification"]["passed"].as_u64().unwrap_or(0) == 0
+                || r["verification"]["failed"] != 0
+                || r["verification"]["skipped"] != 0
+                || r["verification"]["inventory"]
+                    .as_array()
+                    .is_none_or(|a| a.is_empty()))
     {
         return store::fail(7, "receipt does not record supported passing test evidence");
     }
@@ -387,7 +403,17 @@ pub fn check(root: &Path, label: &str, max_age: u64, expected: Option<&Value>) -
                 .ok_or_else(|| Error(7, "command argument invalid".into()))
         })
         .collect::<Result<Vec<_>>>()?;
-    if argv.is_empty() || expected.is_some_and(|e| e != &m["command"]) {
+    let configured = if expected.is_none() {
+        crate::gate::configured(root, label, is_test)?
+    } else {
+        None
+    };
+    let expected = expected.or(configured.as_ref());
+    if argv.is_empty()
+        || argv[0].is_empty()
+        || argv.iter().any(|s| s.contains('\0'))
+        || expected.is_some_and(|e| e != &m["command"])
+    {
         return store::fail(7, "command does not match required exact argv");
     }
     if store::inventory(root)? != m["inputs"] || runtime(&argv)? != m["runtime"] {
@@ -421,6 +447,6 @@ pub fn check(root: &Path, label: &str, max_age: u64, expected: Option<&Value>) -
         }
     }
     Ok(
-        json!({"status":"fresh","signature_valid":true,"independent_test_execution":false,"receipt":r}),
+        json!({"status":if is_test {"fresh"} else {"operational"},"signature_valid":true,"independent_test_execution":false,"gate_authorized":is_test,"receipt":r}),
     )
 }

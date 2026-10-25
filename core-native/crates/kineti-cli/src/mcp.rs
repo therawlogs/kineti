@@ -119,7 +119,7 @@ pub fn call(root: &Path, name: &str, args: &Value) -> Result<Value> {
                 ..Default::default()
             },
         ),
-        "kineti_evidence_check" => receipt::check(root, text(args, "label")?, 240, None),
+        "kineti_evidence_check" => receipt::check_kind(root, text(args, "label")?, 240, None, true),
         "kineti_spend_record" => spend::charge(
             root,
             text(args, "stage")?,

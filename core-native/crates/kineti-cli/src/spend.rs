@@ -80,9 +80,57 @@ pub struct Account {
     /// Legacy trip flag.
     pub tripped: bool,
 }
+// Check original obligations before selecting any recovery view. Damaged JSON can
+// be inspected separately, but a readable pending reservation must never disappear
+// behind a clean candidate snapshot. Unparseable logs cannot prove settlement.
+fn original_reservations_clear(root: &Path) -> Result<()> {
+    if let Ok(s) = store::read(&root.join(".kineti/spend.json")) {
+        if let Some(pending) = s.get("routing_reservations") {
+            if pending.as_object().is_none_or(|map| !map.is_empty()) {
+                return store::fail(3,"unresolved or damaged original reservations; snapshot selection cannot resolve costs");
+            }
+        }
+    }
+    let mut opened = std::collections::BTreeSet::new();
+    for row in store::lines(&root.join(".kineti/spend.log.jsonl"))? {
+        if row["kind"] == "reservation" {
+            opened.insert(row["run_id"].as_str().unwrap_or("").to_owned());
+        } else if row["kind"] == "settlement" || row["kind"] == "reservation-cancelled" {
+            opened.remove(row["run_id"].as_str().unwrap_or(""));
+        }
+    }
+    if !opened.is_empty() {
+        return store::fail(
+            3,
+            "unresolved original reservation log; inspection required",
+        );
+    }
+    Ok(())
+}
+fn legacy_stage(stage: &str) -> bool {
+    !stage.trim().is_empty()
+        && !stage.contains('\0')
+        && ![
+            "constructor",
+            "__defineGetter__",
+            "__defineSetter__",
+            "hasOwnProperty",
+            "__lookupGetter__",
+            "__lookupSetter__",
+            "isPrototypeOf",
+            "propertyIsEnumerable",
+            "toString",
+            "valueOf",
+            "__proto__",
+            "toLocaleString",
+            "prototype",
+        ]
+        .contains(&stage)
+}
 fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
     let recovered = root.join(".kineti/spend.recovery-view.json");
     if recovered.exists() {
+        original_reservations_clear(root)?;
         let view = store::read(&recovered)?;
         for key in ["original_sources", "candidate_sources"] {
             for src in view[key]
@@ -122,26 +170,96 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
         }
         return Ok((0, BTreeMap::new(), false));
     }
-    let s = store::read(&p)?;
+    let mut s = store::read(&p)?;
+    // Main's historical seed may omit empty fields. Fill a read-only view only
+    // when both the charged log and all supplied totals/stages prove it is empty.
+    if store::lines(&log)?.is_empty()
+        && (s["total_microcents"] == 0 || s["total_usd"] == 0)
+        && ["total_microcents", "total_usd", "entries"]
+            .iter()
+            .all(|k| s.get(*k).is_none_or(|v| *v == 0))
+        && ["by_stage", "by_stage_microcents"].iter().all(|k| {
+            s.get(*k)
+                .is_none_or(|v| v.as_object().is_some_and(|m| m.is_empty()))
+        })
+    {
+        let map = s
+            .as_object_mut()
+            .ok_or_else(|| Error(3, "accounting state object required".into()))?;
+        for (key, value) in [
+            ("reason", Value::Null),
+            ("total_usd", json!(0)),
+            ("entries", json!(0)),
+            ("by_stage", json!({})),
+            ("by_stage_microcents", json!({})),
+        ] {
+            map.entry(key).or_insert(value);
+        }
+    }
     if s.get("reason")
         .is_none_or(|v| !v.is_null() && !v.is_string())
     {
         return store::fail(3, "legacy trip reason malformed");
     }
     let entries = store::lines(&log)?;
+    let pending = s
+        .get("routing_reservations")
+        .map(|v| {
+            v.as_object()
+                .ok_or_else(|| Error(3, "legacy reservations malformed".into()))
+        })
+        .transpose()?;
+    let mut opened = BTreeMap::<String, Value>::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let uuid = regex::Regex::new(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$").unwrap();
+    let mut charged_entries = 0u64;
     let mut total = 0u64;
     let mut stages = BTreeMap::<String, u64>::new();
     for e in &entries {
+        if let Some(kind) = e.get("kind") {
+            match kind.as_str() {
+                Some("reservation") => {
+                    let id = e["run_id"]
+                        .as_str()
+                        .filter(|v| uuid.is_match(v))
+                        .ok_or_else(|| Error(3, "reservation run malformed".into()))?;
+                    if !e["session_id"].as_str().is_some_and(|v| uuid.is_match(v))
+                        || e["stage"].as_str().is_none_or(|s| !legacy_stage(s))
+                        || integer(&e["microcents"])? == 0
+                        || !seen.insert(id.to_string())
+                    {
+                        return store::fail(3, "reservation identity or amount malformed");
+                    }
+                    opened.insert(id.to_owned(), e.clone());
+                    continue;
+                }
+                Some("settlement" | "reservation-cancelled") => {
+                    let prior = e["run_id"]
+                        .as_str()
+                        .and_then(|id| opened.remove(id))
+                        .ok_or_else(|| Error(3, "orphan or duplicate settlement".into()))?;
+                    if prior["session_id"] != e["session_id"] || prior["stage"] != e["stage"] {
+                        return store::fail(3, "reservation settlement identity differs");
+                    }
+                    if kind == "reservation-cancelled" {
+                        continue;
+                    }
+                }
+                _ => return store::fail(3, "unknown legacy accounting operation"),
+            }
+        }
         let stage = e["stage"]
             .as_str()
             .filter(|s| !s.is_empty())
             .ok_or_else(|| Error(3, "accounting stage missing".into()))?;
-        if !e["model"].is_string() {
-            return store::fail(3, "legacy accounting model missing");
-        }
-        for k in ["tokens_in", "tokens_out"] {
-            if e[k].as_f64().is_none_or(|v| !v.is_finite() || v < 0.0) {
-                return store::fail(3, "invalid historical token count");
+        if e.get("kind").is_none() {
+            if !e["model"].is_string() {
+                return store::fail(3, "legacy accounting model missing");
+            }
+            for k in ["tokens_in", "tokens_out"] {
+                if e[k].as_f64().is_none_or(|v| !v.is_finite() || v < 0.0) {
+                    return store::fail(3, "invalid historical token count");
+                }
             }
         }
         legacy_usd(&e["usd"])?;
@@ -150,6 +268,10 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
         } else {
             amount(&e["usd"])?
         };
+        if e.get("kind").is_some() && (legacy_usd(&e["usd"])? - m as f64 / 1e6).abs() > 0.000051 {
+            return store::fail(3, "settlement amount differs");
+        }
+        charged_entries += 1;
         total = total
             .checked_add(m)
             .ok_or_else(|| Error(3, "accounting overflow".into()))?;
@@ -158,7 +280,13 @@ fn legacy(root: &Path) -> Result<(u64, BTreeMap<String, u64>, bool)> {
             .checked_add(m)
             .ok_or_else(|| Error(3, "stage overflow".into()))?;
     }
-    if s["entries"].as_u64() != Some(entries.len() as u64)
+    if pending.is_some_and(|map| !map.is_empty()) || !opened.is_empty() {
+        return store::fail(
+            3,
+            "unresolved legacy reservation or unknown cost; reviewed recovery required",
+        );
+    }
+    if s["entries"].as_u64() != Some(charged_entries)
         || !legacy_matches(total, &s["total_usd"])?
         || match s.get("total_microcents") {
             Some(v) => integer(v)?,
@@ -498,8 +626,11 @@ pub fn charge(
     usd: &str,
 ) -> Result<Value> {
     let n = money(usd)?;
-    if stage.is_empty()
-        || model.is_empty()
+    if stage.trim().is_empty()
+        || stage != stage.trim()
+        || stage.contains('\0')
+        || model.trim().is_empty()
+        || model.contains('\0')
         || tin > 9_007_199_254_740_991
         || tout > 9_007_199_254_740_991
     {
@@ -580,6 +711,7 @@ pub fn recovery_proposal(root: &Path) -> Result<Value> {
 /// Reviewable recovery from an evidence-supplied valid legacy snapshot. Native
 /// chain damage requires separate inspection; this never rewrites old files.
 pub fn propose_from(root: &Path, source: &Path) -> Result<Value> {
+    original_reservations_clear(root)?;
     let source = source.canonicalize()?;
     if !source.starts_with(root.canonicalize()?) || source == root.canonicalize()? {
         return store::fail(

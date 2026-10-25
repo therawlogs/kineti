@@ -72,7 +72,7 @@ commands. CI checks evidence, project gates and reported spending policy.
 A valid signature does not prove honest tests. A command can fabricate a passing
 summary; self-test demonstrates this limitation. Local keys do not protect
 against a same-account adversary. Native receipts use `kineti-canonical-v2`;
-legacy signatures use the original JavaScript serialization. Legacy evidence
+legacy signatures use the original JavaScript serialization. Unmarked historical v3 receipts also retain that original signing format. Legacy evidence
 is readable and signature-checkable; unsupported legacy runtime/parser freshness
 cannot authorize the native gate. Run fresh native checks after migration.
 
@@ -114,3 +114,8 @@ legacy, 7 invalid/untrusted; verify 9 missing/untrusted command.
 Dated older results, including the historical 631-test result, are separate from
 the new suite inventory. [Historical documents](docs/history/pre-0.6.0/README.md)
 and Git history remain available; they are not current product guarantees.
+
+Operational `evidence check` results do not authorize test gates. Test checks and CI
+require test receipts. Declared label commands override default test commands;
+operational checks never inherit the default test command. Value options accept
+`--name=value`; arguments after `--` remain exact, including empty arguments.

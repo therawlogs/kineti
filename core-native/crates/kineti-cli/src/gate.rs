@@ -66,19 +66,21 @@ pub fn ci(
     }
     let mut checks = vec![];
     for label in labels {
-        let expected = commands
-            .as_ref()
-            .and_then(|m| m.get(&label))
-            .or_else(|| config.get("commands").and_then(|m| m.get(&label)));
+        let configured = if commands.is_none() {
+            configured(root, &label, true)?
+        } else {
+            None
+        };
+        let expected = if let Some(map) = &commands {
+            Some(
+                map.get(&label)
+                    .ok_or_else(|| Error(1, "required command mapping missing".into()))?,
+            )
+        } else {
+            configured.as_ref()
+        };
         if let Some(v) = expected {
-            if v.as_array()
-                .is_none_or(|a| a.is_empty() || a.iter().any(|v| !v.is_string()))
-            {
-                return store::fail(2, "required command must be a nonempty argv array");
-            }
-        }
-        if commands.is_some() && expected.is_none() {
-            return store::fail(1, "required command mapping missing");
+            validate_argv(v)?;
         }
         let check = receipt::check(root, &label, max_age, expected).map_err(|e| {
             Error(
@@ -92,24 +94,80 @@ pub fn ci(
         json!({"checks_passed":true,"checks":checks,"participating_ci_only":true,"provider_billing":"unknown"}),
     )
 }
+fn validate_argv(value: &Value) -> Result<()> {
+    if value.as_array().is_none_or(|a| {
+        a.is_empty()
+            || a.iter()
+                .any(|v| v.as_str().is_none_or(|s| s.contains('\0')))
+            || a[0].as_str().is_none_or(str::is_empty)
+    }) {
+        return store::fail(2, "required command must be a nonempty argv array");
+    }
+    Ok(())
+}
+/// Resolve current explicit label maps before historical label/default declarations.
+/// Operational evidence never inherits the default test command.
+pub fn configured(root: &Path, label: &str, test_default: bool) -> Result<Option<Value>> {
+    let gate = root.join(".kineti/gate.json");
+    if gate.exists() {
+        let config = store::read(&gate)?;
+        if let Some(map) = config.get("commands") {
+            let map = map
+                .as_object()
+                .ok_or_else(|| Error(2, "command mapping must be an object".into()))?;
+            if !map.is_empty() {
+                let value = map
+                    .get(label)
+                    .ok_or_else(|| Error(1, "required command mapping missing".into()))?;
+                validate_argv(value)?;
+                return Ok(Some(value.clone()));
+            }
+        }
+    }
+    legacy_command(root, label, test_default)
+}
+fn legacy_command(root: &Path, label: &str, test_default: bool) -> Result<Option<Value>> {
+    let legacy = root.join("kineti.config.json");
+    if !legacy.exists() {
+        return Ok(None);
+    }
+    let config = store::read(&legacy)?;
+    let settings = &config["settings"];
+    if let Some(map) = settings.get("verify_commands") {
+        let map = map
+            .as_object()
+            .ok_or_else(|| Error(2, "legacy command mapping must be an object".into()))?;
+        if let Some(value) = map.get(label) {
+            validate_argv(value)?;
+            return Ok(Some(value.clone()));
+        }
+    }
+    if test_default {
+        if let Some(value) = settings.get("verify_command_argv") {
+            validate_argv(value)?;
+            return Ok(Some(value.clone()));
+        }
+        if let Some(value) = settings.get("verify_command") {
+            let value = if let Some(text) = value.as_str() {
+                json!(shell_words::split(text).map_err(|e| Error(2, e.to_string()))?)
+            } else {
+                value.clone()
+            };
+            validate_argv(&value)?;
+            return Ok(Some(value));
+        }
+    }
+    Ok(None)
+}
 fn declared(root: &Path) -> Result<Vec<String>> {
-    let config = store::read(&root.join("kineti.config.json")).map_err(|_| {
+    let value = legacy_command(root, "verify", true)?.ok_or_else(|| {
         Error(
             9,
             "verify declaration missing; configure settings.verify_command".into(),
         )
     })?;
-    let value = &config["settings"]["verify_command"];
-    let argv: Vec<String> = if let Some(s) = value.as_str() {
-        shell_words::split(s).map_err(|e| Error(2, e.to_string()))?
-    } else {
-        serde_json::from_value(value.clone())
-            .map_err(|_| Error(9, "verify command missing or malformed".into()))?
-    };
-    if argv.is_empty() || argv[0].is_empty() {
-        return store::fail(9, "verify command missing");
-    }
-    Ok(argv)
+    serde_json::from_value(value)
+        .map_err(|_| Error(9, "verify command missing or malformed".into()))
 }
 /// Trust is scoped to the project and exact declared argv, not universal interception.
 pub fn verify(root: &Path, mode: &str) -> Result<Value> {
