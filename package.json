@@ -1,47 +1,20 @@
 {
   "name": "kineti",
-  "version": "0.5.0",
-  "author": "Kineti Team <hello@getkineti.com>",
-  "type": "module",
-  "mcpName": "io.github.therawlogs/kineti",
+  "version": "0.6.0",
+  "description": "Native checks, changed-input detection, reported-spending CI gate and registered undo",
   "license": "MIT",
-  "description": "Kineti: file-bound test receipts, registered rollback, and a spend log with a cap for AI coding agents",
+  "mcpName": "io.github.therawlogs/kineti",
+  "repository": { "type": "git", "url": "https://github.com/therawlogs/kineti.git" },
   "homepage": "https://github.com/therawlogs/kineti",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/therawlogs/kineti.git"
-  },
-  "bugs": {
-    "url": "https://github.com/therawlogs/kineti/issues"
-  },
-  "keywords": ["ai-agents", "spend-cap", "undo", "test-evidence", "mcp", "bun", "cryptographic-proof", "saga-pattern"],
-  "bin": {
-    "kineti": "bin/kineti.js"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "bun": ">=1.1.0"
-  },
+  "bin": { "kineti": "bin/kineti" },
+  "engines": { "node": ">=18" },
+  "os": ["linux", "darwin"],
+  "cpu": ["x64", "arm64"],
+  "files": ["bin/kineti", "install.cjs", "checksums.json", "native/", "README.md", "LICENSE"],
   "scripts": {
-    "setup": "./setup.sh",
-    "test": "bun test tests/ && ./tests/test-setup.sh",
-    "test:bun": "bun test tests/",
-    "test:setup": "./tests/test-setup.sh",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
-    "check:router": "bun scripts/build-router.ts --check",
-    "lint": "bun run typecheck",
-    "build": "bun scripts/build-router.ts",
-    "build:router": "bun scripts/build-router.ts",
-    "prepublishOnly": "bun run build:router && bun run typecheck",
-    "mcp": "bun bin/kineti-mcp.ts",
-    "mcp:init": "bun bin/kineti-mcp.ts init",
-    "companion": "bun bin/kineti-companion.ts",
-    "ci": "bun bin/kineti-ci.ts",
-    "demo": "./demo-no-key.sh"
+    "postinstall": "node install.cjs",
+    "prepublishOnly": "node scripts/check-native-package.cjs",
+    "test": "cargo test --manifest-path core-native/Cargo.toml -p kineti-cli"
   },
-  "devDependencies": {
-    "@types/bun": "^1.2.0",
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0"
-  }
+  "keywords": ["gate", "test-receipts", "reported-spending", "undo", "mcp", "native"]
 }

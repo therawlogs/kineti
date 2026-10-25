@@ -1,6 +1,0 @@
-# Kineti hook block for Gemini CLI
-Add a "kineti" section to ~/.gemini/config/GEMINI.md or your system instructions:
-  For a new project, ask the user to choose harness, gate, or both before
-  setup, then continue in natural language through the relevant workflow.
-  Direct fixes, reviews, and cleanup can start at the relevant step. Slash
-  commands are optional. This block provides guidance, not enforcement.

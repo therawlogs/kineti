@@ -1,0 +1,3 @@
+#!/bin/sh
+printf '%s\n' 'kineti: native installation is incomplete. npm installation scripts must run to verify and select the native binary. Reinstall with scripts enabled, or install kineti-cli through Cargo.' >&2
+exit 2

@@ -1,20 +1,26 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.therawlogs/kineti",
-  "description": "Kineti: spend cap, undo, and test proof for AI coding agents",
+  "description": "Native checks, receipt freshness, reported-spending policy and registered undo",
   "repository": {
     "url": "https://github.com/therawlogs/kineti",
     "source": "github"
   },
-  "version": "0.5.0",
+  "version": "0.6.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "kineti",
-      "version": "0.5.0",
+      "version": "0.6.0",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
     }
   ]
 }

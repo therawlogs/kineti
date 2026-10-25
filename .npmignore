@@ -1,75 +1,8 @@
-# npm ship denylist. Keeps the published tarball lean.
-# (A `files` allowlist crashes npm 11 here, so this mirrors .gitignore plus extras.)
-
-# Build caches and installs (any level)
-target/
-node_modules/
-dist/
-coverage/
-
-# Local runtime state, agent metadata, and secrets
 .kineti/
-.agents/
-.cursor/
-.github/
-.env
-.env.*
-*.pem
-*.key
-*.p12
-
-# Native engine (distributed separately via binary releases)
+.git/
+node_modules/
 core-native/
-
-# Not shipped to consumers
+docs/
 website/
+scripts/
 tests/
-docs/*
-!docs/RECOVERY.md
-!docs/CANONICAL-FORMATS.md
-!docs/LOCAL-WORKFLOW-APIS.md
-!docs/PROTECTED-WRITE.md
-!docs/LINUX-SERVICE.md
-!docs/NATIVE-MEMORY.md
-!docs/GITHUB-ACTION.md
-!docs/ROUTING.md
-!docs/HARNESS.md
-!docs/EVALUATOR.md
-docs/archive/
-docs/archive.zip
-preview/
-design/
-scripts/*
-!scripts/harness/
-GOOD_ROADMAP.md
-ROADMAP.md
-*.tgz
-*.bun-build
-.*.bun-build
-**/*.bun-build
-**/.*.bun-build
-.DS_Store
-
-# `design/` above is meant to exclude the root mockup workspace, not the
-# installed design workflow skill.
-!skills/design/
-!skills/design/SKILL.md
-
-# Source-only UI/benchmark material and retired installation path
-src/components/
-src/harness/
-src/security/sanitizer.ts
-public/
-install.sh
-tsconfig*.json
-
-# Repository configuration is not consumer configuration
-AGENTS.md
-kineti.config.json
-CONTRIBUTING.md
-CODE_OF_CONDUCT.md
-
-acceptance/
-
-# Reusable GitHub source integration ships from GitHub, not npm
-action.yml

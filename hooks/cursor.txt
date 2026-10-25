@@ -1,6 +1,0 @@
-Cursor: add to .cursor/rules/kineti.mdc
-- For a new project, ask the user to choose harness, gate, or both before setup.
-- Continue in natural language through discovery and approved workflow steps.
-- Direct fixes, reviews, and cleanup can start at the relevant step.
-- Slash commands are optional. These instructions provide guidance; only separately tested capabilities are enforcement.
-- Follow project rules for spending, undo steps, and evidence-backed tests.

@@ -1,238 +1,129 @@
-name: Release Kineti OS
-
+name: Native gate 0.6.0 candidates
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [codex/gate-060]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Stable release tag to publish'
-        required: true
-        default: 'v0.5.0'
-
 permissions:
   contents: read
-
-env:
-  KINETI_MACHINE_DIR: ${{ github.workspace }}/.kineti/machine
-
 concurrency:
-  group: "${{ github.workflow }}-${{ inputs.tag || github.ref_name }}"
+  group: native-gate-candidates-${{ github.ref }}
   cancel-in-progress: false
-
 jobs:
-  test:
-    name: Verify test suite
-    outputs:
-      commit: ${{ steps.candidate.outputs.commit }}
-    runs-on: ubuntu-latest
-    env:
-      KINETI_REQUIRED_EVIDENCE: release-ts-tests release-rust-tests
+  native:
+    if: github.event.repository.visibility == 'public'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl}
+          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl}
+          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin}
+          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
-          ref: ${{ inputs.tag || github.ref }}
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with:
+          targets: ${{ matrix.triple }}
           components: rustfmt, clippy
-
-      - name: Record dependency download requests
+      - name: Prepare native musl linker
+        if: runner.os == 'Linux'
         run: |
-          bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Install locked npm development dependencies for release verification"
-          bun bin/kineti-egress.ts record --host index.crates.io --description "Resolve locked Rust dependencies for release verification"
-          bun bin/kineti-egress.ts record --host static.crates.io --description "Download locked Rust crate archives for release verification"
-      - run: bun install
-
-      - name: Require unused npm version and unused Rust crate versions
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+          echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
+          echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
+      - name: Format, lint and actual native tests in both timezones
+        run: |
+          mkdir -p .kineti/native-artifacts
+          python3 scripts/native-runner-identity.py > .kineti/native-artifacts/runner.json
+          node scripts/test-native-installer.cjs
+          cargo fmt --manifest-path core-native/Cargo.toml --check
+          cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings
+          TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-utc.log
+          TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-kolkata.log
+      - name: Build exact native candidate and record fresh test evidence
         env:
-          INPUT_TAG: ${{ inputs.tag }}
+          TARGET: ${{ matrix.triple }}
+          KEY: ${{ matrix.key }}
         run: |
-          bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Check unused release version on npm"
-          bun bin/kineti-egress.ts record --host crates.io --description "Check unused release versions for all eight Rust crates"
-          bun scripts/release-preflight.ts "${INPUT_TAG:-$GITHUB_REF_NAME}"
-
-      - name: Record exact release commit
-        id: candidate
-        run: echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Router codegen freshness
+          cargo build --release --locked --manifest-path core-native/Cargo.toml --target "$TARGET"
+          mkdir -p .kineti/native-artifacts
+          cp "core-native/target/$TARGET/release/kineti" ".kineti/native-artifacts/kineti-$KEY"
+          GATE="$PWD/core-native/target/$TARGET/release/kineti"
+          "$GATE" init --goal "Build universal agent harness with cryptographic verification" --codex-home "$PWD/.kineti/ci-codex" --apply
+          TZ=UTC "$GATE" test run --label native-utc --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
+          TZ=UTC "$GATE" test check --label native-utc --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
+          TZ=Asia/Kolkata "$GATE" test run --label native-kolkata --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
+          TZ=Asia/Kolkata "$GATE" test check --label native-kolkata --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
+          cp .kineti/evidence.jsonl .kineti/native-artifacts/evidence.jsonl
+          cp .kineti/evidence-issuer.pem .kineti/native-artifacts/evidence-issuer.pem
+      - name: Package the sole crate
+        if: matrix.key == 'linux-x64'
         run: |
-          bun run build:router
-          git diff --exit-code -- bin/kineti.js
-
-      - name: Seed CI runtime state
-        run: bun bin/kineti.js seed
-
-      - name: Run Type Integrity Check
-        run: bun run typecheck
-
-      - name: Rust formatting check
-        run: cargo fmt --all --manifest-path core-native/Cargo.toml --check
-
-      - name: Rust lint check
-        run: cargo clippy --all-targets --manifest-path core-native/Cargo.toml -- -D warnings
-
-      - name: Run Unit & Gate Test Suite
-        run: bun bin/kineti-evidence.ts run --label release-ts-tests --required-test tests --timeout 600 -- bun test tests/
-
-      - name: Run Rust Engine Test Suite
-        run: bun bin/kineti-evidence.ts run --label release-rust-tests --required-test core-native/crates --timeout 900 -- cargo test --manifest-path core-native/Cargo.toml
-
-      - name: Run Native CLI Self-Check
-        run: cargo run --manifest-path core-native/Cargo.toml -p kineti-cli -- test-all
-
-      - name: Run Installer Smoke Test
-        run: bun run test:setup
-
-      - name: Check npm package contents
-        run: bun scripts/release-package-check.ts
-
-      - name: Check Rust crate packages
-        run: cargo package --workspace --locked --manifest-path core-native/Cargo.toml
-
-      - name: Verify every evidence record is fresh
-        run: |
-          set -e
-          read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
-          for label in "${labels[@]}"; do
-            bun bin/kineti-evidence.ts check --label "$label"
-          done
-
-      - name: Verify egress ledger integrity
-        run: bun bin/kineti-egress.ts verify
-
-      - name: Verify Kineti State & Evidence Gate
-        run: |
-          read -r -a labels <<< "$KINETI_REQUIRED_EVIDENCE"
-          args=()
-          for label in "${labels[@]}"; do args+=(--require-evidence "$label"); done
-          bun bin/kineti.js ci --require-command-mappings --expect-command 'release-ts-tests=["bun","test","tests/"]' --expect-command 'release-rust-tests=["cargo","test","--manifest-path","core-native/Cargo.toml"]' "${args[@]}"
-
-      - name: Upload verified npm package
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          cargo package --locked --manifest-path core-native/crates/kineti-cli/Cargo.toml
+          cp core-native/target/package/kineti-cli-0.6.0.crate .kineti/native-artifacts/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: verified-npm-package
-          path: .kineti/release-package/
+          name: native-${{ matrix.key }}
+          path: .kineti/native-artifacts/
           include-hidden-files: true
-
-
-  publish-crates:
-    name: Publish Rust crates to crates.io
-    needs: test
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    environment: registry-release
+          retention-days: 1
+  package:
+    needs: native
+    if: github.event.repository.visibility == 'public'
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          ref: ${{ needs.test.outputs.commit }}
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+          pattern: native-*
+          merge-multiple: true
+          path: .kineti/native-artifacts
+      - run: python3 scripts/build-native-package.py --artifacts .kineti/native-artifacts --output .kineti/packages
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          bun-version: latest
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-
-      - name: Record crates.io publication
-        run: |
-          bun bin/kineti-egress.ts record --host crates.io --description "Publish the verified Rust workspace crates"
-          bun bin/kineti-egress.ts record --host index.crates.io --description "Resolve the crates.io index for this release"
-          bun bin/kineti-egress.ts record --host static.crates.io --description "Fetch verified Rust dependencies for this release"
-
-      - name: Check publishing credentials before any upload
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: |
-          bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Check npm publishing token before any upload"
-          # crates.io's current-user endpoint is cookie-only, not a publishing-token check.
-          # Cargo validates its token when uploading; missing credentials fail before any upload.
-          test -n "$CARGO_REGISTRY_TOKEN"
-          bun -e 'const token=process.env.NPM_TOKEN; if(!token) throw new Error("NPM_TOKEN missing"); const r=await fetch("https://registry.npmjs.org/-/whoami",{headers:{Authorization:`Bearer ${token}`}}); if(!r.ok) throw new Error(`NPM_TOKEN authentication failed: HTTP ${r.status}`); console.log("NPM_TOKEN: authenticated; Cargo credential configured (upload authenticates it)");'
-
-      - name: Publish workspace crates in dependency order
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --workspace --locked --manifest-path core-native/Cargo.toml
-
-      - name: Verify egress ledger
-        run: bun bin/kineti-egress.ts verify
-
-  publish-npm:
-    name: Publish npm package
-    needs: [test, publish-crates]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    environment: registry-release
+          name: native-candidate-packages
+          path: .kineti/packages
+          include-hidden-files: true
+          retention-days: 1
+  install:
+    needs: package
+    if: github.event.repository.visibility == 'public'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl}
+          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl}
+          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin}
+          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
-          ref: ${{ needs.test.outputs.commit }}
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-      - name: Download verified npm package
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: verified-npm-package
-          path: .kineti/release-package
-
-      - name: Validate verified package before adding credentials
+          targets: ${{ matrix.triple }}
+      - name: Prepare native musl linker
+        if: runner.os == 'Linux'
         run: |
-          bun -e 'const fs=require("node:fs"),crypto=require("node:crypto"); const p=require("./package.json"),m=require("./.kineti/release-package/npm-package.json"); if(m.version!==p.version||m.filename!==`kineti-${p.version}.tgz`||crypto.createHash("sha256").update(fs.readFileSync(`.kineti/release-package/${m.filename}`)).digest("hex")!==m.sha256) throw new Error("verified npm package mismatch");'
-
-      - name: Record npm publication
-        run: bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Publish the exact verified Kineti npm tarball"
-
-      - name: Publish npm package
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_USERCONFIG: ${{ github.workspace }}/.kineti/npmrc
-        run: |
-          test -n "$NODE_AUTH_TOKEN"
-          printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > "$NPM_CONFIG_USERCONFIG"
-          version="$(node -p 'require("./package.json").version')"
-          npm publish ".kineti/release-package/kineti-${version}.tgz" --access public --ignore-scripts
-
-      - name: Verify egress ledger
-        run: bun bin/kineti-egress.ts verify
-
-  create-github-release:
-    name: Create GitHub release
-    needs: [test, publish-crates, publish-npm]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+          echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
+          echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          ref: ${{ needs.test.outputs.commit }}
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+          name: native-candidate-packages
+          path: .kineti/packages
+      - run: python3 scripts/accept-native-install.py --artifacts .kineti/packages --target '${{ matrix.key }}' --rust-target '${{ matrix.triple }}' --work-root "$RUNNER_TEMP/kineti-install-acceptance"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
         with:
-          bun-version: latest
-      - name: Verify published versions before creating release
-        run: |
-          bun bin/kineti-egress.ts record --host registry.npmjs.org --description "Verify published npm version"
-          bun bin/kineti-egress.ts record --host crates.io --description "Verify all published Rust crate versions"
-          bun -e 'const v=require("./package.json").version; const npm=await fetch(`https://registry.npmjs.org/kineti/${v}`); if(!npm.ok||(await npm.json()).version!==v) throw new Error("npm version not published"); for(const name of ["kineti-core","kineti-reflex","kineti-memory","kineti-connectors","kineti-actions","kineti-gateway","kineti-harness","kineti-cli"]) {const r=await fetch(`https://crates.io/api/v1/crates/${name}/${v}`,{headers:{"User-Agent":"Kineti release"}}); if(!r.ok||(await r.json()).version.num!==v) throw new Error(`${name} version not published`);}'
-      - name: Prepare release notes
-        run: |
-          cat > .kineti/release-notes.md <<'NOTES'
-          Kineti v0.5.0 helps AI coding agents run tests, keep file-bound receipts and undo commands, and track reported spending. This tooling release improves receipt checks, local trust policy, revocation, exact command arguments and concurrent logging. Protected writes remain experimental: forged-success rejection and the gap between checking and writing are unresolved. Kineti is not a secure sandbox.
-
-          Install with `npm install -g kineti@0.5.0` (Bun required) or `cargo install kineti-cli@0.5.0` for the separate native tool. All eight Rust crates use version 0.5.0. Standalone router downloads are omitted because their packaging is incomplete.
-
-          [npm package](https://www.npmjs.com/package/kineti/v/0.5.0) · [Rust CLI](https://crates.io/crates/kineti-cli/0.5.0) · [Changelog](https://github.com/therawlogs/kineti/blob/v0.5.0/CHANGELOG.md) · [Protected-write limits](https://github.com/therawlogs/kineti/blob/v0.5.0/docs/PROTECTED-WRITE.md)
-          NOTES
-          bun bin/kineti-egress.ts record --host api.github.com --description "Create verified package-only GitHub release"
-          bun bin/kineti-egress.ts verify
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          body_path: .kineti/release-notes.md
-          generate_release_notes: true
+          name: installed-${{ matrix.key }}
+          path: ${{ runner.temp }}/kineti-install-acceptance/${{ matrix.key }}/report.json
+          include-hidden-files: true
+          retention-days: 1
+# Deliberately no publishing jobs or tag triggers. Publication needs separate
+# reviewed-artifact approval and accounting policy acceptance.

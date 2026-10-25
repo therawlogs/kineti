@@ -1,0 +1,669 @@
+{
+  "public_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\n-----END PUBLIC KEY-----\n",
+  "receipts": [
+    {
+      "name": "session-parent",
+      "record": {
+        "receipt_version": 3,
+        "at": "2026-10-25T00:00:00.000Z",
+        "label": "session-parent",
+        "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "manifest": {
+          "command": [
+            "runner",
+            "",
+            "two words",
+            "--x=y",
+            "தமிழ் 😀",
+            "quote\"\n"
+          ]
+        },
+        "parent_run_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+        "issuer_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\n-----END PUBLIC KEY-----\n",
+        "signature": "XTr4YiATGyA6HmRaVWA5U5WKIK/BY3K7Vs1Kq6lfA4Iigq2UgAc9b83+Zgecy8g1aoO8HVHJrKFoqhJzT86ICg=="
+      },
+      "unsigned": "{\"receipt_version\":3,\"at\":\"2026-10-25T00:00:00.000Z\",\"label\":\"session-parent\",\"session_id\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\"run_id\":\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\",\"manifest\":{\"command\":[\"runner\",\"\",\"two words\",\"--x=y\",\"தமிழ் 😀\",\"quote\\\"\\n\"]},\"parent_run_id\":\"cccccccc-cccc-cccc-cccc-cccccccccccc\",\"issuer_key\":\"-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\\n-----END PUBLIC KEY-----\\n\"}"
+    },
+    {
+      "name": "controller-operational",
+      "record": {
+        "receipt_version": 3,
+        "at": "2026-10-25T00:00:00.000Z",
+        "label": "controller-operational",
+        "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+        "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        "manifest": {
+          "command": [
+            "runner",
+            "",
+            "two words",
+            "--x=y",
+            "தமிழ் 😀",
+            "quote\"\n"
+          ]
+        },
+        "result_kind": "check",
+        "verification": {
+          "status": "unsupported"
+        },
+        "harness": {
+          "status": "unknown",
+          "observed_partial_cost_usd": 0.01
+        },
+        "issuer_key": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\n-----END PUBLIC KEY-----\n",
+        "signature": "fyx09Z1GoHpM77os/omZG4clc32vQqhg+W62jB/2vnSa/HIoGW2jkF/Pl1tZqrQKn8tEJ0RfPNduNCr+87zGCA=="
+      },
+      "unsigned": "{\"receipt_version\":3,\"at\":\"2026-10-25T00:00:00.000Z\",\"label\":\"controller-operational\",\"session_id\":\"bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb\",\"run_id\":\"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa\",\"manifest\":{\"command\":[\"runner\",\"\",\"two words\",\"--x=y\",\"தமிழ் 😀\",\"quote\\\"\\n\"]},\"result_kind\":\"check\",\"verification\":{\"status\":\"unsupported\"},\"harness\":{\"status\":\"unknown\",\"observed_partial_cost_usd\":0.01},\"issuer_key\":\"-----BEGIN PUBLIC KEY-----\\nMCowBQYDK2VwAyEAIVL40Zt5HSRFMkLhXy6rbLfP+ntqXtMAl5YOBpiB2xI=\\n-----END PUBLIC KEY-----\\n\"}"
+    }
+  ],
+  "histories": [
+    {
+      "name": "verified-empty-seed",
+      "state": {
+        "total_microcents": 0,
+        "tripped": false
+      },
+      "log": [],
+      "original_read_accepts": true,
+      "original_check_passes": true,
+      "total_microcents": 0
+    },
+    {
+      "name": "settled",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250000,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": true,
+      "original_check_passes": true,
+      "total_microcents": 250000
+    },
+    {
+      "name": "settlement-rounding",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 5e-05,
+        "total_microcents": 50,
+        "by_stage": {
+          "build": 5e-05
+        },
+        "by_stage_microcents": {
+          "build": 50
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 50,
+          "usd": 4.99e-05,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": true,
+      "original_check_passes": true,
+      "total_microcents": 50
+    },
+    {
+      "name": "cancelled",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "reservation-cancelled",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build"
+        }
+      ],
+      "original_read_accepts": true,
+      "original_check_passes": true,
+      "total_microcents": 0
+    },
+    {
+      "name": "pending-reserved",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+            "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "stage": "build",
+            "microcents": 1000000,
+            "status": "reserved"
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        }
+      ],
+      "original_read_accepts": true,
+      "original_check_passes": false,
+      "total_microcents": 0
+    },
+    {
+      "name": "pending-unknown-partial",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+            "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "stage": "build",
+            "microcents": 1000000,
+            "status": "unknown",
+            "observed_partial_cost_usd": 0.01
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        }
+      ],
+      "original_read_accepts": true,
+      "original_check_passes": false,
+      "total_microcents": 0
+    },
+    {
+      "name": "snapshot-only",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+            "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "stage": "build",
+            "microcents": 1000000,
+            "status": "reserved"
+          }
+        }
+      },
+      "log": [],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "log-only",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "orphan-settlement",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250000,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "duplicate-reservation",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250000,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "foreign-session",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250000,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "foreign-stage",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250000,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "ship",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "null-map",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": null
+      },
+      "log": [],
+      "original_read_accepts": true,
+      "original_check_passes": false,
+      "total_microcents": 0
+    },
+    {
+      "name": "array-map",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": []
+      },
+      "log": [],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "unknown-kind",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "invented"
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "wrong-total",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250001,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "wrong-pending-amount",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+            "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "stage": "build",
+            "microcents": 999999,
+            "status": "reserved"
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "duplicate-settlement",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0.25,
+        "total_microcents": 250000,
+        "by_stage": {
+          "build": 0.25
+        },
+        "by_stage_microcents": {
+          "build": 250000
+        },
+        "entries": 1,
+        "routing_reservations": {}
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 1000000
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        },
+        {
+          "kind": "settlement",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 250000,
+          "usd": 0.25,
+          "source": "public fixture reported cost",
+          "provider_invoice_verified": false
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    },
+    {
+      "name": "unsafe-reservation",
+      "state": {
+        "tripped": false,
+        "reason": null,
+        "total_usd": 0,
+        "total_microcents": 0,
+        "by_stage": {},
+        "by_stage_microcents": {},
+        "entries": 0,
+        "routing_reservations": {
+          "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa": {
+            "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            "stage": "build",
+            "microcents": 1000000,
+            "status": "reserved"
+          }
+        }
+      },
+      "log": [
+        {
+          "kind": "reservation",
+          "run_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+          "stage": "build",
+          "microcents": 9007199254740992
+        }
+      ],
+      "original_read_accepts": false,
+      "original_check_passes": false,
+      "total_microcents": null
+    }
+  ],
+  "provenance": {
+    "commit": "307331ad37451b174f31b40bc0da04b544685ed0",
+    "source_sha256": {
+      "spending-state.ts": "5efd5dec7a6a7beaaf3a26536e34da84eba8596600c190eb8f1fec905d1f25f2",
+      "lib.ts": "2e1a53eb1cf7cde46775e14af0d9fcf524c6f87631b0e63042041ec10f382f4b",
+      "ledger-integrity.ts": "42bdc288dd0364f5b7524e5a195ff2d410bdef2c0dc7d47307afbad5958e9ee8",
+      "kineti-evidence.ts": "a5ee285012a9e750479a5fd3214ff3efa6eb2ea8a3ada28a1110ed8ea5ef5182"
+    },
+    "method": "Exact original TypeScript reader/stop and unsignedRecord/verifyReceiptSignature; public test-only key; disposable fixture projects only."
+  }
+}
