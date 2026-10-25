@@ -1,0 +1,92 @@
+name: Published 0.6.0 native acceptance
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  installed:
+    if: github.event.repository.visibility == 'public'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl}
+          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl}
+          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin}
+          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 01c710c8ee3c125d19a0f37988ff95d27e743339
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        with:
+          targets: ${{ matrix.triple }}
+      - name: Native musl linker
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y musl-tools
+          echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
+          echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
+      - name: Install exact published registry packages and test native execution
+        env:
+          TARGET_KEY: ${{ matrix.key }}
+          RUST_TARGET: ${{ matrix.triple }}
+          RUNNER_LABEL: ${{ matrix.runner }}
+        run: |
+          mkdir -p .kineti
+          cat > .kineti/published-driver.py <<'PYDRIVER'
+          """Actual native published-package acceptance, using pinned registry versions."""
+          import hashlib,json,os,platform,subprocess,sys,urllib.request
+          from pathlib import Path
+          root=Path.cwd();base=root/'.kineti/published-packages';base.mkdir(parents=True)
+          expected={'kineti-cli-0.6.0.crate':'5787f90a7ad9204d9f651f3fe2a5f1ad0d82ebf2324223a147dfcadd1bd459a9','kineti-0.6.0.tgz':'73ce7ca10e28aa73a5588b62cbb07a89e306e0313273421ca2b0d79c6732ce2e'}
+          headers={'User-Agent':'Kineti-published-acceptance/0.6.0 (https://github.com/therawlogs/kineti)'}
+          def fetch(url):
+           with urllib.request.urlopen(urllib.request.Request(url,headers=headers),timeout=60) as r:return r.read()
+          cargo=json.loads(fetch('https://crates.io/api/v1/crates/kineti-cli/0.6.0'))
+          npm=json.loads(fetch('https://registry.npmjs.org/kineti/0.6.0'))
+          assert cargo['version']['checksum']==expected['kineti-cli-0.6.0.crate']
+          assert npm['dist']['tarball'].startswith('https://registry.npmjs.org/kineti/')
+          for name,url in [('kineti-cli-0.6.0.crate','https://crates.io/api/v1/crates/kineti-cli/0.6.0/download'),('kineti-0.6.0.tgz',npm['dist']['tarball'])]:
+           raw=fetch(url);assert hashlib.sha256(raw).hexdigest()==expected[name],name;(base/name).write_bytes(raw)
+          (base/'SHA256SUMS.json').write_text(json.dumps(expected,indent=2)+'\n')
+          key=os.environ['TARGET_KEY'];triple=os.environ['RUST_TARGET'];runner=os.environ['RUNNER_LABEL']
+          assert platform.machine() in (['aarch64','arm64'] if key.endswith('arm64') else ['x86_64','AMD64'])
+          assert platform.system()==('Linux' if key.startswith('linux') else 'Darwin')
+          commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip();assert commit=='01c710c8ee3c125d19a0f37988ff95d27e743339'
+          # Reuse the reviewed acceptance assertions, but install both packages by their
+          # pinned registry names, not a local crate path or source checkout.
+          text=(root/'scripts/accept-native-install.py').read_text()
+          a='["cargo", "install", "--path", str(crate_source), "--locked", "--target", options.rust_target, "--root", str(cargo_root)]'
+          b='["cargo", "install", "kineti-cli", "--version", "=0.6.0", "--locked", "--target", options.rust_target, "--root", str(cargo_root)]'
+          assert text.count(a)==1;text=text.replace(a,b)
+          assert text.count('str(archive)')==2
+          text=text.replace('str(archive)', '"kineti@0.6.0", "--registry", "https://registry.npmjs.org"')
+          script=root/'.kineti/published-install-check.py';script.write_text(text)
+          work=Path(os.environ['RUNNER_TEMP'])/'kineti-published-acceptance'
+          identity=json.loads(subprocess.check_output([sys.executable,'scripts/native-runner-identity.py'],text=True));identity['workflow_commit']=identity['commit'];identity['commit']=commit;identity['runner_label']=runner
+          (root/'.kineti/published-runner.json').write_text(json.dumps(identity,indent=2)+'\n')
+          subprocess.run([sys.executable,str(script),'--artifacts',str(base),'--target',key,'--rust-target',triple,'--work-root',str(work)],check=True)
+          report=json.loads((work/key/'report.json').read_text());report['runner']=identity;report['published_registry_installations']=True;report['registry_archive_sha256']=expected
+          report['cargo_registry_command']=['cargo','install','kineti-cli','--version','=0.6.0','--locked','--target',triple]
+          report['npm_registry_spec']='kineti@0.6.0'
+          report['package_source_commit']='80cd5d1c27433a402858fd82897db57741271e30'
+          assert report['outside_source_checkout'] and report['scripts_disabled_error_verified']
+          for route in ['cargo','npm']:
+           r=report['routes'][route];assert r['installed_bytes']<10_000_000 and r['node_bun_absent_from_runtime_path'] and r['registry_mcp_discovery_and_call']
+          (root/'.kineti/published-report.json').write_text(json.dumps(report,indent=2)+'\n')
+          PYDRIVER
+          python3 .kineti/published-driver.py
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: published-${{ matrix.key }}
+          path: |
+            .kineti/published-report.json
+            .kineti/published-runner.json
+          include-hidden-files: true
+          retention-days: 1

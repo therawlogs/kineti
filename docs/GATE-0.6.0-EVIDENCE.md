@@ -1,3 +1,8 @@
+> Historical candidate checkpoints follow. For final approval, publication and
+> published-package acceptance, see [0.6.0 closeout](GATE-0.6.0-CLOSEOUT.md).
+> Earlier publication-blocking statements describe their original checkpoint;
+> the exact later owner-approved exception did not resolve historical costs.
+
 # Kineti 0.6.0 candidate evidence
 
 The [contract](GATE-0.6.0-CONTRACT.md) controls acceptance. This document records
