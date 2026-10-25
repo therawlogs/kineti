@@ -1,5 +1,7 @@
 > Historical candidate checkpoints follow. For final approval, publication and
 > published-package acceptance, see [0.6.0 closeout](GATE-0.6.0-CLOSEOUT.md).
+> Supplemental [fresh npm/Cargo and Codex smoke results](GATE-0.6.0-CLOSEOUT.md#fresh-local-registry-smoke-test--2026-10-25)
+> cover local macOS arm64 only; they are not a new four-platform run or security audit.
 > Earlier publication-blocking statements describe their original checkpoint;
 > the exact later owner-approved exception did not resolve historical costs.
 

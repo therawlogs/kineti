@@ -79,6 +79,67 @@ versions/digests, uses read-only permissions and one-day artifacts, and does not
 publish packages. The separate candidate workflow remains available. Dispatching
 verification remains subject to the hard $0 resource limit and available quota.
 
+## Fresh local registry smoke test — 2026-10-25
+
+After the README correction at `c95e702`, fresh installs from npm and crates.io
+passed in separate disposable prefixes with empty caches and isolated homes on
+local **macOS arm64**. This is supplemental smoke evidence, not a new
+four-platform acceptance run, security audit, autonomous-model test or independent
+authentication of the historical approval exception or unresolved accounting.
+
+The exact registry commands were:
+
+```sh
+npm install --global --prefix "$DISPOSABLE_NPM_PREFIX" --registry https://registry.npmjs.org --no-audit --no-fund kineti@0.6.0
+cargo install kineti-cli --version '=0.6.0' --locked --root "$DISPOSABLE_CARGO_PREFIX"
+```
+
+The prefixes, HOME, temporary directories and package caches were explicitly set
+to disposable project-local directories. No existing Kineti installation was
+reused. Each installed binary passed **26 command scenarios**, including the
+README's actual Cargo test fixture, exact argv check, fresh CI, initialization
+preview/apply/repetition, spending log/check, undo preview/apply and self-test.
+Node and Bun were absent from runtime PATH for both routes.
+
+| Deliberate failure | Observed exit |
+| --- | ---: |
+| Missing evidence | 5 |
+| Empty required-check list | CI 1 |
+| Wrong expected command arguments | 7 |
+| Changed PATH or declared input | 4; stale CI 1 |
+| Invalid signature | 7 |
+| Synthetic spending at the 95% stage stop | Spending 3; CI 1 |
+
+Synthetic monetary entries were confined to disposable fixtures and do not
+represent actual spending. Self-test also demonstrated the fabricated-output
+limitation. The first npm attempt stopped before downloading because the test
+harness used the same path for user and global npm configuration; retrying with
+distinct isolated paths succeeded. Cargo succeeded on its first attempt.
+
+For **each fresh installation**, Codex **0.164.0** loaded init-generated isolated
+configuration through app-server, discovered eight native tools and completed a
+real `kineti_status` call. No model turn started and no real credentials were
+inherited. This does not extend compatibility to other Codex versions or hosts.
+
+| Executable | SHA-256 |
+| --- | --- |
+| Fresh npm gate | `42714072d71d596b8803554ed247ff0be5e2c9dd25e4077d51817f043a46b869` |
+| Fresh Cargo-compiled gate | `c514a7d9182a161e6ec9eb0bfb2973f80a7b2b29a5bd8d7c6a62dccb75827425` |
+| Codex 0.164.0 | `d8990e3ee7acfbc26f91265b12a1a83f0fee40d0e0f8f1f40a37d4ec21f499cf` |
+
+Private raw commands, outputs, installation failures/retry and MCP transcripts
+remain locally under `.kineti/fresh-install-smoke-20261025/`; these files are not
+committed or claimed as GitHub release assets. Saved evidence SHA-256:
+
+- `summary.json`: `2c2605e82101d041cb9fef8381b7f9404c5bc63602c8a80279546508543c613b`.
+- `npm/smoke-results.json`: `d7fdda5bf7f4a30a62d111955864525bcac26d92b32f3b5221eb65e375d9862b`.
+- `cargo/smoke-results.json`: `7232106eb70f2429aabd0273daf4004d502910ec5d11ec8a5390380dddf02c39`.
+
+All **47 protected original files** captured by the smoke harness remained
+byte-identical, including configuration, accounting, locked state, frozen
+contracts and design files. No tracked files changed during the smoke test.
+This documentation update does not rerun those tests or resolve historical costs.
+
 ## Accounting and continuing limits
 
 The approved release-specific accounting-policy exception allowed publication;
