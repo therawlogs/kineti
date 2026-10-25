@@ -2,8 +2,8 @@
 
 **Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.**
 
-0.6.0 is a gate-only release candidate. Publication requires reviewed artifacts
-and separate approval. Only Linux and macOS, x64 and arm64, are supported.
+0.6.0 is published as a native gate. Only Linux and macOS, x64 and arm64,
+are supported.
 `kineti-cli` changes from its older assistant lineage to this gate. Older
 published releases remain available. Harness execution, model routing,
 delegation, swarm, dashboard, memory, evaluator services and protected writes
@@ -11,18 +11,37 @@ are removed from the active product.
 
 ## Install and initialize
 
-After approved publication, the installation commands will be:
+Choose one installation route:
+
+Cargo (requires Rust for installation):
 
 ```sh
-cargo install kineti-cli --version 0.6.0 --locked
-# Or:
+cargo install kineti-cli --version '=0.6.0' --locked
+```
+
+npm (requires Node and enabled installation scripts for installation):
+
+```sh
 npm install -g kineti@0.6.0
+```
+
+Published packages: [Cargo 0.6.0](https://crates.io/crates/kineti-cli/0.6.0)
+and [npm 0.6.0](https://www.npmjs.com/package/kineti/v/0.6.0).
+See the [GitHub release](https://github.com/therawlogs/kineti/releases/tag/v0.6.0)
+and [release closeout](docs/GATE-0.6.0-CLOSEOUT.md) for publication and acceptance evidence.
+
+From your project directory, preview initialization with your explicit goal:
+
+```sh
 kineti init --goal "Your explicit project goal"
+```
+
+Review the preview, then apply initialization:
+
+```sh
 kineti init --goal "Your explicit project goal" --apply
 ```
 
-This is not a claim that 0.6.0 is already published. Cargo needs Rust for
-installation. npm needs Node and enabled installation scripts for installation.
 The installed executable needs neither Node nor Bun. The npm package contains
 four checksummed binaries; installation verifies/selects one and removes unused
 payloads. Disabled scripts leave an explicit installation error.
@@ -45,7 +64,7 @@ unverified in 0.6.0. There is no automatic native-tool interception. Codex integ
 
 ```sh
 kineti test run --label tests --required-test tests -- cargo test
-kineti test check --label tests
+kineti test check --label tests --expect-argv '["cargo","test"]'
 kineti ci --require-evidence tests
 kineti spend log --stage build --model reported --tokens-in 0 --tokens-out 0 --usd 0.25
 kineti spend check
