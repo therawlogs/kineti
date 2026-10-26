@@ -89,6 +89,7 @@
     "data_quality_threshold": 0.8,
     "hurdle_rate_min": 0.5,
     "verify_command": "bun test",
+    "verify_command_argv": ["cargo", "test", "--locked", "--manifest-path", "core-native/Cargo.toml"],
     "ci_stage": 9,
     "freeze_during": [
       "build",

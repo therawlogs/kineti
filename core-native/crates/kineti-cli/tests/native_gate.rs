@@ -1517,3 +1517,248 @@ fn verify_missing_and_malformed_declarations_keep_exit_nine() {
         assert_eq!(p.run(&["verify", "--status"]).status.code(), Some(9));
     }
 }
+
+#[test]
+fn shared_runner_callers_preserve_definite_results_and_truncation() {
+    use std::os::unix::fs::PermissionsExt;
+    for (name, command, exit, success) in [
+        ("zero", "exit 0", json!(0), true),
+        ("nonzero", "exit 19", json!(19), false),
+        ("signal", "kill -TERM $$", Value::Null, false),
+        ("spawn-failure", "", json!(127), false),
+        (
+            "truncated",
+            "printf '1 pass\\n0 fail\\n'; dd if=/dev/zero bs=8000001 count=1 2>/dev/null",
+            json!(0),
+            false,
+        ),
+    ] {
+        let p = Project::new();
+        let argv: Vec<String> = if name == "spawn-failure" {
+            let path = p.0.join("not-executable");
+            fs::write(&path, "not an executable").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+            vec!["./not-executable".into()]
+        } else {
+            vec!["/bin/sh".into(), "-c".into(), command.into()]
+        };
+        let mut args = vec!["test", "run", "--label", name, "--kind", "check", "--"];
+        args.extend(argv.iter().map(String::as_str));
+        assert_eq!(p.run(&args).status.success(), success, "receipt {name}");
+        let records = kineti_cli::store::lines(&p.0.join(".kineti/evidence.jsonl")).unwrap();
+        let receipt = records.last().unwrap();
+        assert_eq!(receipt["exit_code"], exit, "{name}: {receipt}");
+        assert_eq!(receipt["verification"]["truncated"], name == "truncated");
+        fs::write(
+            p.0.join("kineti.config.json"),
+            json!({"settings":{"verify_command_argv":argv}}).to_string(),
+        )
+        .unwrap();
+        kineti_cli::store::write(&p.0.join(".kineti/verify-trust.json"),
+            &json!({"argv":argv,"sha256":kineti_cli::compat::digest(serde_json::to_vec(&argv).unwrap()),"fixture_only":true})).unwrap();
+        assert_eq!(
+            p.run(&["verify"]).status.success(),
+            success,
+            "verify {name}"
+        );
+    }
+    let p = Project::new();
+    let argv = [
+        "/bin/sh",
+        "-c",
+        "printf x >> .kineti/effect; dd if=/dev/zero bs=8000001 count=1 2>/dev/null",
+    ];
+    let mut args = vec!["undo", "push", "--label", "complete-truncated", "--"];
+    args.extend(argv);
+    assert!(p.run(&args).status.success());
+    assert!(p.run(&["undo", "rollback", "--yes"]).status.success());
+    assert!(p.run(&["undo", "rollback", "--yes"]).status.success());
+    assert_eq!(fs::read(p.0.join(".kineti/effect")).unwrap(), b"x");
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert!(records
+        .iter()
+        .any(|r| r["kind"] == "completion" && r["exit_code"] == 0));
+}
+
+#[test]
+fn undo_pipe_holder_fixture() {
+    use std::os::fd::AsRawFd;
+    let root = std::env::current_dir().unwrap();
+    if !root.join(".kineti/undo-holder-fixture").exists() {
+        return;
+    }
+    let control = fs::File::open(root.join(".kineti/undo-release")).unwrap();
+    use std::io::Write;
+    fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(root.join(".kineti/undo-effect"))
+        .unwrap()
+        .write_all(b"x")
+        .unwrap();
+    let mut handshake = [0; 2];
+    assert_eq!(unsafe { libc::pipe(handshake.as_mut_ptr()) }, 0);
+    let pid = unsafe { libc::fork() };
+    assert!(pid >= 0);
+    if pid == 0 {
+        unsafe {
+            libc::close(handshake[0]);
+            libc::write(handshake[1], b"R".as_ptr().cast(), 1);
+            libc::close(handshake[1]);
+            let mut poll = libc::pollfd {
+                fd: control.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            // Independent holder lifetime, even if its supervisor is defective.
+            libc::poll(&mut poll, 1, 70_000);
+            libc::_exit(0);
+        }
+    }
+    let mut ready = [0u8];
+    unsafe {
+        libc::close(handshake[1]);
+        assert_eq!(libc::read(handshake[0], ready.as_mut_ptr().cast(), 1), 1);
+        libc::close(handshake[0]);
+    }
+    assert_eq!(&ready, b"R");
+    std::process::exit(0);
+}
+
+#[test]
+fn incomplete_capture_keeps_undo_intent_and_blocks_repeated_effect() {
+    use std::{
+        io::Write,
+        os::unix::{ffi::OsStrExt, process::CommandExt},
+        process::Stdio,
+        time::{Duration, Instant},
+    };
+    let p = Project::new();
+    fs::write(p.0.join(".kineti/undo-holder-fixture"), b"fixture only").unwrap();
+    let fifo =
+        std::ffi::CString::new(p.0.join(".kineti/undo-release").as_os_str().as_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+    let mut control = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(p.0.join(".kineti/undo-release"))
+        .unwrap();
+    let test = std::env::current_exe().unwrap();
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--label",
+            "incomplete-capture",
+            "--",
+            test.to_str().unwrap(),
+            "--exact",
+            "undo_pipe_holder_fixture",
+            "--nocapture"
+        ])
+        .status
+        .success());
+    let start = Instant::now();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kineti"))
+        .args(["undo", "rollback", "--yes"])
+        .current_dir(&p.0)
+        .env("HOME", p.0.join("home"))
+        .env("CODEX_HOME", p.0.join(".kineti/codex-home"))
+        .process_group(0)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let watchdog = start + Duration::from_secs(65);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if Instant::now() >= watchdog {
+            // Child has not been reaped: the CLI group number is still owned.
+            unsafe {
+                libc::kill(-(child.id() as i32), libc::SIGKILL);
+            }
+            let _ = control.write_all(b"Q");
+            let _ = child.wait();
+            panic!("independent undo watchdog expired");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    let elapsed = start.elapsed();
+    let _ = control.write_all(b"Q");
+    assert_eq!(output.status.code(), Some(3), "{}", value(&output));
+    assert!(elapsed >= Duration::from_secs(60), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(63), "{elapsed:?}");
+    let before = fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert!(records.iter().any(|r| r["kind"] == "intent"));
+    assert!(!records.iter().any(|r| r["kind"] == "completion"));
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    assert_eq!(
+        fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap(),
+        before
+    );
+    assert_eq!(fs::read(p.0.join(".kineti/undo-effect")).unwrap(), b"x");
+}
+
+#[test]
+fn signal_undo_preserves_intent_and_blocks_replay() {
+    let p = Project::new();
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--label",
+            "signal",
+            "--",
+            "/bin/sh",
+            "-c",
+            "printf x >> .kineti/effect; kill -TERM $$"
+        ])
+        .status
+        .success());
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    let before = fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert!(records.iter().any(|r| r["kind"] == "intent"));
+    assert!(!records.iter().any(|r| r["kind"] == "completion"));
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    assert_eq!(
+        fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap(),
+        before
+    );
+    assert_eq!(fs::read(p.0.join(".kineti/effect")).unwrap(), b"x");
+}
+
+#[test]
+fn incomplete_capture_cannot_record_passed_receipt() {
+    let p = Project::new();
+    let output = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "deadline",
+        "--timeout",
+        "1",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf '1 pass\\n0 fail\\n'; sleep 3 &",
+    ]);
+    assert!(!output.status.success(), "{}", value(&output));
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/evidence.jsonl")).unwrap();
+    if let Some(receipt) = records.last() {
+        assert_eq!(receipt["outcome"], "failed");
+        assert_eq!(receipt["exit_code"], Value::Null);
+    } else {
+        assert_eq!(output.status.code(), Some(3), "{}", value(&output));
+    }
+    assert!(!p
+        .run(&["test", "check", "--label", "deadline"])
+        .status
+        .success());
+}

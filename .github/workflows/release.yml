@@ -1,13 +1,24 @@
-name: Native gate 0.6.0 candidates
+name: Native gate repair validation
+
 on:
-  push:
-    branches: [codex/gate-060]
   workflow_dispatch:
+    inputs:
+      candidate_packages:
+        description: "Build/install development candidates only after separate artifact-storage approval"
+        type: boolean
+        required: false
+        default: false
+
 permissions:
   contents: read
+
 concurrency:
-  group: native-gate-candidates-${{ github.ref }}
+  group: native-repair-validation-${{ github.ref }}
   cancel-in-progress: false
+
+# This validation workflow never publishes, tags, merges or deploys. The default
+# path uploads no artifacts and uses no Actions caches. Enabling candidate_packages
+# requires separately verified included storage or an exact owner approval.
 jobs:
   native:
     if: github.event.repository.visibility == 'public'
@@ -17,12 +28,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl}
-          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl}
-          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin}
-          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
+          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl, os: Linux, machine: x86_64}
+          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl, os: Linux, machine: aarch64}
+          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin, os: Darwin, machine: x86_64}
+          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin, os: Darwin, machine: arm64}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           targets: ${{ matrix.triple }}
@@ -30,100 +43,226 @@ jobs:
       - name: Prepare native musl linker
         if: runner.os == 'Linux'
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
           echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
           echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
-      - name: Format, lint and actual native tests in both timezones
-        run: |
-          mkdir -p .kineti/native-artifacts
-          python3 scripts/native-runner-identity.py > .kineti/native-artifacts/runner.json
-          node scripts/test-native-installer.cjs
-          cargo fmt --manifest-path core-native/Cargo.toml --check
-          cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings
-          TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-utc.log
-          TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml 2>&1 | tee .kineti/native-artifacts/tests-kolkata.log
-      - name: Build exact native candidate and record fresh test evidence
+      - name: Check actual host and record repaired-source native evidence
         env:
           TARGET: ${{ matrix.triple }}
           KEY: ${{ matrix.key }}
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+          RUNNER_LABEL: ${{ matrix.runner }}
         run: |
-          cargo build --release --locked --manifest-path core-native/Cargo.toml --target "$TARGET"
-          mkdir -p .kineti/native-artifacts
-          cp "core-native/target/$TARGET/release/kineti" ".kineti/native-artifacts/kineti-$KEY"
-          GATE="$PWD/core-native/target/$TARGET/release/kineti"
-          "$GATE" init --goal "Build universal agent harness with cryptographic verification" --codex-home "$PWD/.kineti/ci-codex" --apply
-          TZ=UTC "$GATE" test run --label native-utc --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
-          TZ=UTC "$GATE" test check --label native-utc --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
-          TZ=Asia/Kolkata "$GATE" test run --label native-kolkata --timeout 600 --required-test core-native/crates/kineti-cli/tests -- cargo test --locked --manifest-path core-native/Cargo.toml
-          TZ=Asia/Kolkata "$GATE" test check --label native-kolkata --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
-          cp .kineti/evidence.jsonl .kineti/native-artifacts/evidence.jsonl
-          cp .kineti/evidence-issuer.pem .kineti/native-artifacts/evidence-issuer.pem
-      - name: Package the sole crate
-        if: matrix.key == 'linux-x64'
+          set -euo pipefail
+          python3 - <<'PYVALIDATE'
+          import hashlib, json, os, platform, shutil, subprocess, time
+          from pathlib import Path
+          root = Path.cwd()
+          assert platform.system() == os.environ["EXPECTED_OS"], "wrong actual runner OS"
+          assert platform.machine() == os.environ["EXPECTED_MACHINE"], "wrong actual runner architecture"
+          assert subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() == os.environ["GITHUB_SHA"]
+          subprocess.run(["git", "diff", "--exit-code"], check=True)
+          artifacts = root / ".kineti/native-artifacts"
+          artifacts.mkdir(parents=True)
+          identity = json.loads(subprocess.check_output(["python3", "scripts/native-runner-identity.py"], text=True))
+          identity.update(runner_label=os.environ["RUNNER_LABEL"], candidate_kind="unpublished development validation", target=os.environ["TARGET"])
+          (artifacts / "runner.json").write_text(json.dumps(identity, indent=2) + "\n")
+          print(json.dumps({"runner": identity}), flush=True)
+          env = dict(os.environ)
+          env.update(HOME=str(root / ".kineti/ci-home"), CODEX_HOME=str(root / ".kineti/ci-codex"),
+                     CARGO_HOME=str(root / ".kineti/cargo-home"), CARGO_TARGET_DIR=str(root / "core-native/target"),
+                     CARGO_BUILD_TARGET=os.environ["TARGET"],
+                     RUSTUP_HOME=os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")))
+          for name in ["HOME", "CODEX_HOME", "CARGO_HOME", "CARGO_TARGET_DIR"]:
+              Path(env[name]).mkdir(parents=True, exist_ok=True)
+          with open(os.environ["GITHUB_ENV"], "a") as shared:
+              for name in ["HOME", "CODEX_HOME", "CARGO_HOME", "CARGO_TARGET_DIR", "CARGO_BUILD_TARGET", "RUSTUP_HOME"]:
+                  shared.write(name + "=" + env[name] + "\n")
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\0")
+          assert not any(p.startswith(".kineti/") or "/.kineti/" in p for p in tracked if p), "runtime files must not be tracked"
+          source = {p: hashlib.sha256((root / p).read_bytes()).hexdigest() for p in tracked if p and (root / p).is_file()}
+          (artifacts / "source-manifest.json").write_text(json.dumps({"commit": os.environ["GITHUB_SHA"], "files": source}, indent=2) + "\n")
+          records = []
+          def run(label, argv, timezone="UTC", timeout=1200):
+              current = dict(env, TZ=timezone)
+              start = time.monotonic()
+              result = subprocess.run(argv, env=current, capture_output=True, timeout=timeout)
+              (artifacts / (label + ".stdout")).write_bytes(result.stdout)
+              (artifacts / (label + ".stderr")).write_bytes(result.stderr)
+              row = {"label": label, "argv": argv, "exit": result.returncode, "elapsed_seconds": time.monotonic() - start,
+                     "environment": {k: current[k] for k in ["TZ", "HOME", "CODEX_HOME", "CARGO_HOME", "CARGO_TARGET_DIR", "CARGO_BUILD_TARGET", "RUSTUP_HOME", "PATH"]},
+                     "stdout_sha256": hashlib.sha256(result.stdout).hexdigest(), "stderr_sha256": hashlib.sha256(result.stderr).hexdigest()}
+              records.append(row)
+              (artifacts / "commands.json").write_text(json.dumps(records, indent=2) + "\n")
+              print(json.dumps({"command": row}), flush=True)
+              print(result.stdout.decode(errors="replace"), end="", flush=True)
+              print(result.stderr.decode(errors="replace"), end="", flush=True)
+              if result.returncode:
+                  raise SystemExit(result.returncode)
+              return result.stdout
+          run("installer-policy", ["node", "scripts/test-native-installer.cjs"])
+          run("fmt", ["cargo", "fmt", "--manifest-path", "core-native/Cargo.toml", "--check"])
+          run("clippy", ["cargo", "clippy", "--locked", "--manifest-path", "core-native/Cargo.toml", "--all-targets", "--", "-D", "warnings"])
+          run("build", ["cargo", "build", "--release", "--locked", "--manifest-path", "core-native/Cargo.toml", "--target", os.environ["TARGET"]])
+          gate = str(root / "core-native/target" / os.environ["TARGET"] / "release/kineti")
+          binary_sha = hashlib.sha256(Path(gate).read_bytes()).hexdigest()
+          run("init", [gate, "init", "--goal", "Build universal agent harness with cryptographic verification", "--codex-home", env["CODEX_HOME"], "--apply"])
+          argv = ["cargo", "test", "--locked", "--manifest-path", "core-native/Cargo.toml"]
+          run("spend-check", [gate, "spend", "check"])
+          run("status", [gate, "status"])
+          trust = json.loads(run("verify-status", [gate, "verify", "--status"]))["result"]
+          assert trust["declared"] == argv and trust["trusted"] is False, "declaration changed or unexpectedly trusted"
+          listing = run("test-inventory", argv + ["--", "--list"])
+          tests = [line.split(": test")[0] for line in listing.decode().splitlines() if line.endswith(": test")]
+          (artifacts / "test-inventory.json").write_text(json.dumps({"argv": argv + ["--", "--list"], "tests": tests, "registered_count": len(tests)}, indent=2) + "\n")
+          for label, timezone in [("native-utc", "UTC"), ("native-kolkata", "Asia/Kolkata")]:
+              command = [gate, "test", "run", "--label", label, "--timeout", "600",
+                         "--required-test", "core-native/crates/kineti-cli/src", "--required-test", "core-native/crates/kineti-cli/tests"]
+              for name in ["TZ", "CARGO_HOME", "CARGO_TARGET_DIR", "CARGO_BUILD_TARGET", "RUSTUP_HOME",
+                           "RUSTUP_TOOLCHAIN", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
+                           "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER", "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER"]:
+                  command += ["--env-name", name]
+              receipt = json.loads(run(label + "-run", command + ["--"] + argv, timezone, 720))["result"]
+              assert receipt["outcome"] == "passed" and receipt["verification"]["failed"] == 0 and receipt["verification"]["skipped"] == 0
+              checked = json.loads(run(label + "-check", [gate, "test", "check", "--label", label, "--expect-argv", json.dumps(argv)], timezone))["result"]
+              assert checked["status"] == "fresh"
+          run("self-test", [gate, "self-test"])
+          shutil.copyfile(gate, artifacts / ("kineti-" + os.environ["KEY"]))
+          for name in ["evidence.jsonl", "evidence-issuer.pem"]:
+              shutil.copyfile(root / ".kineti" / name, artifacts / name)
+          assert all(hashlib.sha256((root / p).read_bytes()).hexdigest() == digest for p, digest in source.items()), "tracked source changed during validation"
+          manifest = {"commit": os.environ["GITHUB_SHA"], "runner": identity, "binary_sha256": binary_sha,
+                      "configured_version": "0.6.0", "candidate_kind": "development candidate, not a new published version",
+                      "source_manifest_sha256": hashlib.sha256((artifacts / "source-manifest.json").read_bytes()).hexdigest()}
+          (artifacts / "build-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          print(json.dumps({"validation_passed": True, "registered_test_count": len(tests), "manifest": manifest}), flush=True)
+          PYVALIDATE
+      - name: Package development crate without publishing
+        if: inputs.candidate_packages && matrix.key == 'linux-x64'
         run: |
+          set -euo pipefail
           cargo package --locked --manifest-path core-native/crates/kineti-cli/Cargo.toml
           cp core-native/target/package/kineti-cli-0.6.0.crate .kineti/native-artifacts/
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      - name: Upload only allowlisted validation artifacts after storage approval
+        if: inputs.candidate_packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: native-${{ matrix.key }}
-          path: .kineti/native-artifacts/
+          name: repair-native-${{ matrix.key }}
+          path: |
+            .kineti/native-artifacts/runner.json
+            .kineti/native-artifacts/source-manifest.json
+            .kineti/native-artifacts/build-manifest.json
+            .kineti/native-artifacts/commands.json
+            .kineti/native-artifacts/test-inventory.json
+            .kineti/native-artifacts/*.stdout
+            .kineti/native-artifacts/*.stderr
+            .kineti/native-artifacts/evidence.jsonl
+            .kineti/native-artifacts/evidence-issuer.pem
+            .kineti/native-artifacts/kineti-${{ matrix.key }}
+            .kineti/native-artifacts/*.crate
+          if-no-files-found: error
           include-hidden-files: true
           retention-days: 1
+
   package:
     needs: native
-    if: github.event.repository.visibility == 'public'
+    if: github.event.repository.visibility == 'public' && inputs.candidate_packages
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          pattern: native-*
+          pattern: repair-native-*
           merge-multiple: true
           path: .kineti/native-artifacts
-      - run: python3 scripts/build-native-package.py --artifacts .kineti/native-artifacts --output .kineti/packages
+      - name: Assemble fixed-version development candidates
+        run: |
+          set -euo pipefail
+          mkdir -p .kineti/package-home .kineti/npm-cache
+          env HOME="$PWD/.kineti/package-home" npm_config_cache="$PWD/.kineti/npm-cache" python3 scripts/build-native-package.py --artifacts .kineti/native-artifacts --output .kineti/packages
+          python3 - <<'PYCANDIDATE'
+          import json, os
+          from pathlib import Path
+          Path(".kineti/packages/candidate-kind.json").write_text(json.dumps({"commit": os.environ["GITHUB_SHA"], "kind": "unpublished repaired development candidate", "version": "0.6.0", "not_acceptance_for": "0.6.1 or any future published artifacts"}, indent=2) + "\n")
+          PYCANDIDATE
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: native-candidate-packages
-          path: .kineti/packages
+          name: repair-development-packages
+          path: .kineti/packages/
+          if-no-files-found: error
           include-hidden-files: true
           retention-days: 1
+
   install:
     needs: package
-    if: github.event.repository.visibility == 'public'
+    if: github.event.repository.visibility == 'public' && inputs.candidate_packages
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl}
-          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl}
-          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin}
-          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin}
+          - {runner: ubuntu-24.04, key: linux-x64, triple: x86_64-unknown-linux-musl, os: Linux, machine: x86_64}
+          - {runner: ubuntu-24.04-arm, key: linux-arm64, triple: aarch64-unknown-linux-musl, os: Linux, machine: aarch64}
+          - {runner: macos-15-intel, key: darwin-x64, triple: x86_64-apple-darwin, os: Darwin, machine: x86_64}
+          - {runner: macos-15, key: darwin-arm64, triple: aarch64-apple-darwin, os: Darwin, machine: arm64}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
         with:
           targets: ${{ matrix.triple }}
       - name: Prepare native musl linker
         if: runner.os == 'Linux'
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y musl-tools
           echo CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
           echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
-          name: native-candidate-packages
+          name: repair-development-packages
           path: .kineti/packages
-      - run: python3 scripts/accept-native-install.py --artifacts .kineti/packages --target '${{ matrix.key }}' --rust-target '${{ matrix.triple }}' --work-root "$RUNNER_TEMP/kineti-install-acceptance"
+      - name: Install candidate Cargo and npm routes outside checkout
+        env:
+          KEY: ${{ matrix.key }}
+          TARGET: ${{ matrix.triple }}
+          EXPECTED_OS: ${{ matrix.os }}
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PYINSTALL'
+          import hashlib, json, os, platform, subprocess
+          from pathlib import Path
+          root = Path.cwd()
+          assert platform.system() == os.environ["EXPECTED_OS"], "wrong actual install runner OS"
+          assert platform.machine() == os.environ["EXPECTED_MACHINE"], "wrong actual install runner architecture"
+          env = dict(os.environ, HOME=str(root / ".kineti/install-home"), CODEX_HOME=str(root / ".kineti/install-codex"),
+                     CARGO_HOME=str(root / ".kineti/cargo-home"),
+                     RUSTUP_HOME=os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")))
+          for name in ["HOME", "CODEX_HOME", "CARGO_HOME"]:
+              Path(env[name]).mkdir(parents=True, exist_ok=True)
+          work = Path(os.environ["RUNNER_TEMP"]) / "kineti-repair-install-acceptance"
+          argv = ["python3", "scripts/accept-native-install.py", "--artifacts", ".kineti/packages", "--target", os.environ["KEY"], "--rust-target", os.environ["TARGET"], "--work-root", str(work)]
+          subprocess.run(argv, env=env, check=True, timeout=1500)
+          report_path = work / os.environ["KEY"] / "report.json"
+          report = json.loads(report_path.read_text())
+          report.update(commit=os.environ["GITHUB_SHA"], candidate_kind="unpublished 0.6.0 development candidate; not future-version published-artifact acceptance", actual_runner=json.loads(subprocess.check_output(["python3", "scripts/native-runner-identity.py"], env=env, text=True)))
+          report_path.write_text(json.dumps(report, indent=2) + "\n")
+          print(json.dumps(report, indent=2), flush=True)
+          PYINSTALL
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
-          name: installed-${{ matrix.key }}
-          path: ${{ runner.temp }}/kineti-install-acceptance/${{ matrix.key }}/report.json
-          include-hidden-files: true
+          name: repair-installed-${{ matrix.key }}
+          path: ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/report.json
+          if-no-files-found: error
           retention-days: 1
-# Deliberately no publishing jobs or tag triggers. Publication needs separate
-# reviewed-artifact approval and accounting policy acceptance.
