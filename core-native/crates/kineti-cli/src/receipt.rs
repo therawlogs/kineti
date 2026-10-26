@@ -1261,14 +1261,20 @@ mod supervision_tests {
                     0
                 );
             }
-            let target = unsafe { libc::pthread_self() };
+            // POSIX thread IDs can target another live thread. Carry the opaque
+            // ID as an address-sized value across this test sender; musl uses a
+            // raw pointer typedef. The target stays alive until the sender joins.
+            let target = unsafe { libc::pthread_self() } as usize;
             let stopped = stop.clone();
             Some(std::thread::spawn(move || {
                 receiver.recv_timeout(Duration::from_secs(3)).unwrap();
                 let until = Instant::now() + Duration::from_secs(3);
                 let mut count = 0;
                 while !stopped.load(Ordering::Relaxed) && Instant::now() < until {
-                    assert_eq!(unsafe { libc::pthread_kill(target, libc::SIGUSR1) }, 0);
+                    assert_eq!(
+                        unsafe { libc::pthread_kill(target as libc::pthread_t, libc::SIGUSR1) },
+                        0
+                    );
                     count += 1;
                     std::thread::sleep(Duration::from_micros(300));
                 }
