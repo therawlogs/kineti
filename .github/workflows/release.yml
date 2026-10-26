@@ -1,10 +1,10 @@
-name: Native gate repair validation
+name: Native gate 0.6.1 candidate validation
 
 on:
   workflow_dispatch:
     inputs:
       candidate_packages:
-        description: "Build/install development candidates only after separate artifact-storage approval"
+        description: "Build/install 0.6.1 candidates using approved included artifact storage only"
         type: boolean
         required: false
         default: false
@@ -125,6 +125,8 @@ jobs:
                            "RUSTUP_TOOLCHAIN", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS",
                            "CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER", "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER"]:
                   command += ["--env-name", name]
+              for path in ["core-native/Cargo.toml", "core-native/Cargo.lock", "core-native/crates/kineti-cli/Cargo.toml"]:
+                  command += ["--artifact", path]
               receipt = json.loads(run(label + "-run", command + ["--"] + argv, timezone, 720))["result"]
               assert receipt["outcome"] == "passed" and receipt["verification"]["failed"] == 0 and receipt["verification"]["skipped"] == 0
               checked = json.loads(run(label + "-check", [gate, "test", "check", "--label", label, "--expect-argv", json.dumps(argv)], timezone))["result"]
@@ -135,7 +137,8 @@ jobs:
               shutil.copyfile(root / ".kineti" / name, artifacts / name)
           assert all(hashlib.sha256((root / p).read_bytes()).hexdigest() == digest for p, digest in source.items()), "tracked source changed during validation"
           manifest = {"commit": os.environ["GITHUB_SHA"], "runner": identity, "binary_sha256": binary_sha,
-                      "configured_version": "0.6.0", "candidate_kind": "development candidate, not a new published version",
+                      "configured_version": "0.6.1", "candidate_kind": "unpublished release candidate; publication requires separate approval",
+                      "declared_build_inputs": {path: source[path] for path in ["core-native/Cargo.toml", "core-native/Cargo.lock", "core-native/crates/kineti-cli/Cargo.toml"]},
                       "source_manifest_sha256": hashlib.sha256((artifacts / "source-manifest.json").read_bytes()).hexdigest()}
           (artifacts / "build-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
           print(json.dumps({"validation_passed": True, "registered_test_count": len(tests), "manifest": manifest}), flush=True)
@@ -145,7 +148,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo package --locked --manifest-path core-native/crates/kineti-cli/Cargo.toml
-          cp core-native/target/package/kineti-cli-0.6.0.crate .kineti/native-artifacts/
+          cp core-native/target/package/kineti-cli-0.6.1.crate .kineti/native-artifacts/
       - name: Upload only allowlisted validation artifacts after storage approval
         if: inputs.candidate_packages
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
@@ -189,7 +192,7 @@ jobs:
           python3 - <<'PYCANDIDATE'
           import json, os
           from pathlib import Path
-          Path(".kineti/packages/candidate-kind.json").write_text(json.dumps({"commit": os.environ["GITHUB_SHA"], "kind": "unpublished repaired development candidate", "version": "0.6.0", "not_acceptance_for": "0.6.1 or any future published artifacts"}, indent=2) + "\n")
+          Path(".kineti/packages/candidate-kind.json").write_text(json.dumps({"commit": os.environ["GITHUB_SHA"], "kind": "unpublished final release candidate", "version": "0.6.1", "not_acceptance_for": "published packages until exact-archive approval and published-package recheck"}, indent=2) + "\n")
           PYCANDIDATE
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -255,7 +258,7 @@ jobs:
           subprocess.run(argv, env=env, check=True, timeout=1500)
           report_path = work / os.environ["KEY"] / "report.json"
           report = json.loads(report_path.read_text())
-          report.update(commit=os.environ["GITHUB_SHA"], candidate_kind="unpublished 0.6.0 development candidate; not future-version published-artifact acceptance", actual_runner=json.loads(subprocess.check_output(["python3", "scripts/native-runner-identity.py"], env=env, text=True)))
+          report.update(commit=os.environ["GITHUB_SHA"], candidate_kind="unpublished 0.6.1 release candidate; not publication authority", actual_runner=json.loads(subprocess.check_output(["python3", "scripts/native-runner-identity.py"], env=env, text=True)))
           report_path.write_text(json.dumps(report, indent=2) + "\n")
           print(json.dumps(report, indent=2), flush=True)
           PYINSTALL
@@ -263,6 +266,11 @@ jobs:
         if: always()
         with:
           name: repair-installed-${{ matrix.key }}
-          path: ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/report.json
+          path: |
+            ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/report.json
+            ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/cargo-installed-inventory.json
+            ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/npm-installed-inventory.json
+            ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/acceptance-evidence/*.stdout
+            ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/acceptance-evidence/*.stderr
           if-no-files-found: error
           retention-days: 1

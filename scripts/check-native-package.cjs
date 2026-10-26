@@ -5,7 +5,7 @@ const crypto = require("node:crypto");
 const root = path.resolve(__dirname, "..");
 const pkg = require(path.join(root, "package.json"));
 const sums = require(path.join(root, "checksums.json"));
-if (pkg.version !== "0.6.0" || sums.version !== pkg.version) throw new Error("fixed release version mismatch");
+if (pkg.version !== "0.6.1" || sums.version !== pkg.version) throw new Error("fixed release version mismatch");
 for (const key of ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"]) {
   const bytes = fs.readFileSync(path.join(root, "native", key, "kineti"));
   if (bytes.length >= 10000000) throw new Error(`${key} binary alone exceeds footprint cap`);

@@ -166,7 +166,7 @@ pub fn serve(root: &Path) -> Result<()> {
         let method = request["method"].as_str().unwrap_or("");
         let response = if method == "initialize" && !initialized {
             initialized = true;
-            json!({"result":{"protocolVersion":request["params"]["protocolVersion"],"capabilities":{"tools":{}},"serverInfo":{"name":"kineti","version":"0.6.0"}}})
+            json!({"result":{"protocolVersion":request["params"]["protocolVersion"],"capabilities":{"tools":{}},"serverInfo":{"name":"kineti","version":env!("CARGO_PKG_VERSION")}}})
         } else if !initialized {
             json!({"error":{"code":-32002,"message":"initialize required"}})
         } else {

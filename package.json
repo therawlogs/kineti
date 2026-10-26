@@ -1,6 +1,6 @@
 {
   "name": "kineti",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Native checks, changed-input detection, reported-spending CI gate and registered undo",
   "license": "MIT",
   "mcpName": "io.github.therawlogs/kineti",

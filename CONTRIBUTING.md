@@ -1,112 +1,172 @@
 # Contributing to Kineti
 
-Use plain English, keep changes focused, and run checks before asking for review. This guide explains local setup, contribution rules and the release process.
+Use plain words, keep changes focused, and run checks before asking for review.
+The active product is the native gate in the single `kineti-cli` crate. Its
+executable is `kineti`; the npm package is `kineti`. Bun, the dashboard and the
+old multi-crate harness are historical, not contributor prerequisites.
+The current source candidate is 0.6.1. Its exact binaries and installed packages
+need fresh acceptance; the dated 0.6.0 publication approval does not authorize it.
 
-## 1. Setup
+## 1. Build from source
 
-1. Install bun: `curl -fsSL https://bun.sh/install | bash`.
-2. Clone and enter the repo.
-3. Run `bun install` at the root. The website is a static page in `website/` (one `index.html` plus a video poster and `vercel.json`) with no install step.
-4. Run `./setup.sh` to install skills into your editors (or `kineti init`).
-5. Start the dashboard: `bun run companion`, open `http://127.0.0.1:8788`.
+1. Install Rust with Cargo, rustfmt and Clippy on Linux or macOS, x64 or arm64.
+2. Fork [therawlogs/kineti](https://github.com/therawlogs/kineti), clone your fork,
+   enter the repository and create a focused topic branch.
+3. Read `AGENTS.md`, `.kineti/state.json` when present, and
+   [the acceptance contract](docs/GATE-0.6.0-CONTRACT.md). Preserve existing locked
+   goals, user edits, signatures, costs and interrupted work.
+4. Build the native executable:
 
-## 2. Git branch workflow
+```sh
+cargo build --locked --manifest-path core-native/Cargo.toml
+KINETI_BIN="$PWD/core-native/target/debug/kineti"
+"$KINETI_BIN" --version
+```
 
-1. Fork the repository at `https://github.com/therawlogs/kineti` to your own GitHub account.
-2. Clone your fork locally and switch to a dedicated topic branch:
-   - Features: `git checkout -b feat/<short-name>`
-   - Bug fixes: `git checkout -b fix/<short-name>`
-   - Documentation: `git checkout -b docs/<short-name>`
-   - Maintenance: `git checkout -b chore/<short-name>`
-3. Keep commits atomic and focused on a single change.
-4. Clean commits: never commit private names, machine names, personal home paths (use `$HOME`), or secret keys. Search your diff before committing.
+The source is in `core-native/crates/kineti-cli/src/`; integration tests are in
+`core-native/crates/kineti-cli/tests/native_gate.rs`. Runtime execution needs
+neither Node nor Bun. Node is needed only for npm installation/package tooling.
+The static website in `website/` has no install or build step.
 
-## 3. Daily loop
+For a new disposable project, choose its goal explicitly and preview `kineti init`
+before `--apply`. Use a project-local `--codex-home` when testing integration;
+do not alter your real editor configuration. Restart existing Codex sessions
+after integration changes. Existing projects retain their locked goal.
 
-1. Read `.kineti/state.json` before starting anything.
-2. Check spend: `bun bin/kineti-spend.ts check`. Stop at $50.00.
-3. Save an undo step before changing files: `bun bin/kineti-saga.ts push "<undo-command>"`.
-4. Make small edits. Run tests. Save proof (see below).
-5. Speak in plain words, offer numbered choices (1, 2, 3).
+## 2. Before each change
 
-## 4. Tests and proof (required)
+1. Run `"$KINETI_BIN" spend check` and `"$KINETI_BIN" status`. Retain the exact
+   result, including denials. Do not clear accounting records to obtain a pass.
+2. Check the configured total and stage limits and the 95% stop. Spending is
+   reported accounting, not provider-bill verification. Only the human owner may
+   approve a limit increase; confirmation flags do not prove human identity.
+3. Preview the intended diff and save the current bytes inside the project.
+   Register the exact inverse before editing. For example, after saving an
+   existing file to `.kineti/backups/example.rs`, register its restoration:
 
-1. Run the full suite: `bun test tests/`.
-2. Save proof bound to the code: `bun bin/kineti-evidence.ts run --label <name> --required-test tests -- bun test tests/`.
-3. Check it: `bun bin/kineti-evidence.ts check --label <name>`. It must say FRESH.
-4. Rust engine: `cargo test --manifest-path core-native/Cargo.toml`.
-5. Typecheck: `bun run typecheck`. Installer smoke: `./tests/test-setup.sh`.
-6. Never claim tests passed without running them. If code changed after a proof run, run it again.
+```sh
+"$KINETI_BIN" undo push --run-id local-change --label restore-example -- \
+  /bin/cp .kineti/backups/example.rs core-native/crates/kineti-cli/src/example.rs
+"$KINETI_BIN" undo rollback --run-id local-change
+```
 
-## 5. Developer Certificate of Origin (DCO)
+The example paths must be replaced with real files and an exact saved backup;
+use a fresh run ID and label. `rollback` without `--yes` previews pending actions.
+After reviewing that preview, `undo rollback --run-id local-change --yes` runs
+them newest first. Definite failures continue; uncertain effects stop for
+inspection. Never blindly replay an uncertain action or restore over newer user
+edits. Keep backups, generated files and isolated test homes inside the project.
 
-We follow the Developer Certificate of Origin (DCO) version 1.1. When you contribute code or documentation to Kineti, you certify that you wrote the changes or have the legal right to submit them under the project's MIT License.
+The owner's documented 0.6.0 exception permits included subscription usage for
+local implementation with **$0 new paid spending**, while preserving specified
+historical monetary unknowns. In this repository, `spend check` and `status` may
+therefore return exit 3 with `unresolved historical cost ... remains recorded;
+any implementation-only subscription exception does not authorize publication`.
+That denial remains visible. The exception does not cover integrity failures,
+uncertain monetary writes, unresolved monetary reservations, possible extra
+charges or publication. Stop affected work if those conditions arise; never
+guess missing costs or force the expected recorded $55 into a ledger.
 
-1. Add a sign-off line to the bottom of every commit message:
-   `Signed-off-by: Full Name <email@example.com>`
-2. You can have Git add this automatically by passing the `-s` flag:
-   `git commit -s -m "feat: add spend ceiling notification"`
-3. Reviewers require a valid DCO sign-off before merging. This repository does not currently configure an automated DCO enforcement check.
+## 3. Checks and fresh evidence
 
-## 6. Pull request review lifecycle
+Run the same source checks as `.github/workflows/kineti-gate.yml`:
 
-Every contribution follows a structured 5-step review process:
+```sh
+cargo fmt --manifest-path core-native/Cargo.toml --check
+cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings
+TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml
+TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml
+```
 
-1. **Open the pull request**: Create your PR targeting the `main` branch. Fill out `.github/pull_request_template.md` completely. Select the type of change and confirm all safety checklist items.
-2. **Automated CI checks**: GitHub Actions automatically runs the test suite (`bun test tests/` and `cargo test`), validates TypeScript types (`bun run typecheck`), and verifies installer scripts.
-3. **Cryptographic proof verification**: Verify that test proof recorded with `bin/kineti-evidence.ts` is fresh and bound to the code.
-4. **Human code review**: Maintainers review changes for correctness, security boundaries, and plain English. If edits are requested, make adjustments on your branch and push updates.
-5. **Squash and merge**: When all checks pass and approvals are granted, maintainers squash-merge your PR into `main`.
+Record and check fresh native evidence for each timezone after the final edit:
 
-## 7. Money and safety rules
+```sh
+TZ=UTC "$KINETI_BIN" test run --label native-utc --timeout 600 \
+  --required-test core-native/crates/kineti-cli/src \
+  --required-test core-native/crates/kineti-cli/tests --env-name TZ -- \
+  cargo test --locked --manifest-path core-native/Cargo.toml
+TZ=UTC "$KINETI_BIN" test check --label native-utc \
+  --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
+TZ=Asia/Kolkata "$KINETI_BIN" test run --label native-kolkata --timeout 600 \
+  --required-test core-native/crates/kineti-cli/src \
+  --required-test core-native/crates/kineti-cli/tests --env-name TZ -- \
+  cargo test --locked --manifest-path core-native/Cargo.toml
+TZ=Asia/Kolkata "$KINETI_BIN" test check --label native-kolkata \
+  --expect-argv '["cargo","test","--locked","--manifest-path","core-native/Cargo.toml"]'
+```
 
-1. Only the human raises the project ceiling ($50 default, $1-$1000 at mirror time). Every change is audit logged.
-2. Costs flow down only: project ceiling splits into swarm budgets splits into agent caps.
-3. Every outbound web or API call gets recorded first (`bin/kineti-egress.ts`).
-4. Never commit secrets, tokens, private names, or home paths (use `$HOME`).
+Successful checks return JSON with `result.status` equal to `fresh`. Preserve
+exact argv, exits, output, timezone/environment, OS/architecture, source and
+executable hashes. If using a project-local Cargo cache offline, add `--offline`
+to the actual Cargo command and expected argv and declare `CARGO_HOME` with
+`--env-name CARGO_HOME`; report that different command accurately. Rebuild after
+native source changes and run fresh evidence again after any bound input or
+runtime changes. A signed receipt is distinct from trustworthy test execution:
+commands can fabricate passing summaries, as `kineti self-test` demonstrates.
+Never claim a test passed unless freshly run. Keep `.kineti/` records local.
 
-## 8. How to add a `bin/` tool
+`kineti verify --status` shows the declared argv and its trust state. An untrusted
+declaration denies with exit 9 and `verify command not trusted; review and run
+kineti verify --trust`. Missing declarations also deny with exit 9. Review of an
+exact new argv and an interactive trust grant are separate actions; do not grant
+trust merely to make a check pass. Changed declarations invalidate old evidence
+and old argv trust does not carry over. `verify` gates its participating command;
+it does not intercept unrelated commands or provide protected writes.
 
-1. Create `bin/kineti-<name>.ts` with `#!/usr/bin/env bun`, plain-words output, and numbered choices.
-2. Fail closed: bad input exits non-zero, never disables a safety check.
-3. Audit log every state change (who, what, old, new). Never log secret values.
-4. Add one row to `bin/README.md`.
-5. Add tests in `tests/<name>.test.ts` that back up and restore any `.kineti/` files they touch, and redirect `KINETI_MACHINE_DIR` to a temp dir. Tests must pass on a bare checkout with no `.kineti/` present.
-6. If the tool reads the spend ceiling, use `loadLimits()` from `bin/lib.ts` so per-project mirror ceilings apply.
+## 4. Tests and documentation
 
-## 9. How to add a test
+1. Extend meaningful existing Rust tests; use Cargo's test framework. Exercise
+   real behavior and denial paths, not copies of implementation constants.
+2. Use disposable project-local fixtures and isolated homes/configuration.
+   Never modify real accounting, editor settings or global test-process umask.
+3. Preserve legacy signature fixtures, dated evidence and historical records.
+   Report skipped, failed, unsupported or missing proof explicitly.
+4. Update active documentation to match source. Dated documents under
+   `docs/history/` and release records remain history. Keep the root README's
+   paths and website claims accurate and bounded.
+5. Check outbound destinations before transmitting project information and
+   preserve local request audit records. Do not send credentials or private
+   project data as part of a test.
 
-1. Put it in `tests/<area>.test.ts` using `bun:test`.
-2. Test real code in `bin/` or `src/`. Do not commit tests that only assert local literals.
-3. Back up and restore every `.kineti/` file touched. Redirect `KINETI_MACHINE_DIR` to a temp dir for audit writes.
-4. Keep the suite green in CI: no network, no ports outside test servers, no absolute paths.
+## 5. DCO and review
 
-## 10. How to add a skill
+We follow the Developer Certificate of Origin (DCO) version 1.1. By contributing,
+you certify that you wrote the changes or have the legal right to submit them
+under the project's MIT License.
 
-1. One skill does one job. Create `skills/<name>/SKILL.md` with the exact frontmatter of existing skills.
-2. Prove it worked twice before packaging.
-3. Re-run `./setup.sh` so all hosts receive it as `kineti-<name>`.
-4. Record the skill and first-run notes in the journal.
+1. Sign off every commit: `git commit -s -m "fix: describe the concrete change"`.
+   The message must include `Signed-off-by: Full Name <email@example.com>`.
+   Reviewers require the sign-off; the repository does not currently configure
+   an automated DCO enforcement check.
+2. Keep commits focused. Review the diff for secrets, personal filesystem paths,
+   machine names and unrelated changes. Required DCO identity belongs in the
+   commit sign-off; do not copy private identities into source or fixtures.
+3. Open a pull request to `main` and fill out
+   `.github/pull_request_template.md`, including actual commands and denials.
+   Never push directly to `main`.
+4. The native gate workflow runs formatting, Clippy and the native suite under
+   UTC and Asia/Kolkata. Human reviewers check behavior, security boundaries,
+   fresh evidence and plain language. Address requested changes and rerun checks.
+5. Maintainers may squash-merge only after required checks, review and separate
+   merge approval. Green local tests or a signed receipt do not grant release
+   authority.
 
-## 11. Packages: npm, website, Rust
+## 6. Packages and publication
 
-1. npm package `kineti`: entry is committed `bin/kineti.js`, generated from `bin/kineti.ts` via `bun run build:router`. Never hand-edit it. Pack contents are controlled by `.npmignore` (a `files` allowlist crashes npm 11). `docs/`, tests, the website, and the native workspace are not in the npm tarball. Verify with `npm pack --dry-run`.
-2. Website: static page `website/index.html` plus `website/kineti-cosmic-loop.mp4`, `website/kineti-cosmic-poster.jpg`, and `website/vercel.json`. No package, no lockfile, no build step. Excluded from the npm pack.
-3. Rust workspace `core-native/`: 8 crates (`kineti-core`, `kineti-reflex`, `kineti-memory`, `kineti-connectors`, `kineti-actions`, `kineti-gateway`, `kineti-harness`, `kineti-cli`). v0.5.0 includes the maintained `ed25519-dalek` dependency to `kineti-harness`. Bump `[workspace.package]` together with `package.json`. `Cargo.lock` at the repo root and `core-native/Cargo.lock` are both tracked.
-4. Version rule: `package.json`, `kineti.config.json`, both Cargo workspaces, and every crate being published move together. `tests/versions.test.ts` checks crate metadata, lockfiles, server registration, current docs, skill manifests, and Codex setup examples.
+`core-native/Cargo.toml` contains one member, `kineti-cli`, which provides
+`kineti`. The npm package `kineti` selects a checksummed native binary through
+`install.cjs` and `bin/kineti`. The four targets are Linux musl and macOS, each
+on x64 and arm64. Runtime feasibility on a development host is not proof of an
+installed Cargo or npm package on any other target.
 
-## 12. Docs rules
-
-1. `AGENTS.md` holds all agent rules. `GOOD_ROADMAP.md` is the living plan. `ROADMAP.md` is the frozen original spec, do not extend it.
-2. `docs/PLAN.md` is a frozen historical snapshot. Add a dated note header, never rewrite its body.
-3. Root `README.md` structure tree must match the real tree. Update it when adding top-level dirs or tools.
-4. Website copy lives in `website/index.html`. Keep it short and in sync with the repo.
-
-## 13. Ship checklist
-
-1. Typecheck, full Bun suite, Rust suite, package dry-runs, installer smoke, and fresh security review must pass.
-2. Open a pull request. Never push directly to `main`; merge only after the required review and checks pass.
-3. Keep `package.json`, `kineti.config.json`, both Cargo workspaces, crate dependency versions, and release tag on the same version.
-4. Pushing `vX.Y.Z` runs package dry-runs and release checks, publishes Rust crates in dependency order, publishes npm, then builds and creates the GitHub release. A registry failure blocks later publishing jobs. The npm package is typechecked and built before its token is supplied; the publish step disables package scripts.
-5. Configure the GitHub Actions environment `registry-release` with required human reviewers and the `CARGO_REGISTRY_TOKEN` and `NPM_TOKEN` secrets. Never put registry credentials in the repository. Confirm registry package ownership and that the version is unused before pushing the tag.
-6. After the workflow succeeds, verify the npm version, all eight crates, GitHub release assets, and checksums. Update the release log with the actual results.
+The [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md), its approved accounting
+amendment, the [repair contract](docs/NATIVE-GATE-REPAIR-IMPLEMENTATION-CONTRACT-20261026.md)
+retain the behavior/accounting baseline. The owner's later 0.6.1 preparation
+instruction selects the new candidate version; its artifact acceptance and
+publication/accounting approval remain separate. Preserve older
+published crates and dated release records. No automatic version bump, tag,
+registry upload, remote job dispatch or release follows from this workflow.
+The current `release.yml` prepares candidates and has no publishing jobs.
+Publication needs reviewed accounting, exact artifact approval and separate
+authorization; merging and deployment also need separate approval. Never assume
+checked-in workflow configuration proves live provider enforcement.

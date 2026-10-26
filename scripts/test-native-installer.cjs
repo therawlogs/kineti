@@ -8,12 +8,12 @@ const code = fs.readFileSync("install.cjs", "utf8");
 // Constraints from the pinned MCP registry schema, plus the executable's required mode.
 const registry = JSON.parse(fs.readFileSync("server.json", "utf8"));
 assert.ok(registry.description.length > 0 && registry.description.length <= 100);
-assert.equal(registry.version, "0.6.0");
+assert.equal(registry.version, "0.6.1");
 assert.deepEqual(registry.packages[0].packageArguments, [{type: "positional", value: "mcp"}]);
 function attempt(platform, arch, valid) {
   let writes = 0;
   const payload = Buffer.from("disposable fixture");
-  const manifest = {version: "0.6.0", targets: {[`${platform}-${arch}`]: valid ? crypto.createHash("sha256").update(payload).digest("hex") : "0".repeat(64)}};
+  const manifest = {version: "0.6.1", targets: {[`${platform}-${arch}`]: valid ? crypto.createHash("sha256").update(payload).digest("hex") : "0".repeat(64)}};
   const fakeFs = {readFileSync(file) {return file.endsWith("checksums.json") ? JSON.stringify(manifest) : payload;}, writeFileSync() {writes++;}, renameSync() {}, chmodSync() {}, rmSync() {}, existsSync() {return false;}};
   let error;
   try { vm.runInNewContext(code, {__dirname: "/fixture", process: {platform, arch}, require(name) { return name === "node:fs" ? fakeFs : require(name); }}); } catch (e) {error = e;}

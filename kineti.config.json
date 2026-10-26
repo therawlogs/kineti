@@ -1,5 +1,5 @@
 {
-  "version": "0.6.0",
+  "version": "0.6.1",
   "name": "Kineti native gate",
   "description": "Record checks, detect changed inputs, and gate participating CI on evidence and reported spending",
   "root_goal": "Build universal agent harness with cryptographic verification",

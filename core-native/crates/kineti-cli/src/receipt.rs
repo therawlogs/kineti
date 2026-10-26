@@ -135,7 +135,7 @@ fn resolve(command: &str) -> Result<PathBuf> {
 fn runtime(argv: &[String]) -> Result<Value> {
     let p = resolve(&argv[0])?;
     Ok(
-        json!({"kineti_version":"0.6.0","gate_sha256":digest(fs::read(std::env::current_exe()?)?),"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"executable":p,"executable_sha256":digest(fs::read(&p)?)}),
+        json!({"kineti_version":env!("CARGO_PKG_VERSION"),"gate_sha256":digest(fs::read(std::env::current_exe()?)?),"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"executable":p,"executable_sha256":digest(fs::read(&p)?)}),
     )
 }
 fn env_digest(name: &str) -> Result<String> {

@@ -1,36 +1,43 @@
 ## Description
 
-Explain the change in plain words. What problem does this pull request solve?
+Explain the problem and resulting behavior in plain words. Link the approved
+scope or contract and identify any incomplete acceptance requirements.
 
-## Type of Change
+## Type of change
 
-Choose one or more by marking with an `x`:
+- [ ] 1. Bug fix
+- [ ] 2. New feature
+- [ ] 3. Documentation
+- [ ] 4. Refactor
+- [ ] 5. Security fix
 
-- [ ] 1. Bug fix (fixes an issue without breaking existing behavior)
-- [ ] 2. New feature (adds new capability without breaking existing behavior)
-- [ ] 3. Documentation update (improves guides, specs, or comments)
-- [ ] 4. Code cleanup or refactor (improves structure without changing behavior)
-- [ ] 5. Security fix (resolves a vulnerability or enhances safety boundaries)
+## Verification
 
-## How Was This Tested?
+Record exact commands, exits, assertions, source/executable/artifact hashes,
+OS/architecture and environment. Mark unrun, skipped, failed or unsupported checks
+explicitly. Replace these examples with the commands actually run:
 
-List the commands run and describe the verification steps:
+1. `cargo fmt --manifest-path core-native/Cargo.toml --check`
+2. `cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings`
+3. `TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml`
+4. `TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml`
+5. Native `kineti test run` and `kineti test check` labels, exact command argv,
+   declared inputs/environment and fresh results; see `CONTRIBUTING.md`.
 
-1. Command: `bun test tests/`
-2. Command: `cargo test --manifest-path core-native/Cargo.toml`
-3. Command: `bun run typecheck`
-4. Test proof label: `bun bin/kineti-evidence.ts run --label <label-name> --required-test tests -- bun test tests/`
+Keep runtime `.kineti/` records local. A valid signature does not prove honest
+test execution. Local source tests do not establish installed-package or
+four-platform acceptance.
 
-## Kineti Safety and Governance Checklist
+## Safety and review
 
-Please review and check all items before submitting:
-
-- [ ] **Tests pass**: `bun test tests/` passes with 0 failures.
-- [ ] **Rust engine tests pass**: `cargo test --manifest-path core-native/Cargo.toml` passes with 0 failures.
-- [ ] **Typecheck clean**: `bun run typecheck` passes with 0 errors.
-- [ ] **Cryptographic proof**: Fresh test proof is recorded via `bun bin/kineti-evidence.ts run --label <name> --required-test <test-file-or-directory> -- <command>` and verified with `bun bin/kineti-evidence.ts check --label <name>`.
-- [ ] **Undo safety**: An undo command was registered via `bun bin/kineti-saga.ts push "<undo-command>"` for any file or system mutation.
-- [ ] **Spending limit**: Spending is verified under the $50.00 ceiling via `bun bin/kineti-spend.ts check`.
-- [ ] **Secrets and privacy**: Zero secrets, private API keys, personal filesystem paths (`$HOME/...`), personal emails, or machine hostnames are included in this PR.
-- [ ] **Plain English**: Descriptions and user-facing messages use plain words and avoid technical jargon or metaphors.
-- [ ] **Developer Certificate of Origin (DCO)**: Commit messages include a DCO sign-off line (`Signed-off-by: Full Name <email>`) certifying rights under the project license.
+- [ ] Fresh native formatting, Clippy and both timezone suites pass; missing proof is listed above.
+- [ ] Fresh native evidence was recorded and checked against exact argv after the final source/runtime change.
+- [ ] Intended changes were previewed, exact original bytes preserved, and native undo registered before edits.
+- [ ] Locked goals, user changes, historical signatures/records and unresolved costs were preserved.
+- [ ] Native `kineti spend check` and `kineti status` results are reported, including denials; no limit or accounting record was cleared to pass.
+- [ ] Any approved subscription-only exception stayed at $0 new paid spending; integrity failures and unresolved monetary reservations were not bypassed.
+- [ ] No real editor configuration or argv trust was changed without its separate approval.
+- [ ] Outbound destinations were checked and local request audit records preserved; no secrets, private paths or unrelated personal data are included.
+- [ ] User-facing text uses plain words; tests cover real behavior and denial paths.
+- [ ] Every commit has a DCO sign-off certifying the right to submit under the MIT License.
+- [ ] Required human review and separate merge approval remain explicit; this PR does not authorize publication, deployment, recovery, paid services or a version bump.

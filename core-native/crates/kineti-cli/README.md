@@ -1,9 +1,10 @@
-# Kineti 0.6.0 native gate
+# Kineti 0.6.1 native gate candidate
 
 **Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.**
 
-0.6.0 is a gate-only release candidate. Publication requires reviewed artifacts
-and separate approval. Only Linux and macOS, x64 and arm64, are supported.
+0.6.1 is an unreleased repair candidate targeting Linux and macOS, x64 and
+arm64. It needs fresh acceptance of its exact source, binaries and installed
+packages, followed by separate artifact and accounting approval for publication.
 `kineti-cli` changes from its older assistant lineage to this gate. Older
 published releases remain available. Harness execution, model routing,
 delegation, swarm, dashboard, memory, evaluator services and protected writes
@@ -11,18 +12,37 @@ are removed from the active product.
 
 ## Install and initialize
 
-After approved publication, the installation commands will be:
+After approved 0.6.1 publication, choose one installation route:
+
+Cargo (requires Rust for installation):
 
 ```sh
-cargo install kineti-cli --version 0.6.0 --locked
-# Or:
-npm install -g kineti@0.6.0
+cargo install kineti-cli --version '=0.6.1' --locked
+```
+
+npm (requires Node and enabled installation scripts for installation):
+
+```sh
+npm install -g kineti@0.6.1
+```
+
+The already published 0.6.0 packages remain available: [Cargo 0.6.0](https://crates.io/crates/kineti-cli/0.6.0)
+and [npm 0.6.0](https://www.npmjs.com/package/kineti/v/0.6.0).
+See the [GitHub release](https://github.com/therawlogs/kineti/releases/tag/v0.6.0)
+and [release closeout](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-CLOSEOUT.md) for dated 0.6.0 publication and acceptance evidence. That approval and those artifacts do not establish 0.6.1 acceptance.
+
+From your project directory, preview initialization with your explicit goal:
+
+```sh
 kineti init --goal "Your explicit project goal"
+```
+
+Review the preview, then apply initialization:
+
+```sh
 kineti init --goal "Your explicit project goal" --apply
 ```
 
-This is not a claim that 0.6.0 is already published. Cargo needs Rust for
-installation. npm needs Node and enabled installation scripts for installation.
 The installed executable needs neither Node nor Bun. The npm package contains
 four checksummed binaries; installation verifies/selects one and removes unused
 payloads. Disabled scripts leave an explicit installation error.
@@ -38,14 +58,16 @@ explicit destination. Repetition preserves unrelated settings; edited owned
 settings are refused. `init --uninstall --apply` removes owned integration
 content and preserves project records. Restart existing Codex sessions after
 changes. Cursor and Antigravity configuration is preserved, but those hosts are
-unverified in 0.6.0. There is no automatic native-tool interception. Codex integration checks cover only
-0.163.0-alpha.11.2 and stable 0.164.0; no intervening version is implied supported.
+unverified for this candidate. There is no automatic native-tool interception.
+Dated 0.6.0 Codex integration checks cover only 0.163.0-alpha.11.2 and stable
+0.164.0; no intervening version is implied supported. Fresh 0.6.1 host checks
+must bind the new executable and exact Codex version.
 
 ## Record and check
 
 ```sh
 kineti test run --label tests --required-test tests -- cargo test
-kineti test check --label tests
+kineti test check --label tests --expect-argv '["cargo","test"]'
 kineti ci --require-evidence tests
 kineti spend log --stage build --model reported --tokens-in 0 --tokens-out 0 --usd 0.25
 kineti spend check
@@ -100,9 +122,11 @@ There is no atomic authorization of later writes or protected-write guarantee.
 
 ## Acceptance
 
-The [contract](docs/GATE-0.6.0-CONTRACT.md),
-[behavior map and exit codes](docs/GATE-0.6.0-BEHAVIOR.md), and
-[evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) govern acceptance. Final installed
+The frozen [0.6.0 contract](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-CONTRACT.md),
+[behavior map and exit codes](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-BEHAVIOR.md), and
+[dated evidence matrix](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-EVIDENCE.md) preserve the behavior and
+accounting baseline. The owner separately selected 0.6.1 preparation; its exact
+artifacts need fresh acceptance and separate publication approval. Final installed
 files for each route must be below **10,000,000 bytes** per target, including
 initial integration assets. Download and unpacked-package sizes are separate.
 No unmeasured platform-size claim is made.
@@ -112,7 +136,7 @@ Exit codes: 0 success; 1 failed command/check or incomplete undo; 2 invalid inpu
 legacy, 7 invalid/untrusted; verify 9 missing/untrusted command.
 
 Dated older results, including the historical 631-test result, are separate from
-the new suite inventory. [Historical documents](docs/history/pre-0.6.0/README.md)
+the new suite inventory. [Historical documents](https://github.com/therawlogs/kineti/blob/main/docs/history/pre-0.6.0/README.md)
 and Git history remain available; they are not current product guarantees.
 
 Operational `evidence check` results do not authorize test gates. Test checks and CI

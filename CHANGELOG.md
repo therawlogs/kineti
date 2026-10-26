@@ -1,3 +1,16 @@
+## 0.6.1 — unreleased native gate repair candidate
+
+- Use one deadline for child completion and both output streams; bound cleanup and preserve uncertain undo intent.
+- Keep exact argv, exit meanings, output retention and legacy signature compatibility; add live fault and lifecycle regressions.
+- Request owner-only permissions for new append and lock files. Historical files keep their modes pending separately approved recovery.
+- Refresh native contributor and security guidance, retaining disclosure/support commitments and documenting exact-argv secret-handling limits.
+- Declare the exact Cargo verification argv without granting trust or rewriting old receipts.
+- Prepare consistent Cargo/npm/runtime metadata for 0.6.1. Exact final artifacts, installed footprints, fresh host/platform evidence and publication approval remain separate requirements.
+
+The previous 0.6.0 candidate entry below is retained verbatim as history. Its
+[dated closeout](docs/GATE-0.6.0-CLOSEOUT.md) records the later published result;
+those original artifacts and approvals do not authorize 0.6.1 publication.
+
 ## 0.6.0 — unreleased native gate candidate
 
 - Replace the assistant/harness product with one native safety and reported-spending gate.
