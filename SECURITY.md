@@ -113,4 +113,4 @@ gate check does not atomically authorize a later write. Preserve original bytes,
 signatures and unresolved records; accounting or historical-permission recovery,
 exact command trust, publication, merging and deployment require their separate
 reviews and approvals. See the [acceptance contract](docs/GATE-0.6.0-CONTRACT.md)
-and [repair contract](docs/NATIVE-GATE-REPAIR-IMPLEMENTATION-CONTRACT-20261026.md).
+and the separately approved local repair contract.

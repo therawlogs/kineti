@@ -160,7 +160,7 @@ on x64 and arm64. Runtime feasibility on a development host is not proof of an
 installed Cargo or npm package on any other target.
 
 The [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md), its approved accounting
-amendment, the [repair contract](docs/NATIVE-GATE-REPAIR-IMPLEMENTATION-CONTRACT-20261026.md)
+amendment, and the separately approved local repair contract
 retain the behavior/accounting baseline. The owner's later 0.6.1 preparation
 instruction selects the new candidate version; its artifact acceptance and
 publication/accounting approval remain separate. Preserve older
