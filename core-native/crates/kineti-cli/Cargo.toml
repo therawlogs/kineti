@@ -14,7 +14,7 @@ description = "Record checks, detect changed inputs, and gate participating CI o
 workspace = true
 
 [dependencies]
-serde_json = { version = "=1.0.149", features = ["preserve_order"] }
+serde_json = { version = "=1.0.154", features = ["preserve_order"] }
 ed25519-dalek = "=2.2.0"
 base64 = "=0.22.1"
 sha2 = "=0.10.9"
