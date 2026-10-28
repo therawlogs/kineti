@@ -20,7 +20,7 @@ base64 = "=0.22.1"
 sha2 = "=0.10.9"
 time = { version = "=0.3.47", features = ["formatting", "parsing"] }
 libc = "0.2"
-regex = "=1.12.3"
+regex = "=1.13.1"
 shell-words = "=1.1.1"
 toml = "=0.9.12"
 
