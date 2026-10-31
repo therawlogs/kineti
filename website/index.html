@@ -8,6 +8,11 @@
 <title>Kineti — check before you ship</title>
 <style>
 :root{color-scheme:dark;--ink:#f5f2fa;--muted:#c2b9ce}*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 77% 45%,#1d152a,#0b0812 65%);color:var(--ink);font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1600px;min-height:100svh;margin:auto;padding:clamp(32px,6vw,90px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:center;gap:clamp(24px,4vw,70px)}.content{min-width:0;max-width:610px}.brand{display:block;font-size:30px;letter-spacing:-.045em;margin-bottom:clamp(52px,8vh,90px)}h1{font-size:clamp(42px,4.5vw,70px);font-weight:400;letter-spacing:-.06em;line-height:1.08;margin:0 0 20px;text-wrap:balance}.intro{font-size:clamp(17px,1.4vw,20px);line-height:1.6;color:var(--muted);margin:0 0 32px;max-width:510px}.install{border:1px solid #51475e;background:#14101b;border-radius:8px;padding:16px 18px}.install-label{display:block;color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}nav{display:flex;gap:28px;flex-wrap:wrap;margin-top:32px;font-size:14px}a{color:inherit;text-decoration-color:#9988aa;text-underline-offset:6px}a:hover{color:#e6d5ff}a:focus-visible,summary:focus-visible{outline:2px solid #dac5ff;outline-offset:5px}.details{margin-top:28px;color:var(--muted);font-size:12px;line-height:1.6}.details summary{display:inline-block;cursor:pointer;color:#d6cbe1;list-style:none}.details summary::-webkit-details-marker{display:none}.details summary:after{content:' +';color:#cbb6e9}.details[open] summary:after{content:' −'}.details p{margin:12px 0}.details pre{font-size:12px;color:var(--ink)}.art{min-width:0;display:grid;place-items:center}.orbit{display:block;width:100%;max-width:700px;height:auto;pointer-events:none}.orbit ellipse{fill:none;stroke:#b5a2d7;stroke-width:.7}.orbit .soft{opacity:.22}.orbit .bright{opacity:.62}.orbit .point{fill:#eee6ff;filter:drop-shadow(0 0 9px #cfb1ff)}@media(max-width:800px){main{display:flex;flex-direction:column;align-items:stretch;gap:0;min-height:100svh;padding:30px 24px 40px}.content{display:contents}.brand{order:0;margin:0;font-size:27px}.art{order:1;align-self:center;width:min(100%,430px);margin:-10px 0 -5px}.copy{order:2;max-width:610px}h1{font-size:clamp(40px,9vw,58px)}.intro{font-size:17px;margin-bottom:24px}nav{margin-top:26px}.details{margin-top:24px}}@media(max-width:400px){main{padding:24px 20px 36px}.art{width:95%}h1{font-size:39px}.install{padding:14px}pre{font-size:12px}}@media(max-height:700px) and (min-width:801px){main{padding-top:28px;padding-bottom:28px}.brand{margin-bottom:28px}h1{font-size:clamp(40px,4vw,58px)}.intro{margin-bottom:20px}nav{margin-top:22px}.details{margin-top:18px}}
+
+.install-row{display:flex;align-items:center;gap:14px}.install-row pre{flex:1;min-width:0}.copy-button{font:inherit;font-size:12px;color:var(--ink);background:transparent;border:1px solid #746783;border-radius:6px;padding:8px 12px;cursor:pointer}.copy-button:hover{background:#2a2134}.copy-button:focus-visible{outline:2px solid #dac5ff;outline-offset:4px}.install-meta{font-size:12px;color:var(--muted);margin:12px 0 0}.copy-status{display:block;min-height:1.5em;color:var(--muted);font-size:12px;margin-top:5px}
+
+/* A centered install experience, with the orbital mark kept separate from the controls. */
+main{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:0;padding:30px 24px 42px}.content{display:contents}.brand{align-self:flex-start;margin:0;font-size:26px}.art{order:1;width:min(390px,48vw);margin:-12px auto -6px}.copy{order:2;width:min(100%,760px);text-align:center}.copy h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;letter-spacing:-.045em;font-size:clamp(42px,5vw,72px)}.intro{margin:0 auto 27px;max-width:660px}.install{text-align:left;margin:auto;max-width:660px}.copy nav{justify-content:center;margin-top:25px}.details{max-width:660px;text-align:left;margin:24px auto 0}.copy-status:empty{display:none}.install-meta{margin:10px 0 0}@media(max-width:800px){main{padding:26px 20px 40px}.brand{margin:0;align-self:flex-start}.art{width:min(300px,75vw);margin:-5px auto 0}.copy h1{font-size:clamp(40px,9vw,56px)}.intro{margin:0 auto 23px}.copy nav{justify-content:center}.details{margin-top:24px}}@media(max-height:800px) and (min-width:801px){.art{width:min(280px,35vh);margin:-10px auto -8px}.copy h1{font-size:clamp(40px,4vw,58px)}.intro{margin-bottom:16px}.copy nav{margin-top:17px}.details{margin-top:14px}}
 </style>
 </head>
 <body>
@@ -15,18 +20,30 @@
 <div class="content"><span class="brand">kineti</span><div class="copy">
 <h1>Check before you ship.</h1>
 <p class="intro">Record checks, detect changed inputs, and gate participating CI when evidence or reported spending fails policy.</p>
-<div class="install"><span class="install-label">Website distribution</span><p>Future Kineti downloads will be provided here after release approval.</p></div>
+<div class="install"><span class="install-label">Install with npm</span><div class="install-row"><pre id="install-command">npm install -g kineti@0.6.1</pre><button class="copy-button" type="button" id="copy-command">Copy</button></div><span class="copy-status" id="copy-status" role="status" aria-live="polite"></span><p class="install-meta">macOS and Linux · x64 and arm64</p></div>
 <nav aria-label="Resources"><a href="/docs.html">Documentation ↗</a><a href="mailto:hello@getkineti.com?subject=Kineti%20license%20terms">Request terms ↗</a><a href="mailto:hello@getkineti.com">Contact ↗</a></nav>
-<details class="details"><summary>Installation and important limits</summary>
-<p>Kineti is proprietary. Future distribution is through this website only; the source repository is private.</p>
-<p>Linux and macOS · x64 and arm64. participating CI and MCP for your coding agent. MCP integration tested on macOS arm64 with Codex 0.163.0-alpha.11.2 and 0.164.0. Other versions and agents are unverified. Compatibility details will accompany approved website downloads.</p>
+<details class="details"><summary>Requirements and important limits</summary>
+<p>Kineti is proprietary. The source repository is private. npm installation requires Node.js 18 or later and enabled installation scripts; the installed native executable does not require Node.js.</p>
+<p>Kineti supports participating CI and MCP for your coding agent. MCP integration tested on macOS arm64 with Codex 0.163.0-alpha.11.2 and 0.164.0. Other versions and agents are unverified. </p>
 <p>Kineti only gates workflows that explicitly use it. No automatic interception or protected writes. Signed records don’t prove honest tests. Reported costs aren’t provider bills.</p>
-<p>Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy. Website downloads remain subject to separate release approval.</p></details>
+<p>Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.</p></details>
 </div></div>
 <div class="art"><svg class="orbit" viewBox="0 0 900 760" aria-hidden="true" focusable="false">
 <defs><radialGradient id="glow"><stop stop-color="#be9ced" stop-opacity=".2"/><stop offset="1" stop-color="#100c19" stop-opacity="0"/></radialGradient></defs><circle cx="510" cy="370" r="340" fill="url(#glow)"/>
 <g transform="translate(460 380) rotate(-28)"><g class="soft"><ellipse rx="345" ry="120" transform="rotate(0)"/><ellipse rx="345" ry="120" transform="rotate(7)"/><ellipse rx="345" ry="120" transform="rotate(14)"/><ellipse rx="345" ry="120" transform="rotate(21)"/><ellipse rx="345" ry="120" transform="rotate(28)"/><ellipse rx="345" ry="120" transform="rotate(35)"/><ellipse rx="345" ry="120" transform="rotate(42)"/><ellipse rx="345" ry="120" transform="rotate(49)"/><ellipse rx="345" ry="120" transform="rotate(56)"/><ellipse rx="345" ry="120" transform="rotate(63)"/><ellipse rx="345" ry="120" transform="rotate(70)"/><ellipse rx="345" ry="120" transform="rotate(77)"/><ellipse rx="345" ry="120" transform="rotate(84)"/><ellipse rx="345" ry="120" transform="rotate(91)"/></g><g class="bright"><ellipse rx="355" ry="126" transform="rotate(12)"/><ellipse rx="355" ry="126" transform="rotate(15)"/><ellipse rx="355" ry="126" transform="rotate(18)"/><ellipse rx="355" ry="126" transform="rotate(71)"/><ellipse rx="355" ry="126" transform="rotate(74)"/><ellipse rx="355" ry="126" transform="rotate(77)"/></g></g><circle class="point" cx="624" cy="325" r="3.5"/>
 </svg></div>
 </main>
+<script>
+const copyButton = document.getElementById('copy-command');
+const copyStatus = document.getElementById('copy-status');
+copyButton.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(document.getElementById('install-command').textContent);
+    copyStatus.textContent = 'Command copied.';
+  } catch {
+    copyStatus.textContent = 'Could not copy. Select and copy the command above.';
+  }
+});
+</script>
 </body>
 </html>
