@@ -1,10 +1,9 @@
-# Kineti 0.6.1 native gate candidate
+# Kineti 0.6.1 native gate
 
 **Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.**
 
-0.6.1 is an unreleased repair candidate targeting Linux and macOS, x64 and
-arm64. It needs fresh acceptance of its exact source, binaries and installed
-packages, followed by separate artifact and accounting approval for publication.
+0.6.1 is published for Linux and macOS, x64 and arm64. The native gate is
+available through Cargo and npm.
 `kineti-cli` changes from its older assistant lineage to this gate. Older
 published releases remain available. Harness execution, model routing,
 delegation, swarm, dashboard, memory, evaluator services and protected writes
@@ -12,7 +11,7 @@ are removed from the active product.
 
 ## Install and initialize
 
-After approved 0.6.1 publication, choose one installation route:
+Choose one installation route:
 
 Cargo (requires Rust for installation):
 
@@ -26,10 +25,11 @@ npm (requires Node and enabled installation scripts for installation):
 npm install -g kineti@0.6.1
 ```
 
-The already published 0.6.0 packages remain available: [Cargo 0.6.0](https://crates.io/crates/kineti-cli/0.6.0)
-and [npm 0.6.0](https://www.npmjs.com/package/kineti/v/0.6.0).
-See the [GitHub release](https://github.com/therawlogs/kineti/releases/tag/v0.6.0)
-and [release closeout](docs/GATE-0.6.0-CLOSEOUT.md) for dated 0.6.0 publication and acceptance evidence. That approval and those artifacts do not establish 0.6.1 acceptance.
+Published 0.6.1 packages: [Cargo](https://crates.io/crates/kineti-cli/0.6.1)
+and [npm](https://www.npmjs.com/package/kineti/v/0.6.1). See the
+[GitHub release](https://github.com/therawlogs/kineti/releases/tag/v0.6.1)
+and [published-package acceptance run](https://github.com/therawlogs/kineti/actions/runs/40461551281).
+The earlier [0.6.0 release](https://github.com/therawlogs/kineti/releases/tag/v0.6.0) remains available.
 
 From your project directory, preview initialization with your explicit goal:
 
@@ -58,10 +58,10 @@ explicit destination. Repetition preserves unrelated settings; edited owned
 settings are refused. `init --uninstall --apply` removes owned integration
 content and preserves project records. Restart existing Codex sessions after
 changes. Cursor and Antigravity configuration is preserved, but those hosts are
-unverified for this candidate. There is no automatic native-tool interception.
-Dated 0.6.0 Codex integration checks cover only 0.163.0-alpha.11.2 and stable
-0.164.0; no intervening version is implied supported. Fresh 0.6.1 host checks
-must bind the new executable and exact Codex version.
+unverified for 0.6.1. There is no automatic native-tool interception.
+The 0.6.1 installed Cargo and npm executables were tested on macOS arm64 with
+Codex 0.163.0-alpha.11.2 and stable 0.164.0, without a model turn. Other
+Codex versions and hosts are unverified.
 
 ## Record and check
 
@@ -125,11 +125,12 @@ There is no atomic authorization of later writes or protected-write guarantee.
 The frozen [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md),
 [behavior map and exit codes](docs/GATE-0.6.0-BEHAVIOR.md), and
 [dated evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) preserve the behavior and
-accounting baseline. The owner separately selected 0.6.1 preparation; its exact
-artifacts need fresh acceptance and separate publication approval. Final installed
-files for each route must be below **10,000,000 bytes** per target, including
-initial integration assets. Download and unpacked-package sizes are separate.
-No unmeasured platform-size claim is made.
+accounting baseline. The published 0.6.1 packages were installed and self-tested
+outside the checkout on four native Linux and macOS x64/arm64 targets in the
+[published-package acceptance run](https://github.com/therawlogs/kineti/actions/runs/40461551281).
+The largest recorded installation was 2,339,196 bytes, including initial
+integration files; download and unpacked-package sizes are separate. These are
+dated results, not fresh tests. Historical monetary unknowns remain unresolved.
 
 Exit codes: 0 success; 1 failed command/check or incomplete undo; 2 invalid input;
 3 spending/integrity/recovery stop; evidence 4 stale, 5 missing, 6 unsupported
