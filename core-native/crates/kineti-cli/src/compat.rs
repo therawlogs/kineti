@@ -6,7 +6,10 @@ use sha2::{Digest, Sha256};
 
 /// SHA-256 hexadecimal digest.
 pub fn digest(bytes: impl AsRef<[u8]>) -> String {
-    format!("{:x}", Sha256::digest(bytes.as_ref()))
+    Sha256::digest(bytes.as_ref())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
 }
 
 fn js_number(n: &serde_json::Number) -> String {

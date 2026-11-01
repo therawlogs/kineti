@@ -14,15 +14,15 @@ description = "Record checks, detect changed inputs, and gate participating CI o
 workspace = true
 
 [dependencies]
-serde_json = { version = "=1.0.149", features = ["preserve_order"] }
-ed25519-dalek = "=2.2.0"
-base64 = "=0.22.1"
-sha2 = "=0.10.9"
-time = { version = "=0.3.47", features = ["formatting", "parsing"] }
+serde_json = { version = "=1.0.154", features = ["preserve_order"] }
+ed25519-dalek = "=3.0.0"
+base64 = "=0.23.1"
+sha2 = "=0.11.1"
+time = { version = "=0.3.55", features = ["formatting", "parsing"] }
 libc = "0.2"
-regex = "=1.12.3"
+regex = "=1.13.1"
 shell-words = "=1.1.1"
-toml = "=0.9.12"
+toml = "=1.1.8"
 
 [[bin]]
 name = "kineti"
