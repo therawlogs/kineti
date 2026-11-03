@@ -5,9 +5,12 @@
 3. Preview changes and record undo before editing. Preserve user modifications,
    original signatures, historical records, unresolved costs and interrupted work.
 4. Keep generated files, tests, configurations and backups inside this project.
-5. Use the native executable: `kineti spend check`, `kineti test run/check`,
-   `kineti undo push/rollback`, `kineti status`. From source, build with Cargo
-   using `core-native/Cargo.toml`; the executable is `kineti`.
+5. The global Kineti CLI and editor integration are temporarily uninstalled.
+   Do not install, register or invoke a global Kineti command automatically.
+   For product development, use reviewed project-local native test tools by
+   exact path for spending assessment, test records, undo and status. Build
+   from source with Cargo using `core-native/Cargo.toml`. Reinstallation needs
+   separate approval; retained source-built tools are not an installed integration.
 6. Never claim tests passed unless freshly run. Save exact commands, results,
    source/artifact digests and environments. Distinguish test trust from signatures.
 7. The approved local implementation exception allows existing subscription
@@ -24,6 +27,7 @@
     automatic interception or protected writes. Cursor/Antigravity are unverified.
 
 The old harness and Bun tooling remain in Git history, not the active product.
-Dated release history is preserved. The crate is `kineti-cli` and the npm package
-is `kineti`; both ship the native gate. Current code is in
+Dated release history is preserved. The crate is `kineti-cli`; the historical npm
+package is `kineti`. Registry distribution is retired. Future website distribution
+and any reinstallation require separate approval. Current code is in
 `core-native/crates/kineti-cli/`; runtime state in `.kineti/` is never committed.

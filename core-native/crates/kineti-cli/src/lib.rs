@@ -20,3 +20,4 @@ pub mod vm_control;
 pub mod task_pipe;
 
 pub mod task_checkpoint;
+pub mod task_guest;

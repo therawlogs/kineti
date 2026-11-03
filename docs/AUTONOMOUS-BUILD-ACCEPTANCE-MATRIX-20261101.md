@@ -29,3 +29,6 @@ Execution approach reset on 2026-11-03: see `AUTONOMOUS-BUILD-DELIVERY-RESET-202
 
 
 Owner-service implementation update, 2026-11-03: see `AUTONOMOUS-BUILD-OWNER-CHECKPOINT-20261103.md`. The shared engine/platform extraction, read-only interrupted-service inspection, durable guest boot retry and VM startup lease fence now have offline evidence. The complete Linux owner-service regression entry point passed, including active and owner-crash descendants. macOS task-service admission still fails closed: its persistent guest worker and sealed storage/resource backend are not integrated. These results promote no A01–A14 row and authorize no login, model turn or release action. Earlier stopped-VM inventories remain dated observations; use the checkpoint's final inventory for this batch.
+
+
+Stop/export update, 2026-11-03: `AUTONOMOUS-BUILD-STOP-EXPORT-20261103.md` records the approved checkpoint change, passing installed-worker component, exact artifact, individual A01–A14 gaps and later review/model/website-installation gates. The global CLI and old Cursor integration are removed. No row is promoted; the production macOS owner backend remains disabled.

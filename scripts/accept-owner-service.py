@@ -4,6 +4,16 @@ Run only in the disposable, preconfigured Linux acceptance VM as its owner.
 No provider login or model-turn API is exposed by this script.
 """
 import argparse,os,json,subprocess,hashlib,time,pathlib,pty,select,sys,re,shlex
+# Explicit component lane: passing this never counts as full macOS acceptance.
+if '--component' in sys.argv:
+ index=sys.argv.index('--component')
+ if index+1>=len(sys.argv) or sys.argv[index+1]!='macos-cold-checkpoint':
+  raise SystemExit('unsupported owner-service acceptance component')
+ del sys.argv[index:index+2]
+ import runpy
+ runpy.run_path(str(pathlib.Path(__file__).with_name('accept-macos-guest-checkpoint.py')),run_name='__main__')
+ raise SystemExit(0)
+
 parser=argparse.ArgumentParser()
 parser.add_argument('--binary',required=True)
 parser.add_argument('--sdk',required=True)

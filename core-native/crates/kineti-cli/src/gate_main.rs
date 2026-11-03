@@ -156,6 +156,39 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
         "host" => {
             let sub = rest.first().map(String::as_str).unwrap_or("status");
             let args = if rest.is_empty() { rest } else { &rest[1..] };
+            if ["guest-worker", "guest-connect"].contains(&sub) {
+                let a = Args::parse(args, &[], &[])?;
+                a.clean()?;
+                return if sub == "guest-worker" {
+                    kineti_cli::task_guest::worker_serve()
+                } else {
+                    kineti_cli::task_guest::worker_connect()
+                };
+            }
+            if sub == "guest-cold" {
+                let a = Args::parse(args, &["--phase"], &[])?;
+                a.clean()?;
+                let phase = a
+                    .one("--phase")?
+                    .ok_or_else(|| Error(2, "guest-cold requires --phase".into()))?;
+                if !["prepare", "shutdown", "export"].contains(&phase) {
+                    return store::fail(2, "unknown guest cold-checkpoint phase");
+                }
+                use std::io::Read;
+                let mut wire = vec![];
+                std::io::stdin().take(32_000_001).read_to_end(&mut wire)?;
+                if wire.len() > 32_000_000 {
+                    return store::fail(3, "guest checkpoint input exceeds transfer bound");
+                }
+                let q = serde_json::from_slice(&wire)
+                    .map_err(|_| Error(3, "invalid guest checkpoint envelope".into()))?;
+                return kineti_cli::task_guest::cold(phase, q);
+            }
+            if sub == "guest-preflight" {
+                let a = Args::parse(args, &[], &[])?;
+                a.clean()?;
+                return kineti_cli::task_guest::preflight();
+            }
             if sub == "status" {
                 let a = Args::parse(args, &[], &[])?;
                 a.clean()?;
