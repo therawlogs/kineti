@@ -1,51 +1,20 @@
-# Kineti 0.6.0 native gate
+# Kineti native gate
 
-**Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.**
-
-0.6.0 is a gate-only release candidate. Publication requires reviewed artifacts
-and separate approval. Only Linux and macOS, x64 and arm64, are supported.
-`kineti-cli` changes from its older assistant lineage to this gate. Older
-published releases remain available. Harness execution, model routing,
-delegation, swarm, dashboard, memory, evaluator services and protected writes
-are removed from the active product.
+Kineti is proprietary. Future distribution is through https://getkineti.com only.
+The source repository is private; npm and crates.io distribution is retired.
+Previously distributed copies retain their original license terms.
+New website artifacts require separate release approval.
 
 ## Install and initialize
 
-After approved publication, the installation commands will be:
-
-```sh
-cargo install kineti-cli --version 0.6.0 --locked
-# Or:
-npm install -g kineti@0.6.0
-kineti init --goal "Your explicit project goal"
-kineti init --goal "Your explicit project goal" --apply
-```
-
-This is not a claim that 0.6.0 is already published. Cargo needs Rust for
-installation. npm needs Node and enabled installation scripts for installation.
-The installed executable needs neither Node nor Bun. The npm package contains
-four checksummed binaries; installation verifies/selects one and removes unused
-payloads. Disabled scripts leave an explicit installation error.
-
-From source, use `cargo run --manifest-path core-native/Cargo.toml -p kineti-cli --bin kineti --`.
-
-`init` previews changes, destinations and backups. Review before `--apply`.
-New projects require an explicit goal; existing locked goals and historical
-records stay intact. Missing fields may be initialized; damaged records require
-separate reviewed recovery. When Codex is detected, init proposes native MCP
-registration and one instruction skill. `--codex-home <directory>` chooses an
-explicit destination. Repetition preserves unrelated settings; edited owned
-settings are refused. `init --uninstall --apply` removes owned integration
-content and preserves project records. Restart existing Codex sessions after
-changes. Cursor and Antigravity configuration is preserved, but those hosts are
-unverified in 0.6.0. There is no automatic native-tool interception. Codex integration checks cover only
-0.163.0-alpha.11.2 and stable 0.164.0; no intervening version is implied supported.
+Use an approved website download. Historical registry packages are not the route
+for future releases. No new website artifact is published by this source change.
 
 ## Record and check
 
 ```sh
 kineti test run --label tests --required-test tests -- cargo test
-kineti test check --label tests
+kineti test check --label tests --expect-argv '["cargo","test"]'
 kineti ci --require-evidence tests
 kineti spend log --stage build --model reported --tokens-in 0 --tokens-out 0 --usd 0.25
 kineti spend check
@@ -100,9 +69,11 @@ There is no atomic authorization of later writes or protected-write guarantee.
 
 ## Acceptance
 
-The [contract](docs/GATE-0.6.0-CONTRACT.md),
-[behavior map and exit codes](docs/GATE-0.6.0-BEHAVIOR.md), and
-[evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) govern acceptance. Final installed
+The frozen [0.6.0 contract](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-CONTRACT.md),
+[behavior map and exit codes](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-BEHAVIOR.md), and
+[dated evidence matrix](https://github.com/therawlogs/kineti/blob/main/docs/GATE-0.6.0-EVIDENCE.md) preserve the behavior and
+accounting baseline. The owner separately selected 0.6.1 preparation; its exact
+artifacts need fresh acceptance and separate publication approval. Final installed
 files for each route must be below **10,000,000 bytes** per target, including
 initial integration assets. Download and unpacked-package sizes are separate.
 No unmeasured platform-size claim is made.
@@ -112,7 +83,7 @@ Exit codes: 0 success; 1 failed command/check or incomplete undo; 2 invalid inpu
 legacy, 7 invalid/untrusted; verify 9 missing/untrusted command.
 
 Dated older results, including the historical 631-test result, are separate from
-the new suite inventory. [Historical documents](docs/history/pre-0.6.0/README.md)
+the new suite inventory. [Historical documents](https://github.com/therawlogs/kineti/blob/main/docs/history/pre-0.6.0/README.md)
 and Git history remain available; they are not current product guarantees.
 
 Operational `evidence check` results do not authorize test gates. Test checks and CI

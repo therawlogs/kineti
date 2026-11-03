@@ -417,8 +417,12 @@ fn recovery_append(root: &Path, row: &Value) -> Result<()> {
 }
 /// Inspect under the caller's spend lock. Every monetary reservation/unknown blocks.
 pub fn load(root: &Path) -> Result<Account> {
+    load_dimensions(root, false).map(|(account, _)| account)
+}
+fn load_dimensions(root: &Path, included_local: bool) -> Result<(Account, Vec<String>)> {
     store::state(root)?;
     recovery_guard(root)?;
+    let mut valuation_unknowns = Vec::new();
     for record in crate::journal::read(root)? {
         let data = &record["data"];
         if record["type"] == "run-record"
@@ -433,7 +437,30 @@ pub fn load(root: &Path) -> Result<Account> {
                             .any(|word| s.to_lowercase().contains(word))
                     });
             if unknown {
-                return store::fail(3,format!("unresolved historical cost {} remains recorded; any implementation-only subscription exception does not authorize publication",record["id"]));
+                if !included_local {
+                    return store::fail(3,format!("unresolved historical cost {} remains recorded; any implementation-only subscription exception does not authorize publication",record["id"]));
+                }
+                if !data.is_object()
+                    || [
+                        "reservation",
+                        "reservation_id",
+                        "pending_charge",
+                        "uncertain_monetary_write",
+                        "costs_pending",
+                    ]
+                    .iter()
+                    .any(|key| data.get(*key).is_some_and(|v| !v.is_null() && *v != false))
+                {
+                    return store::fail(3, "historical note may contain an uncertain monetary operation; included-local eligibility refused");
+                }
+                if data
+                    .get("routing_reservations")
+                    .is_some_and(|v| !v.as_object().is_some_and(|m| m.is_empty()))
+                {
+                    return store::fail(3, "historical monetary reservations are not clear");
+                }
+                valuation_unknowns.push(record["id"].as_str().unwrap().to_string());
+                continue;
             }
             if data["costs_usd"]
                 .as_f64()
@@ -565,13 +592,39 @@ pub fn load(root: &Path) -> Result<Account> {
             );
         }
     }
-    Ok(a)
+    Ok((a, valuation_unknowns))
 }
 fn threshold(limit: u64, factor: u64) -> u64 {
     if factor == 950_000 {
         (limit as u128 * 95).div_ceil(100) as u64
     } else {
         (limit as u128 * factor as u128 / 1_000_000) as u64
+    }
+}
+/// Action-aware read-only dimensions. This neither values unknown history nor
+/// issues a task/resource grant; legacy load/inspect decisions remain unchanged.
+pub fn assessment(root: &Path) -> Result<Value> {
+    let _lock = Lock::take(&root.join(".kineti/spend.lock"))?;
+    match load_dimensions(root, true) {
+        Ok((account, unknowns)) => {
+            let within_limits = headroom(&account).is_ok();
+            Ok(json!({"schema":"kineti-account-assessment-v1",
+                "historical_valuation":{"status":if unknowns.is_empty(){"recorded"}else{"unknown"},"unknown_ids":unknowns,"originals_preserved":true},
+                "integrity":{"status":"verified"},"monetary_reservations":{"status":"clear"},
+                "reported":{"total_microcents":account.total,"global_microcents":account.global,
+                    "stop_microcents":threshold(account.global,account.safety_factor_ppm),
+                    "headroom_microcents":threshold(account.global,account.safety_factor_ppm).saturating_sub(account.total),"by_stage_microcents":account.stages},
+                "accounting_allows_zero_incremental_local":within_limits,
+                "reason":if within_limits {"valuation-unknowns-do-not-value-or-authorize-resources"}else{"reported-spend-stop"},
+                "resource_eligibility":"requires-independent-owner-grant",
+                "new_paid_spending_authority_usd_micros":0,"task_authority":false,"release_authority":false}))
+        }
+        Err(error) => Ok(json!({"schema":"kineti-account-assessment-v1",
+            "historical_valuation":{"status":"not-fully-inspected","originals_preserved":true},
+            "integrity":{"status":"blocked"},"monetary_reservations":{"status":"not-proven-clear"},
+            "accounting_allows_zero_incremental_local":false,"hard_blocker":true,
+            "reason":error.1,"task_authority":false,"release_authority":false,
+            "new_paid_spending_authority_usd_micros":0})),
     }
 }
 /// Require remaining reported headroom.

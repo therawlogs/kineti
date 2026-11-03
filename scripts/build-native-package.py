@@ -14,7 +14,7 @@ root = Path(__file__).resolve().parents[1]
 artifacts = Path(args.artifacts).resolve()
 out = Path(args.output).resolve()
 out.mkdir(parents=True, exist_ok=True)
-sums = {"version": "0.6.0", "targets": {}}
+sums = {"version": "0.6.1", "targets": {}}
 for target in ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"]:
     source = artifacts / ("kineti-" + target)
     destination = root / "native" / target / "kineti"
@@ -26,7 +26,7 @@ for target in ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"]:
 subprocess.run(["node", "scripts/check-native-package.cjs"], cwd=root, check=True)
 packed = subprocess.check_output(["npm", "pack", "--ignore-scripts", "--json", "--pack-destination", str(out)], cwd=root, text=True)
 (out / "npm-pack.json").write_text(packed)
-crate = artifacts / "kineti-cli-0.6.0.crate"
+crate = artifacts / "kineti-cli-0.6.1.crate"
 shutil.copyfile(crate, out / crate.name)
 digests = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in out.iterdir() if p.suffix in [".tgz", ".crate"]}
 (out / "SHA256SUMS.json").write_text(json.dumps(digests, indent=2) + "\n")

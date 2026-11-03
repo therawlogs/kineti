@@ -4,6 +4,13 @@ These research notes describe ideas and targets. They are not measured results o
 
 Research notes, not part of the CLI. The items below are design claims and proposals, not guarantees provided by Kineti v0.5.0. Check the root README and release notes for supported behavior.
 
+## Trust-boundary research
+
+[Who controls the checker?](TRUST-BOUNDARY.md) distinguishes signature validity,
+evidence honesty and checker independence. This is explanatory research only;
+it does not change v1 scope or any acceptance requirement. The
+[0.6.0 acceptance contract](../GATE-0.6.0-CONTRACT.md) remains authoritative.
+
 ## The 360º Human Model & Epistemic Engine
 
 Personalized agents must understand the full human context without hallucinating, overriding user statements, or quietly mutating goals when third-party systems push back:

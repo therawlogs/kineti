@@ -1,5 +1,6 @@
 //! End-to-end native behavior tests use disposable project-local directories.
 use serde_json::{json, Value};
+use std::path::Path;
 use std::{
     fs,
     path::PathBuf,
@@ -579,7 +580,7 @@ fn native_mcp_protocol_discovers_and_calls() {
         .map(|s| serde_json::from_str::<Value>(s).unwrap())
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows[1]["result"]["tools"].as_array().unwrap().len(), 8);
+    assert_eq!(rows[1]["result"]["tools"].as_array().unwrap().len(), 9);
     assert_eq!(rows[2]["result"]["isError"], false);
 }
 
@@ -1515,5 +1516,640 @@ fn verify_missing_and_malformed_declarations_keep_exit_nine() {
         )
         .unwrap();
         assert_eq!(p.run(&["verify", "--status"]).status.code(), Some(9));
+    }
+}
+
+#[test]
+fn shared_runner_callers_preserve_definite_results_and_truncation() {
+    use std::os::unix::fs::PermissionsExt;
+    for (name, command, exit, success) in [
+        ("zero", "exit 0", json!(0), true),
+        ("nonzero", "exit 19", json!(19), false),
+        ("signal", "kill -TERM $$", Value::Null, false),
+        ("spawn-failure", "", json!(127), false),
+        (
+            "truncated",
+            "printf '1 pass\\n0 fail\\n'; dd if=/dev/zero bs=8000001 count=1 2>/dev/null",
+            json!(0),
+            false,
+        ),
+    ] {
+        let p = Project::new();
+        let argv: Vec<String> = if name == "spawn-failure" {
+            let path = p.0.join("not-executable");
+            fs::write(&path, "not an executable").unwrap();
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+            vec!["./not-executable".into()]
+        } else {
+            vec!["/bin/sh".into(), "-c".into(), command.into()]
+        };
+        let mut args = vec!["test", "run", "--label", name, "--kind", "check", "--"];
+        args.extend(argv.iter().map(String::as_str));
+        assert_eq!(p.run(&args).status.success(), success, "receipt {name}");
+        let records = kineti_cli::store::lines(&p.0.join(".kineti/evidence.jsonl")).unwrap();
+        let receipt = records.last().unwrap();
+        assert_eq!(receipt["exit_code"], exit, "{name}: {receipt}");
+        assert_eq!(receipt["verification"]["truncated"], name == "truncated");
+        fs::write(
+            p.0.join("kineti.config.json"),
+            json!({"settings":{"verify_command_argv":argv}}).to_string(),
+        )
+        .unwrap();
+        kineti_cli::store::write(&p.0.join(".kineti/verify-trust.json"),
+            &json!({"argv":argv,"sha256":kineti_cli::compat::digest(serde_json::to_vec(&argv).unwrap()),"fixture_only":true})).unwrap();
+        assert_eq!(
+            p.run(&["verify"]).status.success(),
+            success,
+            "verify {name}"
+        );
+    }
+    let p = Project::new();
+    let argv = [
+        "/bin/sh",
+        "-c",
+        "printf x >> .kineti/effect; dd if=/dev/zero bs=8000001 count=1 2>/dev/null",
+    ];
+    let mut args = vec!["undo", "push", "--label", "complete-truncated", "--"];
+    args.extend(argv);
+    assert!(p.run(&args).status.success());
+    assert!(p.run(&["undo", "rollback", "--yes"]).status.success());
+    assert!(p.run(&["undo", "rollback", "--yes"]).status.success());
+    assert_eq!(fs::read(p.0.join(".kineti/effect")).unwrap(), b"x");
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert!(records
+        .iter()
+        .any(|r| r["kind"] == "completion" && r["exit_code"] == 0));
+}
+
+#[test]
+fn undo_pipe_holder_fixture() {
+    use std::os::fd::AsRawFd;
+    let root = std::env::current_dir().unwrap();
+    if !root.join(".kineti/undo-holder-fixture").exists() {
+        return;
+    }
+    let control = fs::File::open(root.join(".kineti/undo-release")).unwrap();
+    use std::io::Write;
+    fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(root.join(".kineti/undo-effect"))
+        .unwrap()
+        .write_all(b"x")
+        .unwrap();
+    let mut handshake = [0; 2];
+    assert_eq!(unsafe { libc::pipe(handshake.as_mut_ptr()) }, 0);
+    let pid = unsafe { libc::fork() };
+    assert!(pid >= 0);
+    if pid == 0 {
+        unsafe {
+            libc::close(handshake[0]);
+            libc::write(handshake[1], b"R".as_ptr().cast(), 1);
+            libc::close(handshake[1]);
+            let mut poll = libc::pollfd {
+                fd: control.as_raw_fd(),
+                events: libc::POLLIN,
+                revents: 0,
+            };
+            // Independent holder lifetime, even if its supervisor is defective.
+            libc::poll(&mut poll, 1, 70_000);
+            libc::_exit(0);
+        }
+    }
+    let mut ready = [0u8];
+    unsafe {
+        libc::close(handshake[1]);
+        assert_eq!(libc::read(handshake[0], ready.as_mut_ptr().cast(), 1), 1);
+        libc::close(handshake[0]);
+    }
+    assert_eq!(&ready, b"R");
+    std::process::exit(0);
+}
+
+#[test]
+fn incomplete_capture_keeps_undo_intent_and_blocks_repeated_effect() {
+    use std::{
+        io::Write,
+        os::unix::{ffi::OsStrExt, process::CommandExt},
+        process::Stdio,
+        time::{Duration, Instant},
+    };
+    let p = Project::new();
+    fs::write(p.0.join(".kineti/undo-holder-fixture"), b"fixture only").unwrap();
+    let fifo =
+        std::ffi::CString::new(p.0.join(".kineti/undo-release").as_os_str().as_bytes()).unwrap();
+    assert_eq!(unsafe { libc::mkfifo(fifo.as_ptr(), 0o600) }, 0);
+    let mut control = fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(p.0.join(".kineti/undo-release"))
+        .unwrap();
+    let test = std::env::current_exe().unwrap();
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--label",
+            "incomplete-capture",
+            "--",
+            test.to_str().unwrap(),
+            "--exact",
+            "undo_pipe_holder_fixture",
+            "--nocapture"
+        ])
+        .status
+        .success());
+    let start = Instant::now();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kineti"))
+        .args(["undo", "rollback", "--yes"])
+        .current_dir(&p.0)
+        .env("HOME", p.0.join("home"))
+        .env("CODEX_HOME", p.0.join(".kineti/codex-home"))
+        .process_group(0)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let watchdog = start + Duration::from_secs(65);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            break;
+        }
+        if Instant::now() >= watchdog {
+            // Child has not been reaped: the CLI group number is still owned.
+            unsafe {
+                libc::kill(-(child.id() as i32), libc::SIGKILL);
+            }
+            let _ = control.write_all(b"Q");
+            let _ = child.wait();
+            panic!("independent undo watchdog expired");
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let output = child.wait_with_output().unwrap();
+    let elapsed = start.elapsed();
+    let _ = control.write_all(b"Q");
+    assert_eq!(output.status.code(), Some(3), "{}", value(&output));
+    assert!(elapsed >= Duration::from_secs(60), "{elapsed:?}");
+    assert!(elapsed < Duration::from_secs(63), "{elapsed:?}");
+    let before = fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert!(records.iter().any(|r| r["kind"] == "intent"));
+    assert!(!records.iter().any(|r| r["kind"] == "completion"));
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    assert_eq!(
+        fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap(),
+        before
+    );
+    assert_eq!(fs::read(p.0.join(".kineti/undo-effect")).unwrap(), b"x");
+}
+
+#[test]
+fn signal_undo_preserves_intent_and_blocks_replay() {
+    let p = Project::new();
+    assert!(p
+        .run(&[
+            "undo",
+            "push",
+            "--label",
+            "signal",
+            "--",
+            "/bin/sh",
+            "-c",
+            "printf x >> .kineti/effect; kill -TERM $$"
+        ])
+        .status
+        .success());
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    let before = fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/undo.native.jsonl")).unwrap();
+    assert!(records.iter().any(|r| r["kind"] == "intent"));
+    assert!(!records.iter().any(|r| r["kind"] == "completion"));
+    assert_eq!(p.run(&["undo", "rollback", "--yes"]).status.code(), Some(3));
+    assert_eq!(
+        fs::read(p.0.join(".kineti/undo.native.jsonl")).unwrap(),
+        before
+    );
+    assert_eq!(fs::read(p.0.join(".kineti/effect")).unwrap(), b"x");
+}
+
+#[test]
+fn incomplete_capture_cannot_record_passed_receipt() {
+    let p = Project::new();
+    let output = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "deadline",
+        "--timeout",
+        "1",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf '1 pass\\n0 fail\\n'; sleep 3 &",
+    ]);
+    assert!(!output.status.success(), "{}", value(&output));
+    let records = kineti_cli::store::lines(&p.0.join(".kineti/evidence.jsonl")).unwrap();
+    if let Some(receipt) = records.last() {
+        assert_eq!(receipt["outcome"], "failed");
+        assert_eq!(receipt["exit_code"], Value::Null);
+    } else {
+        assert_eq!(output.status.code(), Some(3), "{}", value(&output));
+    }
+    assert!(!p
+        .run(&["test", "check", "--label", "deadline"])
+        .status
+        .success());
+}
+
+#[test]
+fn owner_host_control_never_grants_task_authority_or_uses_process_fallback() {
+    let p = Project::new();
+    let out = p.run(&["host", "status"]);
+    assert!(out.status.success());
+    let status = value(&out)["result"].clone();
+    assert_eq!(status["enforced"], false);
+    assert_eq!(status["task_authority"], false);
+    assert_eq!(
+        kineti_cli::mcp::call(&p.0, "kineti_host_status", &json!({})).unwrap(),
+        status
+    );
+    assert!(kineti_cli::mcp::call(&p.0, "kineti_host_revoke", &json!({})).is_err());
+    for args in [
+        vec![
+            "host",
+            "revoke",
+            "--cgroup",
+            "/sys/fs/cgroup",
+            "--task-uid",
+            "2501",
+        ],
+        vec![
+            "host",
+            "revoke",
+            "--cgroup",
+            "/sys/fs/cgroup/kineti-task-x",
+            "--task-uid",
+            "0",
+        ],
+        vec![
+            "host",
+            "revoke",
+            "--cgroup",
+            "/sys/fs/cgroup/kineti-task-x",
+            "--task-uid",
+            "2501",
+            "--wait-ms",
+            "0",
+        ],
+    ] {
+        assert_eq!(p.run(&args).status.code(), Some(2));
+    }
+    assert_eq!(
+        p.run(&[
+            "host",
+            "inspect",
+            "--cgroup",
+            "/sys/fs/cgroup/kineti-task-x",
+            "--task-uid",
+            "2501"
+        ])
+        .status
+        .code(),
+        Some(3)
+    );
+}
+#[test]
+fn task_catalog_cannot_escape_binding_or_reach_legacy_executor() {
+    let p = Project::new();
+    let names = kineti_cli::mcp::task_tools();
+    assert_eq!(names.as_array().unwrap().len(), 5);
+    for name in [
+        "kineti_evidence_record",
+        "kineti_saga_rollback",
+        "kineti_task_revoke",
+        "kineti_task_approve",
+    ] {
+        assert!(kineti_cli::mcp::task_call(
+            &p.0,
+            Path::new("missing.sock"),
+            "fixture",
+            "session",
+            name,
+            &json!({})
+        )
+        .is_err());
+    }
+    assert!(kineti_cli::mcp::task_call(
+        &p.0,
+        Path::new("missing.sock"),
+        "fixture",
+        "session",
+        "kineti_task_run",
+        &json!({"command":["/bin/sh"]})
+    )
+    .is_err());
+}
+#[test]
+fn assessment_preserves_unknowns_and_blocks_uncertain_reservations() {
+    // Historical records predate initial accounting anchors. Editing anchored
+    // history after initialization must remain an integrity failure.
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../.kineti/native-gate-tests")
+        .join(kineti_cli::store::nonce().unwrap());
+    fs::create_dir_all(path.join(".kineti")).unwrap();
+    let p = Project(path.canonicalize().unwrap());
+    let journal = p.0.join(".kineti/journal.jsonl");
+    let data = json!({"costs_usd":null});
+    let at = "2026-10-31T00:00:00Z";
+    let hash = kineti_cli::compat::digest(format!("GENESIS{at}rr-historical{}", data));
+    let bytes = json!({"type":"run-record","id":"rr-historical","at":at,"project":"fixture","data":data,"prev_hash":"GENESIS","hash":hash}).to_string()+"\n";
+    fs::write(&journal, &bytes).unwrap();
+    assert!(p
+        .run(&["init", "--goal", "Historical fixture only", "--apply"])
+        .status
+        .success());
+    assert_eq!(p.run(&["spend", "check"]).status.code(), Some(3));
+    let assessment = p.run(&["spend", "assessment"]);
+    assert!(assessment.status.success());
+    assert_eq!(
+        value(&assessment)["result"]["historical_valuation"]["status"],
+        "unknown"
+    );
+    assert_eq!(
+        value(&assessment)["result"]["accounting_allows_zero_incremental_local"],
+        true
+    );
+    assert_eq!(value(&assessment)["result"]["task_authority"], false);
+    assert_eq!(fs::read_to_string(&journal).unwrap(), bytes);
+    fs::write(&journal,json!({"type":"run-record","id":"rr-pending","data":{"costs_usd":null,"pending_charge":true}}).to_string()+"\n").unwrap();
+    assert_eq!(
+        value(&p.run(&["spend", "assessment"]))["result"]
+            ["accounting_allows_zero_incremental_local"],
+        false
+    );
+}
+#[test]
+fn snapshot_preserves_dirty_untracked_modes_and_conflicting_recovery() {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    let p = Project::new();
+    fs::write(p.0.join("dirty.txt"), "dirty bytes\n").unwrap();
+    fs::write(p.0.join("untracked.txt"), "untracked bytes\n").unwrap();
+    fs::set_permissions(p.0.join("dirty.txt"), fs::Permissions::from_mode(0o750)).unwrap();
+    std::os::unix::fs::symlink("dirty.txt", p.0.join("link")).unwrap();
+    fs::write(p.0.join(".env.private"), "exclude me").unwrap();
+    let work = p.0.join(".kineti/work");
+    let blobs = p.0.join(".kineti/blobs");
+    let uid = fs::metadata(&p.0).unwrap().uid();
+    let gid = fs::metadata(&p.0).unwrap().gid();
+    let baseline =
+        kineti_cli::task_snapshot::prepare(&p.0, &work, &blobs, &[], 1000000, uid, gid).unwrap();
+    assert_eq!(fs::read(work.join("dirty.txt")).unwrap(), b"dirty bytes\n");
+    assert_eq!(
+        fs::metadata(work.join("dirty.txt"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777,
+        0o750
+    );
+    assert_eq!(
+        fs::read_link(work.join("link")).unwrap(),
+        Path::new("dirty.txt")
+    );
+    assert!(!work.join(".env.private").exists());
+    fs::write(work.join("dirty.txt"), "task output").unwrap();
+    let expected = kineti_cli::task_snapshot::inventory(&work, &[], 1000000).unwrap();
+    fs::write(work.join("untracked.txt"), "later user work").unwrap();
+    assert!(kineti_cli::task_snapshot::restore(
+        &work,
+        &blobs,
+        &baseline,
+        &expected,
+        &[],
+        1000000,
+        &p.0.join(".kineti/quarantine"),
+        uid,
+        gid
+    )
+    .is_err());
+    assert_eq!(
+        fs::read(work.join("untracked.txt")).unwrap(),
+        b"later user work"
+    );
+    assert_eq!(fs::read(p.0.join("dirty.txt")).unwrap(), b"dirty bytes\n");
+}
+#[test]
+fn task_request_rejects_paid_network_identity_and_unknown_scope() {
+    let p = Project::new();
+    let request = json!({"schema":"kineti-task-request-v1","id":"fixture","session":"session","project_root":p.0,"project_identity":kineti_cli::task_grant::project_identity(&p.0).unwrap(),"purpose":"fixture","task_uid":2501,"task_user":"kineti-test-one","host":{"path":"/var/lib/codex","sha256":"a".repeat(64),"version":"0.166.0"},"checks":[{"label":"test","kind":"test","argv":["/bin/sh","-c","printf '1 pass'"],"inputs":["."]}],"repair_argv":["/bin/true"],"exclusions":[],"runtime_inputs":["/bin/sh"],"limits":{"expires_at":2000000000,"wall_seconds":120,"command_seconds":20,"repair_attempts":1,"verification_attempts":3,"snapshot_bytes":1000000,"concurrency":1,"new_paid_usd_micros":0,"memory_bytes":268435456,"pids":64},"network_destinations":[],"credential_handles":[],"resource_class":"owned-local","automatic_rollback":false});
+    assert!(kineti_cli::task_grant::Grant::parse(request.clone()).is_ok());
+    let mut model = request.clone();
+    model["resource_class"] = json!("included-subscription");
+    model["repair_argv"] = json!([]);
+    model["model_repair"] = json!({"model":"gpt-6.1-sol","prompt":"Repair only the approved fixture","max_turns":2,"provider":"codex-chatgpt-subscription","data_scope":"approved-task-workspace","helper_sha256":"a".repeat(64)});
+    assert!(kineti_cli::task_grant::Grant::parse(model.clone()).is_ok());
+    for (pointer, bad) in [
+        ("/model_repair/max_turns", json!(0)),
+        ("/model_repair/helper_sha256", json!("invalid")),
+        ("/model_repair/model", json!("fallback/any")),
+        ("/model_repair/prompt", json!("")),
+        ("/repair_argv", json!(["/bin/true"])),
+        ("/resource_class", json!("owned-local")),
+    ] {
+        let mut changed = model.clone();
+        *changed.pointer_mut(pointer).unwrap() = bad;
+        assert!(
+            kineti_cli::task_grant::Grant::parse(changed).is_err(),
+            "{pointer}"
+        );
+    }
+    model["model_repair"]["token"] = json!("fixture-secret");
+    assert!(kineti_cli::task_grant::Grant::parse(model).is_err());
+
+    for (pointer, bad) in [
+        ("/limits/new_paid_usd_micros", json!(1)),
+        ("/network_destinations", json!(["https://example.com"])),
+        ("/task_uid", json!(0)),
+        ("/repair_argv", json!(["git", "push"])),
+        ("/credential_handles", json!(["secret"])),
+        ("/limits/concurrency", json!(2)),
+        ("/project_identity", json!("forged")),
+    ] {
+        let mut v = request.clone();
+        *v.pointer_mut(pointer).unwrap() = bad;
+        assert!(
+            kineti_cli::task_grant::Grant::parse(v).is_err(),
+            "{pointer}"
+        );
+    }
+    let mut v = request;
+    v["approved"] = json!(true);
+    assert!(kineti_cli::task_grant::Grant::parse(v).is_err());
+}
+
+#[test]
+fn cancelled_restoration_preserves_displaced_and_remaining_work() {
+    use std::os::unix::fs::MetadataExt;
+    let p = Project::new();
+    fs::write(p.0.join("a.txt"), "original a").unwrap();
+    fs::write(p.0.join("b.txt"), "original b").unwrap();
+    let work = p.0.join(".kineti/work");
+    let blobs = p.0.join(".kineti/blobs");
+    let m = fs::metadata(&p.0).unwrap();
+    let baseline =
+        kineti_cli::task_snapshot::prepare(&p.0, &work, &blobs, &[], 1000000, m.uid(), m.gid())
+            .unwrap();
+    fs::write(work.join("a.txt"), "task a").unwrap();
+    fs::write(work.join("b.txt"), "task b").unwrap();
+    let expected = kineti_cli::task_snapshot::inventory(&work, &[], 1000000).unwrap();
+    let quarantine = p.0.join(".kineti/quarantine");
+    let mut checkpoints = 0;
+    let result = kineti_cli::task_snapshot::restore_checked(
+        &work,
+        &blobs,
+        &baseline,
+        &expected,
+        &[],
+        1000000,
+        &quarantine,
+        m.uid(),
+        m.gid(),
+        || {
+            checkpoints += 1;
+            if checkpoints == 4 {
+                return kineti_cli::store::fail(
+                    3,
+                    "inspect-uncertain: injected owner cancellation",
+                );
+            }
+            Ok(())
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(checkpoints, 4);
+    assert_eq!(fs::read(work.join("b.txt")).unwrap(), b"task b");
+    let displaced = fs::read_dir(&quarantine)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert_eq!(displaced.len(), 1);
+    assert_eq!(fs::read(displaced[0].path()).unwrap(), b"task a");
+    assert_eq!(fs::read(p.0.join("a.txt")).unwrap(), b"original a");
+}
+
+#[test]
+fn cancellation_during_restore_copy_preserves_full_task_output() {
+    use std::os::unix::fs::MetadataExt;
+    let p = Project::new();
+    let original = vec![b'o'; 200000];
+    let output = vec![b't'; 200000];
+    fs::write(p.0.join("large.txt"), &original).unwrap();
+    let work = p.0.join(".kineti/work");
+    let blobs = p.0.join(".kineti/blobs");
+    let m = fs::metadata(&p.0).unwrap();
+    let baseline =
+        kineti_cli::task_snapshot::prepare(&p.0, &work, &blobs, &[], 1000000, m.uid(), m.gid())
+            .unwrap();
+    fs::write(work.join("large.txt"), &output).unwrap();
+    let expected = kineti_cli::task_snapshot::inventory(&work, &[], 1000000).unwrap();
+    let quarantine = p.0.join(".kineti/quarantine");
+    let result = kineti_cli::task_snapshot::restore_checked(
+        &work,
+        &blobs,
+        &baseline,
+        &expected,
+        &[],
+        1000000,
+        &quarantine,
+        m.uid(),
+        m.gid(),
+        || {
+            if fs::metadata(work.join("large.txt")).is_ok_and(|m| m.len() == 65536) {
+                return kineti_cli::store::fail(3, "inspect-uncertain: cancellation during copy");
+            }
+            Ok(())
+        },
+    );
+    assert!(result.is_err());
+    assert_eq!(fs::read(work.join("large.txt")).unwrap(), original[..65536]);
+    let displaced = fs::read_dir(&quarantine)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    // Project::new also contributes test.txt; both displaced files survive.
+    assert_eq!(displaced.len(), 2);
+    let retained = displaced
+        .iter()
+        .map(|p| fs::read(p.path()).unwrap())
+        .collect::<Vec<_>>();
+    assert!(retained.contains(&output));
+    assert!(retained.contains(&b"declared fixture".to_vec()));
+    assert_eq!(fs::read(p.0.join("large.txt")).unwrap(), original);
+}
+
+#[test]
+fn cancelled_snapshot_setup_preserves_source_and_partial_checkpoint() {
+    use std::os::unix::fs::MetadataExt;
+    for cancel_blob in [true, false] {
+        let p = Project::new();
+        let original = vec![b's'; 200000];
+        fs::write(p.0.join("large.txt"), &original).unwrap();
+        let work = p.0.join(".kineti/work");
+        let blobs = p.0.join(".kineti/blobs");
+        let m = fs::metadata(&p.0).unwrap();
+        let result = kineti_cli::task_snapshot::prepare_checked(
+            &p.0,
+            &work,
+            &blobs,
+            &[],
+            1000000,
+            m.uid(),
+            m.gid(),
+            || {
+                let partial = if cancel_blob {
+                    blobs.is_dir()
+                        && fs::read_dir(&blobs)
+                            .unwrap()
+                            .any(|e| e.unwrap().metadata().unwrap().len() == 65536)
+                } else {
+                    fs::metadata(work.join("large.txt")).is_ok_and(|m| m.len() == 65536)
+                };
+                if partial {
+                    return kineti_cli::store::fail(
+                        3,
+                        "inspect-uncertain: injected setup cancellation",
+                    );
+                }
+                Ok(())
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(fs::read(p.0.join("large.txt")).unwrap(), original);
+        let retained = fs::read_dir(&blobs)
+            .unwrap()
+            .map(|e| fs::read(e.unwrap().path()).unwrap())
+            .collect::<Vec<_>>();
+        assert!(retained.contains(&if cancel_blob {
+            original[..65536].to_vec()
+        } else {
+            original.clone()
+        }));
+        if !cancel_blob {
+            assert_eq!(fs::read(work.join("large.txt")).unwrap(), original[..65536]);
+        }
+        // A partial projection cannot silently become a fresh completed setup.
+        assert!(kineti_cli::task_snapshot::prepare(
+            &p.0,
+            &work,
+            &blobs,
+            &[],
+            1000000,
+            m.uid(),
+            m.gid()
+        )
+        .is_err());
     }
 }

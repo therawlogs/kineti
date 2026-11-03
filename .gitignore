@@ -44,3 +44,6 @@ docs/archive/
 /checksums.json
 
 __pycache__/
+
+# Machine-local preview pointing into private runtime state
+/design/task-tracker-acceptance

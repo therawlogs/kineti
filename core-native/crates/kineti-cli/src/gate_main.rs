@@ -1,8 +1,8 @@
 //! Native gate command entrypoint.
 use kineti_cli::{
-    gate, init, mcp, receipt, self_test, spend,
+    gate, host_control, init, mcp, receipt, self_test, spend,
     store::{self, Error, Result},
-    undo,
+    task, undo,
 };
 use serde_json::{json, Value};
 use std::{collections::BTreeMap, path::Path};
@@ -84,7 +84,7 @@ impl Args {
     }
 }
 fn help() -> Value {
-    json!({"version":"0.6.0","claim":"Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","spend","undo","saga","status","mcp","self-test"],"status":"candidate; publication requires reviewed artifacts and accounting approval"})
+    json!({"version":env!("CARGO_PKG_VERSION"),"claim":"Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","spend","undo","saga","status","mcp","self-test","host status/inspect/revoke (owner lifecycle primitive)","task plan/inspect/approve/serve/status/run/check/recover/cancel/pause/revoke (experimental Linux owner service)","spend assessment (read-only; no grant or release authority)"],"status":"candidate; publication requires reviewed artifacts and accounting approval"})
 }
 fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
     let Some(cmd) = args.first().map(String::as_str) else {
@@ -94,23 +94,174 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
         return Ok(help());
     }
     if ["--version", "-v", "version"].contains(&cmd) {
-        return Ok(json!({"version":"0.6.0"}));
+        return Ok(json!({"version":env!("CARGO_PKG_VERSION")}));
     }
     let rest = &args[1..];
     match cmd {
+        "task" => {
+            let sub = rest.first().map(String::as_str).unwrap_or("status");
+            let a = Args::parse(
+                if rest.is_empty() { rest } else { &rest[1..] },
+                &[
+                    "--owner-store",
+                    "--request",
+                    "--id",
+                    "--session",
+                    "--socket",
+                    "--read-fd",
+                    "--write-fd",
+                ],
+                &[],
+            )?;
+            a.clean()?;
+            let required = |k| a.one(k)?.ok_or_else(|| Error(2, format!("required {k}")));
+            match sub {
+                "plan" => task::plan(Path::new(required("--request")?)),
+                "inspect" => {
+                    task::inspect(Path::new(required("--owner-store")?), required("--id")?)
+                }
+                "approve" => task::approve(
+                    Path::new(required("--owner-store")?),
+                    Path::new(required("--request")?),
+                ),
+                "serve-model" => {
+                    task::serve_model(Path::new(required("--owner-store")?), required("--id")?)
+                }
+                "serve" => task::serve(Path::new(required("--owner-store")?), required("--id")?),
+                "status" | "run" | "check" | "recover" | "cancel" | "revoke" | "pause" => {
+                    if a.one("--read-fd")?.is_some() || a.one("--write-fd")?.is_some() {
+                        if a.one("--socket")?.is_some() {
+                            return store::fail(2, "select one task transport");
+                        }
+                        let read_fd = required("--read-fd")?
+                            .parse::<i32>()
+                            .map_err(|_| Error(2, "invalid read descriptor".into()))?;
+                        let write_fd = required("--write-fd")?
+                            .parse::<i32>()
+                            .map_err(|_| Error(2, "invalid write descriptor".into()))?;
+                        return kineti_cli::task_pipe::Channel::inherited(read_fd, write_fd)?
+                            .request(required("--id")?, required("--session")?, sub, root);
+                    }
+                    task::request(
+                        Path::new(required("--socket")?),
+                        required("--id")?,
+                        required("--session")?,
+                        sub,
+                        root,
+                    )
+                }
+                _ => store::fail(2, "unknown task operation"),
+            }
+        }
+        "host" => {
+            let sub = rest.first().map(String::as_str).unwrap_or("status");
+            let args = if rest.is_empty() { rest } else { &rest[1..] };
+            if sub == "status" {
+                let a = Args::parse(args, &[], &[])?;
+                a.clean()?;
+                return Ok(host_control::status());
+            }
+            if ["vm-inspect", "vm-revoke", "vm-supervise", "vm-run"].contains(&sub) {
+                let a = Args::parse(args, &["--binding"], &[])?;
+                a.clean()?;
+                let binding = Path::new(
+                    a.one("--binding")?
+                        .ok_or_else(|| Error(2, "VM lifecycle requires exact --binding".into()))?,
+                );
+                return match sub {
+                    "vm-inspect" => kineti_cli::vm_control::inspect(binding),
+                    "vm-revoke" => kineti_cli::vm_control::revoke(binding),
+                    "vm-run" => kineti_cli::vm_control::run(binding),
+                    _ => kineti_cli::vm_control::supervise(binding),
+                };
+            }
+            if !["inspect", "revoke", "supervise"].contains(&sub) {
+                return store::fail(2, "host supports status, inspect and owner-only revoke");
+            }
+            let a = Args::parse(args, &["--cgroup", "--task-uid", "--wait-ms"], &[])?;
+            a.clean()?;
+            let path = a
+                .one("--cgroup")?
+                .ok_or_else(|| Error(2, "host control requires exact --cgroup".into()))?;
+            let uid: u32 = a
+                .one("--task-uid")?
+                .ok_or_else(|| Error(2, "host control requires --task-uid".into()))?
+                .parse()
+                .map_err(|_| Error(2, "task UID must be a non-root u32".into()))?;
+            if sub == "supervise" {
+                if a.one("--wait-ms")?.is_some() {
+                    return store::fail(2, "supervisor wait is fixed");
+                }
+                return host_control::supervise(Path::new(path), uid);
+            }
+            if sub == "inspect" {
+                if a.one("--wait-ms")?.is_some() {
+                    return store::fail(2, "--wait-ms applies only to revoke");
+                }
+                host_control::inspect(Path::new(path), uid)
+            } else {
+                host_control::revoke(Path::new(path), uid, a.number("--wait-ms", 1000)?)
+            }
+        }
         "self-test" => {
             let a = Args::parse(rest, &[], &[])?;
             a.clean()?;
             self_test::run(root)
         }
         "mcp" => {
-            let a = Args::parse(rest, &["--root"], &[])?;
+            let a = Args::parse(
+                rest,
+                &[
+                    "--root",
+                    "--task-socket",
+                    "--task-id",
+                    "--task-session",
+                    "--task-read-fd",
+                    "--task-write-fd",
+                ],
+                &[],
+            )?;
             a.clean()?;
             let r = a
                 .one("--root")?
                 .map(std::path::PathBuf::from)
                 .unwrap_or(root.into());
-            mcp::serve(&r)?;
+            if a.one("--task-read-fd")?.is_some() || a.one("--task-write-fd")?.is_some() {
+                if a.one("--task-socket")?.is_some() {
+                    return store::fail(2, "select one task MCP transport");
+                }
+                let required = |k| a.one(k)?.ok_or_else(|| Error(2, format!("required {k}")));
+                let read_fd = required("--task-read-fd")?
+                    .parse::<i32>()
+                    .map_err(|_| Error(2, "invalid read descriptor".into()))?;
+                let write_fd = required("--task-write-fd")?
+                    .parse::<i32>()
+                    .map_err(|_| Error(2, "invalid write descriptor".into()))?;
+                mcp::serve_task_pipe(
+                    &r,
+                    read_fd,
+                    write_fd,
+                    required("--task-id")?,
+                    required("--task-session")?,
+                )?;
+                return Ok(json!({"server":"stopped"}));
+            }
+            match (
+                a.one("--task-socket")?,
+                a.one("--task-id")?,
+                a.one("--task-session")?,
+            ) {
+                (None, None, None) => mcp::serve(&r)?,
+                (Some(socket), Some(id), Some(session)) => {
+                    mcp::serve_task(&r, Path::new(socket), id, session)?
+                }
+                _ => {
+                    return store::fail(
+                        2,
+                        "task MCP binding requires socket, ID and session together",
+                    )
+                }
+            }
             Ok(json!({"server":"stopped"}))
         }
         "init" => {
@@ -274,6 +425,11 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
             let sub = rest.first().map(String::as_str).unwrap_or("status");
             let args = if rest.is_empty() { rest } else { &rest[1..] };
             match sub {
+                "assessment" => {
+                    let a = Args::parse(args, &[], &[])?;
+                    a.clean()?;
+                    spend::assessment(root)
+                }
                 "status" | "check" | "economics" => {
                     let a = Args::parse(args, &[], &[])?;
                     a.clean()?;
@@ -430,10 +586,20 @@ fn main() {
     let result = dispatch(&std::env::current_dir().unwrap(), &args);
     match result {
         Ok(v) => {
-            if args.first().is_some_and(|s| s == "mcp") {
+            if args.first().is_some_and(|s| s == "mcp")
+                || args.first().is_some_and(|s| s == "host")
+                    && args.get(1).is_some_and(|s| s == "supervise")
+            {
                 return;
             }
-            println!("{}", json!({"schema":"kineti-cli-v1","ok":true,"result":v}));
+            let blocked = task::blocked(&v);
+            println!(
+                "{}",
+                json!({"schema":"kineti-cli-v1","ok":!blocked,"result":v})
+            );
+            if blocked {
+                std::process::exit(3);
+            }
         }
         Err(e) => {
             println!(

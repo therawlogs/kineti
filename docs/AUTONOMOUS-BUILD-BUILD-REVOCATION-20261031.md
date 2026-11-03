@@ -1,0 +1,33 @@
+# Compiled build and active descendant revocation preparation
+
+Date: 2026-10-31. Status: offline checks passed; new authenticated acceptance is prepared but not authorized or run.
+
+## Fix and reproduction
+
+The compiled fixture exposed a stock Bubblewrap startup failure: `Can't mount on symlink destination /usr/bin/cc`. The native owner profile previously used declared runtime aliases as mount destinations even though evidence fingerprinting already resolved their targets. The observed command exit was a sandbox startup failure, not evidence that nested source writes were unsupported.
+
+The profile now resolves each declared public runtime path before adding its read rule and rejects missing paths or redirection outside public system roots. Network stays disabled and the existing original-project, owner-store, credential-pattern and exclusion denials remain in place. No custom sandbox or permission fallback was added. A Linux regression test checks the system-shell alias, private-target rejection and missing-runtime rejection. Actual compiler-alias acceptance is verified by the real host fixture below.
+
+Source changes were staged and backed up before guarded native undo registration. Formatting changed the staged bytes, so a second exact guarded inverse was registered for the final formatted file; the original registration and backup remain preserved. The new optimized candidate is root-protected at a new path, with predecessors untouched. Its SHA-256 is `72df939200e2bdf4fd2ced9cdf7aeeea068133ac41bb3f272dbd13d13ef2895a`.
+
+## Fresh offline verification
+
+1. macOS arm64: 26 library and 59 integration tests passed; strict Clippy and formatting passed. The Linux owner module is platform-gated.
+2. Linux arm64: 27 library and 59 integration tests passed under UTC; strict Clippy passed, and an optimized local candidate was built from vendored dependencies with `--locked --offline`.
+3. Real pinned Codex 0.166.0 and the actual owner service compiled a nested C source with `cc -Wall -Wextra -Werror`, observed failing output, ran the exact preapproved command repair, rebuilt and obtained a stable passing retest. Fresh evidence was reused without execution. A subsequent copied-source edit invalidated evidence, consumed the second repair, and passed another fresh compiled retest. Original source and the dirty sentinel stayed unchanged. This is a miniature compiled fixture, not a Kineti product build performed by a model.
+4. With the real official host, the fixture verified a detached child's kernel session, process group and cgroup membership across the PID namespace. Native owner revocation returned in approximately 47 ms, drained the group and prevented its delayed write. This was active terminal execution, with no model turn.
+5. A deterministic model-protocol double held a native model turn open with `pending_execution` true and one counted simulated turn, and launched a kernel-verified detached session. Owner revocation interrupted the client, drained descendants and prevented its delayed write. This tests the production runner's active-turn stop path; it is not authentication, inference or official-host model acceptance.
+
+No fresh login or real model turn occurred. Earlier eight observed real turns remain historical. The unused turn from the completed login was not reused. Failed fixture generations, the rejected root runtime declaration, the pre-fix mount diagnostics and the slow diagnostic debug run remain saved, rather than counted as passes. The diagnostic debug grant was revoked; final end-to-end results use the optimized candidate. Every final fixture checked earlier owner-store bytes, and closed-audit collection found no task UID processes or persistent task-account auth file.
+
+Evidence lives in `.kineti/autonomy-build-revocation-20261031/`: source checks in `mac-tests.log`, `mac-clippy.log` and `linux-tests-build.log`; successful runs in `build-optimized.jsonl`, `revoke-final.jsonl` and `model-active-double.jsonl`; exact protected request/event/head/approval records and artifact/environment hashes in `guest-closed-audit.json`; latest spending assessment, guarded undo records, source digests, saved-evidence verification and native operational receipt. Fixture programs preserve exact argv. Root PTY approval exercises the owner role, not proof of an individual human's identity. Signed operational evidence and locally observed test summaries are not independent test trust.
+
+The repository assessment retains verified integrity, clear monetary reservations, thirteen unresolved historical valuations and the original monetary records. Synthetic project ledgers do not resolve the repository's accounting. Existing work, original signatures and interrupted fixture work remain intact. New paid spending is zero; no credentials, packages or dependencies were purchased or expanded.
+
+## Prepared live batch, awaiting approval
+
+`next-live-batch-plan.json` and the unexecuted `prepare-live-*.py` programs describe two new synthetic grants using the same pinned official model/provider/helper and the new native candidate. They contain no credentials and grant no authority. The fixed compiled check and runtime declarations are inherited from the passing offline build fixture. The prepared `watch-live-revoke.py` requires an incomplete real model turn, verifies the detached child's namespace-to-host PID, kernel session and cgroup membership, revokes through native owner IPC, then checks drain and absence of the delayed write. It preserves failures and partial work.
+
+The bounded proposal is two memory-only logins and at most three aggregate real model turns using the existing subscription: at most two turns for compiled-source repair/retest, then one turn for model-active descendant revocation. Separate sessions are required because successful build completion destroys that host and its ephemeral credentials. Credentials will not be extracted, copied or transferred. Only these synthetic copied fixtures may be transmitted; private repository source is outside the proposal. Ordinary subscription eligibility, no purchased credits, the 95% stop and zero new paid spending remain mandatory. Any additional login or turn beyond this proposed cap needs separate approval.
+
+Authenticated compiled repair and model-active descendant revocation remain unrun. Full A01–A14 acceptance, broader escape testing, independent review, supported release targets and installed artifacts remain pending. No merge, push, publication, website change or deployment is authorized by this batch. Official app-server lifecycle reference: https://learn.chatgpt.com/docs/app-server.

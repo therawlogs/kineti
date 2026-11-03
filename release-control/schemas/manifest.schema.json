@@ -1,0 +1,500 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kineti:release-control:manifest:1",
+  "description": "Structural schema; controller.py enforces relational authorization constraints.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "mode",
+    "promotion_id",
+    "repository",
+    "commit",
+    "tree",
+    "version",
+    "tag",
+    "workflow",
+    "policy_sha256",
+    "controller_sha256",
+    "tests_sha256",
+    "toolchain_sha256",
+    "settings_sha256",
+    "run_id",
+    "attempt",
+    "created_at",
+    "evidence_at",
+    "evidence_expires_at",
+    "jobs",
+    "artifacts",
+    "installs",
+    "accounting",
+    "destinations"
+  ],
+  "properties": {
+    "schema": {
+      "const": 1,
+      "type": "integer"
+    },
+    "mode": {
+      "enum": [
+        "synthetic",
+        "production"
+      ]
+    },
+    "promotion_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "commit": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "tree": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tag": {
+      "type": "string",
+      "minLength": 1
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_id",
+        "path",
+        "revision",
+        "issuer_id",
+        "environment"
+      ],
+      "properties": {
+        "repository_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "issuer_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "policy_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "controller_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "tests_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "toolchain_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "settings_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "run_id": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "created_at": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "evidence_at": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "evidence_expires_at": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "issuer_id",
+          "conclusion",
+          "commit",
+          "run_id",
+          "attempt",
+          "runner",
+          "assertions",
+          "argv",
+          "executable_sha256"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "issuer_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "conclusion": {
+            "const": "success"
+          },
+          "commit": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{40}$"
+          },
+          "run_id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "runner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "assertions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "argv": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 1000
+          },
+          "executable_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 100
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "name",
+          "size",
+          "sha256"
+        ],
+        "properties": {
+          "stage": {
+            "enum": [
+              "cargo",
+              "npm"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64000000
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        }
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "installs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target",
+          "route",
+          "runner",
+          "report_sha256",
+          "archive_sha256",
+          "installed_bytes",
+          "outside_checkout",
+          "node_bun_absent",
+          "mcp",
+          "self_test",
+          "scripts_disabled_error",
+          "success"
+        ],
+        "properties": {
+          "target": {
+            "enum": [
+              "linux-x64",
+              "linux-arm64",
+              "darwin-x64",
+              "darwin-arm64"
+            ]
+          },
+          "route": {
+            "enum": [
+              "cargo",
+              "npm"
+            ]
+          },
+          "runner": {
+            "type": "string",
+            "minLength": 1
+          },
+          "report_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "archive_sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "installed_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9999999
+          },
+          "outside_checkout": {
+            "const": true
+          },
+          "node_bun_absent": {
+            "const": true
+          },
+          "mcp": {
+            "const": true
+          },
+          "self_test": {
+            "const": true
+          },
+          "scripts_disabled_error": {
+            "const": true
+          },
+          "success": {
+            "const": true
+          }
+        }
+      },
+      "minItems": 8,
+      "maxItems": 8
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_sha256",
+        "decision_sha256",
+        "native_exit",
+        "integrity",
+        "reservations",
+        "uncertain_writes",
+        "unknown_ids",
+        "total_microcents",
+        "global_microcents",
+        "stage_microcents",
+        "stage_limit_microcents",
+        "exception"
+      ],
+      "properties": {
+        "snapshot_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "decision_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "native_exit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "integrity": {
+          "const": true
+        },
+        "reservations": {
+          "const": 0
+        },
+        "uncertain_writes": {
+          "const": false
+        },
+        "unknown_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "total_microcents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "global_microcents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stage_microcents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stage_limit_microcents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "exception": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "promotion_id",
+                "snapshot_sha256",
+                "artifacts_sha256",
+                "unknown_ids",
+                "reviewer",
+                "expires_at",
+                "reference"
+              ],
+              "properties": {
+                "promotion_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "snapshot_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "artifacts_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "unknown_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 0,
+                  "maxItems": 100
+                },
+                "reviewer": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "expires_at": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "reference": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "destinations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cargo",
+        "npm",
+        "github"
+      ],
+      "properties": {
+        "cargo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "npm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "github": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

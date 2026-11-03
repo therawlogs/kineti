@@ -1,20 +1,48 @@
 {
   "name": "kineti",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Native checks, changed-input detection, reported-spending CI gate and registered undo",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "mcpName": "io.github.therawlogs/kineti",
-  "repository": { "type": "git", "url": "https://github.com/therawlogs/kineti.git" },
-  "homepage": "https://github.com/therawlogs/kineti",
-  "bin": { "kineti": "bin/kineti" },
-  "engines": { "node": ">=18" },
-  "os": ["linux", "darwin"],
-  "cpu": ["x64", "arm64"],
-  "files": ["bin/kineti", "install.cjs", "checksums.json", "native/", "README.md", "LICENSE"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/therawlogs/kineti.git"
+  },
+  "homepage": "https://getkineti.com",
+  "bin": {
+    "kineti": "bin/kineti"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux",
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "bin/kineti",
+    "install.cjs",
+    "checksums.json",
+    "native/",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "postinstall": "node install.cjs",
-    "prepublishOnly": "node scripts/check-native-package.cjs",
+    "prepublishOnly": "node -e \"console.error('Kineti registry publishing is retired. Use separately approved website distribution.'); process.exit(1)\"",
     "test": "cargo test --manifest-path core-native/Cargo.toml -p kineti-cli"
   },
-  "keywords": ["gate", "test-receipts", "reported-spending", "undo", "mcp", "native"]
+  "keywords": [
+    "gate",
+    "test-receipts",
+    "reported-spending",
+    "undo",
+    "mcp",
+    "native"
+  ],
+  "private": true
 }

@@ -1,0 +1,19 @@
+# macOS guest recovery: storage boundary
+
+Date: 2026-11-02. Status: guest installation interrupted by the retained 15 GiB free-space guard. Combined macOS-guest acceptance remains unrun.
+
+The Apple restore image is fully downloaded and verified against the pinned SHA-256. No further download was needed. The first installation had been interrupted by our overly short ninety-second creation timeout. Its disk and metadata were retained.
+
+Inspection of pinned Lima 2.2.1 source established that its macOS installation function must not be called when a disk already exists; the existing-disk path does not resume installation. No supported in-place resume was established. Source is saved under `.kineti/autonomy-macos-recovery-20261102/`; upstream: [Lima VZ driver](https://github.com/lima-vm/lima/blob/v2.2.1/pkg/driver/vz/vz_driver_darwin.go).
+
+To preserve interrupted work, a separate instance was attempted using the same verified local image and unchanged configuration: VZ, macOS 26.6.2, two CPUs, 4 GiB RAM, 64 GiB logical disk, plain mode and no shared host mounts. Installation was allowed twenty-five minutes. The first new name was rejected before installation because its Unix-socket path exceeded the platform limit; that diagnostic is retained. The shorter name `kmac2` reached the native macOS installer.
+
+After approximately 206.8 seconds, free space sampled at 16,094,773,248 bytes, below the 16,106,127,360-byte guard (15 GiB). The harness terminated the installer command, invoked supported Lima force-stop only for this newly owned instance, and retained every file. Final saved VM inventory reports all five instances stopped. The timeout increase resolved the earlier artificial ninety-second stop, but available storage did not suffice within the chosen safety margin. No unsupported sandbox, weaker policy, original-instance overwrite or deletion was used.
+
+The original interrupted instance, prior VM disks/configuration/EFI and existing management files were hash-checked for byte preservation. Accounting before/after is identical: integrity verified, monetary reservations clear, thirteen historical unknowns and reported values unchanged. Original native history/signatures remain preserved. The retained retry contains additional partial installation data; it has not passed boot or guest tests.
+
+The previously verified host checks remain separate: nineteen corrected protected-path denials, two allowed-write controls, four unrevoked child-write controls and five no-auth filesystem API cases under stock Codex. They do not establish the macOS-guest combination. No new real model turn, subscription/account login, credential expansion, reviewer agent, merge, publication or deployment occurred. New paid spending was zero. Production Rust code did not change.
+
+Next requirement: sufficient no-additional-charge storage to finish installation while preserving the interrupted instances and the 15 GiB host margin. Do not lower the guard, remove preserved work or buy capacity automatically. Any proposed relocation or cleanup must first identify exact files, preservation/undo and available capacity for review. Once storage is available, use a supported fresh-install/recovery procedure and rerun guest filename, filesystem API, detached-descendant revocation and cold-boot preservation checks. Production owner-service integration, crash supervision, model-driven and installed-platform acceptance, and release gates remain pending.
+
+Evidence is in `.kineti/autonomy-macos-recovery-20261102/`: pinned source inspection, original-instance hashes, first-name diagnostic, `attempt2` source/configuration and exact command/event logs, installer output, final stop/inventory and preservation/accounting results. Operational receipts are not independent test or release authority. No A01–A14 row is declared fully accepted.

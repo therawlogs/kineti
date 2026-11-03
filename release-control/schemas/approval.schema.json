@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kineti:release-control:approval:1",
+  "description": "Structural schema; controller.py enforces relational authorization constraints.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_sha256",
+    "reviewer",
+    "authenticated_at",
+    "expires_at",
+    "reference"
+  ],
+  "properties": {
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "reviewer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "authenticated_at": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "expires_at": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "reference": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

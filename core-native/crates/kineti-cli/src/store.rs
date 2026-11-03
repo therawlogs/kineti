@@ -113,9 +113,14 @@ pub fn atomic(path: &Path, bytes: &[u8]) -> Result<()> {
 }
 /// Durable append. Caller holds the appropriate shared operation lock.
 pub fn append(path: &Path, value: &Value) -> Result<()> {
+    use std::os::unix::fs::OpenOptionsExt;
     safe_destination(path)?;
     fs::create_dir_all(path.parent().unwrap())?;
-    let mut f = OpenOptions::new().create(true).append(true).open(path)?;
+    let mut f = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .mode(0o600)
+        .open(path)?;
     f.write_all(serde_json::to_string(value)?.as_bytes())?;
     f.write_all(b"\n")?;
     f.sync_all()?;
@@ -126,11 +131,17 @@ pub struct Lock(PathBuf);
 impl Lock {
     /// Acquire an exclusive operation lock without touching protected payload files.
     pub fn take(path: &Path) -> Result<Self> {
+        use std::os::unix::fs::OpenOptionsExt;
         safe_destination(path)?;
         fs::create_dir_all(path.parent().unwrap())?;
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
-            match OpenOptions::new().create_new(true).write(true).open(path) {
+            match OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .mode(0o600)
+                .open(path)
+            {
                 Ok(mut f) => {
                     f.write_all(
                         json!({"pid":std::process::id(),"at":now()})
@@ -243,4 +254,185 @@ pub fn inventory(root: &Path) -> Result<Value> {
 /// Content digest of an inventory.
 pub fn inventory_digest(v: &Value) -> Result<String> {
     Ok(digest(canonical(v).map_err(|e| Error(3, e))?))
+}
+
+#[cfg(test)]
+mod permission_tests {
+    use super::*;
+    use std::{
+        os::unix::{fs::PermissionsExt, process::CommandExt},
+        process::{Child, Command, Stdio},
+    };
+
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../.kineti/native-gate-tests")
+                .join(nonce().unwrap());
+            fs::create_dir_all(&path).unwrap();
+            Self(path.canonicalize().unwrap())
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+    struct ChildGuard(Child);
+    impl Drop for ChildGuard {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    fn mode(path: &Path) -> u32 {
+        fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn owner_only_creation_under_child_umask() {
+        const CHILD_ROOT: &str = "KINETI_PRIVATE_PERMISSION_FIXTURE";
+        if let Some(root) = std::env::var_os(CHILD_ROOT) {
+            let root = PathBuf::from(root);
+            let state = root.join(".kineti/state.json");
+            write(&state, &json!({"root_goal":"Disposable permission test"})).unwrap();
+            let append_path = root.join(".kineti/new-append.jsonl");
+            append(&append_path, &json!({"private":true})).unwrap();
+            let _held = Lock::take(&root.join(".kineti/held.lock")).unwrap();
+            atomic(&root.join(".kineti/atomic.bin"), b"atomic fixture").unwrap();
+            fs::write(root.join("test.txt"), b"declared test input").unwrap();
+            crate::receipt::run(
+                &root,
+                crate::receipt::Run {
+                    label: "permission-fixture".into(),
+                    argv: vec![
+                        "/bin/sh".into(),
+                        "-c".into(),
+                        "printf '1 pass\\n0 fail\\n'".into(),
+                    ],
+                    tests: vec!["test.txt".into()],
+                    timeout: 5,
+                    kind: "test".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            // Publish readiness only after all writes; keep the real lock alive
+            // until the observing parent releases this subprocess over stdin.
+            atomic(&root.join(".kineti/ready"), b"ready").unwrap();
+            let mut release = [0];
+            std::io::stdin().read_exact(&mut release).unwrap();
+            assert_eq!(release, [1]);
+            return;
+        }
+
+        let fixture = Fixture::new();
+        let mut command = Command::new(std::env::current_exe().unwrap());
+        command
+            .args([
+                "--exact",
+                "store::permission_tests::owner_only_creation_under_child_umask",
+                "--nocapture",
+            ])
+            .env(CHILD_ROOT, &fixture.0)
+            .env("HOME", fixture.0.join("home"))
+            .env("CODEX_HOME", fixture.0.join("codex-home"))
+            .stdin(Stdio::piped());
+        // umask is process-global: change it only after fork in this child,
+        // never in the concurrent Cargo test harness.
+        unsafe {
+            command.pre_exec(|| {
+                libc::umask(0);
+                Ok(())
+            });
+        }
+        let mut child = ChildGuard(command.spawn().unwrap());
+        let watchdog = Instant::now() + Duration::from_secs(20);
+        while !fixture.0.join(".kineti/ready").exists() {
+            assert!(
+                Instant::now() < watchdog,
+                "permission fixture readiness timed out"
+            );
+            assert!(
+                child.0.try_wait().unwrap().is_none(),
+                "permission fixture exited before readiness"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        for relative in [
+            ".kineti/state.json",
+            ".kineti/new-append.jsonl",
+            ".kineti/held.lock",
+            ".kineti/atomic.bin",
+            ".kineti/evidence-issuer.pem.private",
+            ".kineti/evidence-issuer.pem",
+            ".kineti/evidence.jsonl",
+        ] {
+            assert_eq!(mode(&fixture.0.join(relative)), 0o600, "{relative}");
+        }
+        assert_eq!(
+            read(&fixture.0.join(".kineti/held.lock")).unwrap()["pid"],
+            child.0.id()
+        );
+        assert_eq!(
+            lines(&fixture.0.join(".kineti/new-append.jsonl")).unwrap(),
+            vec![json!({"private":true})]
+        );
+        child.0.stdin.take().unwrap().write_all(&[1]).unwrap();
+        loop {
+            if let Some(status) = child.0.try_wait().unwrap() {
+                assert!(status.success());
+                break;
+            }
+            assert!(
+                Instant::now() < watchdog,
+                "permission fixture release timed out"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(!fixture.0.join(".kineti/held.lock").exists());
+    }
+
+    #[test]
+    fn historical_modes_bytes_and_interrupted_lock_are_preserved() {
+        let fixture = Fixture::new();
+        let history = fixture.0.join("history.jsonl");
+        let before = b"{\"historical\":\"original bytes\"}\n";
+        fs::write(&history, before).unwrap();
+        fs::set_permissions(&history, fs::Permissions::from_mode(0o644)).unwrap();
+        append(&history, &json!({"new":"normal requested append"})).unwrap();
+        let after = fs::read(&history).unwrap();
+        assert!(after.starts_with(before));
+        assert_eq!(lines(&history).unwrap().len(), 2);
+        assert_eq!(mode(&history), 0o644);
+
+        let interrupted = fixture.0.join("interrupted.lock");
+        let lock_bytes = b"{\"pid\":424242,\"at\":\"historical interrupted fixture\"}";
+        fs::write(&interrupted, lock_bytes).unwrap();
+        fs::set_permissions(&interrupted, fs::Permissions::from_mode(0o644)).unwrap();
+        let error = Lock::take(&interrupted)
+            .err()
+            .expect("existing lock must deny");
+        assert_eq!(error.0, 3);
+        assert!(error.1.contains("inspect interrupted work"));
+        assert_eq!(fs::read(&interrupted).unwrap(), lock_bytes);
+        assert_eq!(mode(&interrupted), 0o644);
+        assert_eq!(fs::read(&history).unwrap(), after);
+        assert_eq!(mode(&history), 0o644);
+
+        // New-file creation modes cannot weaken existing symlink denial or
+        // replace the target's historical data and permissions.
+        let link = fixture.0.join("linked-state");
+        std::os::unix::fs::symlink(&history, &link).unwrap();
+        assert_eq!(append(&link, &json!({"denied":true})).unwrap_err().0, 3);
+        assert_eq!(Lock::take(&link).err().unwrap().0, 3);
+        assert_eq!(atomic(&link, b"denied").unwrap_err().0, 3);
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read(&history).unwrap(), after);
+        assert_eq!(mode(&history), 0o644);
+    }
 }

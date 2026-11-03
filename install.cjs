@@ -8,7 +8,7 @@ const key = `${process.platform}-${process.arch}`;
 const supported = ["linux-x64", "linux-arm64", "darwin-x64", "darwin-arm64"];
 if (!supported.includes(key)) throw new Error(`kineti: unsupported platform ${key}`);
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "checksums.json"), "utf8"));
-if (manifest.version !== "0.6.0") throw new Error("kineti: checksum version mismatch");
+if (manifest.version !== "0.6.1") throw new Error("kineti: checksum version mismatch");
 const bytes = fs.readFileSync(path.join(root, "native", key, "kineti"));
 const sha = crypto.createHash("sha256").update(bytes).digest("hex");
 if (!/^[a-f0-9]{64}$/.test(manifest.targets[key]) || sha !== manifest.targets[key]) throw new Error("kineti: native payload checksum mismatch; nothing installed");

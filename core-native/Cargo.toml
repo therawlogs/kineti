@@ -5,13 +5,13 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.6.1"
 edition = "2021"
 authors = ["Kineti Team <hello@getkineti.com>"]
-license = "MIT"
+license-file = "../LICENSE"
 readme = "../README.md"
 description = "Native checks, receipts, reported-spending gate and registered undo"
-homepage = "https://github.com/therawlogs/kineti"
+homepage = "https://getkineti.com"
 repository = "https://github.com/therawlogs/kineti"
 
 [workspace.dependencies]

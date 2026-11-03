@@ -1,64 +1,17 @@
-# Kineti 0.6.0 native gate
+# Kineti 0.6.1 native gate
 
 **Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.**
 
-0.6.0 is published as a native gate. Only Linux and macOS, x64 and arm64,
-are supported.
-`kineti-cli` changes from its older assistant lineage to this gate. Older
-published releases remain available. Harness execution, model routing,
-delegation, swarm, dashboard, memory, evaluator services and protected writes
-are removed from the active product.
+Kineti is proprietary. Future distribution is through [getkineti.com](https://getkineti.com) only.
+The source repository is private. npm and crates.io distribution is retired;
+past releases and their original license terms remain historical records.
+New website artifacts require separate review and publication approval.
 
 ## Install and initialize
 
-Choose one installation route:
-
-Cargo (requires Rust for installation):
-
-```sh
-cargo install kineti-cli --version '=0.6.0' --locked
-```
-
-npm (requires Node and enabled installation scripts for installation):
-
-```sh
-npm install -g kineti@0.6.0
-```
-
-Published packages: [Cargo 0.6.0](https://crates.io/crates/kineti-cli/0.6.0)
-and [npm 0.6.0](https://www.npmjs.com/package/kineti/v/0.6.0).
-See the [GitHub release](https://github.com/therawlogs/kineti/releases/tag/v0.6.0)
-and [release closeout](docs/GATE-0.6.0-CLOSEOUT.md) for publication and acceptance evidence.
-
-From your project directory, preview initialization with your explicit goal:
-
-```sh
-kineti init --goal "Your explicit project goal"
-```
-
-Review the preview, then apply initialization:
-
-```sh
-kineti init --goal "Your explicit project goal" --apply
-```
-
-The installed executable needs neither Node nor Bun. The npm package contains
-four checksummed binaries; installation verifies/selects one and removes unused
-payloads. Disabled scripts leave an explicit installation error.
-
-From source, use `cargo run --manifest-path core-native/Cargo.toml -p kineti-cli --bin kineti --`.
-
-`init` previews changes, destinations and backups. Review before `--apply`.
-New projects require an explicit goal; existing locked goals and historical
-records stay intact. Missing fields may be initialized; damaged records require
-separate reviewed recovery. When Codex is detected, init proposes native MCP
-registration and one instruction skill. `--codex-home <directory>` chooses an
-explicit destination. Repetition preserves unrelated settings; edited owned
-settings are refused. `init --uninstall --apply` removes owned integration
-content and preserves project records. Restart existing Codex sessions after
-changes. Cursor and Antigravity configuration is preserved, but those hosts are
-unverified in 0.6.0. There is no automatic native-tool interception. Codex integration checks cover only
-0.163.0-alpha.11.2 and stable 0.164.0; no intervening version is implied supported.
+Use only an approved download provided through the official website. No new
+website download is published by this source change. Historical registry
+installation commands are not the supported route for future releases.
 
 ## Record and check
 
@@ -119,12 +72,15 @@ There is no atomic authorization of later writes or protected-write guarantee.
 
 ## Acceptance
 
-The [contract](docs/GATE-0.6.0-CONTRACT.md),
+The frozen [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md),
 [behavior map and exit codes](docs/GATE-0.6.0-BEHAVIOR.md), and
-[evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) govern acceptance. Final installed
-files for each route must be below **10,000,000 bytes** per target, including
-initial integration assets. Download and unpacked-package sizes are separate.
-No unmeasured platform-size claim is made.
+[dated evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) preserve the behavior and
+accounting baseline. The published 0.6.1 packages were installed and self-tested
+outside the checkout on four native Linux and macOS x64/arm64 targets in the
+[published-package acceptance run](https://github.com/therawlogs/kineti/actions/runs/40461551281).
+The largest recorded installation was 2,339,196 bytes, including initial
+integration files; download and unpacked-package sizes are separate. These are
+dated results, not fresh tests. Historical monetary unknowns remain unresolved.
 
 Exit codes: 0 success; 1 failed command/check or incomplete undo; 2 invalid input;
 3 spending/integrity/recovery stop; evidence 4 stale, 5 missing, 6 unsupported
