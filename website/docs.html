@@ -27,6 +27,7 @@
 <pre><code>kineti test run --label tests --required-test tests -- cargo test
 kineti test check --label tests --expect-argv '["cargo","test"]'</code></pre>
 <p>The first command runs the test and records evidence. The second checks that evidence, including the expected command and whether recorded inputs are still current. Kineti requires a supported test summary and an existing required test path; a successful process exit alone is not enough.</p>
+<h3 id="freshness">When to rerun a check</h3>
 <p>When inputs change or evidence is stale, run the tests again and check the new evidence. A signature confirms record integrity, not that a test command reported honestly.</p></section>
 <section id="ci"><h2>Check a participating CI workflow</h2>
 <p>Run the gate before the release command in the workflow you choose:</p><pre><code>kineti ci --require-evidence tests</code></pre>
