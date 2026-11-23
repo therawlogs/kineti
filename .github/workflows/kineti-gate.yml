@@ -17,3 +17,6 @@ jobs:
       - run: cargo clippy --locked --manifest-path core-native/Cargo.toml --all-targets -- -D warnings
       - run: TZ=UTC cargo test --locked --manifest-path core-native/Cargo.toml
       - run: TZ=Asia/Kolkata cargo test --locked --manifest-path core-native/Cargo.toml
+      - run: node scripts/test-native-installer.cjs
+      - run: cargo build --release --locked --manifest-path core-native/Cargo.toml
+      - run: KINETI_BIN="$PWD/core-native/target/release/kineti" ./examples/pilot-demo/run-demo.sh

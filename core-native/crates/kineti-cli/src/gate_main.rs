@@ -1,11 +1,14 @@
 //! Native gate command entrypoint.
 use kineti_cli::{
-    gate, init, mcp, receipt, self_test, spend,
+    gate, init, mcp, pr_guard, receipt, self_test, spend,
     store::{self, Error, Result},
     undo,
 };
 use serde_json::{json, Value};
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 struct Args {
     values: BTreeMap<String, Vec<String>>,
@@ -76,6 +79,14 @@ impl Args {
                 .map_err(|_| Error(2, format!("invalid integer {k}")))
         })
     }
+    fn opt_number(&self, k: &str) -> Result<Option<u64>> {
+        self.one(k)?
+            .map(|v| {
+                v.parse()
+                    .map_err(|_| Error(2, format!("invalid integer {k}")))
+            })
+            .transpose()
+    }
     fn clean(&self) -> Result<()> {
         if !self.position.is_empty() || self.separator {
             return store::fail(2, "unexpected positional arguments or command separator");
@@ -84,7 +95,23 @@ impl Args {
     }
 }
 fn help() -> Value {
-    json!({"version":env!("CARGO_PKG_VERSION"),"claim":"Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","spend","undo","saga","status","mcp","self-test"],"status":"candidate; publication requires reviewed artifacts and accounting approval"})
+    json!({"version":env!("CARGO_PKG_VERSION"),"claim":"Record checks, detect changed inputs, check PR policy/test tampering, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","pr-check","spend","undo","saga","status","mcp","self-test"],"status":"1.0.0 open-core candidate; registry publication requires reviewed artifacts and accounting approval"})
+}
+fn subcommand_help(cmd: &str) -> Option<Value> {
+    let usage = match cmd {
+        "init" => "kineti init --goal <text> [--codex-home <dir>] [--apply] [--uninstall]",
+        "test" | "evidence" => "kineti test run --label <name> --required-test <path> [--parser auto|cargo|bun|exit-code] [--allow-ignored] [--min-passed <n>] [--timeout <sec>] -- <argv...> | kineti test check --label <name> [--max-age-min <n>] [--expect-argv <json>] | kineti test fingerprint",
+        "ci" => "kineti ci [--require-evidence <label>] [--evidence-commands <file>] [--max-age-min <n>]",
+        "pr-check" => "kineti pr-check --base-ref <ref> [--head-ref <ref>] [--allow-policy-change] [--allow-test-reduction] [--max-deleted-tests <n>] [--require-evidence <label>] [--require-ci] [--max-age-min <n>] [--audit-out <path>] [--summary-out <path>]",
+        "verify" => "kineti verify [--status | --trust]",
+        "status" => "kineti status [--project-only]",
+        "spend" => "kineti spend status|check|economics|log|reset|recover",
+        "undo" | "saga" => "kineti undo begin|commit|push|register|rollback|inspect|resolve (CLI-only)",
+        "mcp" => "kineti mcp [--root <dir>]",
+        "self-test" => "kineti self-test",
+        _ => return None,
+    };
+    Some(json!({"version":env!("CARGO_PKG_VERSION"),"command":cmd,"usage":usage}))
 }
 fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
     let Some(cmd) = args.first().map(String::as_str) else {
@@ -97,6 +124,12 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
         return Ok(json!({"version":env!("CARGO_PKG_VERSION")}));
     }
     let rest = &args[1..];
+    let sep = rest.iter().position(|s| s == "--").unwrap_or(rest.len());
+    if rest[..sep].iter().any(|s| s == "--help" || s == "-h") {
+        if let Some(doc) = subcommand_help(cmd) {
+            return Ok(doc);
+        }
+    }
     match cmd {
         "self-test" => {
             let a = Args::parse(rest, &[], &[])?;
@@ -163,6 +196,59 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                 a.number("--max-age-min", 240)?,
             )
         }
+        "pr-check" => {
+            let a = Args::parse(
+                rest,
+                &[
+                    "--base-ref",
+                    "--base-sha",
+                    "--head-ref",
+                    "--head-sha",
+                    "--max-deleted-tests",
+                    "--require-evidence",
+                    "--max-age-min",
+                    "--audit-out",
+                    "--summary-out",
+                ],
+                &[
+                    "--allow-policy-change",
+                    "--allow-test-reduction",
+                    "--require-ci",
+                ],
+            )?;
+            a.clean()?;
+            if a.one("--base-ref")?.is_some() && a.one("--base-sha")?.is_some() {
+                return store::fail(2, "provide --base-ref or --base-sha, not both");
+            }
+            if a.one("--head-ref")?.is_some() && a.one("--head-sha")?.is_some() {
+                return store::fail(2, "provide --head-ref or --head-sha, not both");
+            }
+            let base_ref = a
+                .one("--base-ref")?
+                .or(a.one("--base-sha")?)
+                .unwrap_or("")
+                .to_owned();
+            let head_ref = a
+                .one("--head-ref")?
+                .or(a.one("--head-sha")?)
+                .unwrap_or("HEAD")
+                .to_owned();
+            pr_guard::run(
+                root,
+                pr_guard::PrCheckOpts {
+                    base_ref,
+                    head_ref,
+                    allow_policy_change: a.yes("--allow-policy-change"),
+                    allow_test_reduction: a.yes("--allow-test-reduction"),
+                    max_deleted_tests: a.opt_number("--max-deleted-tests")?,
+                    audit_out: a.one("--audit-out")?.map(PathBuf::from),
+                    summary_out: a.one("--summary-out")?.map(PathBuf::from),
+                    require_evidence: a.list("--require-evidence"),
+                    require_ci: a.yes("--require-ci"),
+                    max_age: a.number("--max-age-min", 0)?,
+                },
+            )
+        }
         "verify" => {
             let a = Args::parse(rest, &[], &["--trust", "--status"])?;
             a.clean()?;
@@ -181,9 +267,13 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
             )
         }
         "status" => {
-            let a = Args::parse(rest, &[], &[])?;
+            let a = Args::parse(rest, &[], &["--project-only"])?;
             a.clean()?;
-            Ok(json!({"state":store::state(root)?,"spend":spend::inspect(root,false)?}))
+            if a.yes("--project-only") {
+                Ok(json!({"state":store::state(root)?}))
+            } else {
+                Ok(json!({"state":store::state(root)?,"spend":spend::inspect(root,false)?}))
+            }
         }
         "test" | "evidence" => {
             let sub = rest.first().map(String::as_str).unwrap_or("check");
@@ -204,8 +294,10 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                         "--env-name",
                         "--artifact",
                         "--timeout",
+                        "--parser",
+                        "--min-passed",
                     ],
-                    &[],
+                    &["--allow-ignored"],
                 )?;
                 if !a.position.is_empty() {
                     return store::fail(2, "unexpected positional arguments before command");
@@ -220,6 +312,9 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                         artifacts: a.list("--artifact"),
                         timeout: a.number("--timeout", 60)?,
                         kind: a.text("--kind", "test")?,
+                        parser: a.text("--parser", "auto")?,
+                        allow_ignored: a.yes("--allow-ignored"),
+                        min_passed: a.opt_number("--min-passed")?,
                     },
                 )
             } else if sub == "check" {
@@ -237,8 +332,8 @@ fn dispatch(root: &Path, args: &[String]) -> Result<Value> {
                 )?;
                 a.clean()?;
                 if a.yes("--signature-only") {
-                    let trusted = std::fs::read_to_string(
-                        root.join(a.text("--trusted-key", ".kineti/evidence-issuer.pem")?),
+                    let trusted = store::read_text_nofollow(
+                        &root.join(a.text("--trusted-key", ".kineti/evidence-issuer.pem")?),
                     )?;
                     if let Some(path) = a.one("--history")? {
                         let rows = store::lines(&root.join(path))?;

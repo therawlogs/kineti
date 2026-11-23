@@ -1,116 +1,89 @@
 # Security Policy
 
-Kineti records checks, detects changed inputs, and blocks participating CI commands
-when evidence or reported spending fails policy. The source candidate is the
-0.6.1 native gate, a single `kineti-cli` crate providing `kineti`. Today's local
-repair candidate needs fresh acceptance; it does not replace the dated evidence
-for already published artifacts. This policy
-explains support, reporting commitments and the limits of those checks. It is not
-a sandbox or a claim that a candidate package has been accepted or published.
+Kineti records checks, detects changed inputs and PR-diff policy/test tampering,
+and blocks participating CI commands when evidence or reported spending fails
+policy. The active open-core (MIT) release line is **Kineti `1.0.0`**, built
+from the single `kineti-cli` crate providing `kineti` and the composite GitHub
+Action (`action.yml`). Local candidate builds require fresh verification and do
+not authorize publication or deployment without separate owner approval. This
+policy explains support, private reporting expectations, and the technical
+limits of Kineti's checks. It is not a sandbox, automatic command interceptor,
+or warranty.
 
 ## 1. Supported Versions
 
-We provide security updates for the current active release line.
+Security triage is provided on a best-effort basis for the active `1.0.x` native
+gate line only. Older release lines are unsupported and remain preserved solely
+in Git history.
 
 | Version | Supported | Notes |
-| ------- | --------- | ----- |
-| 0.6.x   | Yes       | Native gate; the 0.6.1 candidate awaits fresh acceptance before any new release/platform claims. |
-| 0.5.x   | Yes       | Existing security support is retained for this legacy release line; its protected writes remain experimental. |
-| 0.4.x   | No        | Please upgrade to 0.5.0 or newer. |
-| 0.3.x   | No        | Please upgrade to 0.5.0 or newer. |
-| < 0.3.0 | No        | Please upgrade to 0.5.0 or newer. |
+| --- | --- | --- |
+| `1.0.x` | Yes (best-effort) | Active open-core (MIT) native gate & Linux GitHub Actions PR anti-tampering line (`kineti-cli`). |
+| `0.6.x` | No | Historical registry packages are retired (deprecated on npm, yanked on crates.io). |
+| `0.5.x` and earlier | No | Legacy release line preserved in Git history only; no longer supported. |
 
 ## 2. Reporting a Vulnerability
 
-If you discover a security issue or vulnerability in Kineti, please report it privately. Do not open a public GitHub issue.
+If you discover a security issue or vulnerability in Kineti, please report it
+privately. Do not open a public issue or disclose exploit details publicly
+before coordination.
 
-You can report vulnerabilities privately through either of these channels:
+You can report vulnerabilities privately through:
 
-1. **Email**: Send your findings directly to [security@getkineti.com](mailto:security@getkineti.com).
-2. **GitHub Security Advisory**: Open a private report at [GitHub Security Advisories](https://github.com/therawlogs/kineti/security/advisories/new).
-
-Please do not open a public issue. We acknowledge all reports within 24 hours.
+1. **Email (Primary):** Send findings directly to [security@getkineti.com](mailto:security@getkineti.com).
+2. **GitHub Security Advisory (for authorized repository collaborators):** Open a private advisory in the repository's Security tab.
 
 ### Disclosure policy
 
-1. **Private first**: we confirm the issue with you before anything is published.
-2. **Advisory**: fixed issues are published as a GitHub Security Advisory, usually alongside the patch release.
-3. **Timing**: we aim to publish within 14 days of your report (see the SLA below). If a fix needs longer, we agree a new date with you.
-4. **Credit**: researchers are credited in the advisory unless they ask to stay anonymous.
-5. **No PGP key**: we do not publish one. Use the email address or the GitHub advisory form above; both are private.
+1. **Private first:** We confirm the issue with you privately before publishing details.
+2. **Coordinated remediation:** Fix timing is agreed directly with the reporter based on severity and maintainer capacity; we do not make an unconditional 14-day mandatory patch SLA.
+3. **Credit:** Researchers are credited in release notes or advisories unless they request anonymity.
+4. **No PGP key:** We do not publish a PGP key; use private email (`security@getkineti.com`) or a private repository security advisory.
 
 ### What to include in your report
 
-Please include the following information:
+Please include:
 
-1. **Description**: Clear description of the vulnerability and the affected components.
-2. **Reproduction steps**: Numbered steps to reproduce the issue, including commands, payloads, or sample configurations.
-3. **Impact**: Potential impact on local credentials, spend ceilings, execution integrity, or network egress.
-4. **Environment**: Operating system and architecture, exact Kineti version and executable digest, and Rust/Cargo version when building from source. For a legacy report, include Bun/Node versions where relevant. Do not include credentials or private keys.
+1. **Description:** Clear explanation of the vulnerability and affected components.
+2. **Reproduction steps:** Minimal numbered steps, commands, diffs, or fixtures to reproduce.
+3. **Impact:** Potential impact on base-branch policy enforcement, PR-diff tampering checks, command execution boundaries, receipt integrity, or local credential exposure.
+4. **Environment:** OS and architecture, exact Kineti version and executable SHA-256 digest, and Rust/Cargo version if built from source. Do **not** send real secrets, API tokens, or private signing keys.
 
-## 3. Response Process and SLA
+## 3. Solo-Maintainer Response Process
 
-When you submit a report, we follow these steps:
+Kineti is maintained by a solo founder. Our realistic best-effort triage
+commitments are:
 
-1. **Acknowledgement**: We acknowledge receipt of your report within 24 hours.
-2. **Triage**: We confirm the issue, evaluate severity, and respond with findings within 72 hours.
-3. **Fix and Release**: We develop and test a fix, release a patched version, and publish a security advisory within 14 days.
-4. **Credit**: We credit researchers in release notes and security advisories unless you request anonymity.
+1. **Acknowledgement:** Best-effort acknowledgement within **5 business days**.
+2. **Triage & prioritization:** Critical security flaws (policy bypasses, unintended command execution, signature-verification defects, or secret leakage) are prioritized ahead of feature work.
+3. **Fix & disclosure coordination:** We develop and verify a fix on a best-effort schedule and agree on disclosure timing with the reporter.
 
 ## 4. Scope
 
-The following components are in scope for security reports:
+The following active native-gate components are in scope:
 
-1. **Native CLI and gate** (`core-native/crates/kineti-cli/src/`): `gate_main.rs` validates commands; `gate.rs` checks exact declared command trust and participating CI policy; `receipt.rs` supervises commands and signs/checks receipts; `compat.rs` verifies supported historical signatures.
-2. **Accounting and undo**: `spend.rs` checks reported amounts, limits, reservations and reviewed recovery; `journal.rs` checks legacy accounting integrity; `undo.rs` records intent, completion and explicit inspection before uncertain replay; `store.rs` handles durable files and operation locks.
-3. **Host and package boundaries**: `mcp.rs` exposes gate tools over stdin/stdout JSON-RPC, and `init.rs` previews/applies owned integration configuration. `install.cjs` and `bin/kineti` select the checksummed native npm payload. `self_test.rs` demonstrates both gate behavior and fabricated-output limitations.
-4. **Supported legacy release components**: Reports about 0.5.x CLI tools, native crates (including process boundaries, vector clocks and protocol gateways), companion server and workflow skills remain in scope under the support policy. Their code and dated release records remain in Git history. The dashboard, model routing, memory product and protected-write service are not active native-gate runtime surfaces.
+1. **Native CLI & PR anti-tampering gate** (`core-native/crates/kineti-cli/src/` and `action.yml`): `gate_main.rs` argument validation; `pr_guard.rs` base-branch `.kineti/gate.json` loading, PR-diff policy/test tampering detection, and `kineti-pr-audit-v1` signing; `gate.rs` fail-closed declared command enforcement; `receipt.rs` POSIX command supervision, parser contract, and receipt verification; `compat.rs` historical signature compatibility.
+2. **Accounting, undo & durable storage:** `spend.rs` integer reported-spend limits and reviewed recovery; `journal.rs` legacy accounting integrity; `undo.rs` CLI-only intent/completion and uncertain-replay guards; `store.rs` `O_NOFOLLOW` two-tier inventory hashing, atomic writes, and locking.
+3. **Host boundaries:** `mcp.rs` stdin/stdout JSON-RPC server (strictly allowlisted `kineti_evidence_record` matching `.kineti/gate.json`; undo/saga tools are intentionally removed from MCP) and `init.rs` previewable setup and backup handling.
 
 ### Out of Scope
 
-1. Reports concerning local modifications or unreleased forks that do not reproduce on the main branch.
-2. Denial of service attacks requiring direct root or administrator access to the user machine.
-3. Theoretical issues without a reproducible proof-of-concept.
+1. Reports targeting retired `0.6.x` / `0.5.x` legacy lines, archived harness/memory/companion code in Git history, or modified forks that do not reproduce on the active branch.
+2. Local attacks assuming root/administrator privileges or same-account shell access outside a protected CI runner (see Section 6).
+3. Theoretical findings without a reproducible proof-of-concept.
 
 ## 5. Security Principles in Kineti
 
-Kineti is designed around defensive defaults:
+1. **Base-branch trust boundary:** Kineti 1.0 enforces `.kineti/gate.json` read strictly from the protected base commit on a protected CI runner. Same-account local execution on a developer machine cannot prevent an agent with local write permissions from modifying files outside Kineti.
+2. **Strict command allowlisting:** `kineti ci` fails closed when a required label lacks an exact declared `argv` command mapping. Native MCP (`kineti mcp`) speaks stdin/stdout JSON-RPC with no HTTP listener, strictly enforces `.kineti/gate.json` command allowlists on `kineti_evidence_record`, and does not expose `undo` / `saga` tools over MCP. Local MCP has previously been tested only on specific macOS arm64 Codex versions; **Cursor and Antigravity remain unverified**.
+3. **Reported spending:** Reported spending uses integer monetary units, total and stage ceilings, and a 95% stop. Corruption, unresolved reservations, and unknown historical costs fail closed. This is operator-reported accounting, not provider-bill verification. Historical monetary unknowns remain preserved and are never reset to zero.
+4. **File permissions & runtime state:** Atomic state writes, issuer keys, new append files, and lock files request `0600`. Existing append files preserve their mode; existing or interrupted locks are not silently reclaimed. Runtime `.kineti/` state must remain excluded from Git.
+5. **Exact-`argv` secret-handling limits:** Automatic command-argument redaction is **not** implemented. Test receipts and undo records persist exact `argv`, so credentials passed on the command line can be written to `.kineti/` state or audit outputs. Never place secrets, passwords, or auth tokens in command arguments, labels, fixture files, or test output. Secret-like declared environment names are rejected and allowed environment values are hashed; Kineti does not scan arbitrary command arguments or sanitize inherited subprocess environments.
 
-1. **Reported spending**: Amounts use integer monetary units, total and stage limits, and a 95% stop. Corruption, unresolved monetary reservations and unknown costs deny. This is reported accounting, not provider-bill verification. Agents and participating commands must act on the denial; Kineti does not intercept unrelated tools. The approved subscription-only local implementation exception preserves historical unknowns and authorizes $0 new paid spending. It does not authorize publication or bypass integrity failures or uncertain monetary writes.
-2. **Runtime surfaces**: Native MCP uses stdin/stdout; it opens no companion HTTP listener. The legacy companion's loopback binding and Host/Origin validation belong to its dated release behavior, not to a new native server guarantee. Codex integration proves only the tested versions and calls. Cursor and Antigravity remain unverified.
-3. **New-file permissions and existing files**: Atomic replacement/state and issuer-key creation request `0600`. New append files and operation-lock files also explicitly request `0600`, even with a permissive umask. Opening an existing append file preserves its mode; existing or interrupted locks are not silently changed or reclaimed. Historical broad modes remain unresolved pending an exact, separately approved metadata-only proposal. An inventory is not a repair. Mode bits alone prove neither parent-directory security nor cross-account access; broad log permissions alone do not establish private-key exposure. Runtime `.kineti/` records remain excluded from Git.
-4. **No credentials in logs policy**: Secrets, passwords and raw auth tokens must not be written to logs or state. Automatic argument redaction is not implemented: receipts and undo records preserve exact argv, so user-supplied secret arguments can be persisted. Do not place credentials in command arguments, labels, fixture files or outputs. Secret-like declared environment names are rejected and allowed environment values are hashed; this does not scan arbitrary command arguments or sanitize inherited subprocess environments. Runtime secret filtering needs a separate decision. The historical companion authorization-token exception remains limited to that legacy component: its token is printed once to the local terminal for login, not intentionally logged.
+## 6. Evidence and Execution Limits
 
-## 6. Evidence and execution limits
-
-A receipt signature establishes integrity relative to the trusted local issuer;
-it does not prove honest tests, independent review or control by a separate
-account. Test commands can print fabricated passing summaries. Native checks
-also require exact argv, declared inputs, dependencies, relevant environment and
-runtime identity to remain fresh. Historical signature validity does not grant
-new native execution authority. Confirmation flags and interactive trust hashes
-record acknowledgment; they do not establish human identity.
-
-The shared runner uses shell-free argv and a monotonic execution/capture deadline.
-A complete result requires definite child status and EOF on both streams before
-that deadline. It retains at most 8,000,000 raw bytes per stream while continuing
-to drain; this is not a total process-memory limit. Completed truncation cannot
-authorize passing evidence or verification. Incomplete capture preserves uncertain
-undo intent rather than authorizing replay. Cleanup has at most one additional
-monotonic second; unconfirmed cleanup reports code 3 with identity/diagnostics.
-Execution denies unsupported child-wait control, including automatic reaping or
-external child-reaper signal handlers. Confirmed cleanup includes direct-child
-reaping and closure of owned pipes; it does not prove every descendant has died.
-After complete capture, the existing group-termination attempt remains best effort.
-This bounds supervision, not hashing, persistence, OS suspension or escaped
-descendants, and is not a hard real-time or sandbox guarantee. Actual lifecycle
-proof on every Linux/macOS x64/arm64 target remains required before new platform
-claims; local tests and cross-compilation do not establish installed acceptance.
-
-The native gate provides no same-account adversary boundary, universal command
-interception, protected writes or automatic native-tool hooks. A participating
-gate check does not atomically authorize a later write. Preserve original bytes,
-signatures and unresolved records; accounting or historical-permission recovery,
-exact command trust, publication, merging and deployment require their separate
-reviews and approvals. See the [acceptance contract](docs/GATE-0.6.0-CONTRACT.md)
-and the separately approved local repair contract.
+- **Signatures vs. assertion quality:** An Ed25519 signature on a receipt or `kineti-pr-audit-v1` bundle establishes integrity relative to the trusted signing key—not that tests are honest, meaningful, or free of fabricated output (`"independent_assertion_quality_proven": false`).
+- **Two-tier test parsers:** Built-in count-aware parsing (`--parser auto`) extracts observed pass/fail/skip counts for `cargo test` and multi-suite `bun test`. Allowlisted polyglot runners (`pytest`, `jest`, `vitest`, `go test`, `node --test`, `make test`) executed via `--parser exit-code` enforce exit `0`, exact `argv`, required test presence, untruncated capture, and workspace freshness while explicitly recording `"count_observed": false`.
+- **Confirmation flags:** CLI confirmation flags and interactive trust hashes record acknowledgment; they do not establish human identity.
+- **Process supervision limits:** The runner executes shell-free `argv` under a monotonic deadline, requires definite child exit status and EOF on both streams, retains at most 8,000,000 raw bytes per stream while draining (not a total process-memory limit), and rejects truncated output from authorizing passing evidence. Cleanup allows at most one additional monotonic second; confirmed cleanup covers direct-child reaping and pipe closure, not proof that every escaped descendant has exited. This is bounded execution supervision, not a hard real-time guarantee or kernel sandbox.
+- **No automatic interception or protected writes:** Kineti provides no universal command interception, no kernel sandboxing, no protected writes, no automatic native-tool hooks, and no atomic authorization of later writes. Publication, merging, and deployment require separate owner approval. See [docs/GATE-0.6.0-CONTRACT.md](docs/GATE-0.6.0-CONTRACT.md).

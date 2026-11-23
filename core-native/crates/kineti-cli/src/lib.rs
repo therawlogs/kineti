@@ -4,6 +4,7 @@ pub mod gate;
 pub mod init;
 mod journal;
 pub mod mcp;
+pub mod pr_guard;
 pub mod receipt;
 pub mod self_test;
 pub mod spend;

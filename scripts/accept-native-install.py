@@ -13,7 +13,7 @@ import tarfile
 import urllib.parse
 import urllib.request
 
-VERSION = "0.6.1"
+VERSION = "1.0.0"
 
 
 def fetch_published_archives(destination, cargo_sha256, npm_sha256):
@@ -99,7 +99,7 @@ if work.exists():
 work.mkdir(parents=True)
 source = work / "source"
 source.mkdir()
-crate = artifacts / "kineti-cli-0.6.1.crate"
+crate = artifacts / ("kineti-cli-" + VERSION + ".crate")
 with tarfile.open(crate) as archive:
     for member in archive.getmembers():
         relative = PurePosixPath(member.name)
@@ -114,9 +114,9 @@ with tarfile.open(crate) as archive:
                 shutil.copyfileobj(data, output)
         else:
             raise RuntimeError("Unsupported crate archive entry")
-crate_source = source / "kineti-cli-0.6.1"
+crate_source = source / ("kineti-cli-" + VERSION)
 env = dict(os.environ, CARGO_TARGET_DIR=str(work / "cargo-target"), npm_config_cache=str(work / "npm-cache"))
-archive = artifacts / "kineti-0.6.1.tgz"
+archive = artifacts / ("kineti-" + VERSION + ".tgz")
 with tarfile.open(archive) as packed:
     for member in packed.getmembers():
         relative = PurePosixPath(member.name)
@@ -182,7 +182,7 @@ def initial_integration(project, runtime, binary):
     command = next(json.loads(line.removeprefix("command = ")) for line in text.splitlines() if line.startswith("command = "))
     args = next(json.loads(line.removeprefix("args = ")) for line in text.splitlines() if line.startswith("args = "))
     assert Path(command).resolve() == binary.resolve()
-    assert args == ["mcp", "--root", str(project)]
+    assert args == ["mcp"]
     assert b"name: kineti-gate" in skill.read_bytes()
     assert manifest["skill_sha256"] == hashlib.sha256(skill.read_bytes()).hexdigest()
     return {"configuration": config, "skill": skill, "ownership_manifest": manifest_path,
@@ -233,7 +233,7 @@ for route, installation in [("cargo", cargo_root), ("npm", npm_root)]:
     (evidence / (route + "-version.stdout")).write_text(version)
     (evidence / (route + "-version.stderr")).write_text(observed.stderr)
     observed.check_returncode()
-    assert json.loads(version)["result"]["version"] == "0.6.1"
+    assert json.loads(version)["result"]["version"] == VERSION
     observed = subprocess.run([str(binary), "self-test"], env=runtime, cwd=project, capture_output=True, text=True)
     tested = observed.stdout
     (evidence / (route + "-self-test.stdout")).write_text(tested)
@@ -248,7 +248,7 @@ for route, installation in [("cargo", cargo_root), ("npm", npm_root)]:
     integration = initial_integration(project, runtime, binary)
     registry = json.loads((root / "server.json").read_text())
     mcp_args = [arg["value"] for arg in registry["packages"][0]["packageArguments"]]
-    messages = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "candidate-acceptance", "version": "0.6.1"}}},
+    messages = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "candidate-acceptance", "version": VERSION}}},
                 {"jsonrpc": "2.0", "method": "notifications/initialized"},
                 {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
                 {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "kineti_status", "arguments": {}}}]
@@ -257,7 +257,7 @@ for route, installation in [("cargo", cargo_root), ("npm", npm_root)]:
     (evidence / (route + "-mcp.stderr")).write_text(mcp.stderr)
     mcp.check_returncode()
     replies = {r["id"]: r for r in map(json.loads, mcp.stdout.splitlines()) if "id" in r}
-    assert len(replies[2]["result"]["tools"]) == 8
+    assert len(replies[2]["result"]["tools"]) == 6
     assert not replies[3]["result"].get("isError", False)
     assert "Disposable candidate install acceptance" in json.dumps(replies[3])
     entries = inventory_tree(installation, "installation") + inventory_tree(run, "runtime")

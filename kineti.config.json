@@ -1,7 +1,7 @@
 {
-  "version": "0.6.1",
+  "version": "1.0.0",
   "name": "Kineti native gate",
-  "description": "Record checks, detect changed inputs, and gate participating CI on evidence and reported spending",
+  "description": "Open-core AI-PR verification, changed-input detection, and reported-spending CI gate",
   "root_goal": "Build universal agent harness with cryptographic verification",
   "pipeline": [
     {
@@ -79,7 +79,7 @@
   ],
   "settings": {
     "spend_limit_usd": {
-      "global": 50.0,
+      "global": 75.0,
       "per_stage_default": 10.0,
       "per_stage": {
         "build": 75.0
@@ -88,7 +88,6 @@
     "qa_max_self_repair_attempts": 5,
     "data_quality_threshold": 0.8,
     "hurdle_rate_min": 0.5,
-    "verify_command": "bun test",
     "verify_command_argv": ["cargo", "test", "--locked", "--manifest-path", "core-native/Cargo.toml"],
     "ci_stage": 9,
     "freeze_during": [

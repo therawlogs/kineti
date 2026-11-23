@@ -175,6 +175,24 @@ fn missing_checks_and_corrupt_history_fail_closed() {
 fn exact_ci_command_map_rejects_substitution() {
     let p = Project::new();
     assert!(p.record().status.success());
+    // Fail-closed CI when no command mapping is declared (PA02)
+    assert_eq!(
+        p.run(&["ci", "--require-evidence", "release"])
+            .status
+            .code(),
+        Some(1)
+    );
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({
+            "version": 1,
+            "required_checks": ["release"],
+            "commands": {"release": ["/bin/sh", "-c", "printf '1 pass\\n0 fail\\n'"]},
+            "max_age_minutes": 240
+        })
+        .to_string(),
+    )
+    .unwrap();
     assert!(p
         .run(&["ci", "--require-evidence", "release"])
         .status
@@ -579,7 +597,17 @@ fn native_mcp_protocol_discovers_and_calls() {
         .map(|s| serde_json::from_str::<Value>(s).unwrap())
         .collect::<Vec<_>>();
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows[1]["result"]["tools"].as_array().unwrap().len(), 8);
+    let tools = rows[1]["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 6);
+    assert!(!tools
+        .iter()
+        .any(|t| t["name"] == "kineti_saga_push" || t["name"] == "kineti_saga_rollback"));
+    let ev = tools
+        .iter()
+        .find(|t| t["name"] == "kineti_evidence_record")
+        .unwrap();
+    assert_eq!(ev["annotations"]["destructiveHint"], true);
+    assert_eq!(ev["annotations"]["openWorldHint"], true);
     assert_eq!(rows[2]["result"]["isError"], false);
 }
 
@@ -667,18 +695,48 @@ fn reviewed_recovery_preserves_damaged_original_and_binds_evidence() {
 #[test]
 fn journal_unknown_costs_remain_blocking() {
     let p = Project::new();
+    let at = "2026-10-25T00:00:00Z";
+    let id = "rr-unresolved";
+    let data = json!({"costs_usd": null});
+    let hash = kineti_cli::compat::digest(format!("GENESIS{at}{id}{data}"));
     fs::write(
         p.0.join(".kineti/journal.jsonl"),
-        json!({"type":"run-record","id":"rr-unresolved","data":{"costs_usd":null}}).to_string()
+        json!({
+            "type": "run-record",
+            "id": id,
+            "at": at,
+            "project": "fixture",
+            "data": data,
+            "prev_hash": "GENESIS",
+            "hash": hash
+        })
+        .to_string()
             + "\n",
     )
     .unwrap();
     let out = p.run(&["spend", "check"]);
     assert_eq!(out.status.code(), Some(3));
-    assert!(value(&out)["error"]
+    let err = value(&out)["error"].as_str().unwrap().to_owned();
+    assert!(err.contains("rr-unresolved"), "unexpected error: {err}");
+    assert!(
+        err.contains("unresolved historical cost"),
+        "must reach spend unresolved-cost check, not journal integrity failure: {err}"
+    );
+
+    // Malformed journal row must still fail closed on integrity check
+    let bad = Project::new();
+    fs::write(
+        bad.0.join(".kineti/journal.jsonl"),
+        json!({"type":"run-record","id":"rr-malformed","data":{"costs_usd":null}}).to_string()
+            + "\n",
+    )
+    .unwrap();
+    let bad_out = bad.run(&["spend", "check"]);
+    assert_eq!(bad_out.status.code(), Some(3));
+    assert!(value(&bad_out)["error"]
         .as_str()
         .unwrap()
-        .contains("rr-unresolved"));
+        .contains("accounting journal integrity failed at rr-malformed"));
 }
 #[test]
 fn verify_missing_or_untrusted_command_preserves_exit_nine() {
@@ -1761,4 +1819,605 @@ fn incomplete_capture_cannot_record_passed_receipt() {
         .run(&["test", "check", "--label", "deadline"])
         .status
         .success());
+}
+
+#[test]
+fn pa01_mcp_allowlist_saga_removal_and_jsonrpc_hardening() {
+    use std::io::Write;
+    let p = Project::new();
+    let allowlisted = json!(["/bin/sh", "-c", "printf '1 pass\\n0 fail\\n'"]);
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({
+            "version": 1,
+            "required_checks": ["unit"],
+            "commands": {"unit": allowlisted},
+            "max_age_minutes": 240
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let marker = p.0.join("rce-marker.txt");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kineti"))
+        .arg("mcp")
+        .current_dir(&p.0)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    // 1. Initialize without protocolVersion -> must default to non-null string
+    writeln!(
+        input,
+        "{}",
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})
+    )
+    .unwrap();
+    // 2. JSON-RPC batch array and non-object -> must return -32600 (not hang/drop)
+    writeln!(input, "[1,2,3]").unwrap();
+    writeln!(input, "\"hello\"").unwrap();
+    // 3. Unallowlisted RCE command -> must be rejected with zero side effects
+    writeln!(
+        input,
+        "{}",
+        json!({
+            "jsonrpc":"2.0","id":2,"method":"tools/call",
+            "params":{"name":"kineti_evidence_record","arguments":{
+                "label":"unit",
+                "command":["/bin/sh","-c",format!("touch {}", marker.display())],
+                "required_tests":["test.txt"]
+            }}
+        })
+    )
+    .unwrap();
+    // 4. Removed saga MCP tools -> must be rejected
+    writeln!(
+        input,
+        "{}",
+        json!({
+            "jsonrpc":"2.0","id":3,"method":"tools/call",
+            "params":{"name":"kineti_saga_push","arguments":{
+                "label":"evil","command":["/bin/sh","-c",format!("touch {}", marker.display())]
+            }}
+        })
+    )
+    .unwrap();
+    writeln!(
+        input,
+        "{}",
+        json!({
+            "jsonrpc":"2.0","id":4,"method":"tools/call",
+            "params":{"name":"kineti_saga_rollback","arguments":{"confirm":true}}
+        })
+    )
+    .unwrap();
+    // 5. Exact allowlisted command -> must succeed
+    writeln!(
+        input,
+        "{}",
+        json!({
+            "jsonrpc":"2.0","id":5,"method":"tools/call",
+            "params":{"name":"kineti_evidence_record","arguments":{
+                "label":"unit","command":allowlisted,"required_tests":["test.txt"],"timeout":120
+            }}
+        })
+    )
+    .unwrap();
+    drop(input);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    let rows = String::from_utf8(out.stdout)
+        .unwrap()
+        .lines()
+        .map(|s| serde_json::from_str::<Value>(s).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 7, "rows={rows:?}");
+    assert_eq!(rows[0]["result"]["protocolVersion"], "2024-11-05");
+    assert_eq!(rows[1]["error"]["code"], -32600);
+    assert_eq!(rows[2]["error"]["code"], -32600);
+    assert_eq!(rows[3]["result"]["isError"], true);
+    assert_eq!(rows[4]["result"]["isError"], true);
+    assert_eq!(rows[5]["result"]["isError"], true);
+    assert_eq!(rows[6]["result"]["isError"], false);
+    assert!(!marker.exists(), "RCE marker must never be created");
+}
+
+#[test]
+fn pa02_codex_multi_project_and_secret_backup_isolation() {
+    let p1 = Project::new();
+    let p2 = Project::new();
+    let shared_home = p1.0.join("shared-codex-home");
+    fs::create_dir_all(&shared_home).unwrap();
+    let secret = "SUPER_SECRET_API_TOKEN_98765";
+    fs::write(
+        shared_home.join("config.toml"),
+        format!("[mcp_servers.other]\nenv = {{ API_KEY = \"{secret}\" }}\n"),
+    )
+    .unwrap();
+    let h = shared_home.to_str().unwrap();
+    assert!(p1
+        .run(&["init", "--codex-home", h, "--apply"])
+        .status
+        .success());
+    // Project #2 must succeed against the same Codex home without collision
+    let o2 = p2.run(&["init", "--codex-home", h, "--apply"]);
+    assert!(o2.status.success(), "{}", value(&o2));
+    // Secrets from global config.toml must NEVER appear inside project backups or install-audit.jsonl
+    for proj in [&p1, &p2] {
+        let audit = fs::read_to_string(proj.0.join(".kineti/install-audit.jsonl")).unwrap();
+        assert!(!audit.contains(secret), "secret leaked into install-audit");
+        let proj_backups = proj.0.join(".kineti/backups");
+        if proj_backups.exists() {
+            for entry in fs::read_dir(proj_backups).unwrap() {
+                let text = fs::read_to_string(entry.unwrap().path()).unwrap_or_default();
+                assert!(!text.contains(secret), "secret leaked into project backups");
+            }
+        }
+    }
+    // Backup must exist in <codex-home>/.kineti-backups instead
+    assert!(shared_home.join(".kineti-backups").is_dir());
+}
+
+#[test]
+fn pa03_mirror_json_ceiling_override_is_ignored() {
+    let p = Project::new();
+    fs::write(
+        p.0.join(".kineti/mirror.json"),
+        json!({"ceiling": 9_000_000_000u64}).to_string(),
+    )
+    .unwrap();
+    let status = p.run(&["spend", "status"]);
+    assert!(status.status.success(), "{}", value(&status));
+    assert_eq!(value(&status)["result"]["global_microcents"], 50_000_000);
+}
+
+#[test]
+fn pa04_relative_executable_resolution_and_symlinked_roots() {
+    use std::{
+        io::Write,
+        os::unix::fs::{symlink, PermissionsExt},
+    };
+    let p = Project::new();
+    let caller = Project::new();
+    fs::create_dir_all(p.0.join("scripts")).unwrap();
+    fs::create_dir_all(caller.0.join("scripts")).unwrap();
+    let real_script = p.0.join("scripts/test.sh");
+    let decoy_script = caller.0.join("scripts/test.sh");
+    fs::write(&real_script, "#!/bin/sh\nprintf '1 pass\\n0 fail\\n'\n").unwrap();
+    fs::write(&decoy_script, "#!/bin/sh\necho DECOY\n").unwrap();
+    fs::set_permissions(&real_script, fs::Permissions::from_mode(0o755)).unwrap();
+    fs::set_permissions(&decoy_script, fs::Permissions::from_mode(0o755)).unwrap();
+    let real_sha = kineti_cli::store::hash_file_nofollow(&real_script).unwrap();
+
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({
+            "version": 1,
+            "required_checks": ["unit"],
+            "commands": {"unit": ["./scripts/test.sh"]},
+            "max_age_minutes": 240
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    // Symlinked root passed via --root must work AND hash <root>/scripts/test.sh (not caller CWD!)
+    let root_link = caller.0.join("linked-project");
+    symlink(&p.0, &root_link).unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_kineti"))
+        .args(["mcp", "--root", root_link.to_str().unwrap()])
+        .current_dir(&caller.0)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = child.stdin.take().unwrap();
+    writeln!(
+        input,
+        "{}",
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}})
+    )
+    .unwrap();
+    writeln!(
+        input,
+        "{}",
+        json!({
+            "jsonrpc":"2.0","id":2,"method":"tools/call",
+            "params":{"name":"kineti_evidence_record","arguments":{
+                "label":"unit","command":["./scripts/test.sh"],"required_tests":["test.txt"]
+            }}
+        })
+    )
+    .unwrap();
+    drop(input);
+    let out = child.wait_with_output().unwrap();
+    assert!(out.status.success());
+    let rows = String::from_utf8(out.stdout)
+        .unwrap()
+        .lines()
+        .map(|s| serde_json::from_str::<Value>(s).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(rows[1]["result"]["isError"], false, "rows={rows:?}");
+    let rec: Value =
+        serde_json::from_str(rows[1]["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(rec["manifest"]["runtime"]["executable_sha256"], real_sha);
+
+    // Symlinked --codex-home directory must also succeed
+    let real_codex = p.0.join("real-codex");
+    fs::create_dir_all(&real_codex).unwrap();
+    let link_codex = p.0.join("link-codex");
+    symlink(&real_codex, &link_codex).unwrap();
+    let init_link = p.run(&[
+        "init",
+        "--codex-home",
+        link_codex.to_str().unwrap(),
+        "--apply",
+    ]);
+    assert!(init_link.status.success(), "{}", value(&init_link));
+
+    // Symlinked project-internal leaf file (.kineti/state.json) MUST still be refused (exit 3)
+    let bad = Project::new();
+    let outside = bad.0.join("outside.json");
+    fs::write(&outside, "{}").unwrap();
+    fs::remove_file(bad.0.join(".kineti/state.json")).unwrap();
+    symlink(&outside, bad.0.join(".kineti/state.json")).unwrap();
+    assert_eq!(
+        bad.run(&["init", "--goal", "Fixture only", "--apply"])
+            .status
+            .code(),
+        Some(3)
+    );
+}
+
+#[test]
+fn pa05_two_tier_freshness_legacy_drift_and_constant_size_receipts() {
+    let p = Project::new();
+    fs::create_dir_all(p.0.join("src/legacy")).unwrap();
+    fs::create_dir_all(p.0.join("src/build")).unwrap();
+    fs::write(
+        p.0.join("src/legacy/auth.rs"),
+        "pub fn ok() -> bool { false }\n",
+    )
+    .unwrap();
+    fs::write(p.0.join("src/build/x.rs"), "pub const V: u32 = 1;\n").unwrap();
+
+    // Creating .pytest_cache during test execution must NOT trigger mutated_during_run
+    let run = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "release",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "mkdir -p .pytest_cache && printf x > .pytest_cache/tag && printf '1 pass\\n0 fail\\n'",
+    ]);
+    assert!(run.status.success(), "{}", value(&run));
+    let rec = &value(&run)["result"];
+    assert!(rec["manifest"]["inventory_sha256"].is_string());
+    assert!(rec["manifest"].get("inputs").is_none());
+
+    // 1-byte drift inside src/legacy/ MUST trigger exit 4 (stale)
+    fs::write(
+        p.0.join("src/legacy/auth.rs"),
+        "pub fn ok() -> bool { true }\n",
+    )
+    .unwrap();
+    assert_eq!(p.check().status.code(), Some(4));
+
+    // Re-record, then add nested src/target/backdoor.rs -> MUST trigger exit 4
+    assert!(p.record().status.success());
+    fs::create_dir_all(p.0.join("src/target")).unwrap();
+    fs::write(p.0.join("src/target/backdoor.rs"), "// stealth").unwrap();
+    assert_eq!(p.check().status.code(), Some(4));
+}
+
+#[test]
+fn pa06_two_tier_parsers_multi_suite_bun_cargo_ignore_and_exit_code() {
+    let p = Project::new();
+    // Multi-suite bun output where suite 2 fails MUST exit 1 (never false pass!)
+    let bun_fail = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "bun",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf '2 pass\\n0 fail\\n1 pass\\n1 fail\\n'",
+    ]);
+    assert_eq!(bun_fail.status.code(), Some(1), "{}", value(&bun_fail));
+
+    // Cargo test with 1 ignored fails by default, passes with --allow-ignored
+    let cargo_ign = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "cargo",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf 'test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\\n'",
+    ]);
+    assert_eq!(cargo_ign.status.code(), Some(1));
+    let cargo_ok = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "cargo",
+        "--allow-ignored",
+        "--required-test",
+        "test.txt",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf 'test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\\n'",
+    ]);
+    assert!(cargo_ok.status.success(), "{}", value(&cargo_ok));
+
+    // min_passed floor enforcement in gate.json
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({
+            "version": 1,
+            "required_checks": ["cargo"],
+            "commands": {"cargo": ["/bin/sh", "-c", "printf 'test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out\\n'"]},
+            "min_passed": {"cargo": 10},
+            "max_age_minutes": 240
+        })
+        .to_string(),
+    )
+    .unwrap();
+    assert_eq!(
+        p.run(&["ci", "--require-evidence", "cargo"]).status.code(),
+        Some(1)
+    );
+
+    // Polyglot --parser exit-code succeeds on pytest-style output and records count_observed: false
+    let py_proj = Project::new();
+    let py_cmd = ["/bin/sh", "-c", "printf '3 passed in 0.02s\\n'"];
+    fs::write(
+        py_proj.0.join(".kineti/gate.json"),
+        json!({
+            "version": 1,
+            "required_checks": ["py"],
+            "commands": {"py": py_cmd},
+            "parsers": {"py": "exit-code"},
+            "max_age_minutes": 240
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let py = py_proj.run(&[
+        "test",
+        "run",
+        "--label",
+        "py",
+        "--parser",
+        "exit-code",
+        "--required-test",
+        "test.txt",
+        "--",
+        py_cmd[0],
+        py_cmd[1],
+        py_cmd[2],
+    ]);
+    assert!(py.status.success(), "{}", value(&py));
+    assert_eq!(
+        value(&py)["result"]["verification"]["parser"],
+        "kineti-exit-code-v1"
+    );
+    assert_eq!(
+        value(&py)["result"]["verification"]["count_observed"],
+        false
+    );
+    let chk = py_proj.run(&["test", "check", "--label", "py"]);
+    assert!(chk.status.success(), "{}", value(&chk));
+    let ci_ok = py_proj.run(&["ci", "--require-evidence", "py"]);
+    assert!(ci_ok.status.success(), "{}", value(&ci_ok));
+}
+
+#[test]
+fn pa07_pa08_pa09_pr_check_cli_end_to_end_and_audit_verification() {
+    let p = Project::new();
+    let git = |args: &[&str]| {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(&p.0)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@example.invalid")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@example.invalid")
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&out.stderr)
+        );
+    };
+    git(&["init", "-b", "main"]);
+    fs::create_dir_all(p.0.join("tests")).unwrap();
+    fs::write(
+        p.0.join("tests/test_auth.py"),
+        "def test_ok():\n    assert True\n\ndef test_two():\n    assert 1 + 1 == 2\n",
+    )
+    .unwrap();
+    let py_cmd = json!(["/bin/sh", "-c", "printf '2 passed in 0.01s\\n'"]);
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({
+            "version": 1,
+            "required_checks": ["unit"],
+            "commands": {"unit": py_cmd},
+            "required_tests": ["tests/test_auth.py"],
+            "max_age_minutes": 240
+        })
+        .to_string(),
+    )
+    .unwrap();
+    git(&[
+        "add",
+        "-f",
+        ".kineti/gate.json",
+        "tests/test_auth.py",
+        "test.txt",
+    ]);
+    git(&["commit", "-m", "base"]);
+
+    // Tamper PR: weaken gate.json AND insert @pytest.mark.skip
+    git(&["checkout", "-b", "ai-tamper"]);
+    fs::write(
+        p.0.join(".kineti/gate.json"),
+        json!({"version":1,"required_checks":[],"commands":{}}).to_string(),
+    )
+    .unwrap();
+    fs::write(
+        p.0.join("tests/test_auth.py"),
+        "import pytest\n\n@pytest.mark.skip(reason='flaky')\ndef test_ok():\n    assert True\n",
+    )
+    .unwrap();
+    git(&["add", "-f", ".kineti/gate.json", "tests/test_auth.py"]);
+    git(&["commit", "-m", "ai tamper"]);
+
+    let blocked = p.run(&[
+        "pr-check",
+        "--base-ref",
+        "main",
+        "--head-ref",
+        "HEAD",
+        "--audit-out",
+        ".kineti/pr-audit.json",
+        "--summary-out",
+        ".kineti/pr-summary.md",
+    ]);
+    assert_eq!(blocked.status.code(), Some(1), "{}", value(&blocked));
+    let audit: Value =
+        serde_json::from_str(&fs::read_to_string(p.0.join(".kineti/pr-audit.json")).unwrap())
+            .unwrap();
+    assert_eq!(audit["schema"], "kineti-pr-audit-v1");
+    assert_eq!(audit["verdict"], "blocked");
+    assert_eq!(audit["policy_tamper_detected"], true);
+    assert!(!audit["test_tamper_findings"].as_array().unwrap().is_empty());
+    let pub_pem = fs::read_to_string(p.0.join(".kineti/evidence-issuer.pem")).unwrap();
+    assert!(kineti_cli::pr_guard::verify_audit(&audit, &pub_pem));
+    let mut tampered = audit.clone();
+    tampered["verdict"] = json!("passed");
+    assert!(!kineti_cli::pr_guard::verify_audit(&tampered, &pub_pem));
+    assert!(fs::read_to_string(p.0.join(".kineti/pr-summary.md"))
+        .unwrap()
+        .contains("BLOCKED"));
+
+    // Clean PR with linked passing evidence -> passes exit 0
+    git(&["checkout", "main"]);
+    git(&["checkout", "-b", "clean-pr"]);
+    fs::write(
+        p.0.join("tests/test_auth.py"),
+        "def test_ok():\n    assert True\n\ndef test_two():\n    assert 1 + 1 == 2\n\ndef test_three():\n    assert 2 + 2 == 4\n",
+    )
+    .unwrap();
+    git(&["add", "tests/test_auth.py"]);
+    git(&["commit", "-m", "add third test"]);
+
+    let rec = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "unit",
+        "--parser",
+        "exit-code",
+        "--required-test",
+        "tests/test_auth.py",
+        "--",
+        "/bin/sh",
+        "-c",
+        "printf '2 passed in 0.01s\\n'",
+    ]);
+    assert!(rec.status.success(), "{}", value(&rec));
+    let passed = p.run(&[
+        "pr-check",
+        "--base-ref",
+        "main",
+        "--head-ref",
+        "HEAD",
+        "--require-evidence",
+        "unit",
+        "--audit-out",
+        ".kineti/pr-audit-pass.json",
+        "--summary-out",
+        ".kineti/pr-summary-pass.md",
+    ]);
+    assert!(passed.status.success(), "{}", value(&passed));
+    assert_eq!(value(&passed)["result"]["verdict"], "passed");
+    assert!(fs::read_to_string(p.0.join(".kineti/pr-summary-pass.md"))
+        .unwrap()
+        .contains("PASSED"));
+}
+
+#[test]
+fn pa10_subcommand_help_and_status_project_only() {
+    let p = Project::new();
+    for cmd in ["test", "pr-check", "spend", "ci", "init", "status", "undo"] {
+        let out = p.run(&[cmd, "--help"]);
+        assert!(out.status.success(), "{cmd}: {}", value(&out));
+        assert_eq!(value(&out)["result"]["command"], cmd);
+    }
+    // Corrupt spend.json -> regular status fails (exit 3), status --project-only stays readable (exit 0)
+    fs::write(p.0.join(".kineti/spend.json"), "{corrupt").unwrap();
+    assert_eq!(p.run(&["status"]).status.code(), Some(3));
+    let po = p.run(&["status", "--project-only"]);
+    assert!(po.status.success(), "{}", value(&po));
+    assert_eq!(value(&po)["result"]["state"]["root_goal"], "Fixture only");
+}
+
+#[test]
+fn v1_0_version_and_signature_only_trusted_key_nofollow() {
+    let p = Project::new();
+    let v = p.run(&["--version"]);
+    assert!(v.status.success(), "{}", value(&v));
+    assert_eq!(value(&v)["result"]["version"], "1.0.0");
+
+    // Create a receipt and valid issuer key, then replace trusted-key path with a symlink
+    fs::create_dir_all(p.0.join("tests")).unwrap();
+    fs::write(p.0.join("tests/a.test.js"), "// disposable test\n").unwrap();
+    let ok = p.run(&[
+        "test",
+        "run",
+        "--label",
+        "unit",
+        "--required-test",
+        "tests/a.test.js",
+        "--parser",
+        "exit-code",
+        "--",
+        "/bin/true",
+    ]);
+    assert!(ok.status.success(), "{}", value(&ok));
+    let receipt_path = p.0.join("single-receipt.json");
+    let lines = fs::read_to_string(p.0.join(".kineti/evidence.jsonl")).unwrap();
+    fs::write(&receipt_path, lines.lines().last().unwrap()).unwrap();
+
+    let outside_key = p.0.join("real-pub.pem");
+    fs::copy(p.0.join(".kineti/evidence-issuer.pem"), &outside_key).unwrap();
+    let key_link = p.0.join("link-pub.pem");
+    std::os::unix::fs::symlink(&outside_key, &key_link).unwrap();
+
+    let blocked = p.run(&[
+        "test",
+        "check",
+        "--signature-only",
+        "--receipt",
+        "single-receipt.json",
+        "--trusted-key",
+        "link-pub.pem",
+    ]);
+    assert!(!blocked.status.success(), "symlinked trusted key must fail");
+    assert_eq!(blocked.status.code(), Some(3));
 }

@@ -1,146 +1,202 @@
-# Kineti 0.6.1 native gate
+# Kineti 1.0.0 — AI-PR Verification & Anti-Tampering Gate
 
-**Record checks, detect changed inputs, and block participating CI commands when evidence or reported spending fails policy.**
+**Keep AI pull requests honest before they merge.**
 
-0.6.1 is published for Linux and macOS, x64 and arm64. The native gate is
-available through Cargo and npm.
-`kineti-cli` changes from its older assistant lineage to this gate. Older
-published releases remain available. Harness execution, model routing,
-delegation, swarm, dashboard, memory, evaluator services and protected writes
-are removed from the active product.
+Kineti is an open-core (MIT) offline Rust CLI and Linux GitHub Actions merge gate for engineering teams shipping code with AI coding agents (Claude Code, Codex CLI, Cursor). It locks test rules to your protected base branch, catches skipped or deleted tests and workflow edits in PR diffs, proves tests ran on the exact final code, and outputs tamper-evident signed audit bundles.
 
-## Install and initialize
+> **Honest scope:** Kineti checks participating workflows, detects changed inputs and PR-diff tampering, and blocks participating CI commands when evidence or reported spending fails policy. It does **not** provide automatic local interception, kernel sandboxing, protected writes, or provider-bill verification.
 
-Choose one installation route:
+---
 
-Cargo (requires Rust for installation):
+## Why Teams Use Kineti
 
-```sh
-cargo install kineti-cli --version '=0.6.1' --locked
-```
+When an AI coding agent hits a stubborn test failure on a pull request, standard CI has a blind spot—it executes whatever tests and workflow scripts sit on the PR branch. Standard CI happily turns green if an agent:
 
-npm (requires Node and enabled installation scripts for installation):
+1. **Weakens policy or workflows** — edits `.kineti/gate.json`, `.github/workflows/**`, `pytest.ini`, or `jest.config.*`.
+2. **Skips or deletes tests** — slips in `@pytest.mark.skip`, `@pytest.mark.xfail`, `it.skip`, `test.only`, `#[ignore]`, `t.Skip`, deletes a test function, or appends `--passWithNoTests`.
+3. **Claims tests passed locally before a final edit** — even a 1-byte code edit after tests ran invalidates prior receipts (exit `4`).
 
-```sh
-npm install -g kineti@0.6.1
-```
+Kineti closes that gap on your own Linux CI runner (`permissions: contents: read`) with zero data leaving your repository:
 
-Published 0.6.1 packages: [Cargo](https://crates.io/crates/kineti-cli/0.6.1)
-and [npm](https://www.npmjs.com/package/kineti/v/0.6.1). See the
-[GitHub release](https://github.com/therawlogs/kineti/releases/tag/v0.6.1)
-and [published-package acceptance run](https://github.com/therawlogs/kineti/actions/runs/40461551281).
-The earlier [0.6.0 release](https://github.com/therawlogs/kineti/releases/tag/v0.6.0) remains available.
+- **Base-branch policy lock:** Reads `.kineti/gate.json` strictly from the protected base commit (`git show <base>:.kineti/gate.json`) and blocks unauthorized edits to gate rules or CI workflows (`policy_tamper_detected`, exit `1`).
+- **Polyglot AI test-tampering scanner:** Deterministically scans PR diffs across **Rust, Python, JS/TS, and Go** for deleted required test files, net test deletions, skip/ignore/only/xfail directives, and weakened test-runner flags—returning exact file and line numbers.
+- **Freshness & supervised execution:** Runs exact allowlisted commands under a POSIX process-group deadline with streaming `O_NOFOLLOW` workspace hashing (two-tier: Git index + nested `.gitignore` hashing, or pure-Rust bounded fallback when `git` is absent).
+- **Signed audit packs:** Emits canonical Ed25519-signed `kineti-pr-audit-v1` JSON bundles and formatted GitHub Step Summary tables for engineering and SOC 2 change-control reviews.
 
-From your project directory, preview initialization with your explicit goal:
+---
 
-```sh
-kineti init --goal "Your explicit project goal"
-```
+## Open-Core (MIT) & Founding Team Pilot
 
-Review the preview, then apply initialization:
+| Tier | License / Price | What You Get |
+| --- | --- | --- |
+| **Open-Core CLI & Action** | **Free · MIT License** | Full native Rust `kineti` binary, `kineti pr-check`, `action.yml`, polyglot diff scanner, supervised test receipts, `kineti-pr-audit-v1` signing, local MCP server, reported-spend checks, and offline demo. |
+| **Founding Team Setup** | **$1,500 one-time** | Hands-on Week 1 rollout across unlimited repositories in your org, base-branch `.kineti/gate.json` + CODEOWNERS policy design, GitHub Actions & audit-pack wiring, and 30 days of direct founder tuning. |
+| **Design-Partner Pilot** | **$299 / month per org** | Ongoing org support, rule/parser tuning across unlimited repos during pilot, priority CI hotfixes, and direct roadmap input. Cancel anytime with 30 days' notice. |
 
-```sh
-kineti init --goal "Your explicit project goal" --apply
-```
+See [docs/PILOT-OFFER-AND-OUTREACH.md](docs/PILOT-OFFER-AND-OUTREACH.md) or email [hello@getkineti.com](mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot) for Founding Team Pilot onboarding.
 
-The installed executable needs neither Node nor Bun. The npm package contains
-four checksummed binaries; installation verifies/selects one and removes unused
-payloads. Disabled scripts leave an explicit installation error.
+---
 
-From source, use `cargo run --manifest-path core-native/Cargo.toml -p kineti-cli --bin kineti --`.
+## Install & Try It in 15 Seconds
 
-`init` previews changes, destinations and backups. Review before `--apply`.
-New projects require an explicit goal; existing locked goals and historical
-records stay intact. Missing fields may be initialized; damaged records require
-separate reviewed recovery. When Codex is detected, init proposes native MCP
-registration and one instruction skill. `--codex-home <directory>` chooses an
-explicit destination. Repetition preserves unrelated settings; edited owned
-settings are refused. `init --uninstall --apply` removes owned integration
-content and preserves project records. Restart existing Codex sessions after
-changes. Cursor and Antigravity configuration is preserved, but those hosts are
-unverified for 0.6.1. There is no automatic native-tool interception.
-The 0.6.1 installed Cargo and npm executables were tested on macOS arm64 with
-Codex 0.163.0-alpha.11.2 and stable 0.164.0, without a model turn. Other
-Codex versions and hosts are unverified.
+### Option 1 — Build from Source (Works Today)
 
-## Record and check
+Requires Rust/Cargo on Linux or macOS (`x64` or `arm64`). Runtime needs neither Node.js nor Bun:
 
 ```sh
-kineti test run --label tests --required-test tests -- cargo test
-kineti test check --label tests --expect-argv '["cargo","test"]'
-kineti ci --require-evidence tests
-kineti spend log --stage build --model reported --tokens-in 0 --tokens-out 0 --usd 0.25
-kineti spend check
-kineti undo push --label cleanup -- rm generated-file
-kineti undo rollback
-kineti undo rollback --yes
-kineti self-test
+cargo build --release --locked --manifest-path core-native/Cargo.toml
+./core-native/target/release/kineti --version
 ```
 
-Configure required labels in `.kineti/gate.json` or pass them explicitly. Empty
-required checks cannot pass. `--evidence-commands <json-file>` binds each label
-to an exact argv array. `--env-name NAME` declares relevant environment inputs;
-PATH is bound by default. Receipts bind project inputs, dependency files, runtime
-identity, exact arguments, declared environment, session reference and observed
-results. Commands provide structured JSON; explicit `--json` is also accepted.
-`evidence` and `saga` remain aliases. Removed commands fail explicitly.
+Run the self-contained 4-scene offline demo (zero network access, cleans up automatically):
 
-`verify` runs only its declared command after command-hash trust. Use
-`verify --status` and interactive `verify --trust`. It does not intercept other
-commands. CI checks evidence, project gates and reported spending policy.
+```sh
+./examples/pilot-demo/run-demo.sh
+```
 
-## Trust and recovery
+### Option 2 — GitHub Actions PR Gate (`action.yml`)
 
-A valid signature does not prove honest tests. A command can fabricate a passing
-summary; self-test demonstrates this limitation. Local keys do not protect
-against a same-account adversary. Native receipts use `kineti-canonical-v2`;
-legacy signatures use the original JavaScript serialization. Unmarked historical v3 receipts also retain that original signing format. Legacy evidence
-is readable and signature-checkable; unsupported legacy runtime/parser freshness
-cannot authorize the native gate. Run fresh native checks after migration.
+Commit `.kineti/gate.json` on your protected `main` branch, then add Kineti to `.github/workflows/kineti-pr-gate.yml`:
 
-Spending is reported accounting, not provider-bill verification. Integer
-millionths of USD are used, with a 95% total/stage stop. A lower configured
-safety factor can stop spending earlier; configuration cannot raise the 95% stop. Corruption, unknown costs
-and unresolved reservations fail closed. Reset requires audited `--i-am-human`
-confirmation; the flag does not prove a human acted and cannot create headroom.
+```yaml
+name: Kineti PR Gate
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  kineti:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: therawlogs/kineti@<pinned-commit-sha>
+        with:
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}
+          audit-out: .kineti/pr-audit.json
+          summary-out: .kineti/pr-summary.md
+          write-step-summary: "true"
+```
 
-`spend recover` previews recovery. Select a preserved snapshot inside the project
-with `--source` and `--evidence`. Apply requires the exact reviewed
-`--proposal-sha256`, `--apply` and `--i-am-human`. Originals remain unchanged and
-are backed up; a separate recovery view and resolution trail are recorded.
-Unknown records are never cleared. Native chain damage requires inspection.
-Incomplete recovery, altered recovery history, and changes to a reviewed recovery
-view block accounting until inspected.
+### Option 3 — Cargo / npm (`1.0.0` Pending Registry Publication)
 
-Undo records intent/completion, runs newest first and continues after definite
-failures. Uncertain interruption blocks replay until inspected and resolved with
-`undo resolve --action-id ID --outcome applied|not-applied --yes`.
-If the history guard was interrupted, `undo inspect` previews its exact bytes;
-`undo inspect --expected-sha256 HASH --yes` records reviewed inspection and keeps
-a byte backup. This does not resolve uncertain action outcomes.
-There is no atomic authorization of later writes or protected-write guarantee.
+> **Publication status:** `1.0.0` is currently an open-core release candidate. Registry publication to `crates.io` and `npm` requires final multi-target archive acceptance and separate owner approval. Historical `0.6.1` packages are retired (deprecated on npm, yanked on crates.io).
 
-## Acceptance
+After approved `1.0.0` registry publication:
 
-The frozen [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md),
-[behavior map and exit codes](docs/GATE-0.6.0-BEHAVIOR.md), and
-[dated evidence matrix](docs/GATE-0.6.0-EVIDENCE.md) preserve the behavior and
-accounting baseline. The published 0.6.1 packages were installed and self-tested
-outside the checkout on four native Linux and macOS x64/arm64 targets in the
-[published-package acceptance run](https://github.com/therawlogs/kineti/actions/runs/40461551281).
-The largest recorded installation was 2,339,196 bytes, including initial
-integration files; download and unpacked-package sizes are separate. These are
-dated results, not fresh tests. Historical monetary unknowns remain unresolved.
+```sh
+# Cargo (requires Rust)
+cargo install kineti-cli --version '=1.0.0' --locked
 
-Exit codes: 0 success; 1 failed command/check or incomplete undo; 2 invalid input;
-3 spending/integrity/recovery stop; evidence 4 stale, 5 missing, 6 unsupported
-legacy, 7 invalid/untrusted; verify 9 missing/untrusted command.
+# npm (requires Node.js with install scripts enabled; runtime needs neither Node nor Bun)
+npm install -g kineti@1.0.0
+```
 
-Dated older results, including the historical 631-test result, are separate from
-the new suite inventory. [Historical documents](docs/history/pre-0.6.0/README.md)
-and Git history remain available; they are not current product guarantees.
+---
 
-Operational `evidence check` results do not authorize test gates. Test checks and CI
-require test receipts. Declared label commands override default test commands;
-operational checks never inherit the default test command. Value options accept
-`--name=value`; arguments after `--` remain exact, including empty arguments.
+## Quickstart
+
+### 1. Initialize a repository
+
+Preview initialization first (Kineti requires an explicit goal and never overwrites an existing locked goal):
+
+```sh
+kineti init --goal "Ship verified pull requests"
+kineti init --goal "Ship verified pull requests" --apply
+```
+
+Keep `.kineti/` runtime state (`state.json`, `evidence.jsonl`, keys, spend logs) out of Git commits. Commit **only** `.kineti/gate.json` on your protected base branch:
+
+```json
+{
+  "version": 1,
+  "required_checks": ["unit"],
+  "commands": {
+    "unit": ["pytest", "-q", "tests/"]
+  },
+  "parsers": {
+    "unit": "exit-code"
+  },
+  "required_tests": ["tests/test_auth.py"],
+  "protected_paths": [".kineti/gate.json", ".github/workflows/", "pytest.ini"],
+  "max_deleted_tests": 0,
+  "max_age_minutes": 240
+}
+```
+
+### 2. Run supervised tests & check PR tampering
+
+```sh
+# Built-in count-aware verification (cargo test and multi-suite bun test)
+kineti test run --label rust-unit --required-test tests/ --parser auto -- cargo test
+
+# Allowlisted polyglot verification (pytest, jest, vitest, go test, node --test, make test)
+kineti test run --label unit --required-test tests/test_auth.py --parser exit-code -- pytest -q tests/
+
+# Verify freshness, exact argv, required test presence, and Ed25519 signature
+kineti test check --label unit
+
+# Enforce all base-branch checks
+kineti ci --require-evidence unit
+
+# Scan PR diff against base branch and emit signed kineti-pr-audit-v1 + Markdown summary
+kineti pr-check --base-ref origin/main --head-ref HEAD \
+  --require-ci --require-evidence unit \
+  --audit-out .kineti/pr-audit.json \
+  --summary-out .kineti/pr-summary.md
+```
+
+### 3. Additional CLI Commands
+
+```sh
+kineti status                      # Inspect project goal, evidence, and reported spend
+kineti status --project-only       # Inspect project state even if spend records need recovery
+kineti spend check                 # Check operator-reported spending against total/stage limits & 95% stop
+kineti undo push --label cleanup -- rm generated.tmp
+kineti undo rollback               # Preview newest-first undo plan (CLI-only; removed from MCP)
+kineti mcp --root .                # Stdio JSON-RPC MCP server (strictly allowlisted commands only)
+kineti self-test                   # Disposable self-check covering staleness, signatures & fabricated output
+```
+
+---
+
+## Exit Codes
+
+| Exit | Context | Meaning |
+| --- | --- | --- |
+| `0` | All commands | Check or operation succeeded (fresh evidence, clean PR diff, policy satisfied) |
+| `1` | `pr-check`, `ci`, `verify`, `test run`, `undo` | Policy/tampering/check failure (`policy_tamper_detected`, skip/deletion finding, failing test, or missing command mapping) |
+| `2` | All commands | Invalid arguments, malformed options, disallowed path, or missing explicit confirmation |
+| `3` | `spend`, `undo`, `store`, `receipt` | Spending stop, symlink (`O_NOFOLLOW`) refusal, or damaged/uncertain state or cleanup |
+| `4` | `test check` | Stale, expired, or changed workspace inputs (including 1-byte drift after test run) |
+| `5` | `test check` | Missing required evidence for the requested label |
+| `6` | `test check` | Legacy or unsupported receipt cannot authorize exact-input CI gate |
+| `7` | `test check` | Invalid, altered, or untrusted signature or mismatched command `argv` |
+| `9` | `verify` | Missing `verify` declaration or absent/stale command trust |
+
+---
+
+## Honest Limits
+
+- **Signatures vs. test quality:** Ed25519 signatures on receipts and `kineti-pr-audit-v1` bundles prove record integrity relative to the signing key—not that assertions are strong (`"independent_assertion_quality_proven": false`).
+- **Two-tier test parsing:** `--parser auto` verifies observed pass/fail/skip counts for `cargo test` and multi-suite `bun test` (with optional `min_passed` floors). Allowlisted polyglot runners via `--parser exit-code` verify exit `0`, exact `argv`, required test presence, untruncated capture, and workspace freshness while explicitly recording `"count_observed": false`.
+- **Trust boundary:** Real anti-tampering enforcement happens on your protected Linux CI runner reading `.kineti/gate.json` from the protected base branch. Local laptop runs cannot stop a same-account agent with write access from bypassing Kineti.
+- **Host integrations & MCP:** `kineti mcp` exposes 6 tools (undo/saga tools are intentionally CLI-only) and strictly enforces `.kineti/gate.json` `commands` allowlists on `kineti_evidence_record`. Historical Codex integration checks covered macOS arm64 Codex `0.163.0-alpha.11.2` and `0.164.0`; **Cursor and Antigravity remain unverified**.
+- **No automatic secret redaction in `argv`:** Receipts persist exact command `argv`; pass secrets via CI secrets/environment variables, never on command lines.
+- **Reported spending:** `kineti spend` tracks operator-reported integer amounts, not provider billing invoices.
+
+---
+
+## Documentation & History
+
+- Website & full reference: [website/index.html](website/index.html) · [website/docs.html](website/docs.html)
+- Offline 4-scene demo: [examples/pilot-demo/README.md](examples/pilot-demo/README.md)
+- Founding Team Pilot playbook: [docs/PILOT-OFFER-AND-OUTREACH.md](docs/PILOT-OFFER-AND-OUTREACH.md)
+- Static hosting migration (`$0` Cloudflare / GitHub Pages): [docs/HOSTING-MIGRATION-CHECKLIST.md](docs/HOSTING-MIGRATION-CHECKLIST.md)
+- Security policy & solo-maintainer response process: [SECURITY.md](SECURITY.md)
+- Contributing & DCO guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Release history: [CHANGELOG.md](CHANGELOG.md) · [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md) · [0.6.0 closeout](docs/GATE-0.6.0-CLOSEOUT.md) · [historical pre-0.6.0 docs](docs/history/pre-0.6.0/README.md)
+
+Licensed under the [MIT License](LICENSE).

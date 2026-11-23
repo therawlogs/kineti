@@ -1,11 +1,9 @@
 {
   "mcpServers": {
     "kineti": {
-      "command": "bun",
+      "command": "/absolute/path/to/kineti",
       "args": [
-        "${workspaceFolder}/bin/kineti-mcp.ts",
-        "--workspace-root",
-        "${workspaceFolder}"
+        "mcp"
       ]
     }
   }

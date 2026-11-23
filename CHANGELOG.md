@@ -1,3 +1,16 @@
+## 1.0.0 — Open-Core AI-PR Verification & Anti-Tampering Gate (release candidate)
+
+- **Base-branch PR policy & anti-tampering gate (`kineti pr-check`):** Load `.kineti/gate.json` strictly from the protected base commit (`git show <base>:.kineti/gate.json`), fail closed on unauthorized policy/workflow edits (`policy_tamper_detected`), and scan PR diffs across Rust, Python, JS/TS, and Go for deleted required test files, net test deletions, added skip/ignore/only/xfail/todo markers (including inline and multi-line block-comment smuggling), and weakened runner flags or `package.json` `"test"` scripts.
+- **Signed compliance packs (`kineti-pr-audit-v1`):** Emit canonical Ed25519-signed JSON audit bundles and Markdown PR summary tables with `--require-ci` consistency verification and explicit honesty flags (`independent_assertion_quality_proven: false`, `ci_runner_trust_boundary: true`, `automatic_interception: false`).
+- **Upgraded Linux GitHub Action (`action.yml`):** Preflight fail-fast `pr-check`, base-branch command/parser/min-passed extraction, supervised `kineti test run` + `kineti ci`, final `pr-check --require-ci --require-evidence`, and `$GITHUB_STEP_SUMMARY` output with read-only permissions and zero `${{` inside `run:` blocks.
+- **Two-tier streaming `O_NOFOLLOW` freshness & constant-size receipts:** Stream-hash files in 64 KiB `O_NOFOLLOW` chunks (Tier 1 Git index + root/nested `.gitignore` + `.git/info/exclude`; Tier 2 bounded pure-Rust walker without `legacy`/`build`/`target` blind spots); store constant-size `inventory_sha256` + `inventory_count` in `.kineti/evidence.jsonl` with single-buffer appends and locked reads.
+- **Polyglot test verification & parser fixes:** Fix multi-suite `bun test` parsing to sum all suites; add `--allow-ignored` and unified scalar/map `min_passed` support; add allowlisted `--parser exit-code` (`kineti-exit-code-v1`, `count_observed: false`) for `pytest`, `jest`, `vitest`, `go test`, `node --test`, and `make test`.
+- **Security hardening:** Close both MCP host-RCE vectors (strict `.kineti/gate.json` command allowlisting on `kineti_evidence_record`; remove `kineti_saga_push` and `kineti_saga_rollback` from MCP); fail closed in `kineti ci` when required labels lack declared command mappings; fix multi-project Codex `init` collision and keep backups out of project trees (`<codex-home>/.kineti-backups`, `0600`); delete the unbounded `.kineti/mirror.json` ceiling override; resolve relative executables against `--root`; enforce `O_NOFOLLOW` across state/key/audit paths; add `kineti status --project-only` and subcommand `--help`.
+- **Open-core (MIT) & offline pilot kit:** Keep the CLI, GitHub Action, and 4-scene offline demo (`examples/pilot-demo/run-demo.sh`) open-core MIT alongside optional paid Founding Team Pilot onboarding; redesign `website/` with zero trackers or external CDN scripts.
+- **Publication gate:** Registry publication (`crates.io`, `npm`), tagging, merging, and live website deployment remain separately approved actions; all historical signatures and unresolved monetary records are preserved.
+
+The historical 0.6.1 and earlier entries below are retained verbatim.
+
 ## 0.6.1 — unreleased native gate repair candidate
 
 - Use one deadline for child completion and both output streams; bound cleanup and preserve uncertain undo intent.

@@ -17,6 +17,20 @@ pub fn run(root: &Path) -> Result<Value> {
             true,
             false,
         )?;
+        let argv = vec![
+            "/bin/sh".to_string(),
+            "-c".to_string(),
+            "printf '1 pass\\n0 fail\\n'".to_string(),
+        ];
+        store::write(
+            &dir.join(".kineti/gate.json"),
+            &json!({
+                "version": 1,
+                "required_checks": ["release"],
+                "commands": {"release": argv},
+                "max_age_minutes": 240
+            }),
+        )?;
         fs::write(
             dir.join("declared-test.txt"),
             "Declared fixture: passing output is intentionally fabricated.",
@@ -26,14 +40,11 @@ pub fn run(root: &Path) -> Result<Value> {
                 &dir,
                 receipt::Run {
                     label: "release".into(),
-                    argv: vec![
-                        "/bin/sh".into(),
-                        "-c".into(),
-                        "printf '1 pass\\n0 fail\\n'".into(),
-                    ],
+                    argv: argv.clone(),
                     tests: vec!["declared-test.txt".into()],
                     timeout: 5,
                     kind: "test".into(),
+                    parser: "auto".into(),
                     ..Default::default()
                 },
             )

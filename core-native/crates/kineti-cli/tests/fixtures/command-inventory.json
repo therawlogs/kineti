@@ -322,11 +322,11 @@
     },
     {
       "name": "kineti_saga_push",
-      "disposition": "retained"
+      "disposition": "removed"
     },
     {
       "name": "kineti_saga_rollback",
-      "disposition": "retained"
+      "disposition": "removed"
     },
     {
       "name": "kineti_verify_gate_status",

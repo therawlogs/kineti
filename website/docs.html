@@ -2,50 +2,403 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0b0812">
-<meta name="description" content="Learn how to initialize Kineti, record test checks, and use its participating CI gate.">
-<title>Kineti documentation — getting started</title>
-<style>
-:root{color-scheme:dark;--bg:#0b0812;--text:#f5f2fa;--muted:#c4bbd0;--line:#51475e;--accent:#dfd0f2}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% 0,#20172e,var(--bg) 45%);color:var(--text);font:16px/1.7 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--accent);text-underline-offset:4px}a:focus-visible{outline:2px solid #dac5ff;outline-offset:5px}header,main,footer{width:min(100% - 48px,960px);margin:auto}header{display:flex;justify-content:space-between;align-items:center;padding:34px 0;gap:20px}.brand{font-size:26px;letter-spacing:-.045em;text-decoration:none;color:var(--text)}header a:last-child{font-size:14px}main{padding:48px 0 70px}.eyebrow{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.1em}h1{font-size:clamp(42px,6vw,68px);line-height:1.08;letter-spacing:-.055em;font-weight:400;margin:12px 0 20px}h2{font-size:26px;line-height:1.2;font-weight:500;letter-spacing:-.03em;margin:0 0 16px}h3{font-size:17px;margin:25px 0 8px}p,li{color:var(--muted)}.lead{font-size:19px;max-width:700px}.jump{display:flex;gap:14px 24px;flex-wrap:wrap;margin:32px 0 48px;font-size:14px}section{border-top:1px solid var(--line);padding:30px 0}section p{max-width:760px}pre{background:#15101d;border:1px solid var(--line);border-radius:8px;padding:16px 18px;white-space:pre-wrap;overflow-wrap:anywhere;color:#f0e9f7;font:13px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace}code{color:#eee3fa;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em}pre code{font-size:inherit}li{margin:8px 0}.note{border-left:2px solid #a889cd;padding-left:18px}footer{border-top:1px solid var(--line);padding:24px 0 40px;font-size:13px;color:var(--muted)}@media(max-width:600px){header,main,footer{width:calc(100% - 40px)}header{padding:24px 0}main{padding:28px 0 48px}.lead{font-size:17px}.jump{margin:24px 0 36px}section{padding:25px 0}pre{font-size:12px;padding:14px}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f6f5f0">
+<meta name="description" content="Complete technical documentation for Kineti 1.0 (Open-Core MIT): installation, base-branch .kineti/gate.json policy, kineti pr-check, kineti test run/check, action.yml, exit codes, and signed kineti-pr-audit-v1 schema.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css">
+<title>Kineti 1.0 Documentation — CLI, GitHub Action &amp; Audit Schema</title>
 </head>
 <body>
-<header><a class="brand" href="/">kineti</a><a href="/">Back to home ↗</a></header>
-<main>
-<p class="eyebrow">Documentation · Kineti 0.6.1</p>
-<h1>Checks you can return to.</h1>
-<p class="lead">Use Kineti to record test evidence, detect changed inputs, and check participating CI workflows against evidence and reported spending policy.</p>
-<nav class="jump" aria-label="On this page"><a href="#start">Get started</a><a href="#tests">Record a test</a><a href="#ci">Use in CI</a><a href="#spending">Spending</a><a href="#undo">Undo</a><a href="#limits">Limits</a></nav>
-<section id="start"><h2>Get started</h2>
-<p>To try the historical Kineti 0.6.1 release, you can install its deprecated npm package:</p><pre><code>npm install -g kineti@0.6.1</code></pre><p>Registry distribution is retired. This is a historical package, not a current website release; its original license terms remain unchanged. No approved website download is available yet. The npm installer requires Node.js 18 or later and enabled installation scripts. It supports macOS and Linux on x64 and arm64; the installed native executable does not require Node.js or Bun.</p><p>The commands below describe that historical native gate. Check your version before following these instructions:</p><pre><code>kineti --version</code></pre>
-<p>From your project directory, preview initialization with your own project goal:</p><pre><code>kineti init --goal "Your project goal"</code></pre>
-<p>Review the proposed changes and backups. To apply the setup, run:</p><pre><code>kineti init --goal "Your project goal" --apply</code></pre>
-<p>A new project requires an explicit goal. Kineti preserves an existing locked goal. If Codex is detected, setup can propose MCP registration; restart Codex after applying changes. Use <code>kineti status</code> to inspect state and spending; unresolved accounting or damaged records can block it.</p></section>
-<section id="tests"><h2>Record and check a test</h2>
-<p>Run a supported test command through Kineti. The example below assumes a Rust project with a <code>tests</code> directory and Cargo installed. Replace the command and required path with those for your project.</p>
-<pre><code>kineti test run --label tests --required-test tests -- cargo test
-kineti test check --label tests --expect-argv '["cargo","test"]'</code></pre>
-<p>The first command runs the test and records evidence. The second checks that evidence, including the expected command and whether recorded inputs are still current. Kineti requires a supported test summary and an existing required test path; a successful process exit alone is not enough.</p>
-<h3 id="freshness">When to rerun a check</h3>
-<p>When inputs change or evidence is stale, run the tests again and check the new evidence. A signature confirms record integrity, not that a test command reported honestly.</p></section>
-<section id="ci"><h2>Check a participating CI workflow</h2>
-<p>Run the gate before the release command in the workflow you choose:</p><pre><code>kineti ci --require-evidence tests</code></pre>
-<p>CI checks the required evidence, project gates and reported spending policy. It can block the commands that explicitly use it; it does not automatically intercept other commands. Configure required labels in <code>.kineti/gate.json</code> or supply them explicitly.</p>
-<p>Kineti can expose tools through MCP. The 0.6.1 integration was tested on macOS arm64 with Codex 0.163.0-alpha.11.2 and 0.164.0, without a model turn. Other Codex versions, Cursor and Antigravity are unverified.</p></section>
-<section id="spending"><h2>Reported spending</h2>
-<p>The example below records a reported amount. Use it only if the stage, token counts and amount match your actual records; replace the example values before running it. Then check the configured limits:</p><pre><code>kineti spend log --stage build --model reported --tokens-in 0 --tokens-out 0 --usd 0.25
-kineti spend check</code></pre>
-<p>Amounts are reported by the operator; Kineti does not verify provider bills. Unknown costs, unresolved reservations or damaged accounting can stop the check. Do not replace an unknown amount with zero. <code>kineti spend recover</code> previews recovery; applying a recovery requires an exact reviewed proposal and supporting evidence.</p></section>
-<section id="undo"><h2>Register an undo action</h2>
-<p>Register the exact command needed to reverse a change before making it. For example, only if <code>generated-file</code> is a disposable file you intend to create:</p><pre><code>kineti undo push --label cleanup -- rm generated-file
-kineti undo rollback
-kineti undo rollback --yes</code></pre>
-<p>The first rollback command previews; the second applies. Undo runs registered actions newest first. If completion is uncertain after interruption, inspect and resolve that state before replaying.</p></section>
-<section id="limits"><h2>What Kineti can and cannot establish</h2>
-<ul><li>Records can detect changed inputs and support checks in participating workflows.</li><li>Signed records do not prove that tests were honest; a command can fabricate output.</li><li>Reported costs are not provider bills, and a confirmation flag does not prove a person acted.</li><li>Kineti does not provide automatic interception, protected writes, or atomic permission for later writes.</li></ul>
-<p class="note">Kineti is proprietary. Existing copies distributed under earlier license terms retain those terms. For access or support, <a href="mailto:hello@getkineti.com">contact us</a>.</p></section>
-</main>
-<footer><a href="/">Kineti home</a> · <a href="mailto:hello@getkineti.com">Contact</a></footer>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="shell header-inner">
+    <a class="brand" href="/" aria-label="Kineti home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 5h4v14H4V5zm10 0h6v5h-3V8h-3V5zm3 9h3v5h-6v-3h3v-2z" fill="#f6f5f0"/><path d="M10.5 13l2.5 2.5 5.5-6" stroke="#22c57e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span>kineti</span>
+      <span class="brand-ver">1.0 · MIT</span>
+    </a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="docs-nav" aria-label="Open navigation">☰</button>
+    <nav class="nav" id="docs-nav" aria-label="Main navigation">
+      <a href="/">Home</a>
+      <a href="/#install">Install</a>
+      <a href="/#pilot">Open-Core &amp; Pilot</a>
+      <a href="/docs.html" aria-current="page">Docs</a>
+      <a href="/terms.html">Terms</a>
+      <a class="btn btn-primary btn-sm" href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot">Book a Pilot</a>
+    </nav>
+  </div>
+</header>
+
+<div class="shell docs-layout">
+  <aside class="docs-toc" aria-label="Documentation sections">
+    <p class="docs-toc-title">On this page</p>
+    <a href="#install">1. Install &amp; Init</a>
+    <a href="#policy">2. Base-branch gate.json</a>
+    <a href="#tests">3. Supervised tests &amp; freshness</a>
+    <a href="#pr-check">4. PR anti-tampering (pr-check)</a>
+    <a href="#ci">5. kineti ci &amp; action.yml</a>
+    <a href="#exits">6. Exit codes</a>
+    <a href="#audit">7. kineti-pr-audit-v1 schema</a>
+    <a href="#other">8. Spend, Undo &amp; MCP</a>
+    <a href="#limits">9. Honest limits</a>
+  </aside>
+
+  <main id="main" class="docs-main">
+    <p class="section-label">Technical Reference · Kineti 1.0.0 (Open-Core MIT)</p>
+    <h1>AI-PR verification &amp; anti-tampering gate.</h1>
+    <p class="docs-lead">Everything you need to lock test policy on your protected base branch, block AI PR test tampering with <code>kineti pr-check</code>, verify polyglot test runs under <code>kineti test run</code>, wire <code>action.yml</code> on Linux GitHub Actions, and archive Ed25519-signed <code>kineti-pr-audit-v1</code> bundles.</p>
+
+    <section class="docs-section" id="install">
+      <h2>1. Install &amp; repository initialization (<code>kineti init</code>)</h2>
+      <p>Kineti <code>1.0.0</code> ships as a single offline MIT-licensed Rust executable (<code>kineti</code>) targeting Linux CI runners (<code>x86_64</code> and <code>aarch64</code>) and macOS/Linux POSIX workstations. It requires zero outbound network calls and neither Node.js nor Bun at runtime.</p>
+
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>Build from source (works today)</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-build">Copy</button>
+        </div>
+        <pre id="doc-build"><code>cargo build --release --locked --manifest-path core-native/Cargo.toml
+./core-native/target/release/kineti --version
+
+# Run the self-contained 4-scene offline demo (zero network, cleans up on exit)
+./examples/pilot-demo/run-demo.sh</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>Cargo &amp; npm <code>1.0.0</code> publication status:</strong> <code>1.0.0</code> is currently an open-core release candidate. Registry commands (<code>cargo install kineti-cli --version '=1.0.0' --locked</code> and <code>npm install -g kineti@1.0.0</code>) activate after multi-platform archive acceptance and separate release approval. Historical <code>0.6.1</code> packages are retired (yanked on crates.io, deprecated on npm).
+      </div>
+
+      <p>Preview repository initialization with an explicit project goal before applying (Kineti never invents a goal or overwrites an existing locked goal):</p>
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>Initialize local state and starter gate.json</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-init">Copy</button>
+        </div>
+        <pre id="doc-init"><code>kineti init --goal "Enforce verified AI pull requests"
+kineti init --goal "Enforce verified AI pull requests" --apply</code></pre>
+      </div>
+      <p><code>kineti init --apply</code> writes local <code>.kineti/state.json</code> (keep runtime state excluded from Git) and creates starter <code>.kineti/gate.json</code> with an explicit <code>"commands": {}</code> map. Commit <strong>only</strong> <code>.kineti/gate.json</code> to your protected base branch.</p>
+    </section>
+
+    <section class="docs-section" id="policy">
+      <h2>2. Base-branch <code>.kineti/gate.json</code> policy</h2>
+      <p>Commit <code>.kineti/gate.json</code> to your protected base branch (for example, <code>main</code>). During pull-request verification, <code>kineti pr-check</code> loads policy strictly from <code>git show &lt;base-ref&gt;:.kineti/gate.json</code>—never trusting edits inside the PR branch.</p>
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>.kineti/gate.json</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-gate">Copy</button>
+        </div>
+        <pre id="doc-gate"><code>{
+  "version": 1,
+  "required_checks": ["unit"],
+  "commands": {
+    "unit": ["pytest", "-q", "tests/"]
+  },
+  "parsers": {
+    "unit": "exit-code"
+  },
+  "min_passed": {
+    "rust-unit": 25
+  },
+  "required_tests": [
+    "tests/test_auth.py",
+    "tests/billing.test.js",
+    "tests/core_test.rs"
+  ],
+  "protected_paths": [
+    ".kineti/gate.json",
+    ".github/workflows/",
+    "pytest.ini",
+    "jest.config.ts"
+  ],
+  "max_deleted_tests": 0,
+  "max_age_minutes": 240,
+  "exclude": [".pytest_cache", "__pycache__"]
+}</code></pre>
+      </div>
+      <ul>
+        <li><code>required_checks</code>: Labels that <code>kineti ci</code> and <code>action.yml</code> must verify before passing.</li>
+        <li><code>commands</code>: Exact shell-free <code>argv</code> arrays keyed by label. <code>kineti ci</code> fails closed (exit <code>1</code>) whenever a required label lacks a declared command mapping (unless explicitly passed via <code>--evidence-commands</code>).</li>
+        <li><code>parsers</code>: Optional per-label parser mode (<code>"auto"</code>, <code>"cargo"</code>, <code>"bun"</code>, or <code>"exit-code"</code>).</li>
+        <li><code>min_passed</code>: Optional minimum observed passing count (either a positive integer or per-label map) for count-aware runners.</li>
+        <li><code>required_tests</code>: Test files or directories that must exist and cannot be deleted or renamed away in a PR.</li>
+        <li><code>protected_paths</code>: Files and directory prefixes guarded against unauthorized PR modification.</li>
+        <li><code>max_deleted_tests</code>: Maximum net test-function deletions permitted before blocking (default <code>0</code>).</li>
+        <li><code>exclude</code>: Additional Tier 2 (non-Git) walker exclusions when <code>git</code> is unavailable.</li>
+      </ul>
+    </section>
+
+    <section class="docs-section" id="tests">
+      <h2>3. Supervised tests &amp; two-tier freshness (<code>kineti test</code>)</h2>
+      <p>Run exact allowlisted commands under Kineti’s POSIX process-group supervisor and capture Ed25519-signed receipts:</p>
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>Run &amp; verify supervised test receipts</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-test">Copy</button>
+        </div>
+        <pre id="doc-test"><code># Count-aware parser (cargo test or multi-suite bun test)
+kineti test run --label rust-unit --required-test tests/ --parser auto -- cargo test
+
+# Allowlisted polyglot parser (pytest, jest, vitest, go test, node --test, make test)
+kineti test run --label unit --required-test tests/test_auth.py --parser exit-code -- pytest -q tests/
+
+# Verify freshness, exact argv, required test presence, and signature
+kineti test check --label unit</code></pre>
+      </div>
+
+      <h3>Two-tier parser contract</h3>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Mode</th><th>Supported Runners</th><th>Verification Behavior</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--parser auto</code></td>
+              <td><code>cargo test</code>, <code>bun test</code></td>
+              <td>Built-in count-aware parsing. Sums all test-result suites across stdout+stderr (including multi-suite <code>bun test</code>), requires <code>passed &gt; 0</code>, <code>failed == 0</code>, and <code>skipped == 0</code> unless <code>--allow-ignored</code> is explicitly passed. Supports optional <code>min_passed</code> floors.</td>
+            </tr>
+            <tr>
+              <td><code>--parser exit-code</code></td>
+              <td>Any allowlisted command (<code>pytest</code>, <code>jest</code>, <code>vitest</code>, <code>go test</code>, <code>node --test</code>, <code>make test</code>)</td>
+              <td>Enforces exit status <code>0</code>, exact <code>argv</code>, required test path presence, untruncated capture, non-mutated workspace tree, and POSIX timeout cleanup. Explicitly records <code>"parser": "kineti-exit-code-v1"</code> and <code>"count_observed": false</code>.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 id="freshness">Two-tier streaming <code>O_NOFOLLOW</code> freshness</h3>
+      <ul>
+        <li><strong>Tier 1 (Git worktree + <code>git</code> on <code>PATH</code>):</strong> Enumerates tracked and non-ignored files with <code>git -c core.excludesFile=/dev/null ls-files -z --cached --others --exclude-standard</code>, stream-hashes in 64 KiB chunks with <code>O_NOFOLLOW</code>, filters deleted tracked entries, and explicitly hashes root and nested <code>.gitignore</code> files plus <code>.git/info/exclude</code>.</li>
+        <li><strong>Tier 2 (Non-Git directory or <code>git</code> absent):</strong> Bounded pure-Rust <code>O_NOFOLLOW</code> walker respecting <code>.kineti/gate.json</code> <code>exclude</code> rules and safe cache defaults (<code>.git</code>, <code>.kineti</code>, <code>.pytest_cache</code>, <code>__pycache__</code>, <code>node_modules</code>)—with zero silent depth-agnostic bypass of directories named <code>legacy</code>, <code>build</code>, <code>dist</code>, or <code>target</code>.</li>
+        <li><strong>Constant-size evidence log:</strong> Each line in <code>.kineti/evidence.jsonl</code> stores constant-size <code>inventory_sha256</code> and <code>inventory_count</code> digests while remaining backwards-compatible with reading historical v3 lines. Any 1-byte source edit invalidates freshness and causes <code>kineti test check</code> to exit <code>4</code>.</li>
+      </ul>
+    </section>
+
+    <section class="docs-section" id="pr-check">
+      <h2>4. Pull-request anti-tampering (<code>kineti pr-check</code>)</h2>
+      <p>Inspect a pull request diff against protected base-branch policy, validate required receipts, and emit signed compliance outputs:</p>
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>kineti pr-check command</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-prcheck">Copy</button>
+        </div>
+        <pre id="doc-prcheck"><code>kineti pr-check \
+  --base-ref main \
+  --head-ref HEAD \
+  --require-ci \
+  --require-evidence unit \
+  --audit-out .kineti/pr-audit.json \
+  --summary-out .kineti/pr-summary.md</code></pre>
+      </div>
+      <ul>
+        <li><strong>Base-branch policy integrity:</strong> Fails closed (exit <code>1</code>, <code>policy_tamper_detected</code>) if the PR modifies or deletes <code>.kineti/gate.json</code>, <code>.github/workflows/**</code>, or configured <code>protected_paths</code>—unless CI explicitly passes <code>--allow-policy-change</code> (for example, after CODEOWNER review).</li>
+        <li><strong>Polyglot test-tampering diff scanner:</strong> Scans shell-free <code>git diff --unified=0 --no-color &lt;base&gt;...&lt;head&gt;</code> (hardened against <code>diff.noprefix=true</code>, inline/multi-line block-comment smuggling, and spaced filenames) and returns structured <code>{file, line, rule, snippet}</code> findings (exit <code>1</code>) for:
+          <ul>
+            <li>Deletion or rename-removal of base-branch <code>required_tests</code>.</li>
+            <li>Newly added skip, ignore, focus, or xfail markers: Rust (<code>#[ignore]</code>, <code>#[ ignore ]</code>, <code>#[core::prelude::v1::ignore]</code>), Python (<code>@pytest.mark.skip</code>, <code>@pytest.mark.skipif</code>, <code>@pytest.mark.xfail</code>, <code>@unittest.skip</code>, <code>pytest.skip(</code>), JS/TS (<code>test.skip(</code>, <code>it.skip(</code>, <code>describe.skip(</code>, <code>test.only(</code>, <code>it.only(</code>, <code>describe.only(</code>, <code>test.todo(</code>, <code>it.todo(</code>), Go (<code>t.Skip(</code>, <code>t.Skipf(</code>, <code>t.SkipNow(</code>).</li>
+            <li>Net deletion of test definitions (<code>#[test]</code>, <code>def test_</code>, <code>func Test</code>, <code>test(</code>, <code>it(</code>) exceeding <code>max_deleted_tests</code> unless <code>--allow-test-reduction</code> is explicitly passed.</li>
+            <li>Weakening flags added to CI workflows or <code>package.json</code> test scripts (<code>--passWithNoTests</code>, <code>-k ""</code>, <code>--ignore</code>, or no-op test scripts).</li>
+          </ul>
+        </li>
+        <li><strong>CI &amp; evidence linkage:</strong> <code>--require-evidence &lt;label&gt;</code> validates receipts strictly against the base-branch policy; <code>--require-ci</code> ensures spend/stage consistency before marking an audit bundle <code>passed</code>.</li>
+      </ul>
+    </section>
+
+    <section class="docs-section" id="ci">
+      <h2>5. Participating CI &amp; GitHub Action (<code>kineti ci</code> &amp; <code>action.yml</code>)</h2>
+      <p>Run <code>kineti ci</code> directly in any POSIX CI pipeline, or wire Kineti’s composite Linux GitHub Action with read-only permissions:</p>
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>.github/workflows/kineti-pr-gate.yml</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-action">Copy</button>
+        </div>
+        <pre id="doc-action"><code>name: Kineti AI-PR Gate
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Kineti PR Gate
+        uses: ./
+        with:
+          executable: /usr/local/bin/kineti
+          base-ref: ${{ github.event.pull_request.base.sha }}
+          head-ref: ${{ github.event.pull_request.head.sha }}
+          allow-policy-change: "false"
+          allow-test-reduction: "false"
+          audit-out: .kineti/pr-audit.json
+          summary-out: .kineti/pr-summary.md
+          write-step-summary: "true"</code></pre>
+      </div>
+      <p>In order, <code>action.yml</code> runs a preflight <code>kineti pr-check</code> against the protected base-branch <code>.kineti/gate.json</code> to fail fast before executing untrusted PR test code; extracts base-branch <code>required_checks</code>, <code>commands</code>, <code>parsers</code>, <code>min_passed</code>, and <code>required_tests</code>; runs supervised <code>kineti test run</code> for each required label; enforces <code>kineti ci</code>; and writes the final Ed25519-signed <code>kineti-pr-audit-v1</code> bundle plus Markdown summary to <code>$GITHUB_STEP_SUMMARY</code>.</p>
+    </section>
+
+    <section class="docs-section" id="exits">
+      <h2>6. Exit-code contract</h2>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Code</th><th>Context</th><th>Meaning</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>0</code></td><td>All commands</td><td>Check or operation succeeded</td></tr>
+            <tr><td><code>1</code></td><td><code>pr-check</code>, <code>ci</code>, <code>verify</code>, <code>test run</code>, incomplete <code>undo</code></td><td>Policy, PR tamper, or check/command failure</td></tr>
+            <tr><td><code>2</code></td><td>All commands</td><td>Invalid options/arguments, disallowed path, or missing explicit confirmation</td></tr>
+            <tr><td><code>3</code></td><td><code>spend</code>, <code>undo</code>, <code>store</code>, <code>receipt</code></td><td>Spending stop, symlink (<code>O_NOFOLLOW</code>) refusal, or damaged/uncertain state or cleanup</td></tr>
+            <tr><td><code>4</code></td><td><code>test check</code></td><td>Stale, expired, or changed workspace inputs</td></tr>
+            <tr><td><code>5</code></td><td><code>test check</code></td><td>Missing required evidence</td></tr>
+            <tr><td><code>6</code></td><td><code>test check</code></td><td>Legacy/unsupported evidence cannot authorize exact-input CI gate</td></tr>
+            <tr><td><code>7</code></td><td><code>test check</code></td><td>Invalid, altered, or untrusted signature or mismatched command <code>argv</code></td></tr>
+            <tr><td><code>9</code></td><td><code>verify</code></td><td>Missing verify declaration or absent/stale command trust</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="docs-section" id="audit">
+      <h2>7. Signed compliance bundle (<code>kineti-pr-audit-v1</code>)</h2>
+      <p><code>kineti pr-check --audit-out .kineti/pr-audit.json --summary-out .kineti/pr-summary.md</code> emits a canonical Ed25519-signed JSON bundle alongside a GitHub Step Summary table:</p>
+      <div class="code-wrap">
+        <div class="code-head">
+          <span>kineti-pr-audit-v1 JSON schema</span>
+          <button class="copy-btn" type="button" data-copy-target="doc-audit">Copy</button>
+        </div>
+        <pre id="doc-audit"><code>{
+  "schema": "kineti-pr-audit-v1",
+  "encoding": "kineti-canonical-v2",
+  "at": "2026-11-23T15:30:00Z",
+  "base_ref": "main",
+  "head_ref": "HEAD",
+  "base_sha": "3ce824cb747c3fbbb0cd78d07a577b5c7374061d",
+  "head_sha": "9a1f0b2c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a",
+  "diff_base_sha": "3ce824cb747c3fbbb0cd78d07a577b5c7374061d",
+  "base_policy_sha256": "e3b0c44298fc1c149afbf4c8996fb924...",
+  "policy_tamper_detected": false,
+  "policy_change_allowed": false,
+  "policy_tamper_files": [],
+  "test_tamper_findings": [],
+  "test_counts": {
+    "added": 1,
+    "deleted": 0,
+    "net_deleted": 0,
+    "max_deleted_tests": 0,
+    "test_reduction_allowed": false
+  },
+  "evidence_checks": [
+    {
+      "label": "unit",
+      "run_id": "b09e02c079d2a92884f263cc8baa9092",
+      "status": "fresh",
+      "parser": "kineti-exit-code-v1",
+      "passed": null,
+      "failed": null,
+      "skipped": null,
+      "count_observed": false,
+      "command": ["pytest", "-q", "tests/"],
+      "signature": "base64-receipt-signature",
+      "at": "2026-11-23T15:29:59Z"
+    }
+  ],
+  "evidence_failures": [],
+  "verdict": "passed",
+  "ci_runner_trust_boundary": true,
+  "independent_assertion_quality_proven": false,
+  "automatic_interception": false,
+  "provider_billing": "unknown",
+  "issuer_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
+  "signature": "base64-ed25519-signature"
+}</code></pre>
+      </div>
+    </section>
+
+    <section class="docs-section" id="other">
+      <h2>8. Reported spending, CLI-only undo &amp; local MCP</h2>
+      <ul>
+        <li><strong>Reported spending (<code>kineti spend check</code>):</strong> Uses integer monetary units, total/stage ceilings, and a 95% stop. Corruption, unresolved reservations, and unknown historical costs fail closed (exit <code>3</code>). Reported spending is operator-recorded accounting, not provider-bill verification.</li>
+        <li><strong>Registered undo (<code>kineti undo push</code> / <code>rollback</code>):</strong> Strictly CLI-only (removed from MCP to prevent stored command injection). Runs newest-first with durable intent/completion records and blocks uncertain replay after interruption until explicit inspection.</li>
+        <li><strong>Local MCP (<code>kineti mcp</code>):</strong> Speaks stdin/stdout JSON-RPC with no HTTP listener and exposes 6 tools. <code>kineti_evidence_record</code> strictly enforces exact allowlisted label and <code>argv</code> entries from <code>.kineti/gate.json</code>. Local MCP has previously been tested only on macOS arm64 with specific Codex versions; <strong>Cursor and Antigravity remain unverified</strong>.</li>
+      </ul>
+    </section>
+
+    <section class="docs-section" id="limits">
+      <h2>9. Honest limits &amp; Open-Core Pilot</h2>
+      <ul>
+        <li><strong>CI vs. local boundary:</strong> A protected CI runner reading base-branch <code>.kineti/gate.json</code> is the enforcement boundary. Local same-account checks cannot stop an agent with local write access from modifying files outside Kineti.</li>
+        <li><strong>Signatures are not assertion quality:</strong> Ed25519 signatures prove record integrity relative to the signing key—never that tests contain meaningful assertions or did not fabricate output (<code>"independent_assertion_quality_proven": false</code>).</li>
+        <li><strong>Parser transparency:</strong> Count-aware verification applies to <code>cargo test</code> and multi-suite <code>bun test</code>; <code>--parser exit-code</code> runners explicitly set <code>"count_observed": false</code>.</li>
+        <li><strong>No hidden interception:</strong> No automatic command interception, no kernel sandboxing, no protected writes, no atomic authorization of later writes, and no automatic redaction of credentials placed inside command arguments.</li>
+        <li><strong>Confirmation flags:</strong> Interactive confirmation flags record acknowledgment; they do not establish human identity.</li>
+      </ul>
+      <div class="callout">
+        <strong>Open-Core (MIT) + Paid Founding Team Pilot:</strong> The Kineti <code>1.0.0</code> CLI, <code>action.yml</code>, and offline demo are open-core under the MIT License. Want Week 1 hands-on org rollout, custom base-branch policy design, and ongoing tuning? Email <a href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot">hello@getkineti.com</a> or review <a href="/#pilot">pilot pricing</a>.
+      </div>
+    </section>
+  </main>
+</div>
+
+<footer class="site-footer" style="border-top:1px solid var(--line)">
+  <div class="shell footer-inner">
+    <span>© 2026 Kineti · Open-Core MIT (v1.0.0) · Updated November 23, 2026</span>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/terms.html">Terms</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot">Pilot Inquiry</a>
+      <a href="mailto:security@getkineti.com">Security</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const header = document.querySelector('.site-header');
+  const toggle = document.querySelector('.menu-toggle');
+  const nav = document.querySelector('#docs-nav');
+  if (header && toggle && nav) {
+    const closeNav = () => {
+      nav.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'Open navigation');
+    };
+    toggle.addEventListener('click', () => {
+      const open = toggle.getAttribute('aria-expanded') !== 'true';
+      nav.classList.toggle('is-open', open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    });
+    nav.addEventListener('click', (e) => { if (e.target.closest('a')) closeNav(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && toggle.getAttribute('aria-expanded') === 'true') { closeNav(); toggle.focus(); } });
+    window.addEventListener('resize', () => { if (window.innerWidth > 720) closeNav(); });
+    header.classList.add('nav-ready');
+  }
+  document.querySelectorAll('.copy-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const target = document.getElementById(btn.dataset.copyTarget);
+      if (!target) return;
+      try {
+        await navigator.clipboard.writeText(target.textContent.trim());
+        const prev = btn.textContent;
+        btn.textContent = 'Copied';
+        btn.classList.add('is-copied');
+        setTimeout(() => { btn.textContent = prev; btn.classList.remove('is-copied'); }, 1600);
+      } catch (_) {}
+    });
+  });
+})();
+</script>
 </body>
 </html>

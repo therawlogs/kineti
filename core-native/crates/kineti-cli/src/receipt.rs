@@ -31,6 +31,12 @@ pub struct Run {
     pub timeout: u64,
     /// test/check/package.
     pub kind: String,
+    /// Test output parser mode: auto, cargo, bun, or exit-code.
+    pub parser: String,
+    /// Allow ignored/skipped tests for cargo test.
+    pub allow_ignored: bool,
+    /// Optional minimum passed test count floor.
+    pub min_passed: Option<u64>,
 }
 
 fn pem(label: &str, der: &[u8]) -> String {
@@ -56,13 +62,13 @@ fn keys(root: &Path) -> Result<(SigningKey, String)> {
         der.extend(key.verifying_key().to_bytes());
         store::atomic(&pubpath, pem("PUBLIC KEY", &der).as_bytes())?;
     }
-    if !pubpath.exists() || !private.exists() {
+    if fs::symlink_metadata(&pubpath).is_err() || fs::symlink_metadata(&private).is_err() {
         return store::fail(
             3,
             "incomplete issuer identity; preserve originals and use reviewed recovery",
         );
     }
-    let raw = fs::read_to_string(private)?;
+    let raw = store::read_text_nofollow(&private)?;
     let body = raw
         .trim()
         .strip_prefix("-----BEGIN PRIVATE KEY-----")
@@ -80,7 +86,7 @@ fn keys(root: &Path) -> Result<(SigningKey, String)> {
         return store::fail(3, "unsupported issuer private-key format");
     }
     let key = SigningKey::from_bytes(der[16..].try_into().unwrap());
-    let public = fs::read_to_string(pubpath)?;
+    let public = store::read_text_nofollow(&pubpath)?;
     if public_key(&public).map_err(|e| Error(3, e))? != key.verifying_key() {
         return store::fail(3, "issuer keys do not match");
     }
@@ -93,6 +99,42 @@ fn unsigned(v: &Value) -> Result<String> {
         .shift_remove("signature");
     canonical(&v).map_err(|e| Error(7, e))
 }
+/// Sign a canonical-v2 JSON object with the project's Ed25519 issuer key.
+pub(crate) fn sign_object(root: &Path, value: &mut Value) -> Result<String> {
+    if !value.is_object() {
+        return store::fail(7, "receipt object required");
+    }
+    let (key, public) = keys(root)?;
+    value["encoding"] = json!("kineti-canonical-v2");
+    value["issuer_key"] = json!(public);
+    let payload = unsigned(value)?;
+    let sig = STANDARD.encode(key.sign(payload.as_bytes()).to_bytes());
+    value["signature"] = json!(sig);
+    Ok(sig)
+}
+/// Verify a canonical-v2 Ed25519 signature on a JSON object against a trusted public key.
+pub fn verify_object_signature(value: &Value, trusted: &str) -> bool {
+    let check = || -> Option<()> {
+        if value.get("encoding")?.as_str()? != "kineti-canonical-v2"
+            || value.get("issuer_key")?.as_str()? != trusted
+        {
+            return None;
+        }
+        let text = value.get("signature")?.as_str()?;
+        let bytes = STANDARD.decode(text).ok()?;
+        if bytes.len() != 64 || STANDARD.encode(&bytes) != text {
+            return None;
+        }
+        public_key(trusted)
+            .ok()?
+            .verify_strict(
+                unsigned(value).ok()?.as_bytes(),
+                &Signature::from_slice(&bytes).ok()?,
+            )
+            .ok()
+    };
+    check().is_some()
+}
 /// Verify signature without treating parsed output as independent observation.
 pub fn signature(v: &Value, trusted: &str) -> bool {
     if v.get("encoding").is_none() {
@@ -101,28 +143,16 @@ pub fn signature(v: &Value, trusted: &str) -> bool {
     if v["receipt_version"] != 3 || v["encoding"] != "kineti-canonical-v2" {
         return false;
     }
-    let check = || -> Option<()> {
-        if v["issuer_key"].as_str()? != trusted || v["encoding"] != "kineti-canonical-v2" {
-            return None;
-        }
-        let text = v["signature"].as_str()?;
-        let bytes = STANDARD.decode(text).ok()?;
-        if STANDARD.encode(&bytes) != text {
-            return None;
-        }
-        public_key(trusted)
-            .ok()?
-            .verify_strict(
-                unsigned(v).ok()?.as_bytes(),
-                &Signature::from_slice(&bytes).ok()?,
-            )
-            .ok()
-    };
-    check().is_some()
+    verify_object_signature(v, trusted)
 }
-fn resolve(command: &str) -> Result<PathBuf> {
+fn resolve(root: &Path, command: &str) -> Result<PathBuf> {
     if command.contains('/') {
-        return Ok(Path::new(command).canonicalize()?);
+        let candidate = if Path::new(command).is_absolute() {
+            PathBuf::from(command)
+        } else {
+            root.join(command)
+        };
+        return Ok(candidate.canonicalize()?);
     }
     for dir in std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()) {
         let p = dir.join(command);
@@ -132,11 +162,17 @@ fn resolve(command: &str) -> Result<PathBuf> {
     }
     store::fail(2, format!("executable missing: {command}"))
 }
-fn runtime(argv: &[String]) -> Result<Value> {
-    let p = resolve(&argv[0])?;
-    Ok(
-        json!({"kineti_version":env!("CARGO_PKG_VERSION"),"gate_sha256":digest(fs::read(std::env::current_exe()?)?),"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"executable":p,"executable_sha256":digest(fs::read(&p)?)}),
-    )
+fn runtime(root: &Path, argv: &[String]) -> Result<Value> {
+    let p = resolve(root, &argv[0])?;
+    let exe = std::env::current_exe()?.canonicalize()?;
+    Ok(json!({
+        "kineti_version": env!("CARGO_PKG_VERSION"),
+        "gate_sha256": store::hash_file_nofollow(&exe)?,
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "executable": p,
+        "executable_sha256": store::hash_file_nofollow(&p)?,
+    }))
 }
 fn env_digest(name: &str) -> Result<String> {
     let value = std::env::var(name).ok();
@@ -152,7 +188,7 @@ fn files(root: &Path, declared: &[String]) -> Result<Value> {
         }
         if p.is_dir() {
             let mut es = fs::read_dir(p)?.collect::<std::io::Result<Vec<_>>>()?;
-            es.sort_by_key(|e| e.file_name());
+            es.sort_by_key(fs::DirEntry::file_name);
             for e in es {
                 walk(root, &e.path(), out)?;
             }
@@ -164,7 +200,10 @@ fn files(root: &Path, declared: &[String]) -> Result<Value> {
             if !resolved.starts_with(root.canonicalize()?) {
                 return store::fail(2, "declared file escapes project");
             }
-            out.push(json!({"path":p.strip_prefix(root).map_err(|e|Error(2,e.to_string()))?,"sha256":digest(fs::read(resolved)?)}));
+            out.push(json!({
+                "path": p.strip_prefix(root).map_err(|e| Error(2, e.to_string()))?,
+                "sha256": store::hash_file_nofollow(&resolved)?,
+            }));
         }
         Ok(())
     }
@@ -176,32 +215,78 @@ fn files(root: &Path, declared: &[String]) -> Result<Value> {
     out.dedup_by(|a, b| a["path"] == b["path"]);
     Ok(json!(out))
 }
-fn summary(output: &str) -> Option<(u64, u64, u64)> {
+
+const MAX_SAFE_INT: u64 = 9_007_199_254_740_991;
+
+fn summary_cargo(output: &str) -> Option<(u64, u64, u64)> {
     let rust = regex::Regex::new(
         r"test result: (?:ok|FAILED)\. (\d+) passed; (\d+) failed; (\d+) ignored",
     )
     .unwrap();
-    if rust.is_match(output) {
-        let mut sum = (0, 0, 0);
-        for c in rust.captures_iter(output) {
-            sum.0 += c[1].parse::<u64>().ok()?;
-            sum.1 += c[2].parse::<u64>().ok()?;
-            sum.2 += c[3].parse::<u64>().ok()?;
+    let mut matched = false;
+    let mut sum = (0u64, 0u64, 0u64);
+    for c in rust.captures_iter(output) {
+        matched = true;
+        sum.0 = sum.0.checked_add(c[1].parse::<u64>().ok()?)?;
+        sum.1 = sum.1.checked_add(c[2].parse::<u64>().ok()?)?;
+        sum.2 = sum.2.checked_add(c[3].parse::<u64>().ok()?)?;
+        if sum.0 > MAX_SAFE_INT || sum.1 > MAX_SAFE_INT || sum.2 > MAX_SAFE_INT {
+            return None;
         }
-        return Some(sum);
     }
+    matched.then_some(sum)
+}
+fn summary_bun(output: &str) -> Option<(u64, u64, u64)> {
     let pass = regex::Regex::new(r"(?m)^\s*(\d+) pass\s*$").unwrap();
     let fail = regex::Regex::new(r"(?m)^\s*(\d+) fail\s*$").unwrap();
     let skip = regex::Regex::new(r"(?m)^\s*(\d+) skip\s*$").unwrap();
-    Some((
-        pass.captures(output)?[1].parse().ok()?,
-        fail.captures(output)?[1].parse().ok()?,
-        skip.captures(output)
-            .map(|c| c[1].parse::<u64>())
-            .transpose()
-            .ok()?
-            .unwrap_or(0),
-    ))
+    let mut pass_matches = 0usize;
+    let mut fail_matches = 0usize;
+    let mut passed = 0u64;
+    let mut failed = 0u64;
+    let mut skipped = 0u64;
+    for c in pass.captures_iter(output) {
+        pass_matches += 1;
+        passed = passed.checked_add(c[1].parse::<u64>().ok()?)?;
+    }
+    for c in fail.captures_iter(output) {
+        fail_matches += 1;
+        failed = failed.checked_add(c[1].parse::<u64>().ok()?)?;
+    }
+    for c in skip.captures_iter(output) {
+        skipped = skipped.checked_add(c[1].parse::<u64>().ok()?)?;
+    }
+    if pass_matches == 0 && fail_matches == 0 {
+        return None;
+    }
+    if passed > MAX_SAFE_INT || failed > MAX_SAFE_INT || skipped > MAX_SAFE_INT {
+        return None;
+    }
+    Some((passed, failed, skipped))
+}
+fn summary(output: &str, parser: &str) -> Option<(u64, u64, u64)> {
+    match parser {
+        "cargo" => summary_cargo(output),
+        "bun" => summary_bun(output),
+        "auto" => summary_cargo(output).or_else(|| summary_bun(output)),
+        _ => None,
+    }
+}
+fn configured_min_passed(root: &Path, label: &str) -> Result<Option<u64>> {
+    let gate = root.join(".kineti/gate.json");
+    if fs::symlink_metadata(&gate).is_err() {
+        return Ok(None);
+    }
+    let config = store::read(&gate)?;
+    crate::gate::parse_min_passed_value(&config, label)
+}
+fn configured_parser(root: &Path, label: &str) -> Result<Option<String>> {
+    let gate = root.join(".kineti/gate.json");
+    if fs::symlink_metadata(&gate).is_err() {
+        return Ok(None);
+    }
+    let config = store::read(&gate)?;
+    parse_policy_parser(&config, label)
 }
 // Keep the direct child waitable until capture is complete. Reaping earlier would
 // release its numeric identity while descendants can still hold the output pipes.
@@ -450,7 +535,18 @@ fn wait_control_supported() -> Result<()> {
 pub fn execute(root: &Path, argv: &[String], timeout: u64) -> Result<(Option<i32>, String, bool)> {
     use std::os::{fd::AsRawFd, unix::process::CommandExt};
     wait_control_supported()?;
-    let child = Command::new(&argv[0])
+    let program = if argv[0].contains('/') && !Path::new(&argv[0]).is_absolute() {
+        let base = if root.is_absolute() {
+            root.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(root)
+        };
+        base.join(&argv[0])
+    } else {
+        PathBuf::from(&argv[0])
+    };
+    let child = Command::new(&program)
+        .arg0(&argv[0])
         .args(&argv[1..])
         .current_dir(root)
         .process_group(0)
@@ -557,6 +653,17 @@ pub fn execute(root: &Path, argv: &[String], timeout: u64) -> Result<(Option<i32
 }
 /// Record an observed command and bind it to exact declared/native inputs.
 pub fn run(root: &Path, opts: Run) -> Result<Value> {
+    let parser_mode = if opts.parser.is_empty() {
+        "auto"
+    } else {
+        opts.parser.as_str()
+    };
+    if !["auto", "cargo", "bun", "exit-code"].contains(&parser_mode) {
+        return store::fail(2, format!("invalid parser: {parser_mode}"));
+    }
+    if opts.min_passed.is_some_and(|n| n == 0 || n > MAX_SAFE_INT) {
+        return store::fail(2, "min_passed must be 1..=9007199254740991");
+    }
     if opts.label.is_empty()
         || opts.argv.is_empty()
         || opts.argv[0].is_empty()
@@ -570,13 +677,29 @@ pub fn run(root: &Path, opts: Run) -> Result<Value> {
     if opts.kind == "test" && opts.tests.is_empty() {
         return store::fail(2, "test receipt requires --required-test");
     }
+    let configured_min = if opts.kind == "test" {
+        configured_min_passed(root, &opts.label)?
+    } else {
+        None
+    };
+    let effective_min_opt = match (opts.min_passed, configured_min) {
+        (Some(a), Some(b)) => Some(a.max(b)),
+        (Some(a), None) => Some(a),
+        (None, Some(b)) => Some(b),
+        (None, None) => None,
+    };
+    if opts.kind == "test" && parser_mode == "exit-code" && effective_min_opt.is_some() {
+        return store::fail(2, "min_passed is unsupported with exit-code parser");
+    }
     let tests = files(root, &opts.tests)?;
     if opts.kind == "test" && tests.as_array().unwrap().is_empty() {
         return store::fail(2, "test inventory is empty");
     }
     let artifacts = files(root, &opts.artifacts)?;
     let before = store::inventory(root)?;
-    let runtime_before = runtime(&opts.argv)?;
+    let before_digest = store::inventory_digest(&before)?;
+    let before_count = before.as_array().map_or(0, Vec::len);
+    let runtime_before = runtime(root, &opts.argv)?;
     let mut environment = json!({});
     let env_pattern = regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").unwrap();
     for name in opts.env.iter().chain(["PATH".to_string()].iter()) {
@@ -592,30 +715,120 @@ pub fn run(root: &Path, opts: Run) -> Result<Value> {
     store::state(root)?;
     let (key, public) = keys(root)?;
     let (exit, output, truncated) = execute(root, &opts.argv, opts.timeout)?;
-    let parsed = summary(&output);
     let stable = store::inventory(root)? == before
-        && runtime(&opts.argv)? == runtime_before
+        && runtime(root, &opts.argv)? == runtime_before
         && environment
             .as_object()
             .unwrap()
             .iter()
             .all(|(k, v)| env_digest(k).ok().as_deref() == v.as_str());
-    let observed = opts.kind != "test" || parsed.is_some_and(|(p, f, s)| p > 0 && f == 0 && s == 0);
+    let (observed, verification) = if opts.kind == "test" && parser_mode == "exit-code" {
+        (
+            true,
+            json!({
+                "parser": "kineti-exit-code-v1",
+                "count_observed": false,
+                "status": "valid",
+                "passed": Value::Null,
+                "failed": Value::Null,
+                "skipped": Value::Null,
+                "inventory": tests,
+                "output_sha256": digest(output.as_bytes()),
+                "truncated": truncated,
+            }),
+        )
+    } else {
+        let parsed = summary(&output, parser_mode);
+        let min_passed = effective_min_opt.unwrap_or(1);
+        let observed = opts.kind != "test"
+            || parsed.is_some_and(|(p, f, s)| {
+                p >= min_passed && f == 0 && (s == 0 || opts.allow_ignored)
+            });
+        (
+            observed,
+            json!({
+                "parser": "kineti-native-summary-v1",
+                "count_observed": opts.kind == "test" && parsed.is_some(),
+                "allow_ignored": opts.allow_ignored,
+                "min_passed": effective_min_opt,
+                "status": if observed { "valid" } else { "unsupported" },
+                "passed": parsed.map(|v| v.0),
+                "failed": parsed.map(|v| v.1),
+                "skipped": parsed.map(|v| v.2),
+                "inventory": tests,
+                "output_sha256": digest(output.as_bytes()),
+                "truncated": truncated,
+            }),
+        )
+    };
     let passed = exit == Some(0) && stable && observed && !truncated;
-    let mut receipt = json!({"receipt_version":3,"encoding":"kineti-canonical-v2","run_id":store::nonce()?,"at":store::now(),"label":opts.label,"cmd":opts.argv.join(" "),"exit_code":exit,"result_kind":opts.kind,"outcome":if passed{"passed"}else{"failed"},"fingerprint":store::inventory_digest(&before)?,"manifest":{"command":opts.argv,"inputs":before,"dependencies":files(root,&["Cargo.lock","core-native/Cargo.lock","package-lock.json","bun.lock"].iter().filter(|p|root.join(p).is_file()).map(|p|p.to_string()).collect::<Vec<_>>())?,"environment":environment,"runtime":runtime_before,"artifacts":artifacts,"session_ref":std::env::var("KINETI_SESSION_ID").ok()},"verification":{"parser":"kineti-native-summary-v1","status":if observed{"valid"}else{"unsupported"},"passed":parsed.map(|v|v.0),"failed":parsed.map(|v|v.1),"skipped":parsed.map(|v|v.2),"inventory":tests,"output_sha256":digest(output.as_bytes()),"truncated":truncated},"mutated_during_run":!stable,"issuer_key":public});
+    let dependencies = files(
+        root,
+        &[
+            "Cargo.lock",
+            "core-native/Cargo.lock",
+            "package-lock.json",
+            "bun.lock",
+        ]
+        .iter()
+        .filter(|p| root.join(p).is_file())
+        .map(ToString::to_string)
+        .collect::<Vec<_>>(),
+    )?;
+    let mut receipt = json!({
+        "receipt_version": 3,
+        "encoding": "kineti-canonical-v2",
+        "run_id": store::nonce()?,
+        "at": store::now(),
+        "label": opts.label,
+        "cmd": opts.argv.join(" "),
+        "exit_code": exit,
+        "result_kind": opts.kind,
+        "outcome": if passed { "passed" } else { "failed" },
+        "fingerprint": before_digest.as_str(),
+        "manifest": {
+            "command": opts.argv,
+            "inventory_sha256": before_digest.as_str(),
+            "inventory_count": before_count,
+            "dependencies": dependencies,
+            "environment": environment,
+            "runtime": runtime_before,
+            "artifacts": artifacts,
+            "session_ref": std::env::var("KINETI_SESSION_ID").ok(),
+        },
+        "verification": verification,
+        "mutated_during_run": !stable,
+        "issuer_key": public,
+    });
     receipt["signature"] =
         json!(STANDARD.encode(key.sign(unsigned(&receipt)?.as_bytes()).to_bytes()));
     let _lock = Lock::take(&root.join(".kineti/evidence.lock"))?;
     store::lines(&root.join(".kineti/evidence.jsonl"))?;
     store::append(&root.join(".kineti/evidence.jsonl"), &receipt)?;
     if !passed {
-        return Err(Error(1,format!("command evidence recorded but failed: exit={exit:?}, stable={stable}, output_supported={observed}")));
+        return Err(Error(
+            1,
+            format!(
+                "command evidence recorded but failed: exit={exit:?}, stable={stable}, output_supported={observed}"
+            ),
+        ));
     }
     Ok(receipt)
 }
 /// Signature and freshness are separate. Legacy evidence remains readable without upgraded authority.
 pub fn check(root: &Path, label: &str, max_age: u64, expected: Option<&Value>) -> Result<Value> {
     check_kind(root, label, max_age, expected, false)
+}
+/// Check a test receipt strictly against an explicit base-branch policy JSON object
+/// instead of reading `min_passed`/`parsers` from working-tree `.kineti/gate.json`.
+pub(crate) fn check_with_policy(
+    root: &Path,
+    label: &str,
+    max_age: u64,
+    expected: Option<&Value>,
+    policy: &Value,
+) -> Result<Value> {
+    check_internal(root, label, max_age, expected, false, Some(policy))
 }
 /// Evidence may describe successful operational commands without test authority.
 pub fn check_kind(
@@ -625,18 +838,59 @@ pub fn check_kind(
     expected: Option<&Value>,
     operational: bool,
 ) -> Result<Value> {
+    check_internal(root, label, max_age, expected, operational, None)
+}
+fn parse_policy_parser(policy: &Value, label: &str) -> Result<Option<String>> {
+    let Some(raw) = policy.get("parsers") else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let map = raw
+        .as_object()
+        .ok_or_else(|| Error(2, "gate.json parsers must be an object".into()))?;
+    let Some(v) = map.get(label) else {
+        return Ok(None);
+    };
+    let mode = v
+        .as_str()
+        .ok_or_else(|| Error(2, "gate.json parser entry must be a string".into()))?;
+    if !["auto", "cargo", "bun", "exit-code"].contains(&mode) {
+        return store::fail(2, format!("invalid configured parser: {mode}"));
+    }
+    Ok(Some(mode.to_owned()))
+}
+fn check_internal(
+    root: &Path,
+    label: &str,
+    max_age: u64,
+    expected: Option<&Value>,
+    operational: bool,
+    policy_override: Option<&Value>,
+) -> Result<Value> {
     if max_age == 0 || max_age > 5_256_000 {
         return store::fail(2, "receipt age must be 1..5256000 minutes");
     }
     store::state(root)?;
-    let records = store::lines(&root.join(".kineti/evidence.jsonl"))?;
+    let records = {
+        let _lock = Lock::take(&root.join(".kineti/evidence.lock"))?;
+        store::lines(&root.join(".kineti/evidence.jsonl"))?
+    };
     let r = records
         .iter()
         .rev()
         .find(|v| v["label"] == label)
         .ok_or_else(|| Error(5, format!("missing evidence: {label}")))?;
-    let trusted = fs::read_to_string(root.join(".kineti/evidence-issuer.pem"))
-        .map_err(|_| Error(7, "trusted issuer missing".into()))?;
+    let trusted_path = root.join(".kineti/evidence-issuer.pem");
+    store::safe_destination(&trusted_path)?;
+    let trusted = store::read_text_nofollow(&trusted_path).map_err(|e| {
+        if e.0 == 3 {
+            e
+        } else {
+            Error(7, "trusted issuer missing".into())
+        }
+    })?;
     if !signature(r, &trusted) {
         return store::fail(7, "altered or untrusted receipt");
     }
@@ -655,21 +909,76 @@ pub fn check_kind(
         return store::fail(4, "receipt expired or future-dated");
     }
     let is_test = r["result_kind"] == "test";
-    if !(is_test || operational && ["check", "package"].iter().any(|k| r["result_kind"] == *k))
-        || r["outcome"] != "passed"
-        || r["exit_code"] != 0
-        || r["mutated_during_run"] != false
-        || r["verification"]["status"] != "valid"
-        || r["verification"]["truncated"] != false
-        || is_test
-            && (r["verification"]["passed"].as_u64().unwrap_or(0) == 0
-                || r["verification"]["failed"] != 0
-                || r["verification"]["skipped"] != 0
-                || r["verification"]["inventory"]
-                    .as_array()
-                    .is_none_or(|a| a.is_empty()))
-    {
+    let base_ok = (is_test
+        || operational && ["check", "package"].iter().any(|k| r["result_kind"] == *k))
+        && r["outcome"] == "passed"
+        && r["exit_code"] == 0
+        && r["mutated_during_run"] == false
+        && r["verification"]["status"] == "valid"
+        && r["verification"]["truncated"] == false;
+    if !base_ok {
         return store::fail(7, "receipt does not record supported passing test evidence");
+    }
+    if is_test {
+        let has_inventory = r["verification"]["inventory"]
+            .as_array()
+            .is_some_and(|a| !a.is_empty());
+        if !has_inventory {
+            return store::fail(7, "receipt does not record supported passing test evidence");
+        }
+        let parser_name = r["verification"]["parser"].as_str().unwrap_or("");
+        let (gate_min, gate_parser) = if let Some(policy) = policy_override {
+            (
+                crate::gate::parse_min_passed_value(policy, label)?,
+                parse_policy_parser(policy, label)?,
+            )
+        } else {
+            (
+                configured_min_passed(root, label)?,
+                configured_parser(root, label)?,
+            )
+        };
+        match parser_name {
+            "kineti-native-summary-v1" => {
+                let allow_ignored = r["verification"]
+                    .get("allow_ignored")
+                    .and_then(Value::as_bool)
+                    .unwrap_or(false);
+                let receipt_min = r["verification"]
+                    .get("min_passed")
+                    .and_then(Value::as_u64)
+                    .unwrap_or(1)
+                    .max(1);
+                let min_passed = receipt_min.max(gate_min.unwrap_or(1));
+                let passed_ok = r["verification"]["passed"]
+                    .as_u64()
+                    .is_some_and(|p| p >= min_passed);
+                let failed_ok = r["verification"]["failed"].as_u64() == Some(0);
+                let skipped_ok = r["verification"]["skipped"]
+                    .as_u64()
+                    .is_some_and(|s| s == 0 || allow_ignored);
+                if !(passed_ok && failed_ok && skipped_ok) {
+                    return store::fail(
+                        7,
+                        "receipt does not record supported passing test evidence",
+                    );
+                }
+            }
+            "kineti-exit-code-v1" => {
+                if r["verification"]["count_observed"] != false
+                    || gate_min.is_some()
+                    || gate_parser.as_deref().is_some_and(|p| p != "exit-code")
+                {
+                    return store::fail(
+                        7,
+                        "receipt does not record supported passing test evidence",
+                    );
+                }
+            }
+            _ => {
+                return store::fail(7, "receipt does not record supported passing test evidence");
+            }
+        }
     }
     let m = &r["manifest"];
     let argv = m["command"]
@@ -695,7 +1004,26 @@ pub fn check_kind(
     {
         return store::fail(7, "command does not match required exact argv");
     }
-    if store::inventory(root)? != m["inputs"] || runtime(&argv)? != m["runtime"] {
+    let current_inventory = store::inventory(root)?;
+    let inventory_matches = if let Some(expected_digest) = m.get("inventory_sha256") {
+        let expected_digest = expected_digest
+            .as_str()
+            .ok_or_else(|| Error(7, "inventory_sha256 invalid".into()))?;
+        if r["fingerprint"].as_str() != Some(expected_digest) {
+            return store::fail(7, "receipt fingerprint mismatch");
+        }
+        let current_digest = store::inventory_digest(&current_inventory)?;
+        let count_matches = match m.get("inventory_count") {
+            Some(c) => c.as_u64() == Some(current_inventory.as_array().map_or(0, Vec::len) as u64),
+            None => true,
+        };
+        current_digest == expected_digest && count_matches
+    } else if let Some(expected_inputs) = m.get("inputs") {
+        &current_inventory == expected_inputs
+    } else {
+        return store::fail(7, "manifest inventory missing");
+    };
+    if !inventory_matches || runtime(root, &argv)? != m["runtime"] {
         return store::fail(4, "inputs or runtime changed");
     }
     for (k, v) in m["environment"]
@@ -718,9 +1046,15 @@ pub fn check_kind(
             let rel = item["path"]
                 .as_str()
                 .ok_or_else(|| Error(7, "file path missing".into()))?;
+            match fs::symlink_metadata(root.join(rel)) {
+                Ok(meta) if !meta.file_type().is_symlink() => {}
+                _ => return store::fail(4, "declared file missing or replaced with symlink"),
+            }
             let p =
                 store::input(root, rel).map_err(|_| Error(4, "declared file missing".into()))?;
-            if digest(fs::read(p)?) != item["sha256"].as_str().unwrap_or("") {
+            let actual = store::hash_file_nofollow(&p)
+                .map_err(|_| Error(4, "declared file missing".into()))?;
+            if actual != item["sha256"].as_str().unwrap_or("") {
                 return store::fail(4, "declared file changed");
             }
         }
@@ -1639,5 +1973,217 @@ mod supervision_tests {
             );
             assert!(!p.0.join(".kineti/forbidden").exists());
         }
+    }
+}
+
+#[cfg(test)]
+mod parser_and_signing_tests {
+    use super::*;
+
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new() -> Self {
+            let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../../.kineti/runner-tests")
+                .join(&store::nonce().unwrap()[..12]);
+            fs::create_dir_all(root.join(".kineti")).unwrap();
+            let root = root.canonicalize().unwrap();
+            store::write(
+                &root.join(".kineti/state.json"),
+                &json!({"root_goal": "Receipt parser and signing test"}),
+            )
+            .unwrap();
+            fs::write(root.join("test.txt"), "fixture").unwrap();
+            Self(root)
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn summary_parses_multi_suite_bun_and_cargo_with_strict_modes() {
+        assert_eq!(
+            summary("2 pass\n0 fail\n\n1 pass\n1 fail\n", "bun"),
+            Some((3, 1, 0))
+        );
+        assert_eq!(
+            summary("2 pass\n0 fail\n1 skip\n1 pass\n0 fail\n2 skip\n", "auto"),
+            Some((3, 0, 3))
+        );
+        assert_eq!(summary("2 fail\n", "bun"), Some((0, 2, 0)));
+        assert_eq!(summary("all good\n", "auto"), None);
+        assert_eq!(summary("1 pass\n0 fail\n", "cargo"), None);
+        assert_eq!(
+            summary(
+                "test result: ok. 2 passed; 0 failed; 1 ignored\ntest result: ok. 3 passed; 0 failed; 0 ignored\n",
+                "cargo"
+            ),
+            Some((5, 0, 1))
+        );
+        assert_eq!(
+            summary("test result: ok. 2 passed; 0 failed; 0 ignored\n", "bun"),
+            None
+        );
+    }
+
+    #[test]
+    fn sign_object_and_verify_object_signature_round_trip() {
+        let f = Fixture::new();
+        let mut audit = json!({
+            "schema": "kineti-pr-audit-v1",
+            "verdict": "passed",
+            "findings": [],
+        });
+        let sig = sign_object(&f.0, &mut audit).unwrap();
+        assert!(!sig.is_empty());
+        assert_eq!(audit["encoding"], "kineti-canonical-v2");
+        let trusted = fs::read_to_string(f.0.join(".kineti/evidence-issuer.pem")).unwrap();
+        assert!(verify_object_signature(&audit, &trusted));
+
+        let mut tampered = audit.clone();
+        tampered["verdict"] = json!("blocked");
+        assert!(!verify_object_signature(&tampered, &trusted));
+        assert!(!verify_object_signature(&audit, "untrusted-key"));
+    }
+
+    #[test]
+    fn resolve_uses_project_root_for_relative_executable() {
+        let f = Fixture::new();
+        let script_dir = f.0.join("scripts");
+        fs::create_dir_all(&script_dir).unwrap();
+        let script = script_dir.join("check.sh");
+        fs::write(&script, "#!/bin/sh\nexit 0\n").unwrap();
+        let resolved = resolve(&f.0, "./scripts/check.sh").unwrap();
+        assert_eq!(resolved, script.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn two_tier_parsers_and_constant_size_receipts_enforce_policy() {
+        let f = Fixture::new();
+
+        // Invalid parser is rejected before execution with exit 2.
+        let err = run(
+            &f.0,
+            Run {
+                label: "bad-parser".into(),
+                argv: vec!["/bin/sh".into(), "-c".into(), "exit 0".into()],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "nope".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.0, 2);
+
+        // Multi-suite bun failure in suite 2 must fail even with exit 0.
+        let err = run(
+            &f.0,
+            Run {
+                label: "bun-multi".into(),
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf '2 pass\\n0 fail\\n1 pass\\n1 fail\\n'".into(),
+                ],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "bun".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.0, 1);
+
+        // Ignored rust tests fail by default, pass with allow_ignored, and respect min_passed.
+        let err = run(
+            &f.0,
+            Run {
+                label: "cargo-ign".into(),
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf 'test result: ok. 2 passed; 0 failed; 1 ignored\\n'".into(),
+                ],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "cargo".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.0, 1);
+
+        let err = run(
+            &f.0,
+            Run {
+                label: "cargo-min".into(),
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf 'test result: ok. 2 passed; 0 failed; 1 ignored\\n'".into(),
+                ],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "cargo".into(),
+                allow_ignored: true,
+                min_passed: Some(3),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.0, 1);
+
+        let r = run(
+            &f.0,
+            Run {
+                label: "cargo-ok".into(),
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf 'test result: ok. 2 passed; 0 failed; 1 ignored\\n'".into(),
+                ],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "cargo".into(),
+                allow_ignored: true,
+                min_passed: Some(2),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert!(r["manifest"].get("inputs").is_none());
+        assert!(r["manifest"]["inventory_sha256"].is_string());
+        assert!(r["manifest"]["inventory_count"].is_u64());
+        assert_eq!(r["verification"]["parser"], "kineti-native-summary-v1");
+        assert_eq!(r["verification"]["count_observed"], true);
+        assert!(check(&f.0, "cargo-ok", 60, None).is_ok());
+
+        // Exit-code mode succeeds on exit 0 with no test counts and records count_observed: false.
+        let r = run(
+            &f.0,
+            Run {
+                label: "pytest-exit".into(),
+                argv: vec!["/bin/sh".into(), "-c".into(), "printf 'ok\\n'".into()],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "exit-code".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(r["verification"]["parser"], "kineti-exit-code-v1");
+        assert_eq!(r["verification"]["count_observed"], false);
+        assert_eq!(r["verification"]["passed"], Value::Null);
+        assert!(check(&f.0, "pytest-exit", 60, None).is_ok());
     }
 }

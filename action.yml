@@ -1,18 +1,433 @@
-name: Kineti native evidence gate
-description: Check participating CI commands against recorded evidence and reported spending; no protected writes or automatic interception.
+name: Kineti PR Verification & Anti-Tampering Gate
+description: Enforce base-branch .kineti/gate.json policy, detect AI test tampering in PR diffs, execute allowlisted tests under POSIX supervision, and emit a signed kineti-pr-audit-v1 bundle and Markdown step summary. Runs with read-only repository permissions; no automatic local interception, protected writes, or provider-bill verification.
+
 inputs:
   executable:
-    description: Absolute path to the reviewed installed native kineti executable
-    required: true
-  required-label:
-    description: Required test receipt label
-    required: true
+    description: Optional path to a reviewed native kineti executable. When omitted, builds core-native/Cargo.toml if present.
+    required: false
+    default: ''
+  executable-sha256:
+    description: Optional pinned 64-hex SHA-256 digest to verify against the resolved kineti executable before running.
+    required: false
+    default: ''
+  base-ref:
+    description: Optional base git ref or commit SHA. Defaults to github.event.pull_request.base.sha or origin/<github.base_ref>.
+    required: false
+    default: ''
+  head-ref:
+    description: Optional head git ref or commit SHA to evaluate.
+    required: false
+    default: 'HEAD'
+  allow-policy-change:
+    description: Set to 'true' to explicitly permit PR modifications to protected policy/workflow files (e.g., after CODEOWNER review).
+    required: false
+    default: 'false'
+  allow-test-reduction:
+    description: Set to 'true' to explicitly permit net test-function deletions in the PR diff.
+    required: false
+    default: 'false'
+  audit-out:
+    description: Output path for the signed kineti-pr-audit-v1 canonical JSON audit bundle.
+    required: false
+    default: '.kineti/pr-audit.json'
+  summary-out:
+    description: Output path for the generated Markdown PR / GitHub Step Summary table.
+    required: false
+    default: '.kineti/pr-summary.md'
+  write-step-summary:
+    description: Set to 'true' to append the generated Markdown PR summary to GITHUB_STEP_SUMMARY.
+    required: false
+    default: 'true'
+
+outputs:
+  verdict:
+    description: Verification verdict ('passed' or 'blocked').
+    value: ${{ steps.verify.outputs.verdict }}
+  audit-path:
+    description: Path to the signed kineti-pr-audit-v1 JSON bundle.
+    value: ${{ steps.verify.outputs.audit-path }}
+  summary-path:
+    description: Path to the Markdown PR verification summary.
+    value: ${{ steps.verify.outputs.summary-path }}
+
 runs:
   using: composite
   steps:
-    - name: Check required native evidence
+    - id: resolve
+      name: Resolve and verify native kineti executable
       shell: bash
       env:
         KINETI_EXECUTABLE: ${{ inputs.executable }}
-        KINETI_REQUIRED_LABEL: ${{ inputs.required-label }}
-      run: '"$KINETI_EXECUTABLE" ci --require-evidence "$KINETI_REQUIRED_LABEL"'
+        KINETI_EXECUTABLE_SHA256: ${{ inputs.executable-sha256 }}
+        KINETI_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+
+        KINETI_BIN=""
+        if [[ -n "$KINETI_EXECUTABLE" ]]; then
+          KINETI_BIN="$KINETI_EXECUTABLE"
+          if [[ ! -f "$KINETI_BIN" || ! -x "$KINETI_BIN" ]]; then
+            echo "::error::Configured kineti executable is missing or not executable: $KINETI_BIN" >&2
+            exit 2
+          fi
+        else
+          MANIFEST_PATH=""
+          if [[ -f "core-native/Cargo.toml" ]]; then
+            MANIFEST_PATH="core-native/Cargo.toml"
+          elif [[ -n "$KINETI_ACTION_PATH" && -f "$KINETI_ACTION_PATH/core-native/Cargo.toml" ]]; then
+            MANIFEST_PATH="$KINETI_ACTION_PATH/core-native/Cargo.toml"
+          fi
+
+          if [[ -n "$MANIFEST_PATH" ]]; then
+            if ! command -v cargo >/dev/null 2>&1; then
+              echo "::error::cargo is required to build kineti from $MANIFEST_PATH when 'executable' input is omitted." >&2
+              exit 2
+            fi
+            cargo build --release --locked --manifest-path "$MANIFEST_PATH"
+            MANIFEST_DIR="$(cd "$(dirname "$MANIFEST_PATH")" && pwd)"
+            TARGET_DIR="${CARGO_TARGET_DIR:-$MANIFEST_DIR/target}"
+            KINETI_BIN="$TARGET_DIR/release/kineti"
+            if [[ ! -f "$KINETI_BIN" || ! -x "$KINETI_BIN" ]]; then
+              echo "::error::Built kineti binary not found at $KINETI_BIN" >&2
+              exit 3
+            fi
+          else
+            echo "::error::No 'executable' input provided and no core-native/Cargo.toml found. Install a reviewed Linux kineti binary and pass 'executable' (and optionally 'executable-sha256')." >&2
+            exit 2
+          fi
+        fi
+
+        if [[ -n "$KINETI_EXECUTABLE_SHA256" ]]; then
+          EXPECTED_SHA="$(printf '%s' "$KINETI_EXECUTABLE_SHA256" | tr 'A-F' 'a-f')"
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::executable-sha256 must be a 64-character hexadecimal SHA-256 digest." >&2
+            exit 2
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            ACTUAL_SHA="$(sha256sum "$KINETI_BIN" | awk '{print $1}')"
+          elif command -v shasum >/dev/null 2>&1; then
+            ACTUAL_SHA="$(shasum -a 256 "$KINETI_BIN" | awk '{print $1}')"
+          else
+            echo "::error::Neither sha256sum nor shasum is available to verify executable-sha256." >&2
+            exit 3
+          fi
+          if [[ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]]; then
+            echo "::error::kineti executable SHA-256 mismatch (expected $EXPECTED_SHA, got $ACTUAL_SHA)." >&2
+            exit 3
+          fi
+        fi
+
+        if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+          printf 'bin=%s\n' "$KINETI_BIN" >> "$GITHUB_OUTPUT"
+        fi
+
+    - id: verify
+      name: Run base-branch policy verification, supervised tests, and PR guard
+      shell: bash
+      env:
+        KINETI_BIN: ${{ steps.resolve.outputs.bin }}
+        INPUT_BASE_REF: ${{ inputs.base-ref }}
+        INPUT_HEAD_REF: ${{ inputs.head-ref }}
+        GITHUB_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        GITHUB_BASE_REF_NAME: ${{ github.base_ref }}
+        INPUT_ALLOW_POLICY_CHANGE: ${{ inputs.allow-policy-change }}
+        INPUT_ALLOW_TEST_REDUCTION: ${{ inputs.allow-test-reduction }}
+        INPUT_AUDIT_OUT: ${{ inputs.audit-out }}
+        INPUT_SUMMARY_OUT: ${{ inputs.summary-out }}
+        INPUT_WRITE_STEP_SUMMARY: ${{ inputs.write-step-summary }}
+      run: |
+        set -euo pipefail
+
+        AUDIT_OUT="$INPUT_AUDIT_OUT"
+        SUMMARY_OUT="$INPUT_SUMMARY_OUT"
+        VERDICT="blocked"
+        OUTPUTS_SAFE=0
+        PR_CHECK_RAN=0
+        OUTPUTS_WRITTEN=0
+        WORK_TMP="$(mktemp -d "${RUNNER_TEMP:-/tmp}/kineti-pr-gate.XXXXXX")"
+
+        publish_results() {
+          if [[ "$PR_CHECK_RAN" -eq 1 && "$INPUT_WRITE_STEP_SUMMARY" == "true" && -n "${GITHUB_STEP_SUMMARY:-}" && -n "$SUMMARY_OUT" && -f "$SUMMARY_OUT" ]]; then
+            cat "$SUMMARY_OUT" >> "$GITHUB_STEP_SUMMARY" || true
+            printf '\n' >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+          if [[ "$OUTPUTS_WRITTEN" -eq 0 && -n "${GITHUB_OUTPUT:-}" ]]; then
+            OUTPUTS_WRITTEN=1
+            printf 'verdict=%s\n' "$VERDICT" >> "$GITHUB_OUTPUT" || true
+            if [[ "$OUTPUTS_SAFE" -eq 1 ]]; then
+              printf 'audit-path=%s\n' "$AUDIT_OUT" >> "$GITHUB_OUTPUT" || true
+              printf 'summary-path=%s\n' "$SUMMARY_OUT" >> "$GITHUB_OUTPUT" || true
+            fi
+          fi
+        }
+
+        cleanup() {
+          publish_results
+          rm -rf "$WORK_TMP" || true
+        }
+        trap cleanup EXIT
+
+        if ! command -v jq >/dev/null 2>&1; then
+          echo "::error::jq is required to read base-branch .kineti/gate.json." >&2
+          exit 2
+        fi
+
+        if [[ -z "$KINETI_BIN" || ! -x "$KINETI_BIN" ]]; then
+          echo "::error::Resolved kineti executable is unavailable." >&2
+          exit 2
+        fi
+
+        if [[ "$INPUT_ALLOW_POLICY_CHANGE" != "true" && "$INPUT_ALLOW_POLICY_CHANGE" != "false" ]]; then
+          echo "::error::allow-policy-change must be 'true' or 'false'." >&2
+          exit 2
+        fi
+        if [[ "$INPUT_ALLOW_TEST_REDUCTION" != "true" && "$INPUT_ALLOW_TEST_REDUCTION" != "false" ]]; then
+          echo "::error::allow-test-reduction must be 'true' or 'false'." >&2
+          exit 2
+        fi
+        if [[ "$INPUT_WRITE_STEP_SUMMARY" != "true" && "$INPUT_WRITE_STEP_SUMMARY" != "false" ]]; then
+          echo "::error::write-step-summary must be 'true' or 'false'." >&2
+          exit 2
+        fi
+
+        for out_val in "$AUDIT_OUT" "$SUMMARY_OUT"; do
+          if [[ -z "$out_val" || "$out_val" == -* || "$out_val" == *$'\n'* || "$out_val" == *$'\r'* ]]; then
+            echo "::error::audit-out and summary-out must be nonempty paths without leading '-' or newlines." >&2
+            exit 2
+          fi
+        done
+        OUTPUTS_SAFE=1
+
+        BASE_REF="$INPUT_BASE_REF"
+        if [[ -z "$BASE_REF" ]]; then
+          if [[ -n "$GITHUB_PR_BASE_SHA" ]]; then
+            BASE_REF="$GITHUB_PR_BASE_SHA"
+          elif [[ -n "$GITHUB_BASE_REF_NAME" ]]; then
+            BASE_REF="origin/$GITHUB_BASE_REF_NAME"
+          else
+            echo "::error::base-ref input is required when not running on a pull_request event." >&2
+            exit 2
+          fi
+        fi
+
+        HEAD_REF="${INPUT_HEAD_REF:-HEAD}"
+        for ref_val in "$BASE_REF" "$HEAD_REF"; do
+          if [[ -z "$ref_val" || "$ref_val" == -* || "$ref_val" == *".."* || ! "$ref_val" =~ ^[A-Za-z0-9._/@^~-]+$ ]]; then
+            echo "::error::Invalid git ref: $ref_val" >&2
+            exit 2
+          fi
+        done
+
+        if ! BASE_SHA="$(git rev-parse --verify "${BASE_REF}^{commit}" 2>/dev/null)"; then
+          echo "::error::Unable to resolve base-ref '$BASE_REF'. Ensure actions/checkout fetches full history (fetch-depth: 0) or fetches the base commit." >&2
+          exit 2
+        fi
+        if ! HEAD_SHA="$(git rev-parse --verify "${HEAD_REF}^{commit}" 2>/dev/null)"; then
+          echo "::error::Unable to resolve head-ref '$HEAD_REF'." >&2
+          exit 2
+        fi
+
+        BASE_TREE_LINE="$(git ls-tree "$BASE_SHA" -- .kineti/gate.json)"
+        if [[ -z "$BASE_TREE_LINE" ]]; then
+          echo "::error::Protected base commit $BASE_SHA is missing .kineti/gate.json." >&2
+          exit 1
+        fi
+        if [[ "$BASE_TREE_LINE" == 120000\ * ]]; then
+          echo "::error::Base-branch .kineti/gate.json must be a regular file, not a symlink." >&2
+          exit 1
+        fi
+
+        BASE_GATE="$WORK_TMP/base-gate.json"
+        BASE_COMMANDS="$WORK_TMP/base-commands.json"
+        git show "${BASE_SHA}:.kineti/gate.json" > "$BASE_GATE"
+
+        if ! jq -e 'type == "object"' "$BASE_GATE" >/dev/null; then
+          echo "::error::Base-branch .kineti/gate.json must be a JSON object." >&2
+          exit 1
+        fi
+
+        jq -e '(.commands // {}) | if type == "object" then . else error("commands must be an object") end' \
+          "$BASE_GATE" > "$BASE_COMMANDS"
+
+        MAX_AGE="$(jq -r '(.max_age_minutes // 240) | if (type == "number" and . >= 1 and . <= 5256000 and floor == .) then tostring else error("invalid max_age_minutes") end' "$BASE_GATE")"
+
+        # Step 1: Preflight pr-check BEFORE executing any PR test commands (fail fast on policy/test tampering).
+        PREFLIGHT_CMD=(
+          "$KINETI_BIN" pr-check
+          --base-ref "$BASE_SHA"
+          --head-ref "$HEAD_SHA"
+          --max-age-min "$MAX_AGE"
+          --audit-out "$AUDIT_OUT"
+          --summary-out "$SUMMARY_OUT"
+        )
+        if [[ "$INPUT_ALLOW_POLICY_CHANGE" == "true" ]]; then
+          PREFLIGHT_CMD+=(--allow-policy-change)
+        fi
+        if [[ "$INPUT_ALLOW_TEST_REDUCTION" == "true" ]]; then
+          PREFLIGHT_CMD+=(--allow-test-reduction)
+        fi
+        PREFLIGHT_RC=0
+        PR_CHECK_RAN=1
+        "${PREFLIGHT_CMD[@]}" || PREFLIGHT_RC=$?
+        if [[ "$PREFLIGHT_RC" -ne 0 ]]; then
+          VERDICT="blocked"
+          exit "$PREFLIGHT_RC"
+        fi
+
+        jq -j '(.required_checks // []) | if type == "array" then .[] | if (type == "string" and length > 0) then . + "\u0000" else error("invalid required_checks entry") end else error("required_checks must be an array") end' \
+          "$BASE_GATE" > "$WORK_TMP/checks.nul"
+
+        REQUIRED_CHECKS=()
+        while IFS= read -r -d '' label; do
+          REQUIRED_CHECKS+=("$label")
+        done < "$WORK_TMP/checks.nul"
+
+        INIT_RC=0
+        if [[ ! -f ".kineti/state.json" ]]; then
+          CODEX_HOME="$WORK_TMP/codex-home" "$KINETI_BIN" init --goal "CI PR verification" --apply >/dev/null || INIT_RC=$?
+        fi
+
+        TEST_RC=0
+        CI_RC=0
+        EVIDENCE_ARGS=()
+
+        if [[ "${#REQUIRED_CHECKS[@]}" -eq 0 ]]; then
+          echo "::error::Base-branch .kineti/gate.json must declare at least one label in required_checks." >&2
+          CI_RC=1
+        else
+          for label in "${REQUIRED_CHECKS[@]}"; do
+            EVIDENCE_ARGS+=(--require-evidence "$label")
+
+            if ! jq -j --arg label "$label" '
+              (.commands // {}) | if type == "object" then .[$label] else error("commands must be an object") end
+              | if (type == "array" and length > 0) then
+                  .[] | if (type == "string") then . + "\u0000" else error("argv element must be string") end
+                else
+                  error("missing command mapping for label " + $label)
+                end
+            ' "$BASE_GATE" > "$WORK_TMP/cmd.nul"; then
+              echo "::error::Base-branch .kineti/gate.json missing valid commands[\"$label\"]." >&2
+              if [[ "$TEST_RC" -eq 0 ]]; then TEST_RC=1; fi
+              continue
+            fi
+
+            CMD_ARGV=()
+            while IFS= read -r -d '' arg; do
+              CMD_ARGV+=("$arg")
+            done < "$WORK_TMP/cmd.nul"
+
+            PARSER="$(jq -r --arg label "$label" '
+              (.parsers // {}) | if type == "object" then (.[$label] // "auto") else error("parsers must be an object") end
+              | if (type == "string" and length > 0) then . else error("invalid parser for " + $label) end
+            ' "$BASE_GATE")"
+
+            MIN_PASSED="$(jq -r --arg label "$label" '
+              .min_passed
+              | if . == null then ""
+                elif type == "object" then
+                  (.[$label] | if . == null then "" elif (type == "number" and . >= 1 and floor == .) then tostring else error("invalid min_passed for " + $label) end)
+                elif (type == "number" and . >= 1 and floor == .) then tostring
+                else error("invalid min_passed")
+                end
+            ' "$BASE_GATE")"
+
+            TIMEOUT="$(jq -r --arg label "$label" '
+              ((.timeouts // {}) | if type == "object" then .[$label] else error("timeouts must be an object") end)
+              // .timeout_seconds // 300
+              | if (type == "number" and . >= 1 and . <= 86400 and floor == .) then tostring else error("invalid timeout") end
+            ' "$BASE_GATE")"
+
+            jq -j --arg label "$label" '
+              (.required_tests // [])
+              | if type == "array" then .
+                elif type == "object" then
+                  (.[$label] // []) | if type == "string" then [.] else . end
+                else
+                  error("required_tests must be an array or object")
+                end
+              | if type == "array" then
+                  .[] | if (type == "string" and length > 0) then . + "\u0000" else error("invalid required_tests entry") end
+                else
+                  error("invalid required_tests entry for " + $label)
+                end
+            ' "$BASE_GATE" > "$WORK_TMP/tests.nul"
+
+            REQ_TESTS=()
+            while IFS= read -r -d '' test_path; do
+              REQ_TESTS+=("$test_path")
+            done < "$WORK_TMP/tests.nul"
+
+            if [[ "${#REQ_TESTS[@]}" -eq 0 ]]; then
+              echo "::error::Base-branch .kineti/gate.json must declare required_tests for label '$label'." >&2
+              if [[ "$TEST_RC" -eq 0 ]]; then TEST_RC=1; fi
+              continue
+            fi
+
+            if [[ "$INIT_RC" -eq 0 ]]; then
+              RUN_CMD=("$KINETI_BIN" test run --label "$label" --parser "$PARSER" --timeout "$TIMEOUT")
+              if [[ -n "$MIN_PASSED" ]]; then
+                RUN_CMD+=(--min-passed "$MIN_PASSED")
+              fi
+              for test_path in "${REQ_TESTS[@]}"; do
+                RUN_CMD+=(--required-test "$test_path")
+              done
+              rc=0
+              "${RUN_CMD[@]}" -- "${CMD_ARGV[@]}" || rc=$?
+              if [[ "$rc" -ne 0 && "$TEST_RC" -eq 0 ]]; then
+                TEST_RC="$rc"
+              fi
+            fi
+          done
+
+          if [[ "$INIT_RC" -eq 0 ]]; then
+            "$KINETI_BIN" ci "${EVIDENCE_ARGS[@]}" \
+              --evidence-commands "$BASE_COMMANDS" \
+              --max-age-min "$MAX_AGE" || CI_RC=$?
+          else
+            CI_RC="$INIT_RC"
+          fi
+        fi
+
+        # Step 4: Final pr-check with --require-ci and --require-evidence so audit JSON and summary
+        # reflect the exact combined verdict (policy + tamper + base-policy evidence + CI spend/stage gates).
+        PR_CMD=(
+          "$KINETI_BIN" pr-check
+          --base-ref "$BASE_SHA"
+          --head-ref "$HEAD_SHA"
+          --max-age-min "$MAX_AGE"
+          --require-ci
+          --audit-out "$AUDIT_OUT"
+          --summary-out "$SUMMARY_OUT"
+        )
+        if [[ "${#EVIDENCE_ARGS[@]}" -gt 0 ]]; then
+          PR_CMD+=("${EVIDENCE_ARGS[@]}")
+        fi
+        if [[ "$INPUT_ALLOW_POLICY_CHANGE" == "true" ]]; then
+          PR_CMD+=(--allow-policy-change)
+        fi
+        if [[ "$INPUT_ALLOW_TEST_REDUCTION" == "true" ]]; then
+          PR_CMD+=(--allow-test-reduction)
+        fi
+
+        PR_CHECK_RC=0
+        PR_CHECK_RAN=1
+        "${PR_CMD[@]}" || PR_CHECK_RC=$?
+
+        FINAL_RC=0
+        if [[ "$PR_CHECK_RC" -ne 0 ]]; then
+          FINAL_RC="$PR_CHECK_RC"
+        elif [[ "$CI_RC" -ne 0 ]]; then
+          FINAL_RC="$CI_RC"
+        elif [[ "$TEST_RC" -ne 0 ]]; then
+          FINAL_RC="$TEST_RC"
+        elif [[ "$INIT_RC" -ne 0 ]]; then
+          FINAL_RC="$INIT_RC"
+        fi
+
+        if [[ "$FINAL_RC" -eq 0 ]]; then
+          VERDICT="passed"
+        else
+          VERDICT="blocked"
+        fi
+
+        exit "$FINAL_RC"

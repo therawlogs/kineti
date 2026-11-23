@@ -2,7 +2,6 @@
 use crate::{
     gate, receipt, spend,
     store::{self, Error, Result},
-    undo,
 };
 use serde_json::{json, Value};
 use std::{
@@ -34,7 +33,7 @@ pub fn tools() -> Value {
         ),
         (
             "kineti_evidence_record",
-            "Execute exact argv and record declared test inputs",
+            "Execute exact allowlisted argv and record declared test inputs",
             vec!["label", "command", "required_tests"],
         ),
         (
@@ -49,26 +48,55 @@ pub fn tools() -> Value {
         ),
         ("kineti_spend_status", "Read reported spending", vec![]),
         (
-            "kineti_saga_push",
-            "Register an exact argv undo",
-            vec!["label", "command"],
-        ),
-        (
-            "kineti_saga_rollback",
-            "Preview or execute registered undo",
-            vec![],
-        ),
-        (
             "kineti_verify_gate_status",
             "Check participating CI policy",
             vec!["required_checks"],
         ),
     ];
-    json!(specs.iter().map(|(name,description,required)|{
-        let mut props=json!({});for k in required {props[*k]=if ["command","required_tests","required_checks"].contains(k){json!({"type":"array","items":{"type":"string"}})}else{json!({"type":"string"})};}
-        if *name=="kineti_saga_rollback"{props["confirm"]=json!({"type":"boolean"});props["run_id"]=json!({"type":"string"});}
-        json!({"name":name,"description":description,"inputSchema":{"type":"object","properties":props,"required":required,"additionalProperties":false},"annotations":{"readOnlyHint":(["kineti_status","kineti_spend_status","kineti_evidence_check","kineti_verify_gate_status"].contains(name)),"destructiveHint":*name=="kineti_saga_rollback","openWorldHint":false}})
-    }).collect::<Vec<_>>())
+    json!(specs
+        .iter()
+        .map(|(name, description, required)| {
+            let mut props = json!({});
+            for k in required {
+                props[*k] = if ["command", "required_tests", "required_checks"].contains(k) {
+                    json!({"type": "array", "items": {"type": "string"}})
+                } else {
+                    json!({"type": "string"})
+                };
+            }
+            if *name == "kineti_status" {
+                props["project_only"] = json!({"type": "boolean"});
+            }
+            if *name == "kineti_evidence_record" {
+                props["timeout"] = json!({"type": "integer"});
+                props["parser"] = json!({"type": "string"});
+                props["allow_ignored"] = json!({"type": "boolean"});
+            }
+            let read_only = [
+                "kineti_status",
+                "kineti_spend_status",
+                "kineti_evidence_check",
+                "kineti_verify_gate_status",
+            ]
+            .contains(name);
+            let exec_tool = *name == "kineti_evidence_record";
+            json!({
+                "name": name,
+                "description": description,
+                "inputSchema": {
+                    "type": "object",
+                    "properties": props,
+                    "required": required,
+                    "additionalProperties": false
+                },
+                "annotations": {
+                    "readOnlyHint": read_only,
+                    "destructiveHint": exec_tool,
+                    "openWorldHint": exec_tool
+                }
+            })
+        })
+        .collect::<Vec<_>>())
 }
 /// Dispatch only declared fields; malformed requests cannot trigger writes.
 pub fn call(root: &Path, name: &str, args: &Value) -> Result<Value> {
@@ -91,6 +119,7 @@ pub fn call(root: &Path, name: &str, args: &Value) -> Result<Value> {
         if match ty {
             "string" => !v.is_string(),
             "boolean" => !v.is_boolean(),
+            "integer" => v.as_u64().is_none(),
             "array" => v
                 .as_array()
                 .is_none_or(|a| a.iter().any(|v| !v.is_string())),
@@ -106,19 +135,70 @@ pub fn call(root: &Path, name: &str, args: &Value) -> Result<Value> {
     }
     match name {
         "kineti_status" => {
-            Ok(json!({"state":store::state(root)?,"spend":spend::inspect(root,false)?}))
+            if args.get("project_only").and_then(Value::as_bool) == Some(true) {
+                Ok(json!({"state": store::state(root)?}))
+            } else {
+                Ok(json!({"state": store::state(root)?, "spend": spend::inspect(root, false)?}))
+            }
         }
-        "kineti_evidence_record" => receipt::run(
-            root,
-            receipt::Run {
-                label: text(args, "label")?.into(),
-                argv: strings(args, "command")?,
-                tests: strings(args, "required_tests")?,
-                timeout: 60,
-                kind: "test".into(),
-                ..Default::default()
-            },
-        ),
+        "kineti_evidence_record" => {
+            let label = text(args, "label")?;
+            let command = strings(args, "command")?;
+            let tests = strings(args, "required_tests")?;
+            let timeout = match args.get("timeout") {
+                Some(v) => {
+                    let t = v
+                        .as_u64()
+                        .ok_or_else(|| Error(2, "invalid MCP argument timeout".into()))?;
+                    if !(1..=3600).contains(&t) {
+                        return store::fail(2, "MCP timeout must be between 1 and 3600 seconds");
+                    }
+                    t
+                }
+                None => 300,
+            };
+            let parser = match args.get("parser") {
+                Some(v) => {
+                    let p = v
+                        .as_str()
+                        .ok_or_else(|| Error(2, "invalid MCP argument parser".into()))?;
+                    if !["auto", "cargo", "bun", "exit-code"].contains(&p) {
+                        return store::fail(
+                            2,
+                            "MCP parser must be one of: auto, cargo, bun, exit-code",
+                        );
+                    }
+                    p.to_string()
+                }
+                None => "auto".to_string(),
+            };
+            let allow_ignored = args
+                .get("allow_ignored")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            let declared = gate::configured_strict(root, label)?;
+            if json!(&command) != declared {
+                return store::fail(
+                    3,
+                    "MCP command does not match declared .kineti/gate.json commands allowlist",
+                );
+            }
+            let min_passed = gate::label_min_passed(root, label)?;
+            receipt::run(
+                root,
+                receipt::Run {
+                    label: label.into(),
+                    argv: command,
+                    tests,
+                    timeout,
+                    kind: "test".into(),
+                    parser,
+                    allow_ignored,
+                    min_passed,
+                    ..Default::default()
+                },
+            )
+        }
         "kineti_evidence_check" => receipt::check_kind(root, text(args, "label")?, 240, None, true),
         "kineti_spend_record" => spend::charge(
             root,
@@ -129,17 +209,6 @@ pub fn call(root: &Path, name: &str, args: &Value) -> Result<Value> {
             text(args, "usd")?,
         ),
         "kineti_spend_status" => spend::inspect(root, false),
-        "kineti_saga_push" => undo::push(
-            root,
-            text(args, "label")?,
-            "default",
-            strings(args, "command")?,
-        ),
-        "kineti_saga_rollback" => undo::rollback(
-            root,
-            args["run_id"].as_str().unwrap_or("default"),
-            args["confirm"] == true,
-        ),
         "kineti_verify_gate_status" => gate::ci(root, strings(args, "required_checks")?, None, 240),
         _ => unreachable!(),
     }
@@ -156,9 +225,18 @@ pub fn serve(root: &Path) -> Result<()> {
                     "{}",
                     json!({"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"invalid JSON"}})
                 );
+                io::stdout().flush()?;
                 continue;
             }
         };
+        if !request.is_object() {
+            println!(
+                "{}",
+                json!({"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"invalid request"}})
+            );
+            io::stdout().flush()?;
+            continue;
+        }
         if request.get("id").is_none() {
             continue;
         }
@@ -166,7 +244,19 @@ pub fn serve(root: &Path) -> Result<()> {
         let method = request["method"].as_str().unwrap_or("");
         let response = if method == "initialize" && !initialized {
             initialized = true;
-            json!({"result":{"protocolVersion":request["params"]["protocolVersion"],"capabilities":{"tools":{}},"serverInfo":{"name":"kineti","version":env!("CARGO_PKG_VERSION")}}})
+            let protocol_version = request
+                .get("params")
+                .and_then(|p| p.get("protocolVersion"))
+                .and_then(Value::as_str)
+                .filter(|v| !v.is_empty())
+                .unwrap_or("2024-11-05");
+            json!({
+                "result": {
+                    "protocolVersion": protocol_version,
+                    "capabilities": {"tools": {}},
+                    "serverInfo": {"name": "kineti", "version": env!("CARGO_PKG_VERSION")}
+                }
+            })
         } else if !initialized {
             json!({"error":{"code":-32002,"message":"initialize required"}})
         } else {

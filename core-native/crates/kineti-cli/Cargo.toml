@@ -6,7 +6,6 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 readme = "README.md"
 description = "Record checks, detect changed inputs, and gate participating CI on evidence and reported spending"
 
@@ -27,11 +26,3 @@ toml = "=1.1.8"
 [[bin]]
 name = "kineti"
 path = "src/gate_main.rs"
-
-# Cargo installs the packaged crate outside this workspace. Keep the same size profile.
-[profile.release]
-opt-level = "z"
-lto = true
-strip = true
-codegen-units = 1
-panic = "abort"

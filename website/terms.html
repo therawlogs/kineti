@@ -1,47 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kineti — Terms of Service</title>
-  <style>
-    :root {
-      --bg: #000000;
-      --card: #1c1c1e;
-      --text: #ffffff;
-      --muted: rgba(235, 235, 245, 0.6);
-      --accent: #0a84ff;
-    }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-      line-height: 1.6;
-      max-width: 680px;
-      margin: 40px auto;
-      padding: 0 20px;
-    }
-    h1 { font-size: 28px; margin-bottom: 8px; }
-    h2 { font-size: 20px; margin-top: 32px; margin-bottom: 8px; color: var(--accent); }
-    p, li { color: var(--muted); margin-bottom: 12px; }
-    a { color: var(--accent); text-decoration: none; }
-    .card { background: var(--card); border-radius: 14px; padding: 24px; margin-top: 24px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f6f5f0">
+<meta name="description" content="Open-Core MIT License and optional Founding Team Pilot service terms for Kineti 1.0.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css">
+<title>Kineti 1.0 — Terms &amp; Open-Core License</title>
 </head>
 <body>
-  <h1>Terms of Service</h1>
-  <p><strong>Last Updated:</strong> October 21, 2026</p>
+<a class="skip" href="#main">Skip to content</a>
 
-  <div class="card">
-    <h2>1. Software and infrastructure</h2>
-    <p>Kineti is proprietary developer tooling. Use requires separate permission under the applicable Kineti terms. Future distribution is through this website only. Previously distributed copies retain their original license terms. Users run and configure their own hosts and infrastructure.</p>
-    <h2>2. Tested capabilities</h2>
-    <p>Local receipts record particular commands and inputs. They do not establish universal sandboxing, host interception, production safety or a service uptime guarantee. Consult the versioned capability declarations and acceptance records.</p>
-    <h2>3. External services</h2>
-    <p>Any service you configure remains subject to its own terms, pricing and permissions. The bundled payment and messaging prototypes do not provide a transaction or hosted messaging service.</p>
-    <h2>4. Local records</h2>
-    <p>Uninstall instructions explain which installed files Kineti owns. Preserve project configuration and history that you still need. Deleting live memory does not erase independent backups or snapshots.</p>
+<header class="site-header">
+  <div class="shell header-inner">
+    <a class="brand" href="/" aria-label="Kineti home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 5h4v14H4V5zm10 0h6v5h-3V8h-3V5zm3 9h3v5h-6v-3h3v-2z" fill="#f6f5f0"/><path d="M10.5 13l2.5 2.5 5.5-6" stroke="#22c57e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span>kineti</span>
+      <span class="brand-ver">1.0 · MIT</span>
+    </a>
+    <nav class="nav" aria-label="Page navigation">
+      <a href="/">Home</a>
+      <a href="/docs.html">Docs</a>
+      <a href="/privacy.html">Privacy</a>
+    </nav>
   </div>
-  <p style="margin-top: 32px; text-align: center;"><a href="/">← Back to getkineti.com</a></p>
+</header>
+
+<main id="main" class="shell-narrow legal-main">
+  <p class="section-label">Legal · Open-Core MIT &amp; Pilot Services</p>
+  <h1>Terms of Service</h1>
+  <p class="updated">Last Updated: November 23, 2026</p>
+
+  <div class="legal-card">
+    <h2>1. Open-Core MIT Software &amp; Optional Pilot Services</h2>
+    <p>The Kineti <code>1.0.0</code> CLI executable, source code, composite GitHub Action (<code>action.yml</code>), and offline pilot demo are licensed under the <strong>MIT License</strong> (see <code>LICENSE</code> in the repository). Historical <code>0.6.1</code> public registry packages are retired (deprecated on npm and yanked on crates.io), and previously distributed MIT copies retain their original copyright notice and license terms unchanged.</p>
+    <p>Optional paid engagements—including the <strong>Founding Team Setup</strong> and <strong>Design-Partner Pilot</strong>—cover hands-on onboarding, base-branch policy design, CI workflow rollout, custom parser/rule tuning, and direct founder engineering support under a separate written pilot agreement between Kineti and the participating organization.</p>
+
+    <h2>2. Self-Hosted Offline Execution &amp; Verification Scope</h2>
+    <p>Organizations run Kineti offline on their own Linux CI runners (such as GitHub Actions) or local machines. Kineti does not operate a hosted runner, SaaS evaluation service, or uptime-backed cloud platform. Each organization controls its own CI infrastructure, branch protection rules, and artifact storage.</p>
+    <p>Kineti checks participating workflows against base-branch <code>.kineti/gate.json</code> policy, scans PR diffs for configured policy and test tampering, verifies recorded inputs, and signs <code>kineti-pr-audit-v1</code> bundles. Kineti does not provide automatic command interception, kernel sandboxing, protected writes, atomic authorization of later writes, or provider-bill verification.</p>
+
+    <h2>3. Signatures, Parsers &amp; Host Limits</h2>
+    <ul>
+      <li>Cryptographic signatures on receipts and <code>kineti-pr-audit-v1</code> bundles prove record integrity relative to the signing key; they do not prove test assertion quality (<code>independent_assertion_quality_proven: false</code>).</li>
+      <li>Built-in count-aware test parsing covers <code>cargo test</code> and multi-suite <code>bun test</code>. Allowlisted polyglot runners executed with <code>--parser exit-code</code> explicitly record <code>count_observed: false</code>.</li>
+      <li>Native MCP integration has previously been tested only on specific macOS arm64 Codex versions; Cursor and Antigravity remain unverified.</li>
+    </ul>
+
+    <h2>4. Third-Party Services &amp; Local Artifacts</h2>
+    <p>GitHub Actions, Git hosting platforms, coding agents, and model providers remain governed by their own terms and privacy policies. Runtime state under <code>.kineti/</code> and generated audit bundles reside strictly on your runners or machines; uninstalling Kineti removes only Kineti-owned integration files while leaving your repository history and backups intact. Do not commit runtime state or credentials to Git.</p>
+
+    <h2>5. Warranty Disclaimer &amp; Contact</h2>
+    <p>Consistent with the MIT License—and unless explicitly specified in a signed pilot agreement—Kineti software is provided “as is” without warranties of merchantability, fitness for a particular purpose, or uninterrupted operation. For pilot inquiries, email <a href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot">hello@getkineti.com</a>. For private security disclosures, email <a href="mailto:security@getkineti.com">security@getkineti.com</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer" style="border-top:1px solid var(--line)">
+  <div class="shell-narrow footer-inner">
+    <span>© 2026 Kineti · Open-Core MIT (v1.0.0) · Updated November 23, 2026</span>
+    <div class="footer-links">
+      <a href="/">← Back to getkineti.com</a>
+      <a href="/docs.html">Documentation</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot">Contact</a>
+    </div>
+  </div>
+</footer>
 </body>
 </html>
