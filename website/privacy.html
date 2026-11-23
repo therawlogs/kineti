@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f6f5f0">
+<meta name="description" content="Privacy Policy for Kineti 1.0 offline CI gate tooling and getkineti.com.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css">
+<title>Kineti 1.0 — Privacy Policy</title>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="shell header-inner">
+    <a class="brand" href="/" aria-label="Kineti home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 5h4v14H4V5zm10 0h6v5h-3V8h-3V5zm3 9h3v5h-6v-3h3v-2z" fill="#f6f5f0"/><path d="M10.5 13l2.5 2.5 5.5-6" stroke="#22c57e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <span>kineti</span>
+      <span class="brand-ver">1.0 · MIT</span>
+    </a>
+    <nav class="nav" aria-label="Page navigation">
+      <a href="/">Home</a>
+      <a href="/docs.html">Docs</a>
+      <a href="/terms.html">Terms</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main" class="shell-narrow legal-main">
+  <p class="section-label">Privacy &amp; Data Handling</p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last Updated: November 23, 2026</p>
+
+  <div class="legal-card">
+    <h2>1. Offline Runner &amp; Zero Telemetry</h2>
+    <p>Kineti <code>1.0.0</code> runs offline on your organization’s Linux CI runners (such as GitHub Actions) or local developer machines. The native <code>kineti</code> executable sends zero telemetry, makes zero outbound network requests, and does not connect to a Kineti-hosted evaluator, SaaS dashboard, or shared account service.</p>
+
+    <h2>2. Local State &amp; Signed Audit Artifacts</h2>
+    <p>Project state, test receipts, signing keys, reported spend records under <code>.kineti/</code>, and exported <code>kineti-pr-audit-v1</code> JSON or Markdown summaries remain strictly on your runner, CI artifact storage, or local filesystem under your retention controls. Keep runtime <code>.kineti/</code> files out of Git commits (commit only <code>.kineti/gate.json</code>).</p>
+
+    <h2>3. Credentials &amp; Command Arguments</h2>
+    <p>Receipts and undo logs record exact command <code>argv</code> and do not automatically redact credentials passed on the command line. Keep secrets, API keys, and tokens in protected CI secrets or environment inputs—never in command arguments, labels, fixture files, or test output. Reported spending records operator-entered amounts and does not fetch or verify provider bills.</p>
+
+    <h2>4. Third-Party Hosts &amp; Static Website</h2>
+    <p>Your Git host, CI runners, coding agents, and model providers process data under their own privacy policies. The static <code>getkineti.com</code> site loads zero third-party analytics, ad trackers, or external CDN scripts. Emails sent to <a href="mailto:hello@getkineti.com">hello@getkineti.com</a> or <a href="mailto:security@getkineti.com">security@getkineti.com</a> are used solely to respond to your pilot inquiry, support request, or private security report.</p>
+
+    <h2>5. Contact</h2>
+    <p>Questions about data handling, open-core licensing, or Founding Team Pilot onboarding may be directed to <a href="mailto:hello@getkineti.com">hello@getkineti.com</a>.</p>
+  </div>
+</main>
+
+<footer class="site-footer" style="border-top:1px solid var(--line)">
+  <div class="shell-narrow footer-inner">
+    <span>© 2026 Kineti · Open-Core MIT (v1.0.0) · Updated November 23, 2026</span>
+    <div class="footer-links">
+      <a href="/">← Back to getkineti.com</a>
+      <a href="/docs.html">Documentation</a>
+      <a href="/terms.html">Terms</a>
+      <a href="mailto:hello@getkineti.com">Contact</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

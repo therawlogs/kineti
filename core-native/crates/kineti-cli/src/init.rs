@@ -97,7 +97,21 @@ pub fn run(
         }
         let cfg = root.join(".kineti/gate.json");
         if !cfg.exists() {
-            operations.push((cfg,None,Some(json!({"version":1,"required_checks":[],"max_age_minutes":240,"note":"Declare required checks explicitly before CI can pass."}).to_string()+"\n")));
+            operations.push((
+                cfg,
+                None,
+                Some(
+                    json!({
+                        "version": 1,
+                        "required_checks": [],
+                        "commands": {},
+                        "max_age_minutes": 240,
+                        "note": "Declare required checks and exact command argv in commands before CI can pass."
+                    })
+                    .to_string()
+                        + "\n",
+                ),
+            ));
         } else {
             store::read(&cfg)?;
         }
@@ -109,16 +123,23 @@ pub fn run(
     }
     let mut owned_block = None;
     if let Some(home) = home {
-        store::safe_destination(home)?;
+        if home.exists() && !home.is_dir() {
+            return store::fail(3, "Codex home destination must be a directory");
+        }
         let cfg = home.join("config.toml");
         let before = bytes(&cfg)?.unwrap_or_default();
         if !before.is_empty() {
             toml::from_str::<toml::Value>(&before)
                 .map_err(|e| Error(3, format!("damaged Codex configuration: {e}")))?;
         }
+        let block = format!(
+            "{BEGIN}[mcp_servers.kineti]\ncommand = {}\nargs = [\"mcp\"]\n{END}",
+            json!(std::env::current_exe()?)
+        );
         let range = block_range(&before)?;
         if let Some(ref r) = range {
-            if manifest["block"].as_str() != Some(&before[r.clone()]) {
+            let existing = &before[r.clone()];
+            if manifest["block"].as_str() != Some(existing) && existing != block {
                 return store::fail(
                     3,
                     "Codex registration is edited or owned by another installation; preserved",
@@ -134,11 +155,6 @@ pub fn run(
                 "existing unowned kineti registration preserved; review migration explicitly",
             );
         }
-        let block = format!(
-            "{BEGIN}[mcp_servers.kineti]\ncommand = {}\nargs = [\"mcp\", \"--root\", {}]\n{END}",
-            json!(std::env::current_exe()?),
-            json!(root)
-        );
         let after = if let Some(r) = range {
             let mut s = before.clone();
             s.replace_range(r, if uninstall { "" } else { &block });
@@ -183,8 +199,50 @@ pub fn run(
             owned_block = Some(block);
         }
     }
-    let changes=operations.iter().map(|(p,b,a)|json!({"destination":p,"before":b,"after":a,"backup":root.join(".kineti/backups").join(digest(format!("{}:{}",p.display(),b.as_deref().unwrap_or("missing"))))})).collect::<Vec<_>>();
-    let preview = json!({"changes":changes,"applied":false,"codex_detected":home.is_some(),"restart_required":home.is_some()&&!operations.is_empty(),"automatic_interception":false,"historical_records_rewritten":false});
+    let mut changes = Vec::with_capacity(operations.len());
+    let mut audit_changes = Vec::with_capacity(operations.len());
+    for (p, b, a) in &operations {
+        let in_home = home.is_some_and(|h| p.starts_with(h));
+        let backup_root = match home {
+            Some(h) if in_home => h.join(".kineti-backups"),
+            _ => root.join(".kineti/backups"),
+        };
+        let backup = backup_root.join(digest(format!(
+            "{}:{}",
+            p.display(),
+            b.as_deref().unwrap_or("missing")
+        )));
+        changes.push(json!({
+            "destination": p,
+            "before": b,
+            "after": a,
+            "backup": backup
+        }));
+        if in_home {
+            audit_changes.push(json!({
+                "destination": p,
+                "before_sha256": b.as_deref().map(digest),
+                "after_sha256": a.as_deref().map(digest),
+                "backup": backup,
+                "redacted": true
+            }));
+        } else {
+            audit_changes.push(json!({
+                "destination": p,
+                "before": b,
+                "after": a,
+                "backup": backup
+            }));
+        }
+    }
+    let preview = json!({
+        "changes": changes,
+        "applied": false,
+        "codex_detected": home.is_some(),
+        "restart_required": home.is_some() && !operations.is_empty(),
+        "automatic_interception": false,
+        "historical_records_rewritten": false
+    });
     if !apply {
         return Ok(preview);
     }
@@ -204,9 +262,17 @@ pub fn run(
             }
         }
     }
+    let audit_preview = json!({
+        "changes": audit_changes,
+        "applied": false,
+        "codex_detected": home.is_some(),
+        "restart_required": home.is_some() && !operations.is_empty(),
+        "automatic_interception": false,
+        "historical_records_rewritten": false
+    });
     store::append(
         &root.join(".kineti/install-audit.jsonl"),
-        &json!({"at":store::now(),"kind":"intent","uninstall":uninstall,"preview":preview}),
+        &json!({"at":store::now(),"kind":"intent","uninstall":uninstall,"preview":audit_preview}),
     )?;
     for (p, _, after) in operations {
         if let Some(s) = after {

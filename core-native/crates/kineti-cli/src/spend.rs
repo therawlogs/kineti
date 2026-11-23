@@ -463,14 +463,10 @@ pub fn load(root: &Path) -> Result<Account> {
     } else {
         json!({})
     };
-    let mut global = match config.pointer("/settings/spend_limit_usd/global") {
+    let global = match config.pointer("/settings/spend_limit_usd/global") {
         Some(v) => amount(v)?,
         None => 50_000_000,
     };
-    let mirror = root.join(".kineti/mirror.json");
-    if mirror.exists() {
-        global = amount(&store::read(&mirror)?["ceiling"])?;
-    }
     let stage_default = match config.pointer("/settings/spend_limit_usd/per_stage_default") {
         Some(v) => amount(v)?,
         None => 10_000_000,

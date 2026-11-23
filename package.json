@@ -1,11 +1,11 @@
 {
   "name": "kineti",
-  "version": "0.6.1",
-  "description": "Native checks, changed-input detection, reported-spending CI gate and registered undo",
+  "version": "1.0.0",
+  "description": "Open-core AI-PR verification & anti-tampering gate: base-branch policy lock, polyglot test-tamper scanner, signed audit bundles, and reported-spending CI gate",
   "license": "MIT",
   "mcpName": "io.github.therawlogs/kineti",
   "repository": { "type": "git", "url": "https://github.com/therawlogs/kineti.git" },
-  "homepage": "https://github.com/therawlogs/kineti",
+  "homepage": "https://getkineti.com",
   "bin": { "kineti": "bin/kineti" },
   "engines": { "node": ">=18" },
   "os": ["linux", "darwin"],
@@ -16,5 +16,5 @@
     "prepublishOnly": "node scripts/check-native-package.cjs",
     "test": "cargo test --manifest-path core-native/Cargo.toml -p kineti-cli"
   },
-  "keywords": ["gate", "test-receipts", "reported-spending", "undo", "mcp", "native"]
+  "keywords": ["ai-pr-gate", "pr-verification", "anti-tampering", "github-actions", "test-receipts", "mcp", "native"]
 }

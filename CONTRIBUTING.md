@@ -1,11 +1,11 @@
 # Contributing to Kineti
 
 Use plain words, keep changes focused, and run checks before asking for review.
-The active product is the native gate in the single `kineti-cli` crate. Its
+The active product is the open-core (MIT) native gate in the single `kineti-cli` crate. Its
 executable is `kineti`; the npm package is `kineti`. Bun, the dashboard and the
 old multi-crate harness are historical, not contributor prerequisites.
-The current source candidate is 0.6.1. Its exact binaries and installed packages
-need fresh acceptance; the dated 0.6.0 publication approval does not authorize it.
+The current source candidate is 1.0.0. Its exact binaries and installed packages
+need fresh acceptance; dated 0.6.0/0.6.1 approvals do not authorize 1.0.0 publication.
 
 ## 1. Build from source
 
@@ -161,8 +161,8 @@ installed Cargo or npm package on any other target.
 
 The [0.6.0 contract](docs/GATE-0.6.0-CONTRACT.md), its approved accounting
 amendment, and the separately approved local repair contract
-retain the behavior/accounting baseline. The owner's later 0.6.1 preparation
-instruction selects the new candidate version; its artifact acceptance and
+retain the behavior/accounting baseline. The owner's 1.0.0 open-core preparation
+instruction selects the current candidate version; its artifact acceptance and
 publication/accounting approval remain separate. Preserve older
 published crates and dated release records. No automatic version bump, tag,
 registry upload, remote job dispatch or release follows from this workflow.

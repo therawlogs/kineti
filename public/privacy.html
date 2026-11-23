@@ -1,49 +1,86 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Kineti — Privacy Policy</title>
-  <style>
-    :root {
-      --bg: #000000;
-      --card: #1c1c1e;
-      --text: #ffffff;
-      --muted: rgba(235, 235, 245, 0.6);
-      --accent: #0a84ff;
-    }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
-      line-height: 1.6;
-      max-width: 680px;
-      margin: 40px auto;
-      padding: 0 20px;
-    }
-    h1 { font-size: 28px; margin-bottom: 8px; }
-    h2 { font-size: 20px; margin-top: 32px; margin-bottom: 8px; color: var(--accent); }
-    p, li { color: var(--muted); margin-bottom: 12px; }
-    a { color: var(--accent); text-decoration: none; }
-    .card { background: var(--card); border-radius: 14px; padding: 24px; margin-top: 24px; }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#f6f5f0">
+<meta name="description" content="Privacy Policy for Kineti 1.0 offline CI gate tooling and getkineti.com.">
+<title>Kineti 1.0 — Privacy Policy</title>
+<style>
+:root{color-scheme:light;--paper:#f6f5f0;--paper-alt:#eeece4;--surface:#fff;--ink:#111315;--ink-soft:#3f454d;--muted:#646b74;--line:#dcd8cd;--line-strong:#c5c0b3;--font-serif:"Iowan Old Style","Palatino Linotype",Georgia,"Times New Roman",serif;--font-sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;--font-mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.64 var(--font-sans);-webkit-font-smoothing:antialiased}
+a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-strong);text-underline-offset:3px}
+a:hover{text-decoration-color:var(--ink)}
+code{font-family:var(--font-mono);font-size:.87em;background:var(--paper-alt);padding:.14em .42em;border-radius:4px}
+.shell{width:min(calc(100% - 48px),840px);margin:auto}
+header{border-bottom:1px solid var(--line);background:var(--paper)}
+.header-inner{display:flex;align-items:center;justify-content:space-between;min-height:74px;gap:20px}
+.brand{display:inline-flex;align-items:center;gap:10px;font-size:20px;font-weight:700;letter-spacing:-.03em;text-decoration:none}
+.brand-mark{width:28px;height:28px;border-radius:7px;background:var(--ink);display:grid;place-items:center}
+.brand-mark svg{width:17px;height:17px}
+.top-links{display:flex;gap:22px;font-size:14px;font-weight:500}
+.top-links a{text-decoration:none;color:var(--ink-soft)}
+.top-links a:hover{color:var(--ink)}
+main{padding:48px 0 80px}
+.label{font-family:var(--font-mono);font-size:11.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+h1{font-family:var(--font-serif);font-size:clamp(34px,4.4vw,50px);line-height:1.08;letter-spacing:-.03em;font-weight:400;margin:0 0 10px}
+.updated{font-family:var(--font-mono);font-size:13px;color:var(--muted);margin:0 0 28px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:32px 34px;box-shadow:0 1px 2px rgba(17,19,21,.04),0 8px 24px rgba(17,19,21,.04)}
+h2{font-family:var(--font-serif);font-size:22px;font-weight:400;letter-spacing:-.02em;margin:28px 0 10px}
+h2:first-child{margin-top:0}
+p,li{color:var(--ink-soft);margin:0 0 14px}
+footer{border-top:1px solid var(--line);padding:30px 0 44px;font-size:13px;color:var(--muted)}
+.footer-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px}
+.footer-links{display:flex;flex-wrap:wrap;gap:20px}
+.footer-links a{color:var(--muted);text-decoration:none}
+.footer-links a:hover{color:var(--ink)}
+@media(max-width:600px){.shell{width:calc(100% - 36px)}.card{padding:22px 20px}}
+</style>
 </head>
 <body>
-  <h1>Privacy Policy</h1>
-  <p><strong>Last Updated:</strong> October 21, 2026</p>
-  
-  <div class="card">
-    <h2>1. Local developer tooling</h2>
-    <p>Kineti stores project state, test receipts, spending records and local history on the machine where you run it. Kineti does not provide a hosted runner, evaluator service or shared account platform.</p>
-    <h2>2. Configured hosts and services</h2>
-    <p>Your chosen coding host, model provider and infrastructure have their own data handling rules. Outbound request records are local records, not a network filter. Review the data you send through each configured service.</p>
-    <h2>3. Memory deletion and backups</h2>
-    <p>The local contextual-memory API removes the selected encrypted content and its local key and records a deletion marker. Copies in backups, filesystem snapshots or external services are outside this operation. Immutable audit records may retain permitted metadata.</p>
-    <h2>4. Spending and credentials</h2>
-    <p>Spending limits use recorded usage and do not represent a provider invoice or control every host action. Keep credentials in protected environment or file inputs, not command arguments or journal text.</p>
-    <h2>5. Contact</h2>
-    <p>Email <a href="mailto:hello@getkineti.com">hello@getkineti.com</a>.</p>
+<header>
+  <div class="shell header-inner">
+    <a class="brand" href="/" aria-label="Kineti home"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M4 5h4v14H4V5zm10 0h6v5h-3V8h-3V5zm3 9h3v5h-6v-3h3v-2z" fill="#f6f5f0"/><path d="M10.5 13l2.5 2.5 5.5-6" stroke="#22c57e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>kineti</span></a>
+    <nav class="top-links" aria-label="Page navigation">
+      <a href="/">Home</a>
+      <a href="terms.html">Terms</a>
+    </nav>
   </div>
-  <p style="margin-top: 32px; text-align: center;"><a href="/">← Back to getkineti.com</a></p>
+</header>
+
+<main class="shell">
+  <p class="label">Privacy &amp; Data Handling</p>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last Updated: November 23, 2026</p>
+
+  <div class="card">
+    <h2>1. Offline Runner &amp; Zero Telemetry</h2>
+    <p>Kineti <code>1.0.0</code> runs offline on your organization’s Linux CI runners (such as GitHub Actions) or local developer machines. The native <code>kineti</code> executable sends zero telemetry, makes zero outbound network requests, and does not connect to a Kineti-hosted evaluator, SaaS dashboard, or shared account service.</p>
+
+    <h2>2. Local State &amp; Signed Audit Artifacts</h2>
+    <p>Project state, test receipts, signing keys, reported spend records under <code>.kineti/</code>, and exported <code>kineti-pr-audit-v1</code> JSON or Markdown summaries remain strictly on your runner, CI artifact storage, or local filesystem under your retention controls. Keep runtime <code>.kineti/</code> files out of Git commits (commit only <code>.kineti/gate.json</code>).</p>
+
+    <h2>3. Credentials &amp; Command Arguments</h2>
+    <p>Receipts and undo logs record exact command <code>argv</code> and do not automatically redact credentials passed on the command line. Keep secrets, API keys, and tokens in protected CI secrets or environment inputs—never in command arguments, labels, fixture files, or test output. Reported spending records operator-entered amounts and does not fetch or verify provider bills.</p>
+
+    <h2>4. Third-Party Hosts &amp; Static Website</h2>
+    <p>Your Git host, CI runners, coding agents, and model providers process data under their own privacy policies. The static <code>getkineti.com</code> site loads zero third-party analytics, ad trackers, or external CDN scripts. Emails sent to <a href="mailto:hello@getkineti.com">hello@getkineti.com</a> or <a href="mailto:security@getkineti.com">security@getkineti.com</a> are used solely to respond to your pilot inquiry, support request, or private security report.</p>
+
+    <h2>5. Contact</h2>
+    <p>Questions about data handling, open-core licensing, or Founding Team Pilot onboarding may be directed to <a href="mailto:hello@getkineti.com">hello@getkineti.com</a>.</p>
+  </div>
+</main>
+
+<footer>
+  <div class="shell footer-inner">
+    <span>© 2026 Kineti · Open-Core MIT (v1.0.0) · Updated November 23, 2026</span>
+    <div class="footer-links">
+      <a href="/">← Back to getkineti.com</a>
+      <a href="terms.html">Terms</a>
+      <a href="mailto:hello@getkineti.com">Contact</a>
+    </div>
+  </div>
+</footer>
 </body>
 </html>

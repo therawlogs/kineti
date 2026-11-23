@@ -72,22 +72,37 @@ pub fn ci(
             None
         };
         let expected = if let Some(map) = &commands {
-            Some(
-                map.get(&label)
-                    .ok_or_else(|| Error(1, "required command mapping missing".into()))?,
-            )
+            map.get(&label)
         } else {
             configured.as_ref()
         };
-        if let Some(v) = expected {
-            validate_argv(v)?;
-        }
-        let check = receipt::check(root, &label, max_age, expected).map_err(|e| {
+        let expected = expected.ok_or_else(|| {
+            Error(
+                1,
+                format!(
+                    "required command mapping missing for label {label}; declare commands in .kineti/gate.json or pass --evidence-commands"
+                ),
+            )
+        })?;
+        validate_argv(expected)?;
+        let check = receipt::check(root, &label, max_age, Some(expected)).map_err(|e| {
             Error(
                 1,
                 format!("required check {label}: {} (evidence code {})", e.1, e.0),
             )
         })?;
+        if let Some(min) = label_min_passed(root, &label)? {
+            let passed = check["receipt"]["verification"]["passed"].as_u64();
+            if passed.is_none_or(|n| n < min) {
+                return store::fail(
+                    1,
+                    format!(
+                        "required check {label}: passed test count {} is below required min_passed {min}",
+                        passed.map_or_else(|| "missing".into(), |n| n.to_string())
+                    ),
+                );
+            }
+        }
         checks.push(json!({"label":label,"status":check["status"]}));
     }
     Ok(
@@ -104,6 +119,66 @@ fn validate_argv(value: &Value) -> Result<()> {
         return store::fail(2, "required command must be a nonempty argv array");
     }
     Ok(())
+}
+/// Resolve an exact declared command strictly from `.kineti/gate.json` without legacy fallback.
+pub fn configured_strict(root: &Path, label: &str) -> Result<Value> {
+    let gate = root.join(".kineti/gate.json");
+    if !gate.exists() {
+        return store::fail(
+            3,
+            format!("required command mapping missing in .kineti/gate.json for label {label}"),
+        );
+    }
+    let config = store::read(&gate)?;
+    let value = config
+        .get("commands")
+        .and_then(Value::as_object)
+        .and_then(|map| map.get(label))
+        .ok_or_else(|| {
+            Error(
+                3,
+                format!("required command mapping missing in .kineti/gate.json for label {label}"),
+            )
+        })?;
+    validate_argv(value)?;
+    Ok(value.clone())
+}
+/// Read an optional minimum passing test count for `label` from `.kineti/gate.json`.
+/// Accepts a positive scalar integer, a per-label object map of positive integers, or null.
+pub fn label_min_passed(root: &Path, label: &str) -> Result<Option<u64>> {
+    let gate = root.join(".kineti/gate.json");
+    if fs::symlink_metadata(&gate).is_err() {
+        return Ok(None);
+    }
+    let config = store::read(&gate)?;
+    parse_min_passed_value(&config, label)
+}
+/// Parse an optional `min_passed` floor for `label` from an already-loaded gate policy object.
+pub fn parse_min_passed_value(config: &Value, label: &str) -> Result<Option<u64>> {
+    let Some(raw) = config.get("min_passed") else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let selected = if let Some(map) = raw.as_object() {
+        match map.get(label) {
+            Some(v) if !v.is_null() => v,
+            _ => return Ok(None),
+        }
+    } else {
+        raw
+    };
+    let min = selected
+        .as_u64()
+        .filter(|n| *n > 0 && *n <= 9_007_199_254_740_991)
+        .ok_or_else(|| {
+            Error(
+                2,
+                format!("min_passed for label {label} must be 1..=9007199254740991"),
+            )
+        })?;
+    Ok(Some(min))
 }
 /// Resolve current explicit label maps before historical label/default declarations.
 /// Operational evidence never inherits the default test command.
