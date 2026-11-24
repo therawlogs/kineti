@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: therawlogs/kineti@<pinned-commit-sha>
+      - uses: therawlogs/kineti@de407ee559d4828e390e166fc30cbbf4c79fa43c # v1.0.1
         with:
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
@@ -80,11 +80,9 @@ jobs:
           write-step-summary: "true"
 ```
 
-### Option 3 — Cargo / npm (`1.0.1` Pending Registry Publication)
+### Option 3 — Cargo / npm (`1.0.1` Live)
 
-> **Publication status:** `1.0.1` is currently an open-core release candidate. Registry publication to `crates.io` and `npm` requires final multi-target archive acceptance and separate owner approval. Historical `0.6.1` packages are retired (deprecated on npm, yanked on crates.io).
-
-After approved `1.0.1` registry publication:
+> **Published & 4-platform verified:** Kineti `1.0.1` is live on [crates.io](https://crates.io/crates/kineti-cli/1.0.1), [npm](https://www.npmjs.com/package/kineti/v/1.0.1), and [GitHub Release `v1.0.1`](https://github.com/therawlogs/kineti/releases/tag/v1.0.1), with post-publication exact-archive acceptance verified across `linux-x64`, `linux-arm64`, `darwin-x64`, and `darwin-arm64` ([Run `45355978482`](https://github.com/therawlogs/kineti/actions/runs/45355978482)). Historical `0.6.1` packages remain retired (deprecated on npm, yanked on crates.io).
 
 ```sh
 # Cargo (requires Rust)

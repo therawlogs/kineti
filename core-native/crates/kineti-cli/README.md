@@ -4,21 +4,21 @@
 
 `kineti-cli` ships the standalone, offline, MIT-licensed `kineti` executable for Linux and macOS (`x64` and `arm64`). It locks test policy to your protected base branch, scans PR diffs across Rust, Python, JS/TS, and Go for skipped or deleted tests and workflow edits, supervises exact allowlisted test runs with streaming `O_NOFOLLOW` workspace freshness hashing, and emits Ed25519-signed `kineti-pr-audit-v1` bundles.
 
-> **Open-core release candidate status:** `1.0.1` requires multi-target archive acceptance and separate owner publication approval before uploading to `crates.io` or `npm`. Historical `0.6.1` packages are retired (yanked on crates.io, deprecated on npm). Older pre-0.6.0 assistant releases remain in Git history; harness execution, model routing, delegation, swarm, dashboard, memory, evaluator services, and protected writes are removed from the active product.
+> **Published open-core release (`1.0.1`):** Published on `crates.io`, `npm`, and GitHub Release `v1.0.1`, with post-publication exact-archive acceptance verified across `linux-x64`, `linux-arm64`, `darwin-x64`, and `darwin-arm64`. Historical `0.6.1` packages remain retired (yanked on crates.io, deprecated on npm). Older pre-0.6.0 assistant releases remain in Git history; harness execution, model routing, delegation, swarm, dashboard, memory, evaluator services, and protected writes are removed from the active product.
 
 ## Install & Run
 
-Build from source today (requires Rust/Cargo; runtime needs neither Node.js nor Bun):
+Install from `crates.io` (requires Rust/Cargo; runtime needs neither Node.js nor Bun):
+
+```sh
+cargo install kineti-cli --version '=1.0.1' --locked
+```
+
+Or build directly from source:
 
 ```sh
 cargo build --release --locked --manifest-path core-native/Cargo.toml
 ./core-native/target/release/kineti --version
-```
-
-After approved `1.0.1` registry publication:
-
-```sh
-cargo install kineti-cli --version '=1.0.1' --locked
 ```
 
 ## Core Workflow
