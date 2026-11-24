@@ -2397,7 +2397,9 @@ fn v1_0_version_and_signature_only_trusted_key_nofollow() {
         "--parser",
         "exit-code",
         "--",
-        "/bin/true",
+        "/bin/sh",
+        "-c",
+        "exit 0",
     ]);
     assert!(ok.status.success(), "{}", value(&ok));
     let receipt_path = p.0.join("single-receipt.json");
