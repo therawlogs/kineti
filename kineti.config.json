@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Kineti native gate",
   "description": "Open-core AI-PR verification, changed-input detection, and reported-spending CI gate",
   "root_goal": "Build universal agent harness with cryptographic verification",

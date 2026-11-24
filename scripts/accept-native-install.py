@@ -13,7 +13,7 @@ import tarfile
 import urllib.parse
 import urllib.request
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 def fetch_published_archives(destination, cargo_sha256, npm_sha256):

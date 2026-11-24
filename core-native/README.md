@@ -1,6 +1,6 @@
 # Kineti Native Gate (`core-native`)
 
-This Cargo workspace contains the single open-core (MIT) Rust crate `kineti-cli` (`1.0.0`), which builds the standalone `kineti` executable.
+This Cargo workspace contains the single open-core (MIT) Rust crate `kineti-cli` (`1.0.1`), which builds the standalone `kineti` executable.
 
 - Build from source: `cargo build --release --locked --manifest-path core-native/Cargo.toml`
 - Run tests: `cargo test --locked --manifest-path core-native/Cargo.toml`

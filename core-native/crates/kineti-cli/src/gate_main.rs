@@ -95,7 +95,7 @@ impl Args {
     }
 }
 fn help() -> Value {
-    json!({"version":env!("CARGO_PKG_VERSION"),"claim":"Record checks, detect changed inputs, check PR policy/test tampering, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","pr-check","spend","undo","saga","status","mcp","self-test"],"status":"1.0.0 open-core candidate; registry publication requires reviewed artifacts and accounting approval"})
+    json!({"version":env!("CARGO_PKG_VERSION"),"claim":"Record checks, detect changed inputs, check PR policy/test tampering, and block participating CI commands when evidence or reported spending fails policy.","commands":["init","test run/check","evidence","verify","ci","pr-check","spend","undo","saga","status","mcp","self-test"],"status":"1.0.1 open-core candidate; registry publication requires reviewed artifacts and accounting approval"})
 }
 fn subcommand_help(cmd: &str) -> Option<Value> {
     let usage = match cmd {

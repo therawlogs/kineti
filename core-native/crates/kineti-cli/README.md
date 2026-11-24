@@ -1,10 +1,10 @@
-# `kineti-cli` 1.0.0 — AI-PR Verification & Anti-Tampering Gate
+# `kineti-cli` 1.0.1 — AI-PR Verification & Anti-Tampering Gate
 
 **Keep AI pull requests honest before they merge.**
 
 `kineti-cli` ships the standalone, offline, MIT-licensed `kineti` executable for Linux and macOS (`x64` and `arm64`). It locks test policy to your protected base branch, scans PR diffs across Rust, Python, JS/TS, and Go for skipped or deleted tests and workflow edits, supervises exact allowlisted test runs with streaming `O_NOFOLLOW` workspace freshness hashing, and emits Ed25519-signed `kineti-pr-audit-v1` bundles.
 
-> **Open-core release candidate status:** `1.0.0` requires multi-target archive acceptance and separate owner publication approval before uploading to `crates.io` or `npm`. Historical `0.6.1` packages are retired (yanked on crates.io, deprecated on npm). Older pre-0.6.0 assistant releases remain in Git history; harness execution, model routing, delegation, swarm, dashboard, memory, evaluator services, and protected writes are removed from the active product.
+> **Open-core release candidate status:** `1.0.1` requires multi-target archive acceptance and separate owner publication approval before uploading to `crates.io` or `npm`. Historical `0.6.1` packages are retired (yanked on crates.io, deprecated on npm). Older pre-0.6.0 assistant releases remain in Git history; harness execution, model routing, delegation, swarm, dashboard, memory, evaluator services, and protected writes are removed from the active product.
 
 ## Install & Run
 
@@ -15,10 +15,10 @@ cargo build --release --locked --manifest-path core-native/Cargo.toml
 ./core-native/target/release/kineti --version
 ```
 
-After approved `1.0.0` registry publication:
+After approved `1.0.1` registry publication:
 
 ```sh
-cargo install kineti-cli --version '=1.0.0' --locked
+cargo install kineti-cli --version '=1.0.1' --locked
 ```
 
 ## Core Workflow

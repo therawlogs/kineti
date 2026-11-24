@@ -1,4 +1,4 @@
-# Kineti 1.0.0 — AI-PR Verification & Anti-Tampering Gate
+# Kineti 1.0.1 — AI-PR Verification & Anti-Tampering Gate
 
 **Keep AI pull requests honest before they merge.**
 
@@ -80,18 +80,18 @@ jobs:
           write-step-summary: "true"
 ```
 
-### Option 3 — Cargo / npm (`1.0.0` Pending Registry Publication)
+### Option 3 — Cargo / npm (`1.0.1` Pending Registry Publication)
 
-> **Publication status:** `1.0.0` is currently an open-core release candidate. Registry publication to `crates.io` and `npm` requires final multi-target archive acceptance and separate owner approval. Historical `0.6.1` packages are retired (deprecated on npm, yanked on crates.io).
+> **Publication status:** `1.0.1` is currently an open-core release candidate. Registry publication to `crates.io` and `npm` requires final multi-target archive acceptance and separate owner approval. Historical `0.6.1` packages are retired (deprecated on npm, yanked on crates.io).
 
-After approved `1.0.0` registry publication:
+After approved `1.0.1` registry publication:
 
 ```sh
 # Cargo (requires Rust)
-cargo install kineti-cli --version '=1.0.0' --locked
+cargo install kineti-cli --version '=1.0.1' --locked
 
 # npm (requires Node.js with install scripts enabled; runtime needs neither Node nor Bun)
-npm install -g kineti@1.0.0
+npm install -g kineti@1.0.1
 ```
 
 ---
