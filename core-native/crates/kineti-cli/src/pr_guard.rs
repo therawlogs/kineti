@@ -2160,7 +2160,7 @@ diff --git a/tests/my test.py b/tests/my test.py
         fx.git(&["init", "-b", "main"]);
         fx.write(
             ".kineti/gate.json",
-            &json!({"version":1,"required_checks":["unit"],"commands":{"unit":["/bin/true"]}})
+            &json!({"version":1,"required_checks":["unit"],"commands":{"unit":["/bin/sh","-c","exit 0"]}})
                 .to_string(),
         );
         fx.write("tests/my test.py", "def test_a():\n    assert True\n");
