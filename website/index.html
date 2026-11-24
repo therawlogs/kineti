@@ -234,7 +234,7 @@
             Build from Source <span class="tag tag-ready">Works today</span>
           </button>
           <button class="install-tab" type="button" role="tab" id="inst-tab-pkg" aria-selected="false" aria-controls="inst-panel-pkg">
-            Cargo &amp; npm (1.0.1) <span class="tag tag-pending">Pending publish</span>
+            Cargo &amp; npm (1.0.1) <span class="tag tag-ready">Live</span>
           </button>
         </div>
 
@@ -261,7 +261,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run Kineti PR Gate
-        uses: therawlogs/kineti@&lt;pinned-commit-sha&gt;
+        uses: therawlogs/kineti@de407ee559d4828e390e166fc30cbbf4c79fa43c # v1.0.1
         with:
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
@@ -293,10 +293,10 @@ kineti init --goal "Ship verified pull requests" --apply</code></pre>
         </div>
 
         <div class="install-panel" role="tabpanel" id="inst-panel-pkg" aria-labelledby="inst-tab-pkg" hidden>
-          <p class="install-note"><strong>Status:</strong> <code>1.0.1</code> is prepared as an open-core release candidate. Registry uploads to <code>crates.io</code> and <code>npm</code> await final multi-platform archive acceptance and explicit release sign-off. Historical <code>0.6.1</code> packages are retired (yanked on crates.io, deprecated on npm).</p>
+          <p class="install-note"><strong>Published &amp; 4-platform verified:</strong> Kineti <code>1.0.1</code> is live on <a href="https://crates.io/crates/kineti-cli/1.0.1" rel="noopener noreferrer" style="text-decoration:underline">crates.io</a>, <a href="https://www.npmjs.com/package/kineti/v/1.0.1" rel="noopener noreferrer" style="text-decoration:underline">npm</a>, and <a href="https://github.com/therawlogs/kineti/releases/tag/v1.0.1" rel="noopener noreferrer" style="text-decoration:underline">GitHub Release v1.0.1</a> (verified from live registries across <code>linux-x64</code>, <code>linux-arm64</code>, <code>darwin-x64</code>, and <code>darwin-arm64</code>). Historical <code>0.6.1</code> packages remain retired.</p>
           <div class="code-wrap">
             <div class="code-head">
-              <span>Cargo &amp; npm (available after approved 1.0.1 publication)</span>
+              <span>Install Kineti 1.0.1 via Cargo or npm</span>
               <button class="copy-btn" type="button" data-copy-target="code-pkg">Copy</button>
             </div>
             <pre id="code-pkg"><code># Cargo (requires Rust toolchain)
@@ -402,7 +402,7 @@ npm install -g kineti@1.0.1</code></pre>
 
 <footer class="site-footer">
   <div class="shell footer-inner">
-    <span>© 2026 Kineti · Open-Core MIT (v1.0.1) · Updated November 23, 2026</span>
+    <span>© 2026 Kineti · Open-Core MIT (v1.0.1) · Updated November 24, 2026</span>
     <div class="footer-links">
       <a href="/docs.html">Documentation</a>
       <a href="/terms.html">Terms</a>
