@@ -1,11 +1,11 @@
-# Kineti 1.0.0 — Offline AI-PR Gate Demo
+# Kineti 1.0.1 — Offline AI-PR Gate Demo
 
 A self-contained, zero-network demonstration of Kineti’s **AI-PR Verification & Anti-Tampering Gate** (Open-Core MIT). It initializes a disposable temporary Git repository (automatically deleted on exit), commits a protected base-branch `.kineti/gate.json` alongside Python, JS, and Rust test fixtures, and executes four live scenarios in under 15 seconds.
 
 ## Prerequisites
 
 - `git` and `python3` on `PATH`
-- A compiled native `kineti` `1.0.0` executable
+- A compiled native `kineti` `1.0.1` executable
 
 Build from source if you have not already:
 

@@ -1,6 +1,6 @@
 {
   "name": "kineti",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Open-core AI-PR verification & anti-tampering gate: base-branch policy lock, polyglot test-tamper scanner, signed audit bundles, and reported-spending CI gate",
   "license": "MIT",
   "mcpName": "io.github.therawlogs/kineti",

@@ -2382,7 +2382,7 @@ fn v1_0_version_and_signature_only_trusted_key_nofollow() {
     let p = Project::new();
     let v = p.run(&["--version"]);
     assert!(v.status.success(), "{}", value(&v));
-    assert_eq!(value(&v)["result"]["version"], "1.0.0");
+    assert_eq!(value(&v)["result"]["version"], "1.0.1");
 
     // Create a receipt and valid issuer key, then replace trusted-key path with a symlink
     fs::create_dir_all(p.0.join("tests")).unwrap();

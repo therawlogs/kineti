@@ -2,7 +2,7 @@
 
 Kineti records checks, detects changed inputs and PR-diff policy/test tampering,
 and blocks participating CI commands when evidence or reported spending fails
-policy. The active open-core (MIT) release line is **Kineti `1.0.0`**, built
+policy. The active open-core (MIT) release line is **Kineti `1.0.1`**, built
 from the single `kineti-cli` crate providing `kineti` and the composite GitHub
 Action (`action.yml`). Local candidate builds require fresh verification and do
 not authorize publication or deployment without separate owner approval. This

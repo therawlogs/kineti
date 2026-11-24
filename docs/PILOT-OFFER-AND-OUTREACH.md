@@ -1,7 +1,7 @@
-# Kineti 1.0.0 — Open-Core & Founding Team Pilot Playbook
+# Kineti 1.0.1 — Open-Core & Founding Team Pilot Playbook
 
 **Date:** November 23, 2026  
-**Product:** Kineti `1.0.0` — AI-PR Verification & Anti-Tampering Gate  
+**Product:** Kineti `1.0.1` — AI-PR Verification & Anti-Tampering Gate  
 **License / Delivery Posture:** **Open-Core (MIT CLI & GitHub Action) + Paid B2B Founding Team Pilot** (CLI, `action.yml`, and offline demo are MIT-licensed; paid pilot covers hands-on Week 1 org rollout, policy design, custom rule/parser tuning, and direct founder support)  
 **Contact:** `hello@getkineti.com`
 
