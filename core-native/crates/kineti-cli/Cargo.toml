@@ -21,7 +21,7 @@ time = { version = "=0.3.55", features = ["formatting", "parsing"] }
 libc = "0.2"
 regex = "=1.13.1"
 shell-words = "=1.1.1"
-toml = "=1.1.8"
+toml = "=1.2.2"
 
 [[bin]]
 name = "kineti"
