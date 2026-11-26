@@ -71,7 +71,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: therawlogs/kineti@de407ee559d4828e390e166fc30cbbf4c79fa43c # v1.0.1
+      - uses: therawlogs/kineti@v1
         with:
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
@@ -179,7 +179,7 @@ kineti self-test                   # Disposable self-check covering staleness, s
 ## Honest Limits
 
 - **Signatures vs. test quality:** Ed25519 signatures on receipts and `kineti-pr-audit-v1` bundles prove record integrity relative to the signing key—not that assertions are strong (`"independent_assertion_quality_proven": false`).
-- **Two-tier test parsing:** `--parser auto` verifies observed pass/fail/skip counts for `cargo test` and multi-suite `bun test` (with optional `min_passed` floors). Allowlisted polyglot runners via `--parser exit-code` verify exit `0`, exact `argv`, required test presence, untruncated capture, and workspace freshness while explicitly recording `"count_observed": false`.
+- **Two-tier test parsing:** `--parser auto` verifies observed pass/fail/skip counts for `cargo test`, multi-suite `bun test`, and JUnit XML (`--parser junit`, e.g. `pytest --junitxml=/dev/stdout`, `jest`, `vitest`, or `go-junit-report`) with optional `min_passed` floors. Allowlisted polyglot runners via `--parser exit-code` verify exit `0`, exact `argv`, required test presence, untruncated capture, and workspace freshness while explicitly recording `"count_observed": false`.
 - **Trust boundary:** Real anti-tampering enforcement happens on your protected Linux CI runner reading `.kineti/gate.json` from the protected base branch. Local laptop runs cannot stop a same-account agent with write access from bypassing Kineti.
 - **Host integrations & MCP:** `kineti mcp` exposes 6 tools (undo/saga tools are intentionally CLI-only) and strictly enforces `.kineti/gate.json` `commands` allowlists on `kineti_evidence_record`. Historical Codex integration checks covered macOS arm64 Codex `0.163.0-alpha.11.2` and `0.164.0`; **Cursor and Antigravity remain unverified**.
 - **No automatic secret redaction in `argv`:** Receipts persist exact command `argv`; pass secrets via CI secrets/environment variables, never on command lines.

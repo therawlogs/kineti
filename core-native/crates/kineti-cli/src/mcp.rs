@@ -162,10 +162,10 @@ pub fn call(root: &Path, name: &str, args: &Value) -> Result<Value> {
                     let p = v
                         .as_str()
                         .ok_or_else(|| Error(2, "invalid MCP argument parser".into()))?;
-                    if !["auto", "cargo", "bun", "exit-code"].contains(&p) {
+                    if !["auto", "cargo", "bun", "junit", "exit-code"].contains(&p) {
                         return store::fail(
                             2,
-                            "MCP parser must be one of: auto, cargo, bun, exit-code",
+                            "MCP parser must be one of: auto, cargo, bun, junit, exit-code",
                         );
                     }
                     p.to_string()

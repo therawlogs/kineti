@@ -261,7 +261,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Run Kineti PR Gate
-        uses: therawlogs/kineti@de407ee559d4828e390e166fc30cbbf4c79fa43c # v1.0.1
+        uses: therawlogs/kineti@v1
         with:
           base-ref: ${{ github.event.pull_request.base.sha }}
           head-ref: ${{ github.event.pull_request.head.sha }}
