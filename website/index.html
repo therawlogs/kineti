@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f6f5f0">
 <meta name="description" content="Kineti 1.0 is an open-core (MIT) offline Rust CLI and Linux GitHub Actions merge gate that locks base-branch test policy, catches skipped or deleted tests in AI PR diffs, blocks stale test runs, and emits signed kineti-pr-audit-v1 bundles.">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -23,8 +23,8 @@
     </a>
     <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="Open navigation">☰</button>
     <nav class="nav" id="site-nav" aria-label="Main navigation">
-      <a href="#why">Why Kineti</a>
-      <a href="#how-it-works">How it works</a>
+      <a href="#why">What it catches</a>
+      <a href="#how-it-works">Pipeline</a>
       <a href="#install">Install</a>
       <a href="#pilot">Open-Core &amp; Pilot</a>
       <a href="/docs.html">Docs</a>
@@ -39,13 +39,13 @@
       <div class="hero-copy">
         <p class="section-label">Open-Core AI-PR Verification Gate</p>
         <h1 id="hero-title">Keep AI pull requests honest before they merge.</h1>
-        <p class="hero-lead">Standard CI runs whatever tests and workflow files sit on the PR branch—so an AI coding agent can turn a red build green by skipping tests, deleting assertions, or weakening CI rules. Kineti locks test policy to your protected base branch, catches PR-diff test tampering across Rust, Python, JS/TS, and Go, and signs verifiable audit packs right on your Linux runner.</p>
+        <p class="hero-lead">Lock test rules to <code>main</code>, catch skipped or deleted tests in PR diffs, and sign verifiable audit packs right on your Linux CI runner.</p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="#install">Install Kineti 1.0 (MIT) →</a>
-          <a class="btn btn-secondary" href="#pilot">Book a Founding Pilot</a>
+          <a class="btn btn-secondary" href="#pilot">Team Rollout</a>
         </div>
         <div class="hero-facts" aria-label="Architecture summary">
-          <span><i class="dot-pass" aria-hidden="true"></i> 100% offline Rust binary (~2.4 MB)</span>
+          <span><i class="dot-pass" aria-hidden="true"></i> ~2.4 MB offline Rust binary</span>
           <span><i class="dot-pass" aria-hidden="true"></i> MIT open-core CLI &amp; Action</span>
           <span><i class="dot-pass" aria-hidden="true"></i> Zero code leaves your runner</span>
         </div>
@@ -72,7 +72,7 @@
         </div>
 
         <div class="sim-panel" role="tabpanel" id="panel-policy" aria-labelledby="tab-policy">
-          <p class="sim-caption">An AI PR weakens <code>.kineti/gate.json</code> so required tests stop running. Kineti loads policy strictly from <code>main</code> and blocks immediately.</p>
+          <p class="sim-caption">PR weakens <code>.kineti/gate.json</code>. Kineti loads rules strictly from <code>main</code> and blocks.</p>
           <pre class="sim-block"><span class="hl-dim">--- a/.kineti/gate.json (protected main)</span>
 <span class="hl-dim">+++ b/.kineti/gate.json (pull request)</span>
 <span class="hl-del">-  "required_checks": ["unit"],</span>
@@ -80,14 +80,11 @@
 <span class="hl-add">+  "required_checks": [],</span>
 <span class="hl-add">+  "commands": { "unit": ["/bin/true"] }</span></pre>
           <pre class="sim-block"><span class="hl-cmd">$ kineti pr-check --base-ref main --head-ref HEAD</span>
-<span class="hl-del">BLOCKED (exit 1)</span> policy_tamper_detected=true
-  protected_path: .kineti/gate.json
-  base_policy:    loaded from git show main:.kineti/gate.json
-  override:       requires explicit --allow-policy-change from CI</pre>
+<span class="hl-del">BLOCKED (exit 1)</span> policy_tamper_detected=true · protected_path: .kineti/gate.json</pre>
         </div>
 
         <div class="sim-panel" role="tabpanel" id="panel-skip" aria-labelledby="tab-skip" hidden>
-          <p class="sim-caption">An AI PR silences failing tests with skip markers and deletes a test function. Kineti flags every line deterministically.</p>
+          <p class="sim-caption">PR silences a failing test with skip markers and deletes an assertion. Flagged line-by-line.</p>
           <pre class="sim-block"><span class="hl-dim">+++ b/tests/test_auth.py</span>
 <span class="hl-add">+@pytest.mark.skip(reason="flaky in agent run")</span>
  def test_token_expiry(): ...
@@ -97,34 +94,25 @@
 <span class="hl-add">+it.skip("rejects negative invoice", () =&gt; {});</span></pre>
           <pre class="sim-block"><span class="hl-cmd">$ kineti pr-check --base-ref main --head-ref HEAD</span>
 <span class="hl-del">BLOCKED (exit 1)</span> tamper_findings=3 · net_deleted_tests=1
-  <span class="hl-warn">tests/test_auth.py:14</span>     added_python_skip
-  <span class="hl-warn">tests/billing.test.js:9</span>   added_js_skip_or_only
-  <span class="hl-warn">tests/test_auth.py</span>        net_test_deletion (deleted=1, added=0)</pre>
+  <span class="hl-warn">tests/test_auth.py:14</span> added_python_skip · <span class="hl-warn">tests/billing.test.js:9</span> added_js_skip_or_only</pre>
         </div>
 
         <div class="sim-panel" role="tabpanel" id="panel-stale" aria-labelledby="tab-stale" hidden>
-          <p class="sim-caption">Tests pass locally, then one character changes inside <code>src/legacy/auth.py</code>. Streaming <code>O_NOFOLLOW</code> hashing catches the 1-byte drift.</p>
+          <p class="sim-caption">Tests pass, then 1 byte changes in <code>src/legacy/auth.py</code>. Streaming hashing catches the drift.</p>
           <pre class="sim-block"><span class="hl-dim">--- a/src/legacy/auth.py (when receipt was signed)</span>
 <span class="hl-dim">+++ b/src/legacy/auth.py (after "tiny cleanup" edit)</span>
 <span class="hl-del">-TOKEN_TTL_SECONDS = 3600</span>
 <span class="hl-add">+TOKEN_TTL_SECONDS = 3601</span></pre>
           <pre class="sim-block"><span class="hl-cmd">$ kineti test check --label unit</span>
-<span class="hl-del">BLOCKED (exit 4)</span> inputs or runtime changed
-  receipt_status: stale
-  inventory_hash: mismatch (1-byte drift in src/legacy/auth.py)
-  action:         re-run supervised test suite before merge</pre>
+<span class="hl-del">BLOCKED (exit 4)</span> receipt_status=stale · 1-byte drift in src/legacy/auth.py</pre>
         </div>
 
         <div class="sim-panel" role="tabpanel" id="panel-clean" aria-labelledby="tab-clean" hidden>
-          <p class="sim-caption">A real fix passes allowlisted tests on the final commit with zero policy or test tampering. Kineti signs the compliance bundle and writes the PR summary.</p>
-          <pre class="sim-block"><span class="hl-cmd">$ kineti test run --label unit --required-test tests/test_auth.py --parser exit-code -- pytest -q tests/</span>
-<span class="hl-cmd">$ kineti pr-check --base-ref main --head-ref HEAD --require-ci --require-evidence unit \</span>
-<span class="hl-cmd">    --audit-out .kineti/pr-audit.json --summary-out .kineti/pr-summary.md</span></pre>
+          <p class="sim-caption">Clean PR passes allowlisted tests on the final commit and emits a signed compliance bundle.</p>
+          <pre class="sim-block"><span class="hl-cmd">$ kineti test run --label unit --required-test tests/test_auth.py --parser junit -- pytest --junitxml=/dev/stdout -q</span>
+<span class="hl-cmd">$ kineti pr-check --base-ref main --head-ref HEAD --require-ci --require-evidence unit</span></pre>
           <pre class="sim-block"><span class="hl-add">PASSED (exit 0)</span> verdict=passed · schema=kineti-pr-audit-v1
-  base_policy_sha256:   verified against protected main
-  tamper_findings:      0 · policy_tamper_detected: false
-  signature:            Ed25519 verified (kineti-canonical-v2)
-  honesty_flags:        independent_assertion_quality_proven=false</pre>
+  base_policy_sha256: verified against main · signature: Ed25519 (kineti-canonical-v2)</pre>
         </div>
       </div>
     </div>
@@ -133,87 +121,94 @@
   <section class="band" id="why" aria-labelledby="why-title">
     <div class="shell">
       <div class="band-head">
-        <p class="section-label">Why Teams Use Kineti</p>
-        <h2 id="why-title">What happens when AI agents write pull requests at scale.</h2>
-        <p>Reviewers can’t manually inspect every line of an 800-line AI PR looking for a hidden <code>it.skip</code>, deleted assertion, or edited CI config. Kineti makes those shortcuts impossible to merge silently.</p>
+        <p class="section-label">What It Catches</p>
+        <h2 id="why-title">Three shortcuts AI agents take on red PRs.</h2>
       </div>
       <div class="pillars">
         <article class="pillar">
-          <div class="pillar-num">01 · BASE-BRANCH LOCK</div>
-          <h3>The PR cannot rewrite its own rules</h3>
-          <p><code>kineti pr-check</code> loads <code>.kineti/gate.json</code> strictly from your protected base commit. Any unauthorized PR change to gate rules, <code>.github/workflows/**</code>, or protected test configs fails closed with exit <code>1</code>.</p>
+          <div class="pillar-num">01 · POLICY TAMPER</div>
+          <h3>Rewriting CI or gate rules</h3>
+          <p>Reads <code>.kineti/gate.json</code> strictly from <code>main</code> and blocks PR edits to workflows or test configs.</p>
+          <div class="catch-snippet">
+            <code>.github/workflows/*</code>
+            <span class="catch-exit">exit 1</span>
+          </div>
         </article>
         <article class="pillar">
-          <div class="pillar-num">02 · POLYGLOT DIFF SCANNER</div>
-          <h3>Catches skipped &amp; deleted tests automatically</h3>
-          <p>Deterministically scans diffs across Rust, Python, JavaScript/TypeScript, and Go for deleted required test files, net test deletions, skip/ignore/only/xfail markers, and weakening flags like <code>--passWithNoTests</code>.</p>
+          <div class="pillar-num">02 · TEST TAMPERING</div>
+          <h3>Skipping or deleting tests</h3>
+          <p>Scans Rust, Python, JS/TS, and Go diffs for skip markers, deleted tests, and flags like <code>--passWithNoTests</code>.</p>
+          <div class="catch-snippet">
+            <code>@pytest.mark.skip · it.skip · #[ignore]</code>
+            <span class="catch-exit">exit 1</span>
+          </div>
         </article>
         <article class="pillar">
-          <div class="pillar-num">03 · OFFLINE &amp; AUDIT-READY</div>
-          <h3>Zero telemetry, signed change-control proof</h3>
-          <p>One ~2.4 MB Rust binary runs completely offline inside your own Linux GitHub Actions runner (<code>permissions: contents: read</code>) and emits Ed25519-signed <code>kineti-pr-audit-v1</code> JSON + Markdown Step Summaries.</p>
+          <div class="pillar-num">03 · STALE RECEIPTS</div>
+          <h3>Editing code after tests pass</h3>
+          <p>Streaming <code>O_NOFOLLOW</code> workspace hashing invalidates receipts on even a 1-byte post-test edit.</p>
+          <div class="catch-snippet">
+            <code>inventory_sha256 mismatch</code>
+            <span class="catch-exit">exit 4</span>
+          </div>
         </article>
       </div>
     </div>
   </section>
 
   <section class="band band-alt" id="how-it-works" aria-labelledby="flow-title">
-    <div class="shell flow-grid">
-      <div>
-        <p class="section-label">How It Works</p>
-        <h2 class="display-title" id="flow-title" style="font-size:clamp(30px,3.4vw,44px);line-height:1.1;margin-bottom:16px">Four checks on every pull request.</h2>
-        <p style="color:var(--ink-soft);margin:0 0 28px">Drop Kineti’s composite GitHub Action into your pull-request workflow. If a PR tampers with policy or tests, Kineti blocks immediately before untrusted PR test code even runs.</p>
-        <div class="stack-box">
-          <h3>Supported stacks &amp; parser transparency</h3>
-          <div class="stack-row">
-            <strong>Count-aware (<code>--parser auto</code>)</strong>
-            <span><code>cargo test</code> · multi-suite <code>bun test</code></span>
-          </div>
-          <div class="stack-row">
-            <strong>Polyglot (<code>--parser exit-code</code>)</strong>
-            <span><code>pytest</code> · <code>jest</code> · <code>vitest</code> · <code>go test</code> · <code>node --test</code> · <code>make test</code></span>
-          </div>
-          <div class="stack-row">
-            <strong>Diff anti-tamper languages</strong>
-            <span>Rust · Python · JS / TS · Go · CI &amp; <code>package.json</code></span>
-          </div>
-          <div class="stack-row">
-            <strong>Runtime requirements</strong>
-            <span>Linux / macOS POSIX · zero Node/Bun · zero network</span>
-          </div>
-        </div>
+    <div class="shell">
+      <div class="band-head">
+        <p class="section-label">Verification Pipeline</p>
+        <h2 id="flow-title">Four checks on every pull request.</h2>
+        <p>Tamper checks fail closed before untrusted PR test commands ever execute. <a href="/docs.html" style="text-decoration:underline">Read full reference →</a></p>
       </div>
 
-      <ol class="flow-list">
-        <li class="flow-item">
-          <span class="flow-step">01</span>
-          <div>
-            <h3>Preflight base-branch policy &amp; diff check</h3>
-            <p>Reads <code>.kineti/gate.json</code> from <code>git show &lt;base-sha&gt;:.kineti/gate.json</code> and scans the PR diff for policy edits, deleted required test files, added skip/ignore markers, or net test deletions. Fails closed before running PR code.</p>
+      <div class="pipeline-grid">
+        <article class="pipe-card">
+          <div class="pipe-head">
+            <span class="pipe-num">1</span>
+            <span class="pipe-tag">preflight</span>
           </div>
-        </li>
-        <li class="flow-item">
-          <span class="flow-step">02</span>
-          <div>
-            <h3>Supervised allowlisted test execution</h3>
-            <p>Runs only the exact shell-free <code>argv</code> commands declared on the base branch under a POSIX process-group deadline with streaming <code>O_NOFOLLOW</code> workspace hashing—detecting even 1-byte edits anywhere in the tree.</p>
+          <h3>Lock base policy</h3>
+          <p>Loads <code>.kineti/gate.json</code> from <code>main</code> and scans the PR diff for tampering.</p>
+        </article>
+        <article class="pipe-card">
+          <div class="pipe-head">
+            <span class="pipe-num">2</span>
+            <span class="pipe-tag">supervised</span>
           </div>
-        </li>
-        <li class="flow-item">
-          <span class="flow-step">03</span>
-          <div>
-            <h3>Fail-closed CI &amp; receipt verification</h3>
-            <p><code>kineti ci</code> verifies every required label has a fresh, untampered receipt matching exact <code>argv</code>, parser rules, and optional <code>min_passed</code> floors—blocking spoofed or stale evidence.</p>
+          <h3>Run allowlisted tests</h3>
+          <p>Executes exact <code>main</code> commands under a POSIX deadline and hashes the tree.</p>
+        </article>
+        <article class="pipe-card">
+          <div class="pipe-head">
+            <span class="pipe-num">3</span>
+            <span class="pipe-tag">fail-closed</span>
           </div>
-        </li>
-        <li class="flow-item">
-          <span class="flow-step">04</span>
-          <div>
-            <h3>Signed <code>kineti-pr-audit-v1</code> &amp; Step Summary</h3>
-            <p>Writes a canonical Ed25519-signed JSON compliance bundle and a clean Markdown table to <code>$GITHUB_STEP_SUMMARY</code> with exact SHAs, base policy digest, executed commands, findings, and explicit honesty flags.</p>
+          <h3>Verify receipts</h3>
+          <p><code>kineti ci</code> checks every required label for fresh, untampered evidence.</p>
+        </article>
+        <article class="pipe-card">
+          <div class="pipe-head">
+            <span class="pipe-num">4</span>
+            <span class="pipe-tag">Ed25519</span>
           </div>
-        </li>
-      </ol>
+          <h3>Sign audit bundle</h3>
+          <p>Outputs <code>kineti-pr-audit-v1</code> JSON and a Markdown GitHub Step Summary.</p>
+        </article>
+      </div>
+
+      <div class="stack-pills" aria-label="Supported languages and platforms">
+        <span class="stack-pills-label">Stacks:</span>
+        <span class="stack-pill">Rust (cargo test)</span>
+        <span class="stack-pill">Python (pytest)</span>
+        <span class="stack-pill">JS / TS (bun · jest · vitest)</span>
+        <span class="stack-pill">Go (go test)</span>
+        <span class="stack-pill">JUnit XML (--parser junit)</span>
+        <span class="stack-pill">Linux &amp; macOS (x64 · arm64)</span>
+        <span class="stack-pill">Zero Node/Bun at runtime</span>
+      </div>
     </div>
   </section>
 
@@ -222,7 +217,6 @@
       <div class="band-head">
         <p class="section-label">Install &amp; Quickstart · v1.0.1</p>
         <h2 id="install-title">Try Kineti 1.0 in minutes.</h2>
-        <p>The entire CLI, GitHub Action, and 4-scene offline demo are open-core under the MIT License. Choose how you want to run it today.</p>
       </div>
 
       <div class="install-shell">
@@ -230,16 +224,16 @@
           <button class="install-tab" type="button" role="tab" id="inst-tab-action" aria-selected="true" aria-controls="inst-panel-action">
             GitHub Action <span class="tag tag-ready">Teams</span>
           </button>
-          <button class="install-tab" type="button" role="tab" id="inst-tab-source" aria-selected="false" aria-controls="inst-panel-source">
-            Build from Source <span class="tag tag-ready">Works today</span>
-          </button>
           <button class="install-tab" type="button" role="tab" id="inst-tab-pkg" aria-selected="false" aria-controls="inst-panel-pkg">
             Cargo &amp; npm (1.0.1) <span class="tag tag-ready">Live</span>
+          </button>
+          <button class="install-tab" type="button" role="tab" id="inst-tab-source" aria-selected="false" aria-controls="inst-panel-source">
+            Build from Source <span class="tag tag-ready">4-scene demo</span>
           </button>
         </div>
 
         <div class="install-panel" role="tabpanel" id="inst-panel-action" aria-labelledby="inst-tab-action">
-          <p class="install-note">Commit <code>.kineti/gate.json</code> on your protected <code>main</code> branch, then add this read-only pull-request workflow to your repository:</p>
+          <p class="install-note">Commit <code>.kineti/gate.json</code> on <code>main</code>, then add this read-only workflow (<a href="/docs.html#policy" style="text-decoration:underline">policy schema →</a>):</p>
           <div class="code-wrap">
             <div class="code-head">
               <span>.github/workflows/kineti-pr-gate.yml</span>
@@ -269,31 +263,10 @@ jobs:
           summary-out: .kineti/pr-summary.md
           write-step-summary: "true"</code></pre>
           </div>
-          <p class="install-note" style="margin-top:16px">See the full <a href="/docs.html#policy" style="text-decoration:underline"><code>.kineti/gate.json</code> schema and <code>action.yml</code> reference →</a></p>
-        </div>
-
-        <div class="install-panel" role="tabpanel" id="inst-panel-source" aria-labelledby="inst-tab-source" hidden>
-          <p class="install-note">Build the ~2.4 MB stripped native binary with Rust/Cargo (runtime needs neither Node.js nor Bun), then run the 15-second offline 4-scene demo:</p>
-          <div class="code-wrap">
-            <div class="code-head">
-              <span>Build &amp; run 4-scene offline demo</span>
-              <button class="copy-btn" type="button" data-copy-target="code-source">Copy</button>
-            </div>
-            <pre id="code-source"><code># 1. Build native binary (Linux or macOS)
-cargo build --release --locked --manifest-path core-native/Cargo.toml
-./core-native/target/release/kineti --version
-
-# 2. Run all 4 live anti-tamper &amp; audit scenes offline (cleans up automatically)
-./examples/pilot-demo/run-demo.sh
-
-# 3. Preview &amp; apply initialization in a repository
-kineti init --goal "Ship verified pull requests"
-kineti init --goal "Ship verified pull requests" --apply</code></pre>
-          </div>
         </div>
 
         <div class="install-panel" role="tabpanel" id="inst-panel-pkg" aria-labelledby="inst-tab-pkg" hidden>
-          <p class="install-note"><strong>Published &amp; 4-platform verified:</strong> Kineti <code>1.0.1</code> is live on <a href="https://crates.io/crates/kineti-cli/1.0.1" rel="noopener noreferrer" style="text-decoration:underline">crates.io</a>, <a href="https://www.npmjs.com/package/kineti/v/1.0.1" rel="noopener noreferrer" style="text-decoration:underline">npm</a>, and <a href="https://github.com/therawlogs/kineti/releases/tag/v1.0.1" rel="noopener noreferrer" style="text-decoration:underline">GitHub Release v1.0.1</a> (verified from live registries across <code>linux-x64</code>, <code>linux-arm64</code>, <code>darwin-x64</code>, and <code>darwin-arm64</code>). Historical <code>0.6.1</code> packages remain retired.</p>
+          <p class="install-note">Live on <a href="https://crates.io/crates/kineti-cli/1.0.1" rel="noopener noreferrer" style="text-decoration:underline">crates.io</a>, <a href="https://www.npmjs.com/package/kineti/v/1.0.1" rel="noopener noreferrer" style="text-decoration:underline">npm</a>, and <a href="https://github.com/therawlogs/kineti/releases/tag/v1.0.1" rel="noopener noreferrer" style="text-decoration:underline">GitHub Release v1.0.1</a> (verified across Linux &amp; macOS <code>x64</code>/<code>arm64</code>):</p>
           <div class="code-wrap">
             <div class="code-head">
               <span>Install Kineti 1.0.1 via Cargo or npm</span>
@@ -306,6 +279,18 @@ cargo install kineti-cli --version '=1.0.1' --locked
 npm install -g kineti@1.0.1</code></pre>
           </div>
         </div>
+
+        <div class="install-panel" role="tabpanel" id="inst-panel-source" aria-labelledby="inst-tab-source" hidden>
+          <p class="install-note">Build the ~2.4 MB native binary with Rust and run the 15-second offline 4-scene demo:</p>
+          <div class="code-wrap">
+            <div class="code-head">
+              <span>Build &amp; run 4-scene offline demo</span>
+              <button class="copy-btn" type="button" data-copy-target="code-source">Copy</button>
+            </div>
+            <pre id="code-source"><code>cargo build --release --locked --manifest-path core-native/Cargo.toml
+./examples/pilot-demo/run-demo.sh</code></pre>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -313,59 +298,39 @@ npm install -g kineti@1.0.1</code></pre>
   <section class="band band-alt" id="pilot" aria-labelledby="pilot-title">
     <div class="shell">
       <div class="band-head">
-        <p class="section-label">Open-Core &amp; Founding Team Pilot</p>
-        <h2 id="pilot-title">Free MIT tool for builders. Hands-on Week 1 rollout for teams.</h2>
-        <p>Adopt Kineti yourself under the MIT License—or hire the founder to roll out base-branch policies, GitHub Actions wiring, and audit packs across your organization in five days.</p>
+        <p class="section-label">Open-Core &amp; Team Rollout</p>
+        <h2 id="pilot-title">Free MIT tool. Optional hands-on org rollout.</h2>
       </div>
 
-      <div class="pricing-grid">
+      <div class="pilot-grid">
         <article class="tier" aria-label="Open-Core MIT tier">
           <div>
             <div class="tier-eyebrow">Self-serve · MIT License</div>
             <h3>Open-Core CLI &amp; Action</h3>
-            <p class="tier-price">$0<span>forever · MIT</span></p>
-            <p class="tier-desc">Full offline verification gate for individual developers and self-serve engineering teams.</p>
+            <p class="tier-desc">Full offline verification gate for individual builders and self-serve teams.</p>
             <ul>
-              <li>Complete Rust <code>kineti</code> CLI binary &amp; <code>action.yml</code></li>
+              <li>Complete Rust <code>kineti</code> binary &amp; GitHub Action (<code>@v1</code>)</li>
               <li>Base-branch policy lock &amp; polyglot PR diff scanner</li>
               <li>Ed25519-signed <code>kineti-pr-audit-v1</code> &amp; Step Summary</li>
-              <li>Local <code>test run/check</code>, <code>spend</code>, CLI-only <code>undo</code>, allowlisted <code>mcp</code></li>
-              <li>Self-contained 4-scene offline demo</li>
+              <li>4-scene offline demo &amp; local MCP server</li>
             </ul>
           </div>
           <a class="btn btn-secondary" href="/docs.html">Read Documentation →</a>
         </article>
 
-        <article class="tier tier-featured" aria-label="Founding Team Setup">
+        <article class="tier tier-featured" aria-label="Founding Team Pilot">
           <div>
-            <div class="tier-eyebrow">Fixed-scope rollout · Most popular</div>
-            <h3>Founding Team Setup</h3>
-            <p class="tier-desc">Hands-on Week 1 rollout across your GitHub org with zero merge-queue disruption.</p>
+            <div class="tier-eyebrow">Hands-on rollout &amp; support</div>
+            <h3>Founding Team Pilot</h3>
+            <p class="tier-desc">Direct founder engineering help to roll out policies and CI across your GitHub org.</p>
             <ul>
-              <li>Unlimited repositories during pilot rollout</li>
-              <li>Custom base-branch <code>.kineti/gate.json</code> &amp; CODEOWNERS policy design</li>
+              <li>Custom <code>.kineti/gate.json</code> &amp; CODEOWNERS policy design</li>
               <li>Advisory-to-enforced Linux GitHub Actions rollout</li>
-              <li><code>kineti-pr-audit-v1</code> archival &amp; compliance pack wiring</li>
-              <li>30 days direct founder tuning &amp; rule adjustments</li>
-            </ul>
-          </div>
-          <a class="btn btn-primary" href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Setup">Book Founding Setup →</a>
-        </article>
-
-        <article class="tier" aria-label="Design-Partner Pilot">
-          <div>
-            <div class="tier-eyebrow">Ongoing engineering support</div>
-            <h3>Design-Partner Pilot</h3>
-            <p class="tier-desc">Continuous support, parser tuning, and direct founder engineering access.</p>
-            <ul>
-              <li>Unlimited repositories across your GitHub org</li>
-              <li>Prebuilt Linux <code>x86_64</code> / <code>aarch64</code> release binaries</li>
               <li>Custom parser &amp; anti-tamper rule tuning for your stack</li>
-              <li>1-business-day response for blocking CI regressions</li>
-              <li>Cancel anytime with 30 days’ notice</li>
+              <li><code>kineti-pr-audit-v1</code> compliance pack wiring</li>
             </ul>
           </div>
-          <a class="btn btn-secondary" href="mailto:hello@getkineti.com?subject=Kineti%20Design-Partner%20Pilot">Start Org Pilot →</a>
+          <a class="btn btn-primary" href="mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot">Book a Pilot →</a>
         </article>
       </div>
     </div>
@@ -373,24 +338,24 @@ npm install -g kineti@1.0.1</code></pre>
 
   <section class="band" id="limits" aria-labelledby="limits-title">
     <div class="shell">
-      <details class="limits-box" open>
-        <summary id="limits-title">What Kineti explicitly does — and does not — guarantee</summary>
+      <details class="limits-box">
+        <summary id="limits-title">Honest scope: what Kineti guarantees — and what it doesn’t</summary>
         <div class="limits-grid">
           <div class="limit-item">
             <h3>Signatures prove integrity, not assertion quality</h3>
-            <p>Ed25519 signatures bind exact commits, base policy digests, commands, and workspace hashes. They do not prove that test assertions are meaningful—every audit pack explicitly sets <code>"independent_assertion_quality_proven": false</code>.</p>
+            <p>Ed25519 signatures bind exact commits, base policy digests, commands, and workspace hashes. Every audit pack sets <code>"independent_assertion_quality_proven": false</code>.</p>
           </div>
           <div class="limit-item">
             <h3>Count-aware vs. exit-code parsers</h3>
-            <p><code>--parser auto</code> checks observed pass/fail/skip counts for <code>cargo test</code> and multi-suite <code>bun test</code>. Polyglot runners via <code>--parser exit-code</code> verify exit <code>0</code>, exact <code>argv</code>, required tests, and freshness while explicitly recording <code>"count_observed": false</code>.</p>
+            <p><code>--parser auto</code> checks counts for <code>cargo test</code>, <code>bun test</code>, and JUnit XML (<code>--parser junit</code>). <code>--parser exit-code</code> verifies exit <code>0</code> and freshness while recording <code>"count_observed": false</code>.</p>
           </div>
           <div class="limit-item">
-            <h3>Protected CI runner is the real trust boundary</h3>
-            <p>Kineti is not a laptop VM, container, or kernel sandbox. Local checks catch accidental staleness, while tamper-resistant enforcement comes from running on a protected CI runner reading base-branch <code>.kineti/gate.json</code>.</p>
+            <h3>Protected CI runner is the trust boundary</h3>
+            <p>Kineti is not a kernel sandbox. Tamper-resistant enforcement comes from running on a protected CI runner reading base-branch <code>.kineti/gate.json</code>.</p>
           </div>
           <div class="limit-item">
             <h3>No hidden hooks, unverified hosts &amp; argv secrets</h3>
-            <p>No automatic local command interception, no protected writes, and no provider-bill verification. Local MCP allows only <code>.kineti/gate.json</code> commands (undo is CLI-only); Cursor and Antigravity remain unverified. Never pass secrets inside command <code>argv</code>.</p>
+            <p>No automatic command interception, protected writes, or provider-bill verification. Cursor and Antigravity remain unverified; never pass secrets in <code>argv</code>.</p>
           </div>
         </div>
       </details>
@@ -400,7 +365,7 @@ npm install -g kineti@1.0.1</code></pre>
 
 <footer class="site-footer">
   <div class="shell footer-inner">
-    <span>© 2026 Kineti · Open-Core MIT (v1.0.1) · Updated November 24, 2026</span>
+    <span>© 2026 Kineti · Open-Core MIT (v1.0.1) · Updated November 26, 2026</span>
     <div class="footer-links">
       <a href="/docs.html">Documentation</a>
       <a href="/terms.html">Terms</a>
