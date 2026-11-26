@@ -27,11 +27,11 @@ Kineti closes that gap on your own Linux CI runner (`permissions: contents: read
 
 ## Open-Core (MIT) & Founding Team Pilot
 
-| Tier | License / Price | What You Get |
+| Tier | License / Scope | What You Get |
 | --- | --- | --- |
 | **Open-Core CLI & Action** | **Free · MIT License** | Full native Rust `kineti` binary, `kineti pr-check`, `action.yml`, polyglot diff scanner, supervised test receipts, `kineti-pr-audit-v1` signing, local MCP server, reported-spend checks, and offline demo. |
-| **Founding Team Setup** | **$1,500 one-time** | Hands-on Week 1 rollout across unlimited repositories in your org, base-branch `.kineti/gate.json` + CODEOWNERS policy design, GitHub Actions & audit-pack wiring, and 30 days of direct founder tuning. |
-| **Design-Partner Pilot** | **$299 / month per org** | Ongoing org support, rule/parser tuning across unlimited repos during pilot, priority CI hotfixes, and direct roadmap input. Cancel anytime with 30 days' notice. |
+| **Founding Team Setup** | **Fixed-scope rollout** | Hands-on Week 1 rollout across unlimited repositories in your org, base-branch `.kineti/gate.json` + CODEOWNERS policy design, GitHub Actions & audit-pack wiring, and 30 days of direct founder tuning. |
+| **Design-Partner Pilot** | **Ongoing support** | Ongoing org support, rule/parser tuning across unlimited repos during pilot, priority CI hotfixes, and direct roadmap input. Cancel anytime with 30 days' notice. |
 
 See [docs/PILOT-OFFER-AND-OUTREACH.md](docs/PILOT-OFFER-AND-OUTREACH.md) or email [hello@getkineti.com](mailto:hello@getkineti.com?subject=Kineti%20Founding%20Team%20Pilot) for Founding Team Pilot onboarding.
 
