@@ -1,30 +1,31 @@
-name: Publish Kineti 1.0.1 (crates.io, npm & GitHub Release assets)
+name: Publish Kineti Release (crates.io, npm & GitHub Release)
 
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Release version (e.g. 1.0.2)"
+        type: string
+        required: true
       candidate_run_id:
-        description: "Verified 4-platform release.yml run ID (e.g. 45342106639)"
+        description: "Verified 4-platform release.yml run ID"
         type: string
         required: true
-        default: "45342106639"
       expected_cargo_sha256:
-        description: "Exact reviewed SHA-256 of kineti-cli-1.0.1.crate"
+        description: "Exact reviewed SHA-256 of kineti-cli-<version>.crate"
         type: string
         required: true
-        default: "37088afe55bf7b45b050e3da49932ecd982827b6d86c88bd3a61554078e51c2f"
       expected_npm_sha256:
-        description: "Exact reviewed SHA-256 of kineti-1.0.1.tgz"
+        description: "Exact reviewed SHA-256 of kineti-<version>.tgz"
         type: string
         required: true
-        default: "81c5729a51d21fe7f414c33433f6055bdc0dcfe498ab25fee7c94612dc08f886"
       publish_crates:
-        description: "Publish kineti-cli 1.0.1 to crates.io"
+        description: "Publish kineti-cli to crates.io"
         type: boolean
         required: false
         default: true
       publish_npm:
-        description: "Publish exact reviewed kineti-1.0.1.tgz to npm"
+        description: "Publish exact reviewed npm tarball with provenance"
         type: boolean
         required: false
         default: true
@@ -32,25 +33,25 @@ on:
 permissions:
   contents: write
   actions: read
+  id-token: write
 
 concurrency:
-  group: publish-101-${{ github.ref }}
+  group: publish-${{ inputs.version }}
   cancel-in-progress: false
 
-# Manual owner-approved publication workflow for Kineti 1.0.1 (commit de407ee).
-# Uses the existing `registry-release` environment (v* tag policy, CARGO_REGISTRY_TOKEN, NPM_TOKEN).
-# Never runs on pull requests or automatic tag pushes.
+# Manual owner-approved publication workflow.
+# Supports OIDC Trusted Publishing (crates.io + npm --provenance) with token fallback.
 jobs:
   publish:
     if: github.event.repository.visibility == 'public'
     runs-on: ubuntu-24.04
     environment: registry-release
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Checkout exact reviewed v1.0.1 tag (de407ee)
+      - name: Checkout exact release tag v${{ inputs.version }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: v1.0.1
+          ref: v${{ inputs.version }}
           persist-credentials: false
 
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
@@ -59,75 +60,83 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
           RUN_ID: ${{ inputs.candidate_run_id }}
           EXPECTED_CARGO_SHA256: ${{ inputs.expected_cargo_sha256 }}
           EXPECTED_NPM_SHA256: ${{ inputs.expected_npm_sha256 }}
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "de407ee559d4828e390e166fc30cbbf4c79fa43c"
           mkdir -p .kineti/release-pkgs
           gh run download "$RUN_ID" -R "$REPO" -n repair-development-packages -D .kineti/release-pkgs
-          ACTUAL_CRATE=$(sha256sum .kineti/release-pkgs/kineti-cli-1.0.1.crate | awk '{print $1}')
-          ACTUAL_NPM=$(sha256sum .kineti/release-pkgs/kineti-1.0.1.tgz | awk '{print $1}')
+          ACTUAL_CRATE=$(sha256sum ".kineti/release-pkgs/kineti-cli-${VERSION}.crate" | awk '{print $1}')
+          ACTUAL_NPM=$(sha256sum ".kineti/release-pkgs/kineti-${VERSION}.tgz" | awk '{print $1}')
           echo "verified_crate_sha256=$ACTUAL_CRATE"
           echo "verified_npm_sha256=$ACTUAL_NPM"
           test "$ACTUAL_CRATE" = "$EXPECTED_CARGO_SHA256"
           test "$ACTUAL_NPM" = "$EXPECTED_NPM_SHA256"
 
-      - name: Attach exact verified archives to GitHub Release v1.0.1
+      - name: Attach verified archives and standalone tarballs to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          gh release upload v1.0.1 \
-            -R "$REPO" \
-            .kineti/release-pkgs/kineti-cli-1.0.1.crate \
-            .kineti/release-pkgs/kineti-1.0.1.tgz \
-            .kineti/release-pkgs/SHA256SUMS.json \
-            --clobber
-          gh release view v1.0.1 -R "$REPO" --json url,tagName,assets --jq '{url,tagName,assets:[.assets[].name]}'
+          FILES=(
+            ".kineti/release-pkgs/kineti-cli-${VERSION}.crate"
+            ".kineti/release-pkgs/kineti-${VERSION}.tgz"
+            ".kineti/release-pkgs/SHA256SUMS.json"
+          )
+          for extra in .kineti/release-pkgs/kineti-v"${VERSION}"-*.tar.gz .kineti/release-pkgs/SHA256SUMS.txt; do
+            if [ -f "$extra" ]; then
+              FILES+=("$extra")
+            fi
+          done
+          gh release upload "v${VERSION}" -R "$REPO" "${FILES[@]}" --clobber
+          gh release view "v${VERSION}" -R "$REPO" --json url,tagName,assets --jq '{url,tagName,assets:[.assets[].name]}'
 
-      - name: Preflight registry tokens and target version availability
+      - name: Request crates.io OIDC token (Trusted Publishing)
+        id: crates_oidc
+        if: inputs.publish_crates
+        continue-on-error: true
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Preflight registry availability and credentials
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          CARGO_OIDC_TOKEN: ${{ steps.crates_oidc.outputs.token }}
+          CARGO_FALLBACK_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           PUBLISH_CRATES: ${{ inputs.publish_crates }}
           PUBLISH_NPM: ${{ inputs.publish_npm }}
         run: |
           set -euo pipefail
-          if [ "$PUBLISH_CRATES" = "true" ] && [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-            echo "ERROR: CARGO_REGISTRY_TOKEN is missing in registry-release environment" >&2
-            exit 1
-          fi
-          if [ "$PUBLISH_NPM" = "true" ] && [ -z "${NPM_TOKEN:-}" ]; then
-            echo "ERROR: NPM_TOKEN is missing in registry-release environment" >&2
+          if [ "$PUBLISH_CRATES" = "true" ] && [ -z "${CARGO_OIDC_TOKEN:-}" ] && [ -z "${CARGO_FALLBACK_TOKEN:-}" ]; then
+            echo "ERROR: Neither crates.io OIDC nor CARGO_REGISTRY_TOKEN is available" >&2
             exit 1
           fi
           python3 - <<'PYCHECK'
           import json, os, urllib.error, urllib.request
 
+          ver = os.environ["VERSION"]
           pub_crates = os.environ["PUBLISH_CRATES"] == "true"
           pub_npm = os.environ["PUBLISH_NPM"] == "true"
 
-          if pub_npm:
+          if pub_npm and os.environ.get("NPM_TOKEN"):
               token = os.environ["NPM_TOKEN"]
               req = urllib.request.Request(
                   "https://registry.npmjs.org/-/whoami",
-                  headers={"Authorization": f"Bearer {token}", "User-Agent": "kineti-release/1.0.1"},
+                  headers={"Authorization": f"Bearer {token}", "User-Agent": f"kineti-release/{ver}"},
               )
               try:
                   with urllib.request.urlopen(req, timeout=30) as resp:
                       body = json.loads(resp.read().decode())
                       print(f"npm_whoami_ok=true user={body.get('username', '<ok>')}")
               except urllib.error.HTTPError as e:
-                  raise SystemExit(
-                      f"ERROR: NPM_TOKEN failed authentication (HTTP {e.code}); "
-                      "rotate NPM_TOKEN in GitHub Settings -> Environments -> registry-release"
-                  )
+                  raise SystemExit(f"ERROR: NPM_TOKEN failed authentication (HTTP {e.code})")
 
           def exists(url):
-              r = urllib.request.Request(url, headers={"User-Agent": "kineti-release/1.0.1"})
+              r = urllib.request.Request(url, headers={"User-Agent": f"kineti-release/{ver}"})
               try:
                   with urllib.request.urlopen(r, timeout=30) as resp:
                       return resp.status == 200
@@ -136,28 +145,30 @@ jobs:
                       return False
                   raise
 
-          if pub_crates and exists("https://crates.io/api/v1/crates/kineti-cli/1.0.1"):
-              raise SystemExit("ERROR: kineti-cli 1.0.1 already exists on crates.io")
-          if pub_npm and exists("https://registry.npmjs.org/kineti/1.0.1"):
-              raise SystemExit("ERROR: kineti@1.0.1 already exists on npm")
+          if pub_crates and exists(f"https://crates.io/api/v1/crates/kineti-cli/{ver}"):
+              raise SystemExit(f"ERROR: kineti-cli {ver} already exists on crates.io")
+          if pub_npm and exists(f"https://registry.npmjs.org/kineti/{ver}"):
+              raise SystemExit(f"ERROR: kineti@{ver} already exists on npm")
           print("preflight_registries_unoccupied=true")
           PYCHECK
 
-      - name: Publish kineti-cli 1.0.1 to crates.io
+      - name: Publish kineti-cli to crates.io
         if: inputs.publish_crates
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          VERSION: ${{ inputs.version }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates_oidc.outputs.token || secrets.CARGO_REGISTRY_TOKEN }}
           EXPECTED_CARGO_SHA256: ${{ inputs.expected_cargo_sha256 }}
         run: |
           set -euo pipefail
           cargo publish --locked --manifest-path core-native/crates/kineti-cli/Cargo.toml
           python3 - <<'PYCRATES'
           import json, os, time, urllib.error, urllib.request
-          url = "https://crates.io/api/v1/crates/kineti-cli/1.0.1"
+          ver = os.environ["VERSION"]
+          url = f"https://crates.io/api/v1/crates/kineti-cli/{ver}"
           last_err = None
-          for attempt in range(1, 9):
+          for _ in range(1, 13):
               try:
-                  req = urllib.request.Request(url, headers={"User-Agent": "kineti-release/1.0.1"})
+                  req = urllib.request.Request(url, headers={"User-Agent": f"kineti-release/{ver}"})
                   with urllib.request.urlopen(req, timeout=30) as resp:
                       data = json.loads(resp.read().decode())
                   checksum = str(data["version"]["checksum"])
@@ -167,45 +178,55 @@ jobs:
                   break
               except urllib.error.HTTPError as e:
                   last_err = e
-                  time.sleep(5)
+                  time.sleep(10)
           else:
-              raise SystemExit(f"ERROR: crates.io API did not return kineti-cli 1.0.1 after publish: {last_err}")
+              raise SystemExit(f"ERROR: crates.io API did not return kineti-cli {ver} after publish: {last_err}")
           PYCRATES
 
-      - name: Publish exact reviewed kineti-1.0.1.tgz to npm
+      - name: Publish exact reviewed tarball to npm with provenance
         if: inputs.publish_npm
         env:
+          VERSION: ${{ inputs.version }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_USERCONFIG: ${{ github.workspace }}/.kineti/publish-npmrc
           EXPECTED_NPM_SHA256: ${{ inputs.expected_npm_sha256 }}
         run: |
           set -euo pipefail
-          umask 077
-          printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$NPM_CONFIG_USERCONFIG"
-          npm publish .kineti/release-pkgs/kineti-1.0.1.tgz --access public --registry https://registry.npmjs.org
+          if [ -n "${NODE_AUTH_TOKEN:-}" ]; then
+            umask 077
+            printf '//registry.npmjs.org/:_authToken=%s\n' "$NODE_AUTH_TOKEN" > "$NPM_CONFIG_USERCONFIG"
+          else
+            rm -f "$NPM_CONFIG_USERCONFIG"
+            unset NPM_CONFIG_USERCONFIG
+          fi
+          npm publish ".kineti/release-pkgs/kineti-${VERSION}.tgz" --provenance --access public --registry https://registry.npmjs.org
           python3 - <<'PYNPM'
           import hashlib, json, os, time, urllib.error, urllib.request
-          url = "https://registry.npmjs.org/kineti/1.0.1"
+          ver = os.environ["VERSION"]
+          url = f"https://registry.npmjs.org/kineti/{ver}"
           last_err = None
-          for attempt in range(1, 9):
+          for attempt in range(1, 31):
               try:
-                  req = urllib.request.Request(url, headers={"User-Agent": "kineti-release/1.0.1"})
+                  req = urllib.request.Request(
+                      f"{url}?_t={int(time.time())}",
+                      headers={"User-Agent": f"kineti-release/{ver}", "Cache-Control": "no-cache"},
+                  )
                   with urllib.request.urlopen(req, timeout=30) as resp:
                       meta = json.loads(resp.read().decode())
                   tarball_url = meta["dist"]["tarball"]
                   with urllib.request.urlopen(tarball_url, timeout=60) as resp:
                       raw = resp.read()
                   actual = hashlib.sha256(raw).hexdigest()
-                  print("published_npm_version=" + str(meta["version"]))
+                  print(f"published_npm_version={meta['version']} attempt={attempt}")
                   print("published_npm_tarball=" + tarball_url)
                   print("published_npm_sha256=" + actual)
                   assert actual == os.environ["EXPECTED_NPM_SHA256"], "Published npm tarball SHA-256 differs from reviewed archive"
                   break
               except urllib.error.HTTPError as e:
                   last_err = e
-                  time.sleep(5)
+                  time.sleep(10)
           else:
-              raise SystemExit(f"ERROR: npm registry did not return kineti@1.0.1 after publish: {last_err}")
+              raise SystemExit(f"ERROR: npm registry did not return kineti@{ver} after 5 minutes: {last_err}")
           PYNPM
 
       - name: Remove temporary npmrc

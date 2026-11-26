@@ -1,14 +1,19 @@
-name: Published 1.0.1 exact-archive acceptance
+name: Published exact-archive acceptance
 
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Published version to verify (e.g. 1.0.1)"
+        type: string
+        required: true
+        default: "1.0.1"
       expected_cargo_sha256:
-        description: "Exact separately approved SHA-256 of kineti-cli-1.0.1.crate"
+        description: "Exact separately approved SHA-256 of kineti-cli-<version>.crate"
         type: string
         required: true
       expected_npm_sha256:
-        description: "Exact separately approved SHA-256 of kineti-1.0.1.tgz"
+        description: "Exact separately approved SHA-256 of kineti-<version>.tgz"
         type: string
         required: true
 
@@ -16,15 +21,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: published-101-acceptance-${{ github.ref }}
+  group: verify-published-${{ inputs.version }}-${{ github.ref }}
   cancel-in-progress: false
 
 # Manual verification after separately approved publication. This workflow only
 # reads registries and installs exact version names; it cannot publish or deploy.
-# Digest inputs bind bytes; providing them proves neither human identity nor
-# publication approval. Dispatch remains separate from the approval decision.
-# Standard public runners/included one-day artifact storage only. Keep the hard
-# zero-spend stop unchanged; quota exhaustion is a failure, never a paid fallback.
 jobs:
   installed:
     if: github.event.repository.visibility == 'public'
@@ -55,6 +56,7 @@ jobs:
           echo CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=musl-gcc >> "$GITHUB_ENV"
       - name: Verify approved archive bytes and actual published registry installs
         env:
+          VERSION: ${{ inputs.version }}
           TARGET_KEY: ${{ matrix.key }}
           RUST_TARGET: ${{ matrix.triple }}
           EXPECTED_OS: ${{ matrix.os }}
@@ -67,23 +69,24 @@ jobs:
           import hashlib, json, os, platform, subprocess, sys
           from pathlib import Path
           root = Path.cwd()
+          ver = os.environ["VERSION"]
           assert platform.system() == os.environ["EXPECTED_OS"], "wrong actual published-install runner OS"
           assert platform.machine() == os.environ["EXPECTED_MACHINE"], "wrong actual published-install runner architecture"
           assert subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() == os.environ["GITHUB_SHA"]
-          env = dict(os.environ, HOME=str(root / ".kineti/published-101-home"), CODEX_HOME=str(root / ".kineti/published-101-codex"),
-                     CARGO_HOME=str(root / ".kineti/published-101-cargo"), npm_config_cache=str(root / ".kineti/published-101-npm-cache"),
+          env = dict(os.environ, HOME=str(root / f".kineti/published-{ver}-home"), CODEX_HOME=str(root / f".kineti/published-{ver}-codex"),
+                     CARGO_HOME=str(root / f".kineti/published-{ver}-cargo"), npm_config_cache=str(root / f".kineti/published-{ver}-npm-cache"),
                      RUSTUP_HOME=os.environ.get("RUSTUP_HOME", str(Path.home() / ".rustup")))
           for name in ["HOME", "CODEX_HOME", "CARGO_HOME", "npm_config_cache"]:
               Path(env[name]).mkdir(parents=True, exist_ok=True)
-          work = Path(os.environ["RUNNER_TEMP"]) / "kineti-published-101-acceptance"
-          argv = [sys.executable, "scripts/accept-native-install.py", "--published-registry", "--artifacts", ".kineti/published-101/packages",
+          work = Path(os.environ["RUNNER_TEMP"]) / f"kineti-published-{ver}-acceptance"
+          argv = [sys.executable, "scripts/accept-native-install.py", "--published-registry", "--artifacts", f".kineti/published-{ver}/packages",
                   "--expected-cargo-sha256", os.environ["EXPECTED_CARGO_SHA256"], "--expected-npm-sha256", os.environ["EXPECTED_NPM_SHA256"],
                   "--target", os.environ["TARGET_KEY"], "--rust-target", os.environ["RUST_TARGET"], "--work-root", str(work)]
           subprocess.run(argv, env=env, check=True, timeout=1500)
           report_path = work / os.environ["TARGET_KEY"] / "report.json"
           report = json.loads(report_path.read_text())
           report.update(actual_runner=json.loads(subprocess.check_output([sys.executable, "scripts/native-runner-identity.py"], env=env, text=True)),
-                        acceptance_kind="exact published 1.0.1 registry packages; no publication authority",
+                        acceptance_kind=f"exact published {ver} registry packages; no publication authority",
                         acceptance_script_sha256=hashlib.sha256((root / "scripts/accept-native-install.py").read_bytes()).hexdigest())
           assert report["installation_source"] == "published registry names"
           assert report["cargo_registry_cached_crate_verified"] and report["npm_installed_payload_and_assets_match_reviewed_archive"]
@@ -94,15 +97,15 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: published-101-${{ matrix.key }}
+          name: published-${{ inputs.version }}-${{ matrix.key }}
           path: |
-            ${{ runner.temp }}/kineti-published-101-acceptance/${{ matrix.key }}/report.json
-            ${{ runner.temp }}/kineti-published-101-acceptance/${{ matrix.key }}/cargo-installed-inventory.json
-            ${{ runner.temp }}/kineti-published-101-acceptance/${{ matrix.key }}/npm-installed-inventory.json
-            ${{ runner.temp }}/kineti-published-101-acceptance/${{ matrix.key }}/acceptance-evidence/*.stdout
-            ${{ runner.temp }}/kineti-published-101-acceptance/${{ matrix.key }}/acceptance-evidence/*.stderr
-            .kineti/published-101/packages/registry-metadata.json
-            .kineti/published-101/packages/SHA256SUMS.json
+            ${{ runner.temp }}/kineti-published-${{ inputs.version }}-acceptance/${{ matrix.key }}/report.json
+            ${{ runner.temp }}/kineti-published-${{ inputs.version }}-acceptance/${{ matrix.key }}/cargo-installed-inventory.json
+            ${{ runner.temp }}/kineti-published-${{ inputs.version }}-acceptance/${{ matrix.key }}/npm-installed-inventory.json
+            ${{ runner.temp }}/kineti-published-${{ inputs.version }}-acceptance/${{ matrix.key }}/acceptance-evidence/*.stdout
+            ${{ runner.temp }}/kineti-published-${{ inputs.version }}-acceptance/${{ matrix.key }}/acceptance-evidence/*.stderr
+            .kineti/published-${{ inputs.version }}/packages/registry-metadata.json
+            .kineti/published-${{ inputs.version }}/packages/SHA256SUMS.json
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 7

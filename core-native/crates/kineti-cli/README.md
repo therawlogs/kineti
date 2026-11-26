@@ -50,7 +50,7 @@ kineti self-test
 ## Honest Limits
 
 - Ed25519 signatures prove record integrity relative to the signing key—not assertion quality (`"independent_assertion_quality_proven": false`).
-- Count-aware parsing (`--parser auto`) covers `cargo test` and multi-suite `bun test`; `--parser exit-code` runners explicitly record `"count_observed": false`.
+- Count-aware parsing (`--parser auto` or explicit `--parser junit`) covers `cargo test`, multi-suite `bun test`, and JUnit XML; `--parser exit-code` runners explicitly record `"count_observed": false`.
 - Real anti-tampering enforcement requires running `kineti pr-check` and `action.yml` on a protected Linux CI runner reading `.kineti/gate.json` from the protected base branch.
 - `kineti mcp` exposes 6 tools (undo/saga tools are CLI-only) and strictly enforces `.kineti/gate.json` command allowlists on `kineti_evidence_record`. Cursor and Antigravity remain unverified.
 - Receipts persist exact command `argv` without automatic secret redaction; pass credentials via environment/CI secrets only.

@@ -168,7 +168,7 @@ jobs:
             .kineti/native-artifacts/*.crate
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 7
 
   package:
     needs: native
@@ -184,15 +184,26 @@ jobs:
           pattern: repair-native-*
           merge-multiple: true
           path: .kineti/native-artifacts
-      - name: Assemble fixed-version development candidates
+      - name: Assemble fixed-version development candidates and standalone tarballs
         run: |
           set -euo pipefail
           mkdir -p .kineti/package-home .kineti/npm-cache
           env HOME="$PWD/.kineti/package-home" npm_config_cache="$PWD/.kineti/npm-cache" python3 scripts/build-native-package.py --artifacts .kineti/native-artifacts --output .kineti/packages
+          VERSION=$(python3 -c 'import json; print(json.load(open("package.json"))["version"])')
+          for target in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            STAGE=".kineti/standalone-${target}"
+            mkdir -p "$STAGE"
+            cp ".kineti/native-artifacts/kineti-${target}" "$STAGE/kineti"
+            chmod 0755 "$STAGE/kineti"
+            cp LICENSE README.md "$STAGE/"
+            tar -czf ".kineti/packages/kineti-v${VERSION}-${target}.tar.gz" -C "$STAGE" kineti LICENSE README.md
+          done
+          (cd .kineti/packages && sha256sum kineti-v"${VERSION}"-*.tar.gz > SHA256SUMS.txt)
           python3 - <<'PYCANDIDATE'
           import json, os
           from pathlib import Path
-          Path(".kineti/packages/candidate-kind.json").write_text(json.dumps({"commit": os.environ["GITHUB_SHA"], "kind": "unpublished final release candidate", "version": "1.0.1", "not_acceptance_for": "published packages until exact-archive approval and published-package recheck"}, indent=2) + "\n")
+          ver = json.loads(Path("package.json").read_text())["version"]
+          Path(".kineti/packages/candidate-kind.json").write_text(json.dumps({"commit": os.environ["GITHUB_SHA"], "kind": "unpublished final release candidate", "version": ver, "not_acceptance_for": "published packages until exact-archive approval and published-package recheck"}, indent=2) + "\n")
           PYCANDIDATE
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
@@ -200,7 +211,7 @@ jobs:
           path: .kineti/packages/
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: 1
+          retention-days: 7
 
   install:
     needs: package
@@ -273,4 +284,4 @@ jobs:
             ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/acceptance-evidence/*.stdout
             ${{ runner.temp }}/kineti-repair-install-acceptance/${{ matrix.key }}/acceptance-evidence/*.stderr
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7

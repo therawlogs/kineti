@@ -100,7 +100,7 @@ fn help() -> Value {
 fn subcommand_help(cmd: &str) -> Option<Value> {
     let usage = match cmd {
         "init" => "kineti init --goal <text> [--codex-home <dir>] [--apply] [--uninstall]",
-        "test" | "evidence" => "kineti test run --label <name> --required-test <path> [--parser auto|cargo|bun|exit-code] [--allow-ignored] [--min-passed <n>] [--timeout <sec>] -- <argv...> | kineti test check --label <name> [--max-age-min <n>] [--expect-argv <json>] | kineti test fingerprint",
+        "test" | "evidence" => "kineti test run --label <name> --required-test <path> [--parser auto|cargo|bun|junit|exit-code] [--allow-ignored] [--min-passed <n>] [--timeout <sec>] -- <argv...> | kineti test check --label <name> [--max-age-min <n>] [--expect-argv <json>] | kineti test fingerprint",
         "ci" => "kineti ci [--require-evidence <label>] [--evidence-commands <file>] [--max-age-min <n>]",
         "pr-check" => "kineti pr-check --base-ref <ref> [--head-ref <ref>] [--allow-policy-change] [--allow-test-reduction] [--max-deleted-tests <n>] [--require-evidence <label>] [--require-ci] [--max-age-min <n>] [--audit-out <path>] [--summary-out <path>]",
         "verify" => "kineti verify [--status | --trust]",

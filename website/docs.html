@@ -123,7 +123,7 @@ kineti init --goal "Enforce verified AI pull requests" --apply</code></pre>
       <ul>
         <li><code>required_checks</code>: Labels that <code>kineti ci</code> and <code>action.yml</code> must verify before passing.</li>
         <li><code>commands</code>: Exact shell-free <code>argv</code> arrays keyed by label. <code>kineti ci</code> fails closed (exit <code>1</code>) whenever a required label lacks a declared command mapping (unless explicitly passed via <code>--evidence-commands</code>).</li>
-        <li><code>parsers</code>: Optional per-label parser mode (<code>"auto"</code>, <code>"cargo"</code>, <code>"bun"</code>, or <code>"exit-code"</code>).</li>
+        <li><code>parsers</code>: Optional per-label parser mode (<code>"auto"</code>, <code>"cargo"</code>, <code>"bun"</code>, <code>"junit"</code>, or <code>"exit-code"</code>).</li>
         <li><code>min_passed</code>: Optional minimum observed passing count (either a positive integer or per-label map) for count-aware runners.</li>
         <li><code>required_tests</code>: Test files or directories that must exist and cannot be deleted or renamed away in a PR.</li>
         <li><code>protected_paths</code>: Files and directory prefixes guarded against unauthorized PR modification.</li>
@@ -339,7 +339,7 @@ jobs:
       <ul>
         <li><strong>CI vs. local boundary:</strong> A protected CI runner reading base-branch <code>.kineti/gate.json</code> is the enforcement boundary. Local same-account checks cannot stop an agent with local write access from modifying files outside Kineti.</li>
         <li><strong>Signatures are not assertion quality:</strong> Ed25519 signatures prove record integrity relative to the signing key—never that tests contain meaningful assertions or did not fabricate output (<code>"independent_assertion_quality_proven": false</code>).</li>
-        <li><strong>Parser transparency:</strong> Count-aware verification applies to <code>cargo test</code> and multi-suite <code>bun test</code>; <code>--parser exit-code</code> runners explicitly set <code>"count_observed": false</code>.</li>
+        <li><strong>Parser transparency:</strong> Count-aware verification applies to <code>cargo test</code>, multi-suite <code>bun test</code>, and JUnit XML (<code>--parser junit</code>); <code>--parser exit-code</code> runners explicitly set <code>"count_observed": false</code>.</li>
         <li><strong>No hidden interception:</strong> No automatic command interception, no kernel sandboxing, no protected writes, no atomic authorization of later writes, and no automatic redaction of credentials placed inside command arguments.</li>
         <li><strong>Confirmation flags:</strong> Interactive confirmation flags record acknowledgment; they do not establish human identity.</li>
       </ul>

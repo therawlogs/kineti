@@ -264,11 +264,64 @@ fn summary_bun(output: &str) -> Option<(u64, u64, u64)> {
     }
     Some((passed, failed, skipped))
 }
+fn xml_attr_u64(attrs: &str, name: &str) -> Option<u64> {
+    let pattern = format!(r#"(?i)(?:^|\s){name}\s*=\s*["'](\d+)["']"#);
+    let re = regex::Regex::new(&pattern).ok()?;
+    re.captures(attrs)?.get(1)?.as_str().parse::<u64>().ok()
+}
+fn parse_junit_attrs(attrs: &str) -> Option<(u64, u64, u64)> {
+    let tests = xml_attr_u64(attrs, "tests")?;
+    let failures = xml_attr_u64(attrs, "failures").unwrap_or(0);
+    let errors = xml_attr_u64(attrs, "errors").unwrap_or(0);
+    let skipped = xml_attr_u64(attrs, "skipped")
+        .unwrap_or(0)
+        .checked_add(xml_attr_u64(attrs, "disabled").unwrap_or(0))?;
+    let failed = failures.checked_add(errors)?;
+    let non_passed = failed.checked_add(skipped)?;
+    let passed = tests.checked_sub(non_passed)?;
+    Some((passed, failed, skipped))
+}
+fn summary_junit(output: &str) -> Option<(u64, u64, u64)> {
+    let suite_re = regex::Regex::new(r"(?is)<testsuite\b([^>]*)>").unwrap();
+    let suites_re = regex::Regex::new(r"(?is)<testsuites\b([^>]*)>").unwrap();
+    let mut matched = false;
+    let mut sum = (0u64, 0u64, 0u64);
+    for c in suite_re.captures_iter(output) {
+        if xml_attr_u64(&c[1], "tests").is_some() {
+            let (p, f, s) = parse_junit_attrs(&c[1])?;
+            sum.0 = sum.0.checked_add(p)?;
+            sum.1 = sum.1.checked_add(f)?;
+            sum.2 = sum.2.checked_add(s)?;
+            if sum.0 > MAX_SAFE_INT || sum.1 > MAX_SAFE_INT || sum.2 > MAX_SAFE_INT {
+                return None;
+            }
+            matched = true;
+        }
+    }
+    if !matched {
+        for c in suites_re.captures_iter(output) {
+            if xml_attr_u64(&c[1], "tests").is_some() {
+                let (p, f, s) = parse_junit_attrs(&c[1])?;
+                sum.0 = sum.0.checked_add(p)?;
+                sum.1 = sum.1.checked_add(f)?;
+                sum.2 = sum.2.checked_add(s)?;
+                if sum.0 > MAX_SAFE_INT || sum.1 > MAX_SAFE_INT || sum.2 > MAX_SAFE_INT {
+                    return None;
+                }
+                matched = true;
+            }
+        }
+    }
+    matched.then_some(sum)
+}
 fn summary(output: &str, parser: &str) -> Option<(u64, u64, u64)> {
     match parser {
         "cargo" => summary_cargo(output),
         "bun" => summary_bun(output),
-        "auto" => summary_cargo(output).or_else(|| summary_bun(output)),
+        "junit" => summary_junit(output),
+        "auto" => summary_cargo(output)
+            .or_else(|| summary_bun(output))
+            .or_else(|| summary_junit(output)),
         _ => None,
     }
 }
@@ -658,7 +711,7 @@ pub fn run(root: &Path, opts: Run) -> Result<Value> {
     } else {
         opts.parser.as_str()
     };
-    if !["auto", "cargo", "bun", "exit-code"].contains(&parser_mode) {
+    if !["auto", "cargo", "bun", "junit", "exit-code"].contains(&parser_mode) {
         return store::fail(2, format!("invalid parser: {parser_mode}"));
     }
     if opts.min_passed.is_some_and(|n| n == 0 || n > MAX_SAFE_INT) {
@@ -856,7 +909,7 @@ fn parse_policy_parser(policy: &Value, label: &str) -> Result<Option<String>> {
     let mode = v
         .as_str()
         .ok_or_else(|| Error(2, "gate.json parser entry must be a string".into()))?;
-    if !["auto", "cargo", "bun", "exit-code"].contains(&mode) {
+    if !["auto", "cargo", "bun", "junit", "exit-code"].contains(&mode) {
         return store::fail(2, format!("invalid configured parser: {mode}"));
     }
     Ok(Some(mode.to_owned()))
@@ -2185,5 +2238,71 @@ mod parser_and_signing_tests {
         assert_eq!(r["verification"]["count_observed"], false);
         assert_eq!(r["verification"]["passed"], Value::Null);
         assert!(check(&f.0, "pytest-exit", 60, None).is_ok());
+    }
+
+    #[test]
+    fn summary_parses_junit_xml_suites_and_rejects_malformed() {
+        let single = r#"<testsuite name="pytest" tests="5" errors="0" failures="0" skipped="0"></testsuite>"#;
+        assert_eq!(summary(single, "junit"), Some((5, 0, 0)));
+        assert_eq!(summary(single, "auto"), Some((5, 0, 0)));
+
+        let multi = r#"
+<testsuites tests="10" failures="2" errors="1" skipped="1">
+  <testsuite name="a" tests="4" failures="0" errors="0" skipped="0"/>
+  <testsuite name="b" tests="6" failures="1" errors="1" skipped="1"/>
+</testsuites>"#;
+        assert_eq!(summary(multi, "junit"), Some((7, 2, 1)));
+
+        let root_only = r#"<testsuites tests="3" failures="0" errors="0" disabled="1"/>"#;
+        assert_eq!(summary(root_only, "junit"), Some((2, 0, 1)));
+
+        // Malformed: failures + skipped > tests
+        let invalid = r#"<testsuite tests="1" failures="2" errors="0" skipped="0"/>"#;
+        assert_eq!(summary(invalid, "junit"), None);
+        assert_eq!(summary("plain text", "junit"), None);
+
+        let f = Fixture::new();
+        let r = run(
+            &f.0,
+            Run {
+                label: "junit-ok".into(),
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf '<testsuite name=\"py\" tests=\"3\" failures=\"0\" errors=\"0\" skipped=\"0\"/>\\n'".into(),
+                ],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "junit".into(),
+                min_passed: Some(3),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(r["verification"]["parser"], "kineti-native-summary-v1");
+        assert_eq!(r["verification"]["count_observed"], true);
+        assert_eq!(r["verification"]["passed"], 3);
+        assert!(check(&f.0, "junit-ok", 60, None).is_ok());
+
+        // Zero tests in JUnit XML fails min_passed >= 1.
+        let err = run(
+            &f.0,
+            Run {
+                label: "junit-zero".into(),
+                argv: vec![
+                    "/bin/sh".into(),
+                    "-c".into(),
+                    "printf '<testsuite tests=\"0\" failures=\"0\" errors=\"0\" skipped=\"0\"/>\\n'".into(),
+                ],
+                tests: vec!["test.txt".into()],
+                timeout: 5,
+                kind: "test".into(),
+                parser: "junit".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.0, 1);
     }
 }
